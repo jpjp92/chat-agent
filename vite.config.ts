@@ -4,13 +4,6 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  define: {
-    // Vercel 시스템 환경 변수를 클라이언트 코드에서 사용할 수 있도록 주입합니다.
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
-    'process.env.API_KEY2': JSON.stringify(process.env.API_KEY2),
-    'process.env.API_KEY3': JSON.stringify(process.env.API_KEY3),
-    'process.env.API_KEY4': JSON.stringify(process.env.API_KEY4)
-  },
   server: {
     port: 3000,
     open: true
