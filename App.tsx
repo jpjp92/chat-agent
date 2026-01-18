@@ -279,6 +279,7 @@ const App: React.FC = () => {
       } catch (e: any) {
         showToast(language === 'ko' ? "파일 업로드에 실패했습니다." : "File upload failed.", "error");
         console.error("Upload error:", e);
+        return;
       } finally {
         setLoadingStatus(null);
       }

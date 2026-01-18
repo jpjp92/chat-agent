@@ -42,6 +42,17 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
       bucket
     })
   });
+
+  if (!response.ok) {
+    if (response.status === 413) throw new Error("파일 용량이 너무 큼 (Vercel 제한 4.5MB)");
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+  }
+
   return response.json();
 };
 /**

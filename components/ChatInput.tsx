@@ -9,7 +9,7 @@ interface ChatInputProps {
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast }) => {
   const [input, setInput] = useState('');
@@ -22,10 +22,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const finalTranscriptRef = useRef('');
 
   const i18n = {
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 10MB)" },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 10MB)" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 10MB)" },
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 10Mo)" }
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)" },
+    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)" },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)" },
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)" }
   };
 
   const t = i18n[language] || i18n.ko;
