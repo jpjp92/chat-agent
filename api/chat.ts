@@ -8,6 +8,9 @@ const API_KEYS = [
     process.env.API_KEY3,
     process.env.API_KEY4,
     process.env.API_KEY5,
+    process.env.API_KEY6,
+    process.env.API_KEY7,
+    process.env.API_KEY8,
 ].filter(Boolean) as string[];
 
 const CHAT_MODELS = ['gemini-2.5-flash'];
@@ -122,7 +125,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         tools: isYoutubeRequest ? [] : [{ googleSearch: {} }],
                         temperature: 0.4,
                         topP: 0.8,
-                        topK: 40
+                        topK: 40,
+                        maxOutputTokens: 2048
                     }
                 });
 

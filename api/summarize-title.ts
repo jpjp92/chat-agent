@@ -7,6 +7,9 @@ const API_KEYS = [
     process.env.API_KEY3,
     process.env.API_KEY4,
     process.env.API_KEY5,
+    process.env.API_KEY6,
+    process.env.API_KEY7,
+    process.env.API_KEY8,
 ].filter(Boolean) as string[];
 
 const SUMMARY_MODELS = ['gemma-3-4b-it'];
