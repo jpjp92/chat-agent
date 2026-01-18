@@ -57,12 +57,7 @@
 - 안정적인 서비스를 위해 최소 2개 이상의 API 키를 권장합니다.
 
 ### 2. Vercel 환경 변수 설정
-Vercel 프로젝트 설정에서 다음 환경 변수를 추가하세요:
-- **API_KEY**: 첫 번째 Gemini API Key (필수)
-- **API_KEY2**: 두 번째 Gemini API Key (선택)
-- **API_KEY3**: 세 번째 Gemini API Key (선택)
-- **API_KEY4**: 네 번째 Gemini API Key (선택)
-- **API_KEY5**: 다섯 번째 Gemini API Key (선택)
+Vercel 프로젝트 설정에서 Gemini **API_KEY**를 추가하세요. (안정적인 서비스를 위해 다수의 키 등록을 권장합니다.)
 
 ### 3. 배포
 ```bash
