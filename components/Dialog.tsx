@@ -1,4 +1,5 @@
 import React from 'react';
+import { Language } from '../types';
 
 interface DialogProps {
     isOpen: boolean;
@@ -7,10 +8,20 @@ interface DialogProps {
     type?: 'danger' | 'info';
     onConfirm: () => void;
     onCancel: () => void;
+    language: Language;
 }
 
-const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', onConfirm, onCancel }) => {
+const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', onConfirm, onCancel, language }) => {
     if (!isOpen) return null;
+
+    const i18n = {
+        ko: { confirm: '확인', delete: '삭제하기', cancel: '취소' },
+        en: { confirm: 'Confirm', delete: 'Delete', cancel: 'Cancel' },
+        es: { confirm: 'Confirmar', delete: 'Eliminar', cancel: 'Cancelar' },
+        fr: { confirm: 'Confirmer', delete: 'Supprimer', cancel: 'Annuler' }
+    };
+
+    const t = i18n[language] || i18n.ko;
 
     return (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
@@ -27,8 +38,8 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', 
                         <div className="flex flex-col items-center text-center space-y-4">
                             {/* Icon */}
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-2 ${type === 'danger'
-                                    ? 'bg-red-50 dark:bg-red-500/10 text-red-500 shadow-sm'
-                                    : 'bg-primary-50 dark:bg-primary-500/10 text-primary-500 shadow-sm'
+                                ? 'bg-red-50 dark:bg-red-500/10 text-red-500 shadow-sm'
+                                : 'bg-primary-50 dark:bg-primary-500/10 text-primary-500 shadow-sm'
                                 }`}>
                                 <i className={`fa-solid ${type === 'danger' ? 'fa-trash-can' : 'fa-circle-info'} text-xl`}></i>
                             </div>
@@ -47,17 +58,17 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', 
                             <button
                                 onClick={onConfirm}
                                 className={`w-full py-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] shadow-lg ${type === 'danger'
-                                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/20'
-                                        : 'bg-primary-600 hover:bg-primary-700 text-white shadow-primary-600/20'
+                                    ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/20'
+                                    : 'bg-primary-600 hover:bg-primary-700 text-white shadow-primary-600/20'
                                     }`}
                             >
-                                {type === 'danger' ? '삭제하기' : '확인'}
+                                {type === 'danger' ? t.delete : t.confirm}
                             </button>
                             <button
                                 onClick={onCancel}
                                 className="w-full py-4 rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-white/10 transition-all active:scale-[0.98]"
                             >
-                                취소
+                                {t.cancel}
                             </button>
                         </div>
                     </div>

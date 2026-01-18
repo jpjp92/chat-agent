@@ -6,8 +6,16 @@ import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
-import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchYoutubeTranscript } from './services/geminiService';
+import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
 import { Role, Message, ChatSession, UserProfile, Language, GroundingSource, MessageAttachment } from './types';
+
+interface SupabaseUser {
+  id: number;
+  nickname: string;
+  created_at: string;
+  display_name?: string;
+  avatar_url?: string;
+}
 
 const App: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -16,6 +24,9 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [loginNickname, setLoginNickname] = useState('');
 
   // Dialog & Toast State
   const [dialogConfig, setDialogConfig] = useState<{
@@ -52,67 +63,171 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const savedSessions = localStorage.getItem('gemini_chat_sessions');
-    if (savedSessions) {
-      try {
-        const parsed = JSON.parse(savedSessions);
-        setSessions(parsed);
-        if (parsed.length > 0) setCurrentSessionId(parsed[0].id);
-      } catch (e) {
-        console.error("Failed to parse sessions", e);
-        handleNewSession();
-      }
-    } else {
-      handleNewSession();
-    }
+    const initAuth = async () => {
+      let user: SupabaseUser | null = null;
+      const savedUser = localStorage.getItem('gemini_chat_user');
 
-    const savedProfile = localStorage.getItem('gemini_user_profile');
-    if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+      if (savedUser) {
+        user = JSON.parse(savedUser);
+      } else {
+        // 자동 익명 로그인 처리
+        const randomID = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const guestNickname = `사용자_${randomID}`;
+        try {
+          const { user: newUser, error } = await loginUser(guestNickname);
+          if (!error && newUser) {
+            user = newUser;
+            localStorage.setItem('gemini_chat_user', JSON.stringify(newUser));
+          }
+        } catch (e) {
+          console.error("Auto-login failed:", e);
+        }
+      }
+
+      if (user) {
+        setCurrentUser(user);
+        setUserProfile({
+          name: user.display_name || user.nickname,
+          avatarUrl: user.avatar_url || "https://images.unsplash.com/photo-1591160690555-5debfba289f0?w=200&h=200&fit=crop"
+        });
+        await loadUserSessions(user.id);
+      }
+      setIsAuthLoading(false);
+    };
+
+    initAuth();
 
     const savedLang = localStorage.getItem('gemini_language') as Language;
     if (savedLang) setLanguage(savedLang);
   }, []);
 
-  useEffect(() => {
-    if (sessions.length > 0) {
-      try {
-        localStorage.setItem('gemini_chat_sessions', JSON.stringify(sessions));
-      } catch (e) { }
+  const loadUserSessions = async (userId: number) => {
+    try {
+      const { sessions: dbSessions } = await fetchSessions(userId);
+      if (dbSessions && dbSessions.length > 0) {
+        // Map DB sessions to ChatSession type
+        const mappedSessions: ChatSession[] = await Promise.all(dbSessions.map(async (s: any) => {
+          // 각 세션의 마지막 메시지들을 미리 가져오지는 않고, 선택 시 가져옴
+          return {
+            id: s.id,
+            title: s.title,
+            messages: [], // 초기엔 빈 배열, 선택 시 로드
+            createdAt: new Date(s.created_at).getTime()
+          };
+        }));
+        setSessions(mappedSessions);
+        if (mappedSessions.length > 0) handleSelectSession(mappedSessions[0].id);
+      } else {
+        await handleNewSession(userId);
+      }
+    } catch (e) {
+      console.error("Failed to load sessions", e);
     }
-  }, [sessions]);
+  };
+
+  const handleReset = () => {
+    localStorage.removeItem('gemini_chat_user');
+    window.location.reload(); // 새로고침하여 새로운 익명 사용자로 다시 시작
+  };
+  // Supabase 연동으로 인해 로컬스토리지 자동 저장은 비활성화하거나 유저 프로필만 남깁니다.
+  useEffect(() => {
+    // profile만 저장
+  }, [userProfile]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [sessions, currentSessionId, isTyping]);
 
-  const handleNewSession = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: 'New Chat',
-      messages: [],
-      createdAt: Date.now()
-    };
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newSession.id);
-    setIsSidebarOpen(false);
+  const handleNewSession = async (userId?: number) => {
+    const targetUserId = userId || currentUser?.id;
+    if (!targetUserId) return;
+
+    try {
+      const { session, error } = await createSession(targetUserId);
+      if (error) throw new Error(error);
+
+      const newSession: ChatSession = {
+        id: session.id,
+        title: session.title,
+        messages: [],
+        createdAt: new Date(session.created_at).getTime()
+      };
+      setSessions(prev => [newSession, ...prev]);
+      setCurrentSessionId(newSession.id);
+      setIsSidebarOpen(false);
+    } catch (e: any) {
+      showToast(e.message, "error");
+    }
   };
 
-  const handleSelectSession = (id: string) => {
+  const handleSelectSession = async (id: string) => {
     setCurrentSessionId(id);
     setIsSidebarOpen(false);
+
+    // 해당 세션의 메시지 로드 (비어있는 경우에만)
+    const session = sessions.find(s => s.id === id);
+    if (session && session.messages.length === 0) {
+      try {
+        const { messages, error } = await fetchSessionMessages(id);
+        if (error) throw new Error(error);
+        if (messages) {
+          const mappedMessages: Message[] = messages.map((m: any) => ({
+            id: m.id,
+            role: m.role === 'user' ? Role.USER : Role.MODEL,
+            content: m.content,
+            timestamp: new Date(m.created_at).getTime(),
+            groundingSources: m.grounding_sources,
+            attachment: m.attachment_url ? {
+              fileName: m.attachment_url.includes('pdf') ? 'document.pdf' : 'image_attached',
+              mimeType: m.attachment_url,
+              data: '' // 실제 데이터는 스토리지가 아니어서 없음
+            } : undefined
+          }));
+          setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: mappedMessages } : s));
+        }
+      } catch (e: any) {
+        showToast(e.message, "error");
+      }
+    }
   };
 
-  const handleDeleteSession = (id: string) => {
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    if (currentSessionId === id) setCurrentSessionId(updated.length > 0 ? updated[0].id : null);
-    if (updated.length === 0) handleNewSession();
+  const handleDeleteSession = async (id: string) => {
+    try {
+      await deleteSession(id);
+      const updated = sessions.filter(s => s.id !== id);
+      setSessions(updated);
+      if (currentSessionId === id) setCurrentSessionId(updated.length > 0 ? updated[0].id : null);
+      if (updated.length === 0) await handleNewSession();
+    } catch (e: any) {
+      showToast(e.message, "error");
+    }
   };
 
-  const handleUpdateProfile = (profile: UserProfile) => {
-    const finalProfile = { ...profile };
-    setUserProfile(finalProfile);
-    localStorage.setItem('gemini_user_profile', JSON.stringify(finalProfile));
+  const handleUpdateProfile = async (profile: UserProfile) => {
+    try {
+      if (currentUser) {
+        // 1. Supabase DB 업데이트
+        await updateRemoteUserProfile(currentUser.id, {
+          display_name: profile.name,
+          avatar_url: profile.avatarUrl
+        });
+
+        // 2. 현재 유저 상태 업데이트 (변경된 정보 반영)
+        const updatedUser = {
+          ...currentUser,
+          display_name: profile.name,
+          avatar_url: profile.avatarUrl
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('gemini_chat_user', JSON.stringify(updatedUser));
+      }
+
+      // 3. UI 프로필 상태 업데이트
+      setUserProfile(profile);
+      showToast(language === 'ko' ? "프로필이 업데이트되었습니다." : "Profile updated.", "success");
+    } catch (e: any) {
+      showToast(e.message, "error");
+    }
   };
 
   const handleLanguageChange = (lang: Language) => {
@@ -133,10 +248,47 @@ const App: React.FC = () => {
       attachment
     };
 
+    // 0. 첨부파일이 있는 경우 Supabase Storage에 먼저 업로드
+    let finalAttachment = attachment;
+    if (attachment && attachment.data) {
+      try {
+        const isImage = attachment.mimeType.startsWith('image/');
+        const isPDF = attachment.mimeType === 'application/pdf';
+
+        // 자연스러운 로딩 문구 설정
+        const loadingMsgs = {
+          ko: isImage ? "이미지를 분석 중입니다..." : isPDF ? "문서를 분석 중입니다..." : "파일을 분석 중입니다...",
+          en: isImage ? "Analyzing image..." : isPDF ? "Analyzing document..." : "Analyzing file...",
+          es: isImage ? "Analizando imagen..." : isPDF ? "Analizando documento..." : "Analizando archivo...",
+          fr: isImage ? "Analyse de l'image..." : isPDF ? "Analyse du document..." : "Analyse du fichier..."
+        };
+
+        setLoadingStatus(loadingMsgs[language as keyof typeof loadingMsgs] || loadingMsgs.ko);
+
+        const bucket = isImage ? 'chat-imgs' : 'chat-docs';
+        const uploadResult = await uploadToStorage({
+          fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : 'image.png'),
+          data: attachment.data,
+          mimeType: attachment.mimeType
+        }, bucket);
+
+        if (uploadResult.error) throw new Error(uploadResult.error);
+
+        // 업로드된 실제 URL로 교체
+        finalAttachment = { ...attachment, data: uploadResult.url };
+      } catch (e: any) {
+        showToast(language === 'ko' ? "파일 업로드에 실패했습니다." : "File upload failed.", "error");
+        console.error("Upload error:", e);
+      } finally {
+        setLoadingStatus(null);
+      }
+    }
+
     let latestHistory: Message[] = [];
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
-        latestHistory = [...s.messages, userMessage];
+        // UI에는 즉시 표시 (원본 base64 또는 URL 둘 다 ChatMessage에서 지원됨)
+        latestHistory = [...s.messages, { ...userMessage, attachment: finalAttachment }];
         return { ...s, messages: latestHistory };
       }
       return s;
@@ -169,7 +321,7 @@ const App: React.FC = () => {
 
         // 2. 자막 추출 시도 - 1초
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-        const match = url.match(regExp);
+        const match = regExp.exec(url);
         const videoId = (match && match[7].length === 11) ? match[7] : null;
 
         let transcript = null;
@@ -234,13 +386,21 @@ const App: React.FC = () => {
             }
             return s;
           }));
-        }
+        },
+        currentSessionId
       );
 
       // 제목 자동 업데이트
       if (latestHistory.length <= 2) {
         const newTitle = await summarizeConversation([...latestHistory, { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() }], language);
         setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, title: newTitle } : s));
+
+        // Supabase DB에도 반영
+        try {
+          await updateSessionTitle(currentSessionId, newTitle);
+        } catch (e) {
+          console.error("Failed to update session title in DB", e);
+        }
       }
 
     } catch (error: any) {
@@ -251,8 +411,17 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRenameSession = (id: string, newTitle: string) => {
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
+  const handleRenameSession = async (id: string, newTitle: string) => {
+    try {
+      await updateSessionTitle(id, newTitle);
+      setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
+    } catch (e) {
+      console.error("Failed to rename session", e);
+      showToast(language === 'ko' ? "채팅방 이름 변경에 실패했습니다." :
+        language === 'es' ? "Error al cambiar el nombre del chat." :
+          language === 'fr' ? "Échec du renommage du chat." :
+            "Failed to rename chat.", "error");
+    }
   };
 
   const showConfirmDialog = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' = 'info') => {
@@ -274,6 +443,19 @@ const App: React.FC = () => {
 
   const currentWelcome = (welcomeMessages as any)[language] || welcomeMessages.ko;
 
+  if (isAuthLoading || !currentUser) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white dark:bg-[#131314]">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">
+            {language === 'ko' ? '세션을 준비 중입니다...' : 'Preparing session...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
       <ChatSidebar
@@ -284,7 +466,7 @@ const App: React.FC = () => {
         onClose={() => setIsSidebarOpen(false)}
         onLanguageChange={handleLanguageChange}
         onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
+        onNewSession={() => handleNewSession()}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
         showConfirmDialog={showConfirmDialog}
@@ -296,6 +478,8 @@ const App: React.FC = () => {
           onUpdateProfile={handleUpdateProfile}
           onMenuClick={() => setIsSidebarOpen(true)}
           showToast={showToast}
+          onReset={handleReset}
+          language={language}
         />
 
         <main className="flex-1 overflow-y-auto px-2 sm:px-10 lg:px-20 custom-scrollbar pt-2 sm:pt-4">
@@ -315,7 +499,7 @@ const App: React.FC = () => {
 
             <div className="flex flex-col space-y-2">
               {currentSession?.messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} />
+                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} />
               ))}
             </div>
 
@@ -351,7 +535,10 @@ const App: React.FC = () => {
           <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} />
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
-              Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)
+              {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
+                language === 'es' ? 'Gemini puede cometer errores. (Análisis de URL y soporte PDF)' :
+                  language === 'fr' ? 'Gemini peut faire des erreurs. (Analyse URL et support PDF)' :
+                    'Gemini may display inaccurate info. (URL analysis & PDF support)'}
             </p>
           </div>
         </footer>
@@ -365,6 +552,7 @@ const App: React.FC = () => {
         type={dialogConfig.type}
         onConfirm={dialogConfig.onConfirm}
         onCancel={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))}
+        language={language}
       />
 
       {/* Global Toast */}

@@ -11,6 +11,80 @@ const ERROR_MESSAGES: Record<Language, string> = {
 };
 
 /**
+ * 사용자 정보 (Supabase 연동)
+ */
+export const loginUser = async (nickname: string) => {
+  const response = await fetch('/api/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname })
+  });
+  return response.json();
+};
+
+export const updateRemoteUserProfile = async (userId: number, profile: { display_name?: string; avatar_url?: string }) => {
+  const response = await fetch('/api/auth', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: userId, ...profile })
+  });
+  return response.json();
+};
+
+export const uploadToStorage = async (file: { fileName: string; data: string; mimeType: string }, bucket: string) => {
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.fileName,
+      fileData: file.data,
+      mimeType: file.mimeType,
+      bucket
+    })
+  });
+  return response.json();
+};
+/**
+ * 세션 관리
+ */
+export const fetchSessions = async (userId: number) => {
+  const response = await fetch(`/api/sessions?user_id=${userId}`);
+  return response.json();
+};
+
+export const createSession = async (userId: number, title?: string) => {
+  const response = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, title })
+  });
+  return response.json();
+};
+
+export const fetchSessionMessages = async (sessionId: string) => {
+  const response = await fetch(`/api/sessions?session_id=${sessionId}`);
+  return response.json();
+};
+
+export const deleteSession = async (sessionId: string) => {
+  const response = await fetch('/api/sessions', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId })
+  });
+  return response.json();
+};
+
+export const updateSessionTitle = async (sessionId: string, title: string) => {
+  const response = await fetch('/api/sessions', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, title })
+  });
+  return response.json();
+};
+
+/**
  * URL에서 직접 텍스트를 추출 (백엔드 프록시 이용)
  */
 export const fetchUrlContent = async (url: string): Promise<string> => {
@@ -83,7 +157,7 @@ export const summarizeConversation = async (history: Message[], language: Langua
     const response = await fetch('/api/summarize-title', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ history })
+      body: JSON.stringify({ history, language })
     });
     const data = await response.json();
     return data.title || "New Chat";
@@ -100,13 +174,14 @@ export const streamChatResponse = async (
   attachment?: MessageAttachment,
   webContent?: string,
   contentType: 'text' | 'web' | 'video' = 'text',
-  onMetadata?: (sources: GroundingSource[]) => void
+  onMetadata?: (sources: GroundingSource[]) => void,
+  sessionId?: string
 ) => {
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, language, attachment, webContent })
+      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId })
     });
 
     if (!response.ok) {

@@ -5,19 +5,31 @@ import remarkGfm from 'https://esm.sh/remark-gfm@4';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 
+type Language = 'ko' | 'en' | 'es' | 'fr';
+
 interface ChatMessageProps {
   message: Message;
 }
 
 interface ChatMessageFullProps extends ChatMessageProps {
   userProfile?: UserProfile;
+  language?: Language;
 }
 
-const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile }) => {
+const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko' }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+
+  const i18n = {
+    ko: { pdf: 'PDF 문서', attachment: '첨부파일' },
+    en: { pdf: 'PDF Document', attachment: 'Attachment' },
+    es: { pdf: 'Documento PDF', attachment: 'Adjunto' },
+    fr: { pdf: 'Document PDF', attachment: 'Pièce jointe' }
+  };
+
+  const t = i18n[language] || i18n.ko;
 
   const attachment = message.attachment || message.image;
 
@@ -96,13 +108,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile }) =
       </pre>
     ),
     table: ({ children }: any) => (
-      <div className="my-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-        <table className="w-full text-sm text-left border-collapse">{children}</table>
+      <div className="my-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <table className="w-full text-left border-collapse">{children}</table>
       </div>
     ),
     thead: ({ children }: any) => <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-slate-800">{children}</thead>,
-    th: ({ children }: any) => <th className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 last:border-r-0">{children}</th>,
-    td: ({ children }: any) => <td className="px-4 py-3 text-slate-600 dark:text-slate-300 border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 group-last:border-b-0">{children}</td>,
+    th: ({ children }: any) => <th className="px-3 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 last:border-r-0 text-[12px] uppercase tracking-wider whitespace-nowrap">{children}</th>,
+    td: ({ children }: any) => <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 group-last:border-b-0 text-[13px] whitespace-nowrap">{children}</td>,
     tr: ({ children }: any) => <tr className="group border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">{children}</tr>,
   };
 
@@ -130,7 +142,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile }) =
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
               {attachment.fileName || 'document.pdf'}
             </span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PDF Document</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.pdf}</span>
           </div>
         </div>
       );
@@ -139,7 +151,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile }) =
     return (
       <div className="mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
         <i className="fa-solid fa-file text-slate-400 flex-shrink-0"></i>
-        <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{attachment.fileName || 'Attachment'}</span>
+        <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{attachment.fileName || t.attachment}</span>
       </div>
     );
   };

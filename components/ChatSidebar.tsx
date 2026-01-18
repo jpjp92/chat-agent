@@ -41,6 +41,43 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     { code: 'fr', name: 'Français', label: 'French' },
   ];
 
+  const i18n = {
+    ko: {
+      newChat: "새 대화",
+      history: "기록",
+      deleteTitle: "채팅방 삭제",
+      deleteMsg: "이 채팅방을 정말 삭제하시겠습니까? 삭제된 기록은 복구할 수 없습니다.",
+      doubleClick: "더블 클릭하여 수정",
+      languageLabel: "언어 설정"
+    },
+    en: {
+      newChat: "New Chat",
+      history: "History",
+      deleteTitle: "Delete Chat",
+      deleteMsg: "Are you sure you want to delete this chat? This cannot be undone.",
+      doubleClick: "Double-click to edit",
+      languageLabel: "Language"
+    },
+    es: {
+      newChat: "Nuevo Chat",
+      history: "Historial",
+      deleteTitle: "Eliminar Chat",
+      deleteMsg: "¿Estás seguro de que quieres eliminar 이 채팅? No se puede deshacer.",
+      doubleClick: "Doble clic para editar",
+      languageLabel: "Idioma"
+    },
+    fr: {
+      newChat: "Nouveau Chat",
+      history: "Historique",
+      deleteTitle: "Supprimer le Chat",
+      deleteMsg: "Êtes-vous sûr de vouloir supprimer ce chat ? Cette action est irréversible.",
+      doubleClick: "Double-cliquez pour modifier",
+      languageLabel: "Langue"
+    }
+  };
+
+  const t = i18n[language] || i18n.ko;
+
   const currentLang = languages.find(l => l.code === language) || languages[0];
 
   // Close dropdown when clicking outside
@@ -72,7 +109,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             className="flex-1 group flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3.5 px-4 rounded-2xl transition-all duration-300 shadow-lg shadow-primary-500/25 active:scale-[0.98]"
           >
             <i className="fa-solid fa-plus group-hover:rotate-90 transition-transform duration-300"></i>
-            <span>New Chat</span>
+            <span>{t.newChat}</span>
           </button>
 
           <button
@@ -85,7 +122,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
         <div className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6">
           <div className="flex items-center justify-between px-2 mb-4">
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">History</h3>
+            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{t.history}</h3>
             <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500">{sessions.length}</span>
           </div>
 
@@ -131,7 +168,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     setEditingId(session.id);
                     setEditingTitle(session.title);
                   }}
-                  title="Double-click to edit"
+                  title={t.doubleClick}
                 >
                   {session.title}
                 </span>
@@ -141,8 +178,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   showConfirmDialog(
-                    '채팅방 삭제',
-                    '이 채팅방을 정말 삭제하시겠습니까? 삭제된 기록은 복구할 수 없습니다.',
+                    t.deleteTitle,
+                    t.deleteMsg,
                     () => onDeleteSession(session.id),
                     'danger'
                   );
@@ -158,7 +195,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         {/* Custom Language Selector */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
           <div className="relative" ref={dropdownRef}>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 px-1 block">Language</label>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 px-1 block">{t.languageLabel}</label>
 
             {/* Language Menu Popover */}
             {isLangMenuOpen && (

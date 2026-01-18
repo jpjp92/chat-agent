@@ -28,19 +28,19 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', onClose, duration
     };
 
     return (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[11000] w-full max-w-xs sm:max-w-sm px-4">
-            <div className={`flex items-center gap-3 px-5 py-4 rounded-[20px] text-white shadow-2xl animate-in slide-in-from-bottom-8 fade-in duration-500 ${colors[type]}`}>
+        <div className="fixed top-24 right-0 sm:right-6 z-[11000] w-fit max-w-[280px] px-4">
+            <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full text-white shadow-lg animate-in slide-in-from-right-8 fade-in duration-500 ${colors[type]}`}>
                 <div className="flex-shrink-0">
-                    <i className={`fa-solid ${icons[type]} text-lg`}></i>
+                    <i className={`fa-solid ${icons[type]} text-base`}></i>
                 </div>
-                <p className="flex-1 text-sm font-bold leading-tight">
+                <p className="flex-1 text-[13px] font-semibold leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
                     {message}
                 </p>
                 <button
                     onClick={onClose}
-                    className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                    className="p-1 hover:bg-white/10 rounded-full transition-colors ml-1"
                 >
-                    <i className="fa-solid fa-xmark text-xs"></i>
+                    <i className="fa-solid fa-xmark text-[10px]"></i>
                 </button>
             </div>
         </div>

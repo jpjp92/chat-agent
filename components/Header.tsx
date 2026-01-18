@@ -1,18 +1,73 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, Language } from '../types';
 
 interface HeaderProps {
   userProfile: UserProfile;
   onUpdateProfile: (profile: UserProfile) => void;
   onMenuClick?: () => void;
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
+  onReset?: () => void;
+  language: Language;
 }
 
-const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfile>(userProfile);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const i18n = {
+    ko: {
+      displayName: "표시 이름",
+      save: "저장",
+      cancel: "취소",
+      reset: "초기화",
+      changePhoto: "이미지 변경",
+      photoDesc: "정사각형 이미지, 최대 2MB",
+      placeholder: "이름을 입력하세요",
+      settings: "설정",
+      sizeError: "이미지 용량은 2MB 이하여야 합니다.",
+      updated: "프로필이 업데이트되었습니다."
+    },
+    en: {
+      displayName: "Display Name",
+      save: "Save Changes",
+      cancel: "Cancel",
+      reset: "Reset",
+      changePhoto: "Change Photo",
+      photoDesc: "Square image, max 2MB",
+      placeholder: "Enter your name",
+      settings: "Settings",
+      sizeError: "Image size must be under 2MB.",
+      updated: "Profile updated."
+    },
+    es: {
+      displayName: "Nombre",
+      save: "Guardar",
+      cancel: "Cancelar",
+      reset: "Reiniciar",
+      changePhoto: "Cambiar foto",
+      photoDesc: "Imagen cuadrada, máx 2MB",
+      placeholder: "Introduce tu nombre",
+      settings: "Ajustes",
+      sizeError: "La imagen debe ser de menos de 2MB.",
+      updated: "Perfil actualizado."
+    },
+    fr: {
+      displayName: "Nom",
+      save: "Enregistrer",
+      cancel: "Annuler",
+      reset: "Réinitialiser",
+      changePhoto: "Changer la photo",
+      photoDesc: "Image carrée, max 2Mo",
+      placeholder: "Entrez votre nom",
+      settings: "Paramètres",
+      sizeError: "L'image doit faire moins de 2Mo.",
+      updated: "Profil mis à jour."
+    }
+  };
+
+  const t = i18n[language] || i18n.ko;
 
   useEffect(() => {
     if (document.documentElement.classList.contains('dark')) {
@@ -31,6 +86,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
   const handleSave = () => {
     onUpdateProfile(tempProfile);
+    showToast(t.updated, "success");
     setIsModalOpen(false);
   };
 
@@ -38,7 +94,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        showToast("이미지 용량은 2MB 이하여야 합니다.", "error");
+        showToast(t.sizeError, "error");
         return;
       }
       const reader = new FileReader();
@@ -96,7 +152,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
           >
             <div className="hidden lg:block text-right">
               <p className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100">{userProfile.name}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Settings</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.settings}</p>
             </div>
             <img
               src={userProfile.avatarUrl}
@@ -130,27 +186,40 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                     </div>
                   </div>
                   <div className="text-center">
-                    <button onClick={triggerFileInput} className="text-primary-600 dark:text-primary-400 text-sm font-semibold hover:underline">Change Photo</button>
-                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">Square image, max 2MB</p>
+                    <button onClick={triggerFileInput} className="text-primary-600 dark:text-primary-400 text-sm font-semibold hover:underline">{t.changePhoto}</button>
+                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{t.photoDesc}</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Display Name</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.displayName}</label>
                     <input
                       type="text"
                       value={tempProfile.name}
                       onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })}
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-sm"
-                      placeholder="Enter your name"
+                      placeholder={t.placeholder}
                     />
                   </div>
 
                   <div className="flex gap-2">
-                    <button onClick={handleSave} className="flex-1 py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-sm shadow-lg active:scale-95 transition-all">Save Changes</button>
-                    <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm active:scale-95 transition-all">Cancel</button>
+                    <button onClick={handleSave} className="flex-1 py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-sm shadow-lg active:scale-95 transition-all">{t.save}</button>
+                    <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm active:scale-95 transition-all">{t.cancel}</button>
                   </div>
+
+                  {onReset && (
+                    <button
+                      onClick={() => {
+                        onReset();
+                        setIsModalOpen(false);
+                      }}
+                      className="w-full py-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-100 dark:hover:bg-red-500/20 active:scale-95 transition-all border border-red-200/50 dark:border-red-500/20"
+                    >
+                      <i className="fa-solid fa-rotate mr-2"></i>
+                      {t.reset}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

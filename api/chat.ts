@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
+import { supabase } from './lib/supabase.js';
 
 const API_KEYS = [
     process.env.API_KEY,
@@ -24,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { prompt, history, language, attachment, webContent } = req.body;
+    const { prompt, history, language, attachment, webContent, session_id } = req.body;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -39,8 +40,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
     }
 
-    let systemInstruction = `You are a professional AI assistant. Respond in ${langNames[currentLang]}. 
-  
+    let systemInstruction = `You are a professional AI assistant. 
+  CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langNames[currentLang]} ONLY. 
+  IF THE USER SPEAKS ANOTHER LANGUAGE, YOU MUST STILL RESPOND IN ${langNames[currentLang]}.
+  NEVER switch languages unless explicitly asked to change the translation settings.
+
   [CORE DIRECTIVE: SOURCE ADHERENCE]
   - If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL the user is asking about.
   - You MUST prioritize PROVIDED_SOURCE_TEXT over your internal knowledge or general search results for that specific URL.
@@ -54,10 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - DO NOT output internal thought processes, planning steps, or draft headers (e.g., "| Col | Col |").
   - Output ONLY the final, polished response intended for the user.
   - Ensure all Markdown syntax (tables, code blocks) is complete and valid.
-  - If a table is needed, strictly follow the format: | Header | Header |\n|---|---|\n| Row | Row |.`;
+  - [TABLE STYLE GUIDE]
+    - strictly follow the format: | Header | Header |\n| --- | --- |\n| Row | Row |.
+    - Keep table headers as SHORT as possible (e.g., use "경기" instead of "경기수", "득점" instead of "득점수").
+    - If there are many columns, prioritize compactness.`;
 
     if (webContent) {
-        systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent}`;
+        systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;
     }
 
     const contents: any[] = history
@@ -86,6 +93,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const isYoutubeRequest = !!ytMatch;
 
+    // Supabase: User 메시지 즉시 저장 (비동기)
+    if (session_id) {
+        supabase.from('chat_messages').insert({
+            session_id,
+            role: 'user',
+            content: prompt,
+            attachment_url: attachment?.data && attachment.data.startsWith('http') ? attachment.data : (attachment?.mimeType || null)
+        }).then(({ error }) => {
+            if (error) console.error('[Chat API] User message save error:', error);
+        });
+    }
+
     // Failover Loop
     let lastError = 'No attempts made';
     for (const currentModel of CHAT_MODELS) {
@@ -107,24 +126,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 });
 
+                let fullAiResponse = '';
+                const allSources: any[] = [];
                 for await (const chunk of result) {
                     const chunkText = chunk.text;
                     if (chunkText) {
+                        fullAiResponse += chunkText;
                         res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
                     }
 
-                    const grounding = chunk.candidates?.[0]?.groundingMetadata;
-                    if (grounding?.groundingChunks) {
-                        const sources = grounding.groundingChunks
-                            .filter((c: any) => c.web)
-                            .map((c: any) => ({ title: c.web?.title || 'Source', uri: c.web?.uri || '' }))
-                            .filter((s: any) => s.uri !== '');
+                    // [CITATIONS] Grounding Metadata 추출 및 전송
+                    const metadata = chunk.candidates?.[0]?.groundingMetadata;
+                    if (metadata && metadata.groundingChunks) {
+                        const sources = metadata.groundingChunks
+                            .map((gc: any) => gc.web ? { title: gc.web.title, uri: gc.web.uri } : null)
+                            .filter(Boolean);
+
                         if (sources.length > 0) {
+                            // 중복 제거 및 누적
+                            sources.forEach((s: any) => {
+                                if (!allSources.some(existing => existing.uri === s.uri)) {
+                                    allSources.push(s);
+                                }
+                            });
                             res.write(`data: ${JSON.stringify({ sources })}\n\n`);
                         }
                     }
                 }
 
+
+                // Supabase: AI 응답 저장 (동기적으로 대기하여 저장 보장)
+                if (session_id && fullAiResponse) {
+                    try {
+                        const { error: msgError } = await supabase.from('chat_messages').insert({
+                            session_id,
+                            role: 'assistant',
+                            content: fullAiResponse,
+                            grounding_sources: allSources.length > 0 ? allSources : null
+                        });
+                        if (msgError) throw msgError;
+
+                        await supabase.from('chat_sessions')
+                            .update({ updated_at: new Date().toISOString() })
+                            .eq('id', session_id);
+                    } catch (e) {
+                        console.error('[Chat API] Assistant message save error:', e);
+                    }
+                }
                 res.end();
                 return;
             } catch (error: any) {

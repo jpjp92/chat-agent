@@ -9,15 +9,22 @@ const API_KEYS = [
     process.env.API_KEY5,
 ].filter(Boolean) as string[];
 
-const SUMMARY_MODELS = ['gemma-3-4b-it', 'gemini-2.5-flash'];  // gemma requires -it suffix
-const TITLE_PROMPT = "위 대화 내용을 요약하는 아주 짧고 간결한 제목을 5단어 이내로 지어줘. 따옴표는 빼고 제목만 출력해줘.";
+const SUMMARY_MODELS = ['gemma-3-4b-it'];
+const TITLE_PROMPTS: any = {
+    ko: "위 대화 내용을 요약하는 아주 짧고 간결한 제목을 한국어로 5단어 이내로 지어줘. 따옴표는 빼고 제목만 출력해줘.",
+    en: "Create a very short and concise title summarizing the conversation in English within 5 words. Output only the title without quotes.",
+    es: "Crea un título muy corto y conciso que resuma la conversación en español en menos de 5 palabras. Muestra solo el título sin comillas.",
+    fr: "Créez un titre très court et concis résumant la conversation en français en moins de 5 mots. Affichez uniquement le titre sans guillemets."
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { history } = req.body;
+    const { history, language } = req.body;
+    const currentLang = language || 'ko';
+    const TITLE_PROMPT = TITLE_PROMPTS[currentLang] || TITLE_PROMPTS.ko;
 
     console.log('[Title API] Request received:', {
         historyLength: history?.length,

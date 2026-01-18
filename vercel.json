@@ -1,8 +1,4 @@
-
 {
   "version": 2,
-  "cleanUrls": true,
-  "framework": null,
-  "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "framework": "vite"
 }
