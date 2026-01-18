@@ -1,133 +1,110 @@
 
-# 🚀 Chat with Gemini - Intelligent Real-time AI Messenger
+# 🚀 Chat with Gemini - Next-Gen AI Persistent Messenger
 
-**Chat with Gemini**는 Google의 최신 **Gemini** 엔진과 **실시간 Google 검색(Grounding)** 기능을 결합한 차세대 지능형 챗봇입니다. 사용자 경험(UX)을 극대화하기 위해 Gemini 공식 웹 스타일을 계승하고, 강력한 시각화 기능을 탑재했습니다.
+**Chat with Gemini**는 Google의 **Gemini 2.5 Flash** 엔진과 **Supabase**의 영구 저장소 기능을 결합한 지능형 AI 메신저입니다. 별도의 가입 절차 없이 즉시 시작할 수 있는 **Login-less** 경험과, 기기 간 기록이 유지되는 **Persistent History** 기능을 동시에 제공합니다.
 
 ---
 
 ## ✨ 핵심 기능 (Key Features)
 
-### 🎨 프리미엄 UI/UX (Premium Design)
-- **Gemini 공식 스타일 반영**: 배경색(#131314)부터 사용자 말풍선, AI 응답의 투명한 레이아웃까지 공식 웹 버전의 감성을 그대로 구현했습니다.
-- **커스텀 디자인 시스템 (Dialog & Toast)**: 투박한 브라우저 기본 알림창(alert, confirm)을 제거하고, 유리 질감(Glassmorphism)과 부드러운 애니메이션이 적용된 **프리미엄 커스텀 모달 및 토스트** 시스템을 구축했습니다.
-- **슬림 & 콤팩트 디자인**: 사용자 피드백을 반영하여 채팅창의 높이와 여백을 최적화하여 더 넓고 쾌적한 화면 구성을 제공합니다.
-- **지능형 표(Table) 렌더링**: 데이터 비교 요청 시 깨지지 않는 깔끔한 그리드 스타일과 반응형 레이아웃을 제공합니다.
+### ⚡ 게스트 우선 접근 (Login-less Experience)
+- **자동 익명 로그인**: 앱 실행 즉시 랜덤 닉네임과 함께 세션이 생성됩니다. 번거로운 이메일 인증이나 가입 없이 바로 대화를 시작하세요.
+- **프로필 설정**: 사이드바 하단 아이콘을 통해 나만의 닉네임과 프로필 이미지를 언제든 자유롭게 설정할 수 있으며, 이는 DB에 안전하게 저장됩니다.
 
-### 🌐 글로벌 다국어 지원 (Multi-language)
-- **4개국어 완벽 지원**: 한국어(KO), 영어(EN), 스페인어(ES), 프랑스어(FR)를 지원하며, 각 언어별 맞춤형 환영 메시지와 시스템 인스트럭션을 제공합니다.
+### 💾 영구 대화 기록 (Persistent Memory)
+- **Supabase 연동**: 모든 대화와 세션은 Supabase DB에 저장되어 페이지를 새로고침하거나 기기를 변경해도 내 대화 내역이 그대로 유지됩니다.
+- **세션 관리**: 대화방 생성, 삭제, 이름 변경이 자유로우며 AI가 대화 내용을 분석해 가장 적절한 제목을 자동으로 생성해줍니다.
 
-### � 보안 강화 (Enhanced Security)
-- **서버사이드 API 키 관리**: 모든 API 키는 Vercel Serverless Functions에서만 사용되며, 클라이언트(브라우저)에 절대 노출되지 않습니다.
-- **안전한 백엔드 아키텍처**: `/api/chat`, `/api/summarize-title`, `/api/speech`, `/api/fetch-url` 엔드포인트를 통해 모든 AI 처리를 서버에서 수행합니다.
+### 🌐 완벽한 UI 현지화 (Full Localization)
+- **4개국어 지원**: 한국어(KO), 영어(EN), 스페인어(ES), 프랑스어(FR)를 완벽하게 지원합니다.
+- **Deep UI Localization**: 단순히 AI 응답뿐만 아니라 사이드바 삭제 확인창, 에러 메시지, 로딩 텍스트, 안내 배너 등 **모든 인터페이스**가 선택한 언어로 즉시 전환됩니다.
 
-### 🛡️ 무중단 서비스 및 안정성 (Stability & Reliability)
-- **펜타 API 키 로테이션 (5x Key Rotation)**: `API_KEY`부터 `API_KEY5`까지를 순차적으로 사용하는 Round-Robin 로직을 통해 할당량 초과(429) 문제를 극도로 낮췄습니다.
-- **지능형 모델 폴백 (Model Fallback)**: 서버에서 자동으로 여러 API 키와 모델을 시도하여 안정성을 보장합니다.
-- **사용자 친화적 에러 처리**: 모든 키가 한도에 도달했을 때, 기술적인 에러 코드 대신 설정된 언어에 맞춰 "잠시 후 다시 시도해주세요"라는 메시지를 안내합니다.
-
-### 🔍 실시간 지식 엔진 (Search Grounding)
-- **실시간 Google 검색**: 최신 뉴스, 날씨, 기술 트렌드를 AI가 실시간으로 검색하여 답변합니다.
-- **출처 링크 카드**: 답변 하단에 참고한 실제 웹사이트의 파비콘과 제목, 링크를 투명하게 공개합니다.
-- **URL 직접 분석**: 서버사이드 스크래핑을 통해 YouTube, Arxiv 논문, 일반 웹페이지의 내용을 직접 추출하여 정확한 답변을 제공합니다.
-
-### 🎙️ 멀티모달 인터페이스
-- **음성 합성 (TTS)**: `gemini-2.5-flash-preview-tts` 모델을 통해 고품질 음성으로 답변을 읽어줍니다.
-- **모바일 완벽 지원**: 아이폰 Safari 등 모바일 브라우저의 오디오 정책을 준수하는 **AudioContext Unlock** 로직을 적용하여 스피커 아이콘 클릭 시 즉시 소리가 나도록 최적화했습니다.
-- **시각 지능**: 업로드된 이미지를 분석하고 텍스트를 인식하여 복합적인 질문에 답변합니다 (최대 4MB 제한).
-- **YouTube 스마트 하이브리드 분석 (Smart Hybrid)**: 
-  - **자막 분석 (Fast Path)**: 자막이 있는 영상은 3초 이내에 내용을 추출하여 분석합니다.
-  - **비디오 시청 (Fallback Path)**: 자막이 없는 경우 Gemini가 직접 영상을 시청하고 시각적/청각적 정보를 심층 분석합니다 (~1분 소요).
-
-### ⚡ 성능 및 최적화 (Optimization)
-- **INP(Interaction to Next Paint) 문제 해결**: `useLayoutEffect`를 사용하여 타이핑 시 발생하는 레이아웃 계산 지연을 제거했습니다. 긴 문장을 입력할 때도 끊김 없는 매끄러운 반응 속도를 보장합니다.
-- **고효율 레이아웃**: 매 입력마다 발생하는 불필요한 스타일 재계산을 최소화하여 저사양 기기에서도 안정적으로 작동합니다.
-
-### 🏷️ 사용자 편의 기능
-- **인라인 타이틀 편집**: 사이드바의 채팅 제목을 더블 클릭하여 즉시 수정할 수 있습니다.
-- **상세 로딩 상태**: "자막 분석 중...", "영상 시청 중..." 등 현재 AI가 수행 중인 작업을 투명하게 표시합니다.
-
----
-
-## 🛠️ 배포 및 설정 (Deployment)
-
-이 프로젝트는 **Vercel** 환경에 최적화되어 있습니다.
-
-### 1. API 키 준비
-- [Google AI Studio](https://aistudio.google.com/app/apikey)에서 API 키를 발급받으세요.
-- 안정적인 서비스를 위해 최소 2개 이상의 API 키를 권장합니다.
-
-### 2. Vercel 환경 변수 설정
-Vercel 프로젝트 설정에서 Gemini **API_KEY**를 추가하세요. (안정적인 서비스를 위해 다수의 키 등록을 권장합니다.)
-
-### 3. 배포
-```bash
-# 의존성 설치
-npm install
-
-# 로컬 개발 서버 실행
-npm run dev
-
-# 프로덕션 빌드
-npm run build
-```
+### 🔍 지능형 분석 및 멀티모달 (Multimodal & Analysis)
+- **PDF 및 이미지 분석**: 최대 4MB의 문서를 업로드하여 Gemini에게 요약이나 데이터 추출을 요청할 수 있습니다.
+- **실시간 Google 검색**: 최신 정보가 필요한 질문에는 AI가 실시간 웹 검색을 수행하고 정확한 출처(Grounding Card)를 제공합니다.
+- **YouTube 하이브리드 분석**: 영상 URL만으로 자막을 분석하거나, 자막이 없는 경우 Gemini가 직접 영상을 "시청"하여 내용을 분석합니다.
 
 ---
 
 ## 🏗️ 기술 스택 (Tech Stack)
 
 ### Frontend
-- **React 19** with TypeScript
-- **Tailwind CSS** for styling
-- **Vite** for build tooling
+- **React 19** + **Vite** (TypeScript)
+- **Tailwind CSS** (Premium Responsive Design)
+- **Lucide / FontAwesome** (Iconography)
 
-### Backend (Vercel Serverless Functions)
-- **`/api/chat`**: Streaming chat with `gemini-2.5-flash`
-- **`/api/summarize-title`**: Title generation with `gemma-3-4b-it`
-- **`/api/speech`**: Text-to-Speech with `gemini-2.5-flash-preview-tts`
-- **`/api/fetch-url`**: Server-side web scraping (YouTube oEmbed, Arxiv, general web)
-- **`/api/fetch-transcript`**: YouTube subtitle fetching via `youtube-transcript-plus`
+### Backend & Database
+- **Vercel Serverless Functions** (API Layer)
+- **Supabase** (PostgreSQL / Storage / Auth)
+- **Vercel Edge API Requests** (Fast Processing)
 
-### AI Models
-- **Chat**: `gemini-2.5-flash` (primary)
-- **Title Summarization**: `gemma-3-4b-it`
-- **Text-to-Speech**: `gemini-2.5-flash-preview-tts`
-- **Tools**: `googleSearch` for real-time grounding
-
-### Other Technologies
-- **ReactMarkdown** with Remark GFM for rich text rendering
-- **@google/genai** SDK v1.34.0
-- **Vercel** for deployment and serverless functions
+### AI Core
+- **Chat**: `gemini-2.5-flash` (Primary Next-Gen Model)
+- **Summarization**: `gemma-3-4b-it` (Topic & Title Generation)
+- **Speech**: `gemini-2.5-flash-preview-tts` (High-Quality Voice)
 
 ---
 
 ## 📁 프로젝트 구조 (Project Structure)
 
 ```
-app_chat-1/
-├── api/                      # Vercel Serverless Functions
-│   ├── chat.ts              # Streaming chat endpoint
-│   ├── summarize-title.ts   # Title generation endpoint
-│   ├── speech.ts            # TTS endpoint
-│   ├── fetch-url.ts         # Web scraping endpoint
-│   └── fetch-transcript.ts  # YouTube transcript endpoint
-├── components/              # React components
-├── services/               
-│   └── geminiService.ts    # Frontend service layer (API bridge)
-├── App.tsx                 # Main application component
-├── types.ts                # TypeScript type definitions
-└── vercel.json             # Vercel configuration
+.
+├── api/                   # Vercel Serverless Functions (Backend)
+│   ├── auth.ts           # 익명 로그인 및 사용자 프로필 관리
+│   ├── chat.ts           # Gemini 스트리밍 대화 로직 (로테이션 포함)
+│   ├── upload.ts         # Supabase Storage 파일 업로드 프록시
+│   ├── sessions.ts       # 채팅 세션 및 메시지 CRUD
+│   ├── speech.ts         # 고품질 음성 합성 (TTS)
+│   ├── fetch-url.ts      # 실시간 웹/Arxiv 데이터 추출
+│   ├── fetch-transcript.ts # YouTube 자막 추출 서비스
+│   ├── summarize-title.ts # Gemma 기반 인텔리전트 제목 생성
+│   └── lib/
+│       └── supabase.ts   # 서버사이드 Supabase 클라이언트 설정
+├── components/            # UI 컴포넌트 (현지화 로직 포함)
+│   ├── ChatSidebar.tsx   # 대화 목록, 필터링 및 언어 설정
+│   ├── ChatInput.tsx     # 멀티모달 입력 및 용량 검증
+│   ├── Dialog.tsx        # 프리미엄 커스텀 모달 (확제 확인 등)
+│   ├── ChatMessage.tsx   # 마크다운 렌더링 및 시각화
+│   ├── Header.tsx        # 유저 프로필 및 전역 설정
+│   └── Toast.tsx         # 알림 피드백 시스템
+├── services/
+│   └── geminiService.ts  # 프론트엔드 API 인터페이스 및 오디오 제어
+├── App.tsx                # 중앙 상태 관리 및 전체 레이아웃
+├── types.ts               # 글로벌 TypeScript 타입 정의
+├── vercel.json            # 배포 구성 설정
+├── tailwind.config.ts     # 디자인 시스템 테마 설정
+└── package.json           # 의존성 및 스크립트 관리
 ```
 
 ---
 
-## 🔐 보안 고려사항 (Security Considerations)
+## 🔐 보안 및 안정성 (Security & Stability)
 
-- ✅ **API 키는 절대 클라이언트에 노출되지 않습니다**
-- ✅ 모든 AI 처리는 Vercel Serverless Functions에서 수행됩니다
-- ✅ 환경 변수를 통한 안전한 키 관리
-- ✅ CORS 정책 준수 및 서버사이드 스크래핑
+- **API 키 로테이션**: 5개의 API 키를 Round-Robin 방식으로 사용하여 429(Too Many Requests) 에러를 최소화합니다.
+- **RLS(Row Level Security)**: Supabase의 행 수준 보안 정책을 통해 사용자는 본인의 대화 데이터에만 접근할 수 있도록 설계되었습니다.
+- **서버사이드 처리**: API 키와 비밀 세크릿은 브라우저에 절대 노출되지 않으며 Vercel 서버 내부에서만 사용됩니다.
+- **Infrastructure limits**: Vercel Serverless 제한(4.5MB Payload)을 고려한 지능형 에러 핸들링 및 업로드 최적화가 적용되어 있습니다.
+
+---
+
+## 🚀 시작하기 (Getting Started)
+
+### 1. 환경 변수 설정 (.env.local)
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_service_role_key
+API_KEY=your_gemini_key_1
+API_KEY2=your_gemini_key_2
+...
+```
+
+### 2. 설치 및 실행
+```bash
+npm install
+npm run dev
+```
 
 ---
 
 Developed by **jpjp92**  
-*Powered by Google Gemini Next-Gen Intelligence*
+*Powered by Google Gemini & Supabase Persistent Memory Systems*

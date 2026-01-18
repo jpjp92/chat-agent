@@ -198,7 +198,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                       type="text"
                       value={tempProfile.name}
                       onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-sm"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-base tracking-tight"
                       placeholder={t.placeholder}
                     />
                   </div>
