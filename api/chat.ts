@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
     }
 
-    let systemInstruction = `You are a professional AI assistant. 
+    let systemInstruction = `You are Gemini 2.5 Flash, Google's next-generation high-performance AI model. 
   CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langNames[currentLang]} ONLY. 
   IF THE USER SPEAKS ANOTHER LANGUAGE, YOU MUST STILL RESPOND IN ${langNames[currentLang]}.
   NEVER switch languages unless explicitly asked to change the translation settings.
