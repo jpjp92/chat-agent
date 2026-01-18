@@ -151,7 +151,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
             className="flex items-center space-x-2 sm:space-x-3 cursor-pointer pl-1 sm:pl-2 pr-1 py-1 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all group border border-transparent active:scale-95"
           >
             <div className="hidden lg:block text-right">
-              <p className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100">{userProfile.name}</p>
+              <p className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100 tabular-nums tracking-normal">{userProfile.name}</p>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.settings}</p>
             </div>
             <img
@@ -198,7 +198,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                       type="text"
                       value={tempProfile.name}
                       onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-base tracking-tight"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-base tabular-nums tracking-tight"
                       placeholder={t.placeholder}
                     />
                   </div>
