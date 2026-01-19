@@ -24,6 +24,11 @@
 - **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
 
+### 🎨 Mobile & UX Enhancements (New!)
+- **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
+- **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** support to prevent address bar layout shifts.
+- **Premium Loading Experience**: Features a "Breathing" logo animation and bouncing indicators for a polished, app-like startup.
+
 ---
 
 ## 🏗️ Technical Stack
