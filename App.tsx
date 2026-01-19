@@ -499,7 +499,7 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto px-3 sm:px-10 lg:px-20 custom-scrollbar pt-3 sm:pt-4 pb-2">
           <div className="max-w-3xl mx-auto flex flex-col h-full">
             {currentSession?.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20 animate-in fade-in duration-1000">
+              <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20">
                 <div className="text-center">
                   <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
                     {currentWelcome.title}
