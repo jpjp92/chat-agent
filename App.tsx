@@ -450,7 +450,7 @@ const App: React.FC = () => {
         <div className="flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-700">
           <div className="relative">
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30 animate-pulse">
-              <i className="fa-solid fa-wand-magic-sparkles text-white text-4xl"></i>
+              <i className="fa-solid fa-comment-dots text-white text-4xl"></i>
             </div>
             <div className="absolute inset-0 bg-primary-500 blur-2xl opacity-20 animate-pulse"></div>
           </div>
@@ -499,7 +499,7 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto px-3 sm:px-10 lg:px-20 custom-scrollbar pt-3 sm:pt-4 pb-2">
           <div className="max-w-3xl mx-auto flex flex-col h-full">
             {currentSession?.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20 animate-in fade-in zoom-in-95 duration-1000">
+              <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20 animate-in fade-in duration-1000">
                 <div className="text-center">
                   <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
                     {currentWelcome.title}
