@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { MessageAttachment, Language } from '../types';
 
 interface ChatInputProps {
@@ -16,16 +16,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const [selectedAttachment, setSelectedAttachment] = useState<MessageAttachment | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isSTTSupported, setIsSTTSupported] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
 
   const i18n = {
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)" },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)" },
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)" }
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
+    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
   };
 
   const t = i18n[language] || i18n.ko;
@@ -101,18 +102,60 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     }
   };
 
+  const processFile = useCallback((file: File) => {
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(t.sizeError, "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedAttachment({ data: reader.result as string, mimeType: file.type, fileName: file.name });
+    };
+    reader.readAsDataURL(file);
+  }, [t.sizeError, showToast]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > MAX_FILE_SIZE) {
-        showToast(t.sizeError, "error");
-        return;
+      processFile(file);
+    }
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1 || items[i].type.indexOf('pdf') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          processFile(file);
+          return;
+        }
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedAttachment({ data: reader.result as string, mimeType: file.type, fileName: file.name });
-      };
-      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+        processFile(file);
+      }
     }
   };
 
@@ -140,8 +183,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
       <form
         onSubmit={handleSubmit}
-        className="relative grid grid-cols-[auto_1fr_auto] items-end bg-[#f0f4f9] dark:bg-[#1e1e1f] p-1 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:bg-white dark:focus-within:bg-[#1e1e1f] border border-transparent dark:border-white/5 shadow-sm min-h-[44px] sm:min-h-[52px] overflow-hidden"
+        onDragOver={disabled ? undefined : handleDragOver}
+        onDragLeave={disabled ? undefined : handleDragLeave}
+        onDrop={disabled ? undefined : handleDrop}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-[#f0f4f9] dark:bg-[#1e1e1f] p-1 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:bg-white dark:focus-within:bg-[#1e1e1f] border border-transparent dark:border-white/5 shadow-sm min-h-[44px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
+        {isDragging && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
+            <p className="text-sm font-bold text-primary-600 dark:text-primary-400">{t.dropTitle}</p>
+          </div>
+        )}
         <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf" className="hidden" />
 
         <div className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 mb-0.5 ml-1">
@@ -160,6 +211,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={t.placeholder}
             rows={1}
             disabled={disabled}
