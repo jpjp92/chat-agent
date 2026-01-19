@@ -20,7 +20,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'https://chat-agent-2ga2z8x4v-juan-parks-projects-6079c9bc.vercel.app',
+        target: 'https://chat-gem.vercel.app',
         changeOrigin: true,
         secure: false
       }
