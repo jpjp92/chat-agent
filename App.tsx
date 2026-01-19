@@ -458,7 +458,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
+    <div className="flex h-dvh bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
       <ChatSidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
@@ -483,15 +483,15 @@ const App: React.FC = () => {
           language={language}
         />
 
-        <main className="flex-1 overflow-y-auto px-2 sm:px-10 lg:px-20 custom-scrollbar pt-2 sm:pt-4">
+        <main className="flex-1 overflow-y-auto px-3 sm:px-10 lg:px-20 custom-scrollbar pt-3 sm:pt-4 pb-2">
           <div className="max-w-3xl mx-auto flex flex-col h-full">
             {currentSession?.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center flex-1 py-4 sm:py-20 animate-in fade-in zoom-in-95 duration-1000">
+              <div className="flex flex-col items-center justify-center py-8 sm:py-20 animate-in fade-in zoom-in-95 duration-1000">
                 <div className="text-center">
-                  <h1 className="text-4xl sm:text-6xl font-medium tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-2 sm:mb-6">
+                  <h1 className="text-3xl sm:text-6xl font-medium tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-2 sm:mb-6">
                     {currentWelcome.title}
                   </h1>
-                  <p className="text-slate-400 dark:text-slate-500 text-sm sm:text-2xl font-medium px-4">
+                  <p className="text-slate-400 dark:text-slate-500 text-base sm:text-2xl font-medium px-4">
                     {currentWelcome.subtitle}
                   </p>
                 </div>
@@ -532,7 +532,7 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <footer className="p-1 sm:p-4 pt-0">
+        <footer className="p-2 sm:p-4 pt-0">
           <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} />
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
