@@ -300,7 +300,8 @@ const App: React.FC = () => {
     const modelMessageId = (Date.now() + 1).toString();
 
     // URL 감지 및 지능형 텍스트 추출
-    let webContext = "";
+    let webContext = attachment?.extractedText ? `[EXTRACTED_DOCUMENT_CONTENT: ${attachment.fileName}]\n${attachment.extractedText}` : "";
+
     // 더 정교한 URL 정규식 (괄호나 문장부호 포함 가능성 고려)
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;
     const urls = content.match(urlRegex);
@@ -374,7 +375,7 @@ const App: React.FC = () => {
           }));
         },
         language,
-        attachment,
+        (attachment?.mimeType?.startsWith('image/') || attachment?.mimeType === 'application/pdf') ? attachment : undefined,
         webContext,
         'text',
         (sources) => {

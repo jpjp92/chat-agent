@@ -26,6 +26,8 @@
 
 ### 🎨 Mobile & UX Enhancements (New!)
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
+- **Advanced Document Support**: Directly analyzes `.docx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth), bypassing API MIME restrictions.
+- **Unified Loading UX**: Replaced bulky text status boxes with a clean, consistent "..." bouncing animation for all analysis and wait states.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** support to prevent address bar layout shifts.
 - **Premium Loading Experience**: Features a "Breathing" logo animation and bouncing indicators for a polished, app-like startup.
 
@@ -67,15 +69,15 @@
 │       └── supabase.ts   # Server-side Supabase client config
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings
-│   ├── ChatInput.tsx     # Multimodal input & File validation
+│   ├── ChatInput.tsx     # Multimodal input, text extraction (Mammoth) & validation
 │   ├── Dialog.tsx        # Premium custom modals
-│   ├── ChatMessage.tsx   # Markdown & Logic rendering
-│   ├── Header.tsx        # User profile & Global settings
+│   ├── ChatMessage.tsx   # Markdown & logic rendering
+│   ├── Header.tsx        # User profile & global settings
 │   └── Toast.tsx         # Notification feedback system
 ├── services/
-│   └── geminiService.ts  # Frontend API bridge & Audio control
-├── App.tsx                # Central state & Global layout
-└── types.ts               # Global TypeScript definitions
+│   └── geminiService.ts  # Frontend API bridge, streaming logic & audio control
+├── App.tsx                # Central state, session management & layout
+└── types.ts               # Global types & Message/Attachment interfaces
 ```
 
 ---

@@ -1,5 +1,6 @@
 
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import mammoth from "mammoth";
 import { MessageAttachment, Language } from '../types';
 
 interface ChatInputProps {
@@ -43,7 +44,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     }
   };
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     adjustHeight();
   }, [input]);
 
@@ -102,14 +103,35 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     }
   };
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback(async (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
       showToast(t.sizeError, "error");
       return;
     }
+
+    let extractedText = "";
+
+    try {
+      if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        extractedText = result.value;
+      } else if (file.type === "text/plain" || file.type === "text/markdown" || file.type === "text/csv" ||
+        file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
+        extractedText = await file.text();
+      }
+    } catch (err) {
+      console.error("Text extraction failed:", err);
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
-      setSelectedAttachment({ data: reader.result as string, mimeType: file.type, fileName: file.name });
+      setSelectedAttachment({
+        data: reader.result as string,
+        mimeType: file.type || 'application/octet-stream',
+        fileName: file.name,
+        extractedText: extractedText || undefined
+      });
     };
     reader.readAsDataURL(file);
   }, [t.sizeError, showToast]);
@@ -126,7 +148,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1 || items[i].type.indexOf('pdf') !== -1) {
+      if (items[i].type.indexOf('image') !== -1 || items[i].type.indexOf('pdf') !== -1 ||
+        items[i].type.indexOf('word') !== -1 || items[i].type.indexOf('text') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
           e.preventDefault();
@@ -153,7 +176,15 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+      const allowedMimeTypes = [
+        'application/pdf',
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
+        file.name.endsWith('.docx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
         processFile(file);
       }
     }
@@ -165,13 +196,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         <div className="absolute bottom-full left-4 sm:left-6 mb-3 animate-in slide-in-from-bottom-2 duration-300">
           <div className="relative group">
             <div className="overflow-hidden rounded-2xl border-2 border-white dark:border-[#2f2f2f] shadow-2xl bg-white dark:bg-[#1e1e1f]">
-              {selectedAttachment.mimeType === 'application/pdf' ? (
-                <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-red-50 dark:bg-red-500/5">
-                  <i className="fa-solid fa-file-pdf text-red-500 text-xl"></i>
-                  <span className="text-[10px] text-slate-500 truncate w-full text-center px-1">{selectedAttachment.fileName}</span>
-                </div>
-              ) : (
+              {selectedAttachment.mimeType.startsWith('image/') ? (
                 <img src={selectedAttachment.data} alt="Upload" className="h-16 w-16 sm:h-20 sm:w-20 object-cover" />
+              ) : (
+                <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
+                  <i className={`fa-solid ${selectedAttachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
+                      selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
+                        selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
+                          'fa-file-lines text-slate-500'
+                    } text-xl`}></i>
+                  <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{selectedAttachment.fileName}</span>
+                </div>
               )}
             </div>
             <button onClick={() => setSelectedAttachment(null)} className="absolute -top-2.5 -right-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-10">
@@ -193,7 +228,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             <p className="text-sm font-bold text-primary-600 dark:text-primary-400">{t.dropTitle}</p>
           </div>
         )}
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,application/pdf" className="hidden" />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/*,application/pdf,.docx,.txt,.md,.csv"
+          className="hidden"
+        />
 
         <div className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 mb-0.5 ml-1">
           <button

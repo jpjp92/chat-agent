@@ -11,6 +11,7 @@ export interface MessageAttachment {
   data: string;
   mimeType: string;
   fileName?: string;
+  extractedText?: string; // Client-side extracted text (for docx, txt, etc.)
 }
 
 export type SourceType = 'web' | 'video' | 'pdf' | 'image' | 'text';

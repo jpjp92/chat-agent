@@ -49,11 +49,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   NEVER switch languages unless explicitly asked to change the translation settings.
 
   [CORE DIRECTIVE: SOURCE ADHERENCE]
-  - If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL the user is asking about.
-  - You MUST prioritize PROVIDED_SOURCE_TEXT over your internal knowledge or general search results for that specific URL.
+  - If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL or ATTACHED DOCUMENT the user is asking about.
+  - You MUST prioritize PROVIDED_SOURCE_TEXT over your internal knowledge or general search results for that specific source.
   - If PROVIDED_SOURCE_TEXT contains "[YOUTUBE_VIDEO_INFO]", it is a YouTube video. You are provided with Title, Channel, and Description. **IMPORTANT**: For shorter videos, you also have direct visual/auditory access via a multimodal 'fileUri' in the request parts. If a 'fileUri' part is present, you can "watch" and "listen" to the video directly. If it is NOT present, it means the video is too long or rich enough in metadata for a fast summary—in this case, use the provided Title and Description as your primary source. NEVER say "I cannot analyze video content"; always use the best available information to assist the user.
   - If PROVIDED_SOURCE_TEXT contains "[PAPER INFO]", it's an Arxiv paper. Use the Title, Authors, and Abstract provided.
-  - If the user asks for a summary of the URL, use PROVIDED_SOURCE_TEXT as the basis.
+  - If PROVIDED_SOURCE_TEXT contains "[EXTRACTED_DOCUMENT_CONTENT]", it's the text from a user-uploaded file (Word, TXT, etc.).
+  - If the user asks for a summary or has questions about the source, use PROVIDED_SOURCE_TEXT as the primary basis.
   - If PROVIDED_SOURCE_TEXT is missing, very short, or you need more data (EXCEPT for YouTube), use the 'googleSearch' tool.
   - DO NOT hallucinate details not present in the source or search results.
   
