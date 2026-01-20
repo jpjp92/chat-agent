@@ -1,6 +1,6 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import mammoth from "mammoth";
+import * as XLSX from 'xlsx';
 import { MessageAttachment, Language } from '../types';
 
 interface ChatInputProps {
@@ -116,9 +116,60 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         extractedText = result.value;
+      } else if (file.name.endsWith(".xlsx") || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer);
+        // 첫 번째 시트 데이터만 추출
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+        const markdownTable = jsonData.map((row, i) => {
+          const line = `| ${row.map(cell => String(cell || "").replace(/\|/g, "\\|")).join(' | ')} |`;
+          if (i === 0) {
+            const separator = `| ${row.map(() => '---').join(' | ')} |`;
+            return `${line}\n${separator}`;
+          }
+          return line;
+        }).join('\n');
+
+        extractedText = `[XLSX DATA CONVERTED TO MARKDOWN TABLE (Sheet: ${firstSheetName})]\n${markdownTable}`;
       } else if (file.type === "text/plain" || file.type === "text/markdown" || file.type === "text/csv" ||
         file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
-        extractedText = await file.text();
+
+        const arrayBuffer = await file.arrayBuffer();
+
+        // 1. 인코딩 시도 (UTF-8 -> EUC-KR)
+        try {
+          const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+          extractedText = utf8Decoder.decode(arrayBuffer);
+        } catch (e) {
+          // UTF-8 실패 시 한국어 인코딩(EUC-KR)으로 재시도
+          const eucKrDecoder = new TextDecoder('euc-kr');
+          extractedText = eucKrDecoder.decode(arrayBuffer);
+        }
+
+        // 2. CSV 파일의 경우 마크다운 테이블로 변환 (AI 인식률 향상)
+        if (file.name.endsWith(".csv")) {
+          const lines = extractedText.split(/\r?\n/).filter(line => line.trim() !== "");
+          if (lines.length > 0) {
+            const tableData = lines.map(line => {
+              // 단순 콤마 분리보다 안전한 정규식 (따옴표 내 콤마 무시 등은 고려하지 않은 기본형)
+              return line.split(',').map(cell => cell.trim().replace(/^["']|["']$/g, ''));
+            });
+
+            const markdownTable = tableData.map((row, i) => {
+              const line = `| ${row.join(' | ')} |`;
+              if (i === 0) {
+                const separator = `| ${row.map(() => '---').join(' | ')} |`;
+                return `${line}\n${separator}`;
+              }
+              return line;
+            }).join('\n');
+
+            extractedText = `[CSV DATA CONVERTED TO MARKDOWN TABLE]\n${markdownTable}`;
+          }
+        }
       }
     } catch (err) {
       console.error("Text extraction failed:", err);
@@ -181,10 +232,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         'text/plain',
         'text/markdown',
         'text/csv',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       ];
       if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
-        file.name.endsWith('.docx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
+        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
         processFile(file);
       }
     }
@@ -201,7 +253,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
               ) : (
                 <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
                   <i className={`fa-solid ${selectedAttachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
-                      selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
+                    selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
+                      selectedAttachment.mimeType.includes('sheet') || selectedAttachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
                         selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
                           'fa-file-lines text-slate-500'
                     } text-xl`}></i>
@@ -232,7 +285,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*,application/pdf,.docx,.txt,.md,.csv"
+          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv"
           className="hidden"
         />
 

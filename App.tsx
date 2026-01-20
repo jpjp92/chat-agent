@@ -290,7 +290,15 @@ const App: React.FC = () => {
       if (s.id === currentSessionId) {
         // UI에는 즉시 표시 (원본 base64 또는 URL 둘 다 ChatMessage에서 지원됨)
         latestHistory = [...s.messages, { ...userMessage, attachment: finalAttachment }];
-        return { ...s, messages: latestHistory };
+
+        // 문서인 경우 세션의 마지막 활성 문서로 저장
+        const isDocument = finalAttachment?.extractedText || finalAttachment?.mimeType === 'application/pdf';
+
+        return {
+          ...s,
+          messages: latestHistory,
+          lastActiveDoc: isDocument ? finalAttachment : s.lastActiveDoc
+        };
       }
       return s;
     }));
@@ -300,7 +308,18 @@ const App: React.FC = () => {
     const modelMessageId = (Date.now() + 1).toString();
 
     // URL 감지 및 지능형 텍스트 추출
-    let webContext = attachment?.extractedText ? `[EXTRACTED_DOCUMENT_CONTENT: ${attachment.fileName}]\n${attachment.extractedText}` : "";
+    // 현재 세션의 마지막 문서 컨텍스트가 있다면 기본으로 탑재
+    const currentSession = sessions.find(s => s.id === currentSessionId);
+    let webContext = "";
+
+    // 1. 현재 첨부된 문서가 있다면 우선 적용
+    if (attachment?.extractedText) {
+      webContext = `[EXTRACTED_DOCUMENT_CONTENT: ${attachment.fileName}]\n${attachment.extractedText}`;
+    }
+    // 2. 현재 첨부된 문서가 없지만, 세션에 저장된 이전 문서 컨텍스트가 있다면 보조 적용
+    else if (currentSession?.lastActiveDoc?.extractedText) {
+      webContext = `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
+    }
 
     // 더 정교한 URL 정규식 (괄호나 문장부호 포함 가능성 고려)
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;
@@ -313,15 +332,12 @@ const App: React.FC = () => {
 
       if (isArxiv) {
         setLoadingStatus(language === 'ko' ? "논문 데이터를 정밀하게 분석 중입니다..." : "Analyzing paper data in detail...");
-        webContext = await fetchUrlContent(url);
+        webContext += `\n\n[ARXIV_CONTENT: ${url}]\n` + await fetchUrlContent(url);
         setLoadingStatus(null);
       } else if (isYoutube) {
         setLoadingStatus(language === 'ko' ? "유튜브 정보를 확인 중입니다..." : "Checking YouTube info...");
-
-        // 1. 기본 메타데이터 (제목, 채널 등) 가져오기 - 0.2초
         const metadata = await fetchUrlContent(url);
 
-        // 2. 자막 추출 시도 - 1초
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
         const match = regExp.exec(url);
         const videoId = (match && match[7].length === 11) ? match[7] : null;
@@ -332,22 +348,16 @@ const App: React.FC = () => {
         }
 
         if (transcript) {
-          // 자막 있음: Fast Path (3초)
           setLoadingStatus(language === 'ko' ? "자막 데이터를 분석 중입니다..." : "Analyzing transcript data...");
-          webContext = `${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
+          webContext += `\n\n[YOUTUBE_CONTENT: ${url}]\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
         } else {
-          // 자막 없음: Slow Path (Gemini Video Vision - 60초)
-          // Native Video Analysis (api/chat.ts에서 처리됨)
           setLoadingStatus(language === 'ko' ? "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)" : "Gemini is watching the video... (May take about 1 min)");
-          webContext = metadata; // 메타데이터만 줌 -> api/chat.ts가 비디오 처리
+          webContext += `\n\n[YOUTUBE_METADATA: ${url}]\n${metadata}`;
         }
-
-        // 잠시 후 로딩 상태 해제 (스트리밍 시작되면 자연스럽게 넘어감)
         setTimeout(() => setLoadingStatus(null), 3000);
-
       } else {
         setLoadingStatus(language === 'ko' ? "URL에서 내용을 가져오는 중..." : "Fetching content from URL...");
-        webContext = await fetchUrlContent(url);
+        webContext += `\n\n[URL_CONTENT: ${url}]\n` + await fetchUrlContent(url);
         setLoadingStatus(null);
       }
     }
