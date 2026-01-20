@@ -517,7 +517,7 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            {isTyping && currentSession?.messages && currentSession.messages.length > 0 && currentSession.messages[currentSession.messages.length - 1].role === Role.USER && (
+            {((isTyping && currentSession?.messages && currentSession.messages.length > 0 && currentSession.messages[currentSession.messages.length - 1].role === Role.USER) || loadingStatus) && (
               <div className="flex items-start gap-4 mt-4 pl-1">
                 <div className="flex-shrink-0 mt-1">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-primary-500 to-violet-500 flex items-center justify-center shadow-lg shadow-primary-500/10">
@@ -532,14 +532,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {loadingStatus && (
-              <div className="mt-4 p-4 rounded-xl bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/20 text-primary-600 dark:text-primary-400 text-sm animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center gap-2 font-bold mb-1">
-                  <i className="fa-solid fa-circle-notch fa-spin"></i>
-                  <span>{loadingStatus}</span>
-                </div>
-              </div>
-            )}
+
 
             <div ref={messagesEndRef} className="h-4 sm:h-10" />
           </div>
