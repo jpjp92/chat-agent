@@ -77,10 +77,6 @@ flowchart TB
     AI -->|Grounded Response| Backend
     Backend -->|Real-time Stream| Frontend
     Frontend -->|Display| User
-    
-    style AI fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    style Storage fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style Parser fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
 ```
 
 ---
