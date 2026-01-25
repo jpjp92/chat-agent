@@ -26,7 +26,8 @@
 
 ### 🎨 Mobile & UX Enhancements (New!)
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
-- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
+- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions. PPTX files with no text content will display a helpful warning message.
+- **Improved Markdown Rendering**: Fixed numeric range display (e.g., `1~10`, `창 50:15~21`) to prevent incorrect strikethrough formatting by escaping tildes between digits.
 - **Unified Loading UX**: Replaced bulky text status boxes with a clean, consistent "..." bouncing animation for all analysis and wait states.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** support to prevent address bar layout shifts.
 - **Premium Loading Experience**: Features a "Breathing" logo animation and bouncing indicators for a polished, app-like startup.

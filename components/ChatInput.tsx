@@ -192,6 +192,38 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           }
         }
         extractedText = fullText.trim();
+      } else if (file.name.endsWith(".pptx") || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+        const arrayBuffer = await file.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const slideFiles = Object.keys(zip.files)
+          .filter(name => name.match(/ppt\/slides\/slide\d+\.xml$/i))
+          .sort((a, b) => {
+            const numA = parseInt(a.match(/slide(\d+)\.xml$/i)?.[1] || '0');
+            const numB = parseInt(b.match(/slide(\d+)\.xml$/i)?.[1] || '0');
+            return numA - numB;
+          });
+
+        let fullText = "";
+        for (let i = 0; i < slideFiles.length; i++) {
+          const slidePath = slideFiles[i];
+          const xmlContent = await zip.file(slidePath)!.async("string");
+          // <a:t> 태그 안의 텍스트만 추출 (PowerPoint 텍스트 태그)
+          const textMatches = xmlContent.match(/<a:t[^>]*>(.*?)<\/a:t>/g);
+          if (textMatches) {
+            const slideText = textMatches
+              .map(m => m.replace(/<[^>]+>/g, ''))
+              .map(t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
+              .join(' ');
+            fullText += `[Slide ${i + 1}]\n${slideText}\n\n`;
+          }
+        }
+
+        // 텍스트가 거의 없는 경우 안내 메시지 제공
+        if (fullText.trim().length < 10) {
+          extractedText = `[PPTX 파일: 총 ${slideFiles.length}개 슬라이드]\n⚠️ 텍스트를 찾을 수 없습니다. 이미지 위주의 슬라이드인 경우 개별 이미지를 캡처하여 업로드해주세요.`;
+        } else {
+          extractedText = fullText.trim();
+        }
       }
     } catch (err) {
       console.error("Text extraction failed:", err);
@@ -255,10 +287,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         'text/markdown',
         'text/csv',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       ];
       if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
-        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx')) {
+        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx')) {
         processFile(file);
       }
     }
@@ -277,9 +310,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                   <i className={`fa-solid ${selectedAttachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
                     selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
                       selectedAttachment.mimeType.includes('sheet') || selectedAttachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
-                        selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
-                          selectedAttachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
-                            'fa-file-lines text-slate-500'
+                        selectedAttachment.mimeType.includes('presentationml') || selectedAttachment.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
+                          selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
+                            selectedAttachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
+                              'fa-file-lines text-slate-500'
                     } text-xl`}></i>
                   <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{selectedAttachment.fileName}</span>
                 </div>
@@ -308,7 +342,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx"
+          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx,.pptx"
           className="hidden"
         />
 
