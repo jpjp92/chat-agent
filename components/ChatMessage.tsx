@@ -180,7 +180,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               {message.content ? (
                 <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed break-all">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents as any}>
-                    {message.content}
+                    {message.content.replace(/(\d)~(\d)/g, '$1&#126;$2')}
                   </ReactMarkdown>
                 </div>
               ) : (

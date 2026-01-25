@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import mammoth from "mammoth";
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
 
 interface ChatInputProps {
@@ -170,6 +171,27 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             extractedText = `[CSV DATA CONVERTED TO MARKDOWN TABLE]\n${markdownTable}`;
           }
         }
+      } else if (file.name.endsWith(".hwpx")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const sectionFiles = Object.keys(zip.files)
+          .filter(name => name.match(/Contents\/section\d+\.xml/i))
+          .sort();
+
+        let fullText = "";
+        for (const sectionPath of sectionFiles) {
+          const xmlContent = await zip.file(sectionPath)!.async("string");
+          // <hp:t>태그 안의 텍스트만 추출
+          const textMatches = xmlContent.match(/<hp:t[^>]*>(.*?)<\/hp:t>/g);
+          if (textMatches) {
+            const sectionText = textMatches
+              .map(m => m.replace(/<[^>]+>/g, ''))
+              .map(t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
+              .join(' ');
+            fullText += sectionText + "\n";
+          }
+        }
+        extractedText = fullText.trim();
       }
     } catch (err) {
       console.error("Text extraction failed:", err);
@@ -236,7 +258,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       ];
       if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
-        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
+        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx')) {
         processFile(file);
       }
     }
@@ -256,7 +278,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                     selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
                       selectedAttachment.mimeType.includes('sheet') || selectedAttachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
                         selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
-                          'fa-file-lines text-slate-500'
+                          selectedAttachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
+                            'fa-file-lines text-slate-500'
                     } text-xl`}></i>
                   <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{selectedAttachment.fileName}</span>
                 </div>
@@ -285,7 +308,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv"
+          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx"
           className="hidden"
         />
 

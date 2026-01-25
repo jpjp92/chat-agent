@@ -26,14 +26,64 @@
 
 ### 🎨 Mobile & UX Enhancements (New!)
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
-- **Advanced Document Support**: Directly analyzes `.docx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth), bypassing API MIME restrictions.
+- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
 - **Unified Loading UX**: Replaced bulky text status boxes with a clean, consistent "..." bouncing animation for all analysis and wait states.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** support to prevent address bar layout shifts.
 - **Premium Loading Experience**: Features a "Breathing" logo animation and bouncing indicators for a polished, app-like startup.
 
 ---
 
-## 🏗️ Technical Stack
+## 🗺️ System Architecture
+
+```mermaid
+flowchart TB
+    User([👤 User])
+    
+    subgraph Frontend["🎨 Frontend Layer"]
+        UI[React UI Components]
+        State[Session State Management]
+    end
+    
+    subgraph Backend["⚙️ Vercel Serverless API"]
+        Auth[/api/auth - Anonymous Login/]
+        Chat[/api/chat - Streaming/]
+        Sessions[/api/sessions - CRUD/]
+        Upload[/api/upload - Storage Proxy/]
+        Tools[/api/fetch-url, /api/speech/]
+    end
+    
+    subgraph AI["🤖 AI Engine"]
+        Gemini["Gemini 2.5 Flash<br/>(Multimodal Reasoning)"]
+        Gemma["Gemma 3 4B<br/>(Title Generation)"]
+    end
+    
+    subgraph Storage["💾 Persistent Storage"]
+        DB[(Supabase PostgreSQL<br/>Sessions & Messages)]
+        Files[Supabase Storage<br/>Images & PDFs]
+    end
+    
+    subgraph Parser["📄 Client-side Parsers"]
+        HWPX[JSZip - HWPX]
+        DOCX[Mammoth - DOCX]
+        XLSX[SheetJS - XLSX]
+    end
+    
+    User -->|Query + Files| Frontend
+    Frontend -->|API Calls| Backend
+    Backend -->|Streaming| AI
+    Backend <-->|Store/Retrieve| Storage
+    Frontend -->|Extract Text| Parser
+    Parser -->|Context| Backend
+    AI -->|Grounded Response| Backend
+    Backend -->|Real-time Stream| Frontend
+    Frontend -->|Display| User
+    
+    style AI fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    style Storage fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Parser fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+```
+
+---
 
 ### Frontend
 - **React 19** + **Vite** (TypeScript)

@@ -12,6 +12,7 @@
     "@google/genai": "^1.34.0",
     "@supabase/supabase-js": "^2.90.1",
     "dotenv": "^17.2.3",
+    "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -19,6 +20,7 @@
     "youtube-transcript-plus": "^1.1.2"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.0",
     "@types/node": "^25.0.8",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
