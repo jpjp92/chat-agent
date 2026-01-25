@@ -4,6 +4,8 @@ import ReactMarkdown from 'https://esm.sh/react-markdown@9';
 import remarkGfm from 'https://esm.sh/remark-gfm@4';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
+import ChartRenderer from './ChartRenderer';
+import ChemicalRenderer from './ChemicalRenderer';
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -156,6 +158,101 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     );
   };
 
+  const renderContent = (content: string) => {
+    // 1. Process for numeric ranges first (1~10 -> 1&#126;10)
+    const processedContent = content.replace(/(\d)~(\d)/g, '$1&#126;$2');
+
+    // 2. Split by Viz Blocks (Chart & Smiles)
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json:(chart|smiles)\n([\s\S]*?)\n```/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = blockRegex.exec(processedContent)) !== null) {
+      const blockType = match[1]; // 'chart' or 'smiles'
+
+      // Add text before the block
+      if (match.index > lastIndex) {
+        parts.push({
+          type: 'text',
+          content: processedContent.substring(lastIndex, match.index)
+        });
+      }
+
+      // Add viz block
+      try {
+        const jsonData = JSON.parse(match[2]);
+        if (blockType === 'chart') {
+          parts.push({ type: 'chart', data: jsonData });
+        } else if (blockType === 'smiles') {
+          // smiles JSON format expected: { "smiles": "..." }
+          parts.push({ type: 'chemical', data: jsonData });
+        }
+      } catch (e) {
+        // Fallback: render as code block if JSON invalid
+        parts.push({
+          type: 'text',
+          content: match[0]
+        });
+      }
+
+      lastIndex = blockRegex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < processedContent.length) {
+      const remainingText = processedContent.substring(lastIndex);
+
+      // Check for incomplete viz block (streaming)
+      if (remainingText.includes('```json:chart') || remainingText.includes('```json:smiles')) {
+        const [visibleText] = remainingText.split(/```json:(chart|smiles)/);
+        if (visibleText) {
+          parts.push({
+            type: 'text',
+            content: visibleText
+          });
+        }
+        // Add loading placeholder
+        parts.push({ type: 'chart_loading' } as any);
+      } else {
+        parts.push({
+          type: 'text',
+          content: remainingText
+        });
+      }
+    }
+
+    return (
+      <>
+        {parts.map((part, idx) => {
+          if (part.type === 'chart') {
+            return <ChartRenderer key={idx} chartData={part.data} />;
+          }
+          if (part.type === 'chemical') {
+            return <ChemicalRenderer key={idx} smiles={part.data.smiles} />;
+          }
+          if (part.type === 'chart_loading') {
+            return (
+              <div key={idx} className="my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
+                <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-slate-400">
+                  <i className="fa-solid fa-flask text-2xl animate-bounce"></i>
+                  <span className="text-sm font-medium">분석 중...</span>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed break-all">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents as any}>
+                {part.content || ''}
+              </ReactMarkdown>
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-8 group animate-in fade-in duration-500`}>
       <div className={`flex max-w-[95%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 sm:gap-4`}>
@@ -178,11 +275,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
             <div className="font-normal leading-relaxed w-full">
               {message.content ? (
-                <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed break-all">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents as any}>
-                    {message.content.replace(/(\d)~(\d)/g, '$1&#126;$2')}
-                  </ReactMarkdown>
-                </div>
+                renderContent(message.content)
               ) : (
                 <div className="flex space-x-1.5 py-4">
                   <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s]"></div>
