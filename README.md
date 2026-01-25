@@ -119,7 +119,7 @@ flowchart TB
 │       └── supabase.ts   # Server-side Supabase client config
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings
-│   ├── ChatInput.tsx     # Multimodal input, text extraction (Mammoth) & validation
+│   ├── ChatInput.tsx     # Multimodal input, text extraction (Mammoth/JSZip) & validation
 │   ├── Dialog.tsx        # Premium custom modals
 │   ├── ChatMessage.tsx   # Markdown & logic rendering
 │   ├── Header.tsx        # User profile & global settings
