@@ -25,10 +25,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const finalTranscriptRef = useRef('');
 
   const i18n = {
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
+    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
   };
 
   const t = i18n[language] || i18n.ko;
@@ -293,6 +293,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
         file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx')) {
         processFile(file);
+      } else {
+        showToast(t.typeError, "error");
       }
     }
   };

@@ -62,7 +62,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       newChat: "Nuevo Chat",
       history: "Historial",
       deleteTitle: "Eliminar Chat",
-      deleteMsg: "¿Estás seguro de que quieres eliminar 이 채팅? No se puede deshacer.",
+      deleteMsg: "¿Estás seguro de que quieres eliminar este chat? No se puede deshacer.",
       doubleClick: "Doble clic para editar",
       languageLabel: "Idioma"
     },

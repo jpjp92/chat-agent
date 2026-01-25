@@ -62,6 +62,67 @@ const App: React.FC = () => {
     fr: { title: "Bonjour!", subtitle: "De quoi parlons-nous ?", desc: "Posez des questions ou cherchez en direct." }
   };
 
+  const i18n = {
+    ko: {
+      profileUpdated: "프로필이 업데이트되었습니다.",
+      uploadFailed: "파일 업로드에 실패했습니다.",
+      renameFailed: "채팅방 이름 변경에 실패했습니다.",
+      analyzingImage: "이미지를 분석 중입니다...",
+      analyzingDoc: "문서를 분석 중입니다...",
+      analyzingFile: "파일을 분석 중입니다...",
+      analyzingPaper: "논문 데이터를 정밀하게 분석 중입니다...",
+      checkingYoutube: "유튜브 정보를 확인 중입니다...",
+      analyzingTranscript: "자막 데이터를 분석 중입니다...",
+      watchingVideo: "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)",
+      fetchingUrl: "URL에서 내용을 가져오는 중...",
+      preparingSession: "세션을 준비 중입니다"
+    },
+    en: {
+      profileUpdated: "Profile updated.",
+      uploadFailed: "File upload failed.",
+      renameFailed: "Failed to rename chat.",
+      analyzingImage: "Analyzing image...",
+      analyzingDoc: "Analyzing document...",
+      analyzingFile: "Analyzing file...",
+      analyzingPaper: "Analyzing paper data in detail...",
+      checkingYoutube: "Checking YouTube info...",
+      analyzingTranscript: "Analyzing transcript data...",
+      watchingVideo: "Gemini is watching the video... (May take about 1 min)",
+      fetchingUrl: "Fetching content from URL...",
+      preparingSession: "Preparing session"
+    },
+    es: {
+      profileUpdated: "Perfil actualizado.",
+      uploadFailed: "Error al subir archivo.",
+      renameFailed: "Error al cambiar nombre del chat.",
+      analyzingImage: "Analizando imagen...",
+      analyzingDoc: "Analizando documento...",
+      analyzingFile: "Analizando archivo...",
+      analyzingPaper: "Analizando datos del artículo...",
+      checkingYoutube: "Comprobando información de YouTube...",
+      analyzingTranscript: "Analizando transcripción...",
+      watchingVideo: "Gemini está viendo el video... (Puede tomar 1 min)",
+      fetchingUrl: "Obteniendo contenido de URL...",
+      preparingSession: "Preparando sesión"
+    },
+    fr: {
+      profileUpdated: "Profil mis à jour.",
+      uploadFailed: "Échec du téléchargement.",
+      renameFailed: "Échec du renommage du chat.",
+      analyzingImage: "Analyse de l'image...",
+      analyzingDoc: "Analyse du document...",
+      analyzingFile: "Analyse du fichier...",
+      analyzingPaper: "Analyse des données de l'article...",
+      checkingYoutube: "Vérification des infos YouTube...",
+      analyzingTranscript: "Analyse de la transcription...",
+      watchingVideo: "Gemini regarde la vidéo... (Peut prendre 1 min)",
+      fetchingUrl: "Récupération du contenu URL...",
+      preparingSession: "Préparation de la session"
+    }
+  };
+
+  const t = i18n[language] || i18n.ko;
+
   useEffect(() => {
     const initAuth = async () => {
       let user: SupabaseUser | null = null;
@@ -224,7 +285,7 @@ const App: React.FC = () => {
 
       // 3. UI 프로필 상태 업데이트
       setUserProfile(profile);
-      showToast(language === 'ko' ? "프로필이 업데이트되었습니다." : "Profile updated.", "success");
+      showToast(t.profileUpdated, "success");
     } catch (e: any) {
       showToast(e.message, "error");
     }
@@ -256,14 +317,7 @@ const App: React.FC = () => {
         const isPDF = attachment.mimeType === 'application/pdf';
 
         // 자연스러운 로딩 문구 설정
-        const loadingMsgs = {
-          ko: isImage ? "이미지를 분석 중입니다..." : isPDF ? "문서를 분석 중입니다..." : "파일을 분석 중입니다...",
-          en: isImage ? "Analyzing image..." : isPDF ? "Analyzing document..." : "Analyzing file...",
-          es: isImage ? "Analizando imagen..." : isPDF ? "Analizando documento..." : "Analizando archivo...",
-          fr: isImage ? "Analyse de l'image..." : isPDF ? "Analyse du document..." : "Analyse du fichier..."
-        };
-
-        setLoadingStatus(loadingMsgs[language as keyof typeof loadingMsgs] || loadingMsgs.ko);
+        setLoadingStatus(isImage ? t.analyzingImage : isPDF ? t.analyzingDoc : t.analyzingFile);
 
         const bucket = isImage ? 'chat-imgs' : 'chat-docs';
         const uploadResult = await uploadToStorage({
@@ -277,7 +331,7 @@ const App: React.FC = () => {
         // 업로드된 실제 URL로 교체
         finalAttachment = { ...attachment, data: uploadResult.url };
       } catch (e: any) {
-        showToast(language === 'ko' ? "파일 업로드에 실패했습니다." : "File upload failed.", "error");
+        showToast(t.uploadFailed, "error");
         console.error("Upload error:", e);
         return;
       } finally {
@@ -331,11 +385,11 @@ const App: React.FC = () => {
       const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
       if (isArxiv) {
-        setLoadingStatus(language === 'ko' ? "논문 데이터를 정밀하게 분석 중입니다..." : "Analyzing paper data in detail...");
+        setLoadingStatus(t.analyzingPaper);
         webContext += `\n\n[ARXIV_CONTENT: ${url}]\n` + await fetchUrlContent(url);
         setLoadingStatus(null);
       } else if (isYoutube) {
-        setLoadingStatus(language === 'ko' ? "유튜브 정보를 확인 중입니다..." : "Checking YouTube info...");
+        setLoadingStatus(t.checkingYoutube);
         const metadata = await fetchUrlContent(url);
 
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -348,15 +402,15 @@ const App: React.FC = () => {
         }
 
         if (transcript) {
-          setLoadingStatus(language === 'ko' ? "자막 데이터를 분석 중입니다..." : "Analyzing transcript data...");
+          setLoadingStatus(t.analyzingTranscript);
           webContext += `\n\n[YOUTUBE_CONTENT: ${url}]\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
         } else {
-          setLoadingStatus(language === 'ko' ? "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)" : "Gemini is watching the video... (May take about 1 min)");
+          setLoadingStatus(t.watchingVideo);
           webContext += `\n\n[YOUTUBE_METADATA: ${url}]\n${metadata}`;
         }
         setTimeout(() => setLoadingStatus(null), 3000);
       } else {
-        setLoadingStatus(language === 'ko' ? "URL에서 내용을 가져오는 중..." : "Fetching content from URL...");
+        setLoadingStatus(t.fetchingUrl);
         webContext += `\n\n[URL_CONTENT: ${url}]\n` + await fetchUrlContent(url);
         setLoadingStatus(null);
       }
@@ -429,10 +483,7 @@ const App: React.FC = () => {
       setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
     } catch (e) {
       console.error("Failed to rename session", e);
-      showToast(language === 'ko' ? "채팅방 이름 변경에 실패했습니다." :
-        language === 'es' ? "Error al cambiar el nombre del chat." :
-          language === 'fr' ? "Échec du renommage du chat." :
-            "Failed to rename chat.", "error");
+      showToast(t.renameFailed, "error");
     }
   };
 
@@ -468,7 +519,7 @@ const App: React.FC = () => {
 
           <div className="flex items-center space-x-2">
             <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
-              {language === 'ko' ? '세션을 준비 중입니다' : 'Preparing session'}
+              {t.preparingSession}
             </p>
             <div className="flex space-x-1 pt-2">
               <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
