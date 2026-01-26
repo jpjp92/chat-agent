@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'https://esm.sh/react-markdown@9';
 import remarkGfm from 'https://esm.sh/remark-gfm@4';
+import remarkMath from 'https://esm.sh/remark-math@6';
+import rehypeKatex from 'https://esm.sh/rehype-katex@7';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 import ChartRenderer from './ChartRenderer';
@@ -203,10 +205,20 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     if (lastIndex < processedContent.length) {
       const remainingText = processedContent.substring(lastIndex);
 
-      // Check for incomplete viz block (streaming)
-      if (remainingText.includes('```json:chart') || remainingText.includes('```json:smiles')) {
-        const [visibleText] = remainingText.split(/```json:(chart|smiles)/);
-        if (visibleText) {
+      // Check for incomplete viz block or unclosed math block (streaming)
+      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles');
+      const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
+
+      if (hasIncompleteViz || hasUnclosedMath) {
+        // Split text to show only complete parts
+        let visibleText = remainingText;
+        if (hasIncompleteViz) {
+          visibleText = visibleText.split(/```json:(chart|smiles)/)[0];
+        } else if (hasUnclosedMath) {
+          visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
+        }
+
+        if (visibleText.trim()) {
           parts.push({
             type: 'text',
             content: visibleText
@@ -243,7 +255,11 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           }
           return (
             <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed break-all">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents as any}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={MarkdownComponents as any}
+              >
                 {part.content || ''}
               </ReactMarkdown>
             </div>

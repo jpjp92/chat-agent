@@ -14,10 +14,13 @@
     "apexcharts": "^5.3.6",
     "dotenv": "^17.2.3",
     "jszip": "^3.10.1",
+    "katex": "^0.16.28",
     "mammoth": "^1.11.0",
     "react": "^19.0.0",
     "react-apexcharts": "^1.9.0",
     "react-dom": "^19.0.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
     "smiles-drawer": "^2.1.7",
     "xlsx": "^0.18.5",
     "youtube-transcript-plus": "^1.1.2"

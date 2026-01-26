@@ -8,6 +8,7 @@ import Dialog from './components/Dialog';
 import Toast from './components/Toast';
 import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
 import { Role, Message, ChatSession, UserProfile, Language, GroundingSource, MessageAttachment } from './types';
+import 'katex/dist/katex.min.css';
 
 interface SupabaseUser {
   id: number;

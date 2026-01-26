@@ -100,7 +100,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "text": "Ethanol"
     }
     \`\`\`
-  - Always prefer SMILES for structural representation over ASCII art or Markdown images.`;
+  - Always prefer SMILES for structural representation over ASCII art or Markdown images.
+
+  [MATHEMATICAL EXPRESSIONS]
+  - Use LaTeX for ALL mathematical formulas, equations, and scientific notations.
+  - For **inline math**, wrap the formula with a single dollar sign: \`$E=mc^2$\`.
+  - For **block math** (standalone equations), use double dollar signs on new lines:
+    \`\$\$\`
+    \`f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx\`
+    \`\$\$\`
+  - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.`;
 
     if (webContent) {
         systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;

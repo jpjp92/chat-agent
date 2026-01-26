@@ -64,6 +64,7 @@ flowchart TB
     subgraph AI["🤖 AI Engine"]
         Gemini["Gemini 2.5 Flash<br/>(Multimodal Reasoning)"]
         Gemma["Gemma 3 4B<br/>(Title Generation)"]
+        TTS["Gemini 2.5 Flash Preview TTS<br/>(Premium Speech)"]
     end
     
     subgraph Storage["💾 Persistent Storage"]
@@ -79,7 +80,8 @@ flowchart TB
     
     User -->|Query + Files| Frontend
     Frontend -->|API Calls| Backend
-    Backend -->|Streaming| AI
+    Backend -->|Requests| AI
+    AI -->|Streaming/Audio/Title| Backend
     Backend <-->|Store/Retrieve| Storage
     Frontend -->|Extract Text| Parser
     Parser -->|Context| Backend
