@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import ApexCharts from 'apexcharts';
 
 interface ChartData {
-    type: 'bar' | 'line' | 'area' | 'pie' | 'donut';
+    type: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'radar' | 'treemap';
     title?: string;
     data: {
         categories?: string[];
         series: Array<{
             name?: string;
-            data: number[];
+            data: any[];
         }>;
     };
 }
@@ -52,83 +52,76 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
     const isDark = useThemeMode();
     const { type, title, data } = chartData;
 
-    // --- 데이터 정규화 (Normalization) - 렌더링 전 수행 ---
-    const { series, categories, isPie } = useMemo(() => {
+    // --- 데이터 정규화 (Normalization) ---
+    const { series, categories, isPie, isRadar, isTreemap } = useMemo(() => {
+        const type = chartData.type;
         const isPieType = type === 'pie' || type === 'donut';
+        const isRadarType = type === 'radar';
+        const isTreemapType = type === 'treemap';
         let normSeries: any = [];
-        let normCategories: string[] = data?.categories || [];
+        let normCategories: string[] = chartData.data?.categories || [];
 
-        if (!data || !data.series) return { series: [], categories: [], isPie: isPieType };
+        if (!chartData.data || !chartData.data.series)
+            return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType };
 
         if (isPieType) {
-            const firstSeries = data.series[0];
+            const firstSeries = chartData.data.series[0];
             if (Array.isArray(firstSeries.data) && typeof firstSeries.data[0] === 'number') {
-                if (data.series.length === 1) {
+                if (chartData.data.series.length === 1) {
                     normSeries = firstSeries.data;
                 } else {
-                    normSeries = data.series.map(s => s.data[0] || 0);
-                    if (normCategories.length === 0) normCategories = data.series.map(s => s.name || 'Unnamed');
+                    normSeries = chartData.data.series.map(s => s.data[0] || 0);
+                    if (normCategories.length === 0) normCategories = chartData.data.series.map(s => s.name || 'Unnamed');
                 }
             } else {
                 normSeries = [0, 0, 0];
             }
+        } else if (isTreemapType) {
+            normSeries = [{
+                data: (chartData.data.series[0].data || []).map((d: any, i: number) => ({
+                    x: normCategories[i] || `Item ${i + 1}`,
+                    y: Number(d) || 0
+                }))
+            }];
         } else {
-            // Bar/Line
-            const firstSeries = data.series[0];
-            const firstDataPoint = firstSeries.data?.[0];
-
-            if (typeof firstDataPoint === 'object' && firstDataPoint !== null && 'x' in firstDataPoint) {
-                if (normCategories.length === 0 && firstSeries.data) {
-                    normCategories = (firstSeries.data as any[]).map((d: any) => String(d.x));
-                }
-                normSeries = data.series.map(s => ({
-                    name: s.name,
-                    data: (s.data as any[]).map((d: any) => {
-                        const val = Number(d.y);
-                        return isNaN(val) ? 0 : val;
-                    })
-                }));
-            } else {
-                normSeries = data.series.map(s => ({
-                    name: s.name,
-                    data: (s.data as any[]).map(d => {
-                        const val = Number(d);
-                        return isNaN(val) ? 0 : val;
-                    })
-                }));
-            }
+            // Bar/Line/Scatter/Radar/Area
+            normSeries = chartData.data.series.map(s => ({
+                name: s.name,
+                data: (s.data || []).map(d => {
+                    if (typeof d === 'object' && d !== null) {
+                        return { x: d.x, y: Number(d.y) || 0 };
+                    }
+                    return Number(d) || 0;
+                })
+            }));
         }
 
         // 카테고리 안전장치
-        if (!isPieType && (type === 'bar' || type === 'line' || type === 'area') && normCategories.length === 0 && normSeries.length > 0) {
+        if (!isPieType && !isTreemapType && normCategories.length === 0 && normSeries.length > 0) {
             const dataLength = normSeries[0].data?.length || 0;
             if (dataLength > 0) {
                 normCategories = Array.from({ length: dataLength }, (_, i) => `${i + 1}`);
             }
         }
 
-        return { series: normSeries, categories: normCategories, isPie: isPieType };
-    }, [data, type]);
+        return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType };
+    }, [chartData]);
 
     useEffect(() => {
-        // 데이터 없으면 중단
         if (series.length === 0) return;
 
-        // 옵션 구성
         const options: any = {
             chart: {
                 type: type,
                 height: 320,
                 width: '100%',
-                fontFamily: 'SF Pro Display, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif',
+                fontFamily: 'Inter, sans-serif',
                 background: 'transparent',
                 toolbar: { show: false },
                 animations: {
                     enabled: true,
                     easing: 'easeinout',
                     speed: 800,
-                    animateGradually: { enabled: true, delay: 150 },
-                    dynamicAnimation: { enabled: true, speed: 350 }
                 }
             },
             theme: {
@@ -136,43 +129,22 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
                 palette: 'palette1'
             },
             colors: CHART_COLORS,
-            title: {
-                text: title || '',
-                align: 'left',
-                style: {
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    color: isDark ? '#f1f5f9' : '#1e293b',
-                    fontFamily: 'inherit'
-                },
-                offsetY: 10
-            },
             series: series,
             xaxis: {
                 categories: categories,
                 labels: {
                     style: {
                         colors: isDark ? '#94a3b8' : '#64748b',
-                        fontSize: '11px',
-                        fontFamily: 'inherit'
+                        fontSize: '11px'
                     },
                     rotate: -45,
-                    rotateAlways: false,
                     hideOverlappingLabels: true,
-                    trim: true
                 },
-                axisBorder: {
-                    show: true,
-                    color: isDark ? '#334155' : '#e2e8f0'
-                },
-                axisTicks: { show: false }
+                axisBorder: { show: true, color: isDark ? '#334155' : '#e2e8f0' }
             },
             yaxis: {
                 labels: {
-                    style: {
-                        colors: isDark ? '#94a3b8' : '#64748b',
-                        fontFamily: 'inherit'
-                    },
+                    style: { colors: isDark ? '#94a3b8' : '#64748b' },
                     formatter: (value: number) => {
                         if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
                         return value;
@@ -182,63 +154,46 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
             grid: {
                 borderColor: isDark ? '#334155' : '#e2e8f0',
                 strokeDashArray: 4,
-                yaxis: { lines: { show: true } },
-                xaxis: { lines: { show: false } },
                 padding: { top: 0, right: 20, bottom: 0, left: 10 }
             },
-            dataLabels: {
-                enabled: false
-            },
+            dataLabels: { enabled: false },
             legend: {
                 position: 'bottom',
-                offsetY: 8,
-                labels: {
-                    colors: isDark ? '#e2e8f0' : '#334155'
-                },
-                itemMargin: { horizontal: 10, vertical: 5 }
-            },
-            tooltip: {
-                theme: isDark ? 'dark' : 'light',
-                y: {
-                    formatter: (val: number) => val
-                },
-                style: {
-                    fontSize: '12px',
-                    fontFamily: 'inherit'
-                }
+                labels: { colors: isDark ? '#e2e8f0' : '#334155' }
             },
             stroke: {
                 show: true,
-                width: isPie ? 0 : 3,
-                curve: 'smooth',
-                colors: isPie ? undefined : ['transparent']
+                width: (isPie || isTreemap) ? 0 : 3,
+                curve: 'smooth'
             },
             plotOptions: {
-                bar: {
-                    borderRadius: 4,
-                    columnWidth: '60%',
-                    distributed: false
-                },
+                bar: { borderRadius: 4, columnWidth: '60%' },
                 pie: {
                     donut: {
                         size: '65%',
                         labels: {
                             show: true,
-                            name: { show: true, fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' },
-                            value: { show: true, fontSize: '20px', fontWeight: 600, color: isDark ? '#f1f5f9' : '#1e293b' },
-                            total: { show: false }
+                            value: { fontSize: '20px', fontWeight: 600, color: isDark ? '#f1f5f9' : '#1e293b' }
                         }
+                    }
+                },
+                treemap: {
+                    distributed: true,
+                    enableShades: false
+                },
+                radar: {
+                    polygons: {
+                        strokeColors: isDark ? '#334155' : '#e2e8f0',
+                        connectorColors: isDark ? '#334155' : '#e2e8f0',
                     }
                 }
             }
         };
 
         if (isPie) {
-            options.stroke.colors = CHART_COLORS;
             options.labels = categories;
         }
 
-        // 기존 차트 파괴 후 재생성
         if (chartInstance.current) {
             chartInstance.current.destroy();
         }
@@ -255,36 +210,52 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
                 chartInstance.current = null;
             }
         };
-    }, [series, categories, isPie, isDark, type, title]); // 의존성 배열에 정규화된 데이터 포함
+    }, [series, categories, isPie, isDark, type, title, isTreemap]);
 
-    // 렌더링
-    if (!data || !data.series || series.length === 0) {
-        return <div className="p-4 text-red-500 bg-red-50 rounded-lg text-sm">데이터 없음</div>;
-    }
+    const handleDownload = () => {
+        if (chartInstance.current) {
+            (chartInstance.current as any).exportToSVG();
+        }
+    };
 
-    // 동적 너비 계산 (스크롤)
     const dataCount = categories.length;
-    // 막대 하나당 40px 정도 확보, 단 최소값은 100%
     const chartMinWidth = dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
 
     return (
         <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
-            <div className="p-5 rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-lg shadow-slate-200/50 dark:shadow-none min-h-[340px] relative overflow-hidden group">
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-xl shadow-slate-200/40 dark:shadow-none relative overflow-hidden flex flex-col group">
 
-                {/* 배경 장식 */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-
-                {/* 스크롤 가능 영역 */}
-                <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
-                    <div style={{ minWidth: chartMinWidth, width: '100%' }}>
-                        <div ref={chartRef} className="w-full" />
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-transparent">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm"></div>
+                        <h3 className="text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                            {title || 'Data Visualization'}
+                        </h3>
                     </div>
+                    <button
+                        onClick={handleDownload}
+                        className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
+                        title="Download SVG"
+                    >
+                        <i className="fa-solid fa-download text-xs"></i>
+                    </button>
                 </div>
 
-                {/* 스크롤 힌트 (우측 페이드) - 데이터 많을 때만 표시 */}
-                {dataCount > 10 && (
-                    <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-[#1e1e1f] to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                )}
+                {/* Chart Area */}
+                <div className="p-5 flex-1 relative min-h-[340px]">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+                    <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
+                        <div style={{ minWidth: chartMinWidth, width: '100%' }}>
+                            <div ref={chartRef} className="w-full" />
+                        </div>
+                    </div>
+
+                    {dataCount > 10 && (
+                        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-[#1e1e1f] to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    )}
+                </div>
             </div>
         </div>
     );

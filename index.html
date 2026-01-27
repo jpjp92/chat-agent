@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -78,6 +79,53 @@
       /* Fallback */
       height: 100dvh;
       /* Dynamic Viewport Height */
+    }
+
+    /* KaTeX / Math Optimization */
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 1.25em 1em;
+      margin: 1.5em 0;
+      scrollbar-width: none;
+      /* Firefox */
+      -ms-overflow-style: none;
+      /* IE/Edge */
+      text-align: center;
+      /* 기본 중앙 정렬 유지 */
+      background: rgba(241, 245, 249, 0.5);
+      /* Very subtle slate tint */
+      border-radius: 12px;
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      transition: all 0.3s ease;
+    }
+
+    .dark .katex-display {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .katex-display:hover {
+      border-color: rgba(139, 92, 246, 0.2);
+      /* Keep a tiny bit of primary on hover */
+    }
+
+    .katex-display::-webkit-scrollbar {
+      display: none;
+      /* Chrome/Safari: 스크롤바 숨기되 스크롤은 작동 */
+    }
+
+    /* 인라인 수식 최적화 */
+    .katex {
+      font-size: 1.05em;
+      padding: 0 0.1em;
+      color: inherit;
+      /* 기본 텍스트 색상 상속 */
+    }
+
+    .dark .katex {
+      color: #f1f5f9;
+      /* 조금 더 밝은 톤 */
     }
   </style>
   <script>

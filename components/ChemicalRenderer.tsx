@@ -4,11 +4,12 @@ import SmilesDrawer from 'smiles-drawer';
 
 interface ChemicalRendererProps {
     smiles: string;
+    name?: string;
     width?: number;
     height?: number;
 }
 
-const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, width = 450, height = 300 }) => {
+const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 300 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -91,60 +92,96 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, width = 450
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleDownload = () => {
+        if (!svgRef.current) return;
+        const svgData = new XMLSerializer().serializeToString(svgRef.current);
+        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = svgUrl;
+        downloadLink.download = `${name || 'molecule'}.svg`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    };
+
     return (
         <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
-            <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-lg shadow-slate-200/50 dark:shadow-none relative overflow-hidden flex flex-col group">
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-xl shadow-slate-200/40 dark:shadow-none relative overflow-hidden flex flex-col group">
+
+                {/* Header */}
+                {(name || error) && (
+                    <div className="px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-transparent">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <h3 className="text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                                {name || (error ? 'Error' : 'Molecular Structure')}
+                            </h3>
+                        </div>
+                        {!error && (
+                            <button
+                                onClick={handleDownload}
+                                className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
+                                title="Download SVG"
+                            >
+                                <i className="fa-solid fa-download text-xs"></i>
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Structure Area */}
-                <div className="p-6 flex flex-col items-center justify-center min-h-[250px] relative">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500/5 to-cyan-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                <div className="p-8 flex flex-col items-center justify-center min-h-[280px] relative">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/5 via-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
                     {error ? (
-                        <div className="flex flex-col items-center gap-2 text-red-400 p-4">
-                            <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
-                            <span className="text-sm font-medium">{error}</span>
+                        <div className="flex flex-col items-center gap-3 text-red-400 p-4">
+                            <div className="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-xl">
+                                <i className="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <span className="text-sm font-semibold tracking-tight">{error}</span>
                         </div>
                     ) : (
-                        <div className="relative w-full overflow-x-auto flex justify-center pb-2">
+                        <div className="relative w-full overflow-x-auto flex justify-center pb-2 custom-scrollbar">
                             <svg
                                 ref={svgRef}
                                 width={width}
                                 height={height}
-                                className="max-w-full h-auto transition-opacity duration-500"
+                                className="max-w-full h-auto transition-all duration-700 hover:scale-[1.02]"
                             />
                         </div>
                     )}
                 </div>
 
                 {/* Info & Code Footer */}
-                <div className="border-t border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 px-4 py-3">
+                <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 px-5 py-3.5">
                     <div className="flex items-center justify-between gap-4">
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 hover:text-indigo-500 transition-colors"
+                            className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-indigo-500 transition-all"
                         >
-                            <i className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} transition-transform`}></i>
-                            SMILES STRING
+                            <i className={`fa-solid ${isExpanded ? 'fa-square-minus' : 'fa-square-plus'} text-[13px] opacity-70`}></i>
+                            SMILES NOTATION
                         </button>
 
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleCopy}
-                                className={`text-[11px] flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all duration-300 ${copied
-                                        ? 'bg-emerald-500/10 text-emerald-500'
-                                        : 'bg-slate-200/50 dark:bg-white/5 text-slate-500 hover:text-indigo-500'
+                                className={`text-[11px] font-bold flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 ${copied
+                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                    : 'bg-white dark:bg-white/5 text-slate-500 border border-slate-200 dark:border-white/10 hover:border-indigo-500 hover:text-indigo-500'
                                     }`}
                             >
                                 <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                                {copied ? 'Copied' : 'Copy'}
+                                {copied ? 'COPIED' : 'COPY SMILES'}
                             </button>
                         </div>
                     </div>
 
                     {isExpanded && (
-                        <div className="mt-2 animate-in slide-in-from-top-1 duration-300">
-                            <div className="p-3 bg-white dark:bg-black/40 rounded-xl border border-slate-200/50 dark:border-white/5 shadow-inner">
-                                <code className="text-[10px] font-mono text-slate-400 break-all leading-relaxed block max-h-[100px] overflow-y-auto custom-scrollbar">
+                        <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
+                            <div className="p-4 bg-white dark:bg-black/40 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-inner select-all">
+                                <code className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all leading-relaxed block max-h-[120px] overflow-y-auto custom-scrollbar">
                                     {smiles}
                                 </code>
                             </div>

@@ -241,7 +241,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return <ChartRenderer key={idx} chartData={part.data} />;
           }
           if (part.type === 'chemical') {
-            return <ChemicalRenderer key={idx} smiles={part.data.smiles} />;
+            return <ChemicalRenderer key={idx} smiles={part.data.smiles} name={part.data.name || part.data.text} />;
           }
           if (part.type === 'chart_loading') {
             return (

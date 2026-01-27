@@ -69,27 +69,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     - Keep table headers as SHORT as possible (e.g., use "경기" instead of "경기수", "득점" instead of "득점수").
     - If there are many columns, prioritize compactness.
 
-  [DATA VISUALIZATION & CHARTS]
-  - When the user asks to visualize data or the data is best presented as a chart, generate a JSON code block in addition to your explanation.
   - JSON Format (Strict Compliance Required):
     \`\`\`json:chart
     {
-      "type": "bar" | "line" | "pie" | "donut",
+      "type": "bar" | "line" | "pie" | "donut" | "scatter" | "radar" | "treemap",
       "title": "Chart Title",
       "data": {
-        "categories": ["Jan", "Feb", ...], // Mandatory for bar/line
+        "categories": ["Jan", "Feb", ...], // Mandatory for bar/line/radar
         "series": [
-          { "name": "Series Name", "data": [10, 20, 30] } // data MUST be a flat array of numbers. NO objects like {x,y}. NO nulls.
+          { "name": "Series Name", "data": [10, 20, 30] } // numeric array or [{x:v, y:v}] for scatter
         ]
       }
     }
     \`\`\`
   - [Chart Type Guidelines]:
-    - **Time-series/Trend** (e.g., stock price, temperature over time) → Use "line".
-    - **Category Comparison** (e.g., sales by product, population by country) → Use "bar".
-    - **Proportions/Percentages** (Total approx 100%) → Use "pie" or "donut".
+    - **Time-series/Trend** → "line".
+    - **Category Comparison** → "bar".
+    - **Proportions** → "pie" or "donut".
+    - **Correlation** (X vs Y) → "scatter".
+    - **Multivariate/Skills** → "radar".
+    - **Hierarchical/Size Comparison** → "treemap".
   - DO NOT output the chart JSON if the data is trivial or single-point. Only correspond when visualization adds value.
-  - IMPORTANT: The 'data' array inside 'series' MUST be a simple array of numbers (e.g., [1, 2, 3]). Do NOT use objects (e.g., {x:1, y:2}). If data is missing for a point, use 0 instead of null.
+  - IMPORTANT: The 'data' array inside 'series' should be a simple array of numbers for most charts, but can be objects like {x:v, y:v} for scatter charts. If data is missing for a point, use 0 instead of null.
 
   [CHEMICAL STRUCTURES]
   - If the user asks for a chemical structure, reaction, or molecule, generate a JSON block with the SMILES code.

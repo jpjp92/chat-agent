@@ -24,17 +24,17 @@
 - **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
 
-### 📊 Intelligent Data & Chemical Visualization (New!)
-- **Dynamic Charts**: Gemini analyzes numerical data and automatically generates beautiful **Bar, Line, Area, or Pie charts** using **ApexCharts**.
-- **Chemical Structure Rendering**: Integrated **SMILES** (Simplified Molecular Input Line Entry System) support. Ask about molecules (e.g., Caffeine, Aspirin), and the AI renders precise chemical structures using **smiles-drawer**.
-- **Smart Parsing**: Features real-time detection of JSON visualization blocks within the chat stream, showing a sleek **loading skeleton** while the AI is generating data.
-- **Robustness**: Automatically handles inconsistent JSON formats, 결측치(null/NaN) values, and provides horizontal scrolling for large datasets.
+### 📊 Intelligent Data & Chemical Visualization (Upgraded!)
+- **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
+- **Chemical Structure Rendering**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. Now includes **Molecule Naming** and **SVG Export**.
+- **Result Export**: High-quality **SVG Download** support for both data charts and chemical structures.
+- **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
-- **Improved Markdown Rendering**: Fixed numeric range display (e.g., `1~10`) to prevent incorrect strikethrough formatting.
-- **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scrolling for large charts.
+- **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.
+- **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
 
 ---
 
@@ -47,8 +47,9 @@ flowchart TB
     subgraph Frontend["🎨 Frontend Layer"]
         UI[React UI Components]
         subgraph Viz["📊 Visualization Engines"]
-            Apex[ApexCharts - Data]
+            Apex[ApexCharts - 8+ Types]
             SMILES[smiles-drawer - Chemical]
+            KaTeX[KaTeX - Math Expressions]
         end
         State[Session State Management]
     end
@@ -129,15 +130,16 @@ flowchart TB
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings
 │   ├── ChatInput.tsx     # Multimodal input & text extraction
+│   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
+│   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
+│   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
 │   ├── Dialog.tsx        # Premium custom modals
-│   ├── ChatMessage.tsx   # Markdown & Viz block parsing logic
 │   ├── Header.tsx        # User profile & global settings
-│   ├── Toast.tsx         # Notification feedback system
-│   ├── ChartRenderer.tsx # ApexCharts integration (Direct Ref management)
-│   └── ChemicalRenderer.tsx # SMILES visualization (SVG Drawer)
+│   └── Toast.tsx         # Notification feedback system
 ├── services/
 │   └── geminiService.ts  # Frontend API bridge & audio control
 ├── App.tsx                # Central state & main layout
+├── index.html             # Global CSS & KaTeX configs
 └── types.ts               # Global types & interfaces
 ```
 
