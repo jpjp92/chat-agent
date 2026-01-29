@@ -8,6 +8,7 @@ import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 import ChartRenderer from './ChartRenderer';
 import ChemicalRenderer from './ChemicalRenderer';
+import BioRenderer from './BioRenderer';
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -165,8 +166,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     const processedContent = content.replace(/(\d)~(\d)/g, '$1&#126;$2');
 
     // 2. Split by Viz Blocks (Chart & Smiles)
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json:(chart|smiles)\n([\s\S]*?)\n```/g;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json:(chart|smiles|bio)\n([\s\S]*?)\n```/g;
     let lastIndex = 0;
     let match;
 
@@ -187,8 +188,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         if (blockType === 'chart') {
           parts.push({ type: 'chart', data: jsonData });
         } else if (blockType === 'smiles') {
-          // smiles JSON format expected: { "smiles": "..." }
           parts.push({ type: 'chemical', data: jsonData });
+        } else if (blockType === 'bio') {
+          parts.push({ type: 'bio', data: jsonData });
         }
       } catch (e) {
         // Fallback: render as code block if JSON invalid
@@ -206,14 +208,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = processedContent.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles');
+      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles') || remainingText.includes('```json:bio');
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         // Split text to show only complete parts
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json:(chart|smiles)/)[0];
+          visibleText = visibleText.split(/```json:(chart|smiles|bio)/)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -242,6 +244,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           }
           if (part.type === 'chemical') {
             return <ChemicalRenderer key={idx} smiles={part.data.smiles} name={part.data.name || part.data.text} />;
+          }
+          if (part.type === 'bio') {
+            return <BioRenderer key={idx} bioData={part.data} />;
           }
           if (part.type === 'chart_loading') {
             return (

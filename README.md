@@ -24,10 +24,14 @@
 - **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
 
-### 📊 Intelligent Data & Chemical Visualization (Upgraded!)
+### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 - **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
 - **Chemical Structure Rendering**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. Now includes **Molecule Naming** and **SVG Export**.
-- **Result Export**: High-quality **SVG Download** support for both data charts and chemical structures.
+- **Bioinformatics Visualization (Bio-Viz)**: 
+    - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations (`residueindex` coloring).
+    - **1D Sequence Mapping**: Interactive visualization of amino acid and nucleotide sequences with property-based color-coding and site highlighting.
+    - **Premium Interaction**: Features **Glassmorphic Custom Tooltips** for residue details and **Responsive forced-resize** for immediate desktop visibility.
+- **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support for all visualization types.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
@@ -49,6 +53,7 @@ flowchart TB
         subgraph Viz["📊 Visualization Engines"]
             Apex[ApexCharts - 8+ Types]
             SMILES[smiles-drawer - Chemical]
+            NGL[NGL - 3D Protein Structures]
             KaTeX[KaTeX - Math Expressions]
         end
         State[Session State Management]
@@ -99,7 +104,9 @@ flowchart TB
 - **React 19** + **Vite** (TypeScript)
 - **ApexCharts** (Data Visualization)
 - **smiles-drawer** (Chemical Structure Rendering)
+- **ngl** (3D Biological Visualization)
 - **Tailwind CSS** (Premium Responsive Design)
+- **Framer Motion** (Immersive Animations)
 
 ### Backend & Database
 - **Vercel Serverless Functions** (API Layer)
@@ -133,6 +140,7 @@ flowchart TB
 │   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
 │   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
 │   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
+│   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
 │   ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
 │   └── Toast.tsx         # Notification feedback system
