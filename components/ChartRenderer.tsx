@@ -226,16 +226,16 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
             <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-xl shadow-slate-200/40 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-transparent">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm"></div>
-                        <h3 className="text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-transparent">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm mt-1.5 flex-shrink-0"></div>
+                        <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
                             {title || 'Data Visualization'}
                         </h3>
                     </div>
                     <button
                         onClick={handleDownload}
-                        className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
+                        className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
                         title="Download SVG"
                     >
                         <i className="fa-solid fa-download text-xs"></i>

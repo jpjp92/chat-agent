@@ -9,22 +9,40 @@ interface ChemicalRendererProps {
     height?: number;
 }
 
+// 다크모드 감지 훅
+const useThemeMode = () => {
+    const [isDark, setIsDark] = React.useState(false);
+
+    useEffect(() => {
+        const checkDarkMode = () => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        };
+        checkDarkMode();
+        const observer = new MutationObserver(checkDarkMode);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    return isDark;
+};
+
 const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 300 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
+    const isDark = useThemeMode();
 
     // 1. SvgDrawer 초기화
     useEffect(() => {
         const options = {
             width: width,
             height: height,
-            bondThickness: 1.2,
-            bondLength: 18,
+            bondThickness: 1.4,
+            bondLength: 22,
             shortBondLength: 0.85,
-            bondSpacing: 0.18 * 18,
+            bondSpacing: 0.18 * 22,
             atomVisualization: 'default',
             isometric: true,
             debug: false,
@@ -33,9 +51,9 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             overlapSensitivity: 0.42,
             overlapResolutionIterations: 1,
             compactDrawing: false,
-            fontSizeLarge: 7,
-            fontSizeSmall: 5,
-            padding: 10,
+            fontSizeLarge: 8.5,
+            fontSizeSmall: 6,
+            padding: 5,
             experimental: false,
             themes: {
                 dark: {
@@ -60,13 +78,13 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         }
     }, [width, height]);
 
-    // 2. 그리기
+    // 2. 그리기 - isDark 의존성 추가
     useEffect(() => {
         if (!drawer || !svgRef.current || !smiles) return;
 
-        const isDark = document.documentElement.classList.contains('dark');
         const theme = isDark ? 'dark' : 'light';
 
+        // 이전 자식 요소(이미 그려진 내용) 삭제
         while (svgRef.current.firstChild) {
             svgRef.current.removeChild(svgRef.current.firstChild);
         }
@@ -84,7 +102,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             setError('Invalid SMILES Code');
         });
 
-    }, [smiles, drawer]);
+    }, [smiles, drawer, isDark]); // 테마 변경 시 다시 그리도록 isDark 추가
 
     const handleCopy = () => {
         navigator.clipboard.writeText(smiles);
@@ -111,17 +129,17 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
 
                 {/* Header */}
                 {(name || error) && (
-                    <div className="px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-transparent">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <h3 className="text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                    <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-transparent">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0 animate-pulse"></div>
+                            <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
                                 {name || (error ? 'Error' : 'Molecular Structure')}
                             </h3>
                         </div>
                         {!error && (
                             <button
                                 onClick={handleDownload}
-                                className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
+                                className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
                                 title="Download SVG"
                             >
                                 <i className="fa-solid fa-download text-xs"></i>
@@ -154,26 +172,30 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                 </div>
 
                 {/* Info & Code Footer */}
-                <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 px-5 py-3.5">
-                    <div className="flex items-center justify-between gap-4">
+                <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 px-4 sm:px-5 py-3">
+                    <div className="flex items-center justify-between gap-2 sm:gap-4">
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="flex items-center gap-2 text-[11px] font-bold text-slate-400 hover:text-indigo-500 transition-all"
+                            className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-500 transition-all flex-shrink-0"
                         >
-                            <i className={`fa-solid ${isExpanded ? 'fa-square-minus' : 'fa-square-plus'} text-[13px] opacity-70`}></i>
-                            SMILES NOTATION
+                            <i className={`fa-solid ${isExpanded ? 'fa-square-minus' : 'fa-square-plus'} text-[12px] sm:text-[13px] opacity-70`}></i>
+                            <span className="truncate">SMILES NOTATION</span>
                         </button>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                             <button
                                 onClick={handleCopy}
-                                className={`text-[11px] font-bold flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 ${copied
+                                className={`text-[10px] sm:text-[11px] font-bold flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all duration-300 ${copied
                                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                                     : 'bg-white dark:bg-white/5 text-slate-500 border border-slate-200 dark:border-white/10 hover:border-indigo-500 hover:text-indigo-500'
                                     }`}
                             >
                                 <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                                {copied ? 'COPIED' : 'COPY SMILES'}
+                                <span>{copied ? 'COPIED' : (
+                                    <>
+                                        COPY<span className="hidden xs:inline ml-1">SMILES</span>
+                                    </>
+                                )}</span>
                             </button>
                         </div>
                     </div>
