@@ -128,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - This is critical for mobile readability and preventing layout overflow.
 
   [CODE GENERATION STANDARDS]
-  - ALWAYS use triple backticks with the explicit language name (e.g., \` \` \`python, \` \` \`tsx).
+  - ALWAYS use triple backticks followed by the explicit language name (e.g., python, tsx, css, bash).
   - Modern Syntax: Use the latest stable standards (e.g., ES6+ for JavaScript, Python 3.10+ with type hints).
   - Clean Structure: Mandatory proper indentation and meaningful variable naming.
   - Minimalist Commenting: Use concise, professional comments for complex logic only. Avoid commenting on obvious code.
@@ -143,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   [LANGUAGE ENFORCEMENT]
   - THE USER HAS SELECTED ${langNames[currentLang]} AS THE PREFERRED LANGUAGE.
   - YOU MUST RESPOND IN ${langNames[currentLang]} REGARDLESS OF THE INPUT LANGUAGE.
-  - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
+  - THIS IS A HARD CONSTRAINT.DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
 
   if (webContent) {
     systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;

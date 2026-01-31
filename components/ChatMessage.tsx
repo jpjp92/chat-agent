@@ -111,7 +111,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     pre: ({ children }: any) => {
       // children.props.className에서 언어 추출 (예: language-python)
       const language = children?.props?.className?.replace('language-', '') || 'code';
-      const codeContent = children?.props?.children || '';
+      const codeContent = Array.isArray(children?.props?.children)
+        ? children.props.children.join('')
+        : children?.props?.children || '';
       const [copied, setCopied] = useState(false);
 
       const copyToClipboard = async () => {
