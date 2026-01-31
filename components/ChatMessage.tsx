@@ -118,8 +118,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       </div>
     ),
     thead: ({ children }: any) => <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-slate-800">{children}</thead>,
-    th: ({ children }: any) => <th className="px-3 py-2.5 font-bold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 last:border-r-0 text-[12px] uppercase tracking-wider whitespace-nowrap">{children}</th>,
-    td: ({ children }: any) => <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 group-last:border-b-0 text-[13px] whitespace-nowrap">{children}</td>,
+    th: ({ children }: any) => <th className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 last:border-r-0 text-[12px] uppercase tracking-wider bg-slate-50 dark:bg-white/5">{children}</th>,
+    td: ({ children }: any) => <td className="px-4 py-3 text-slate-600 dark:text-slate-300 border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 group-last:border-b-0 text-[13px] min-w-[120px] leading-relaxed align-top">{children}</td>,
     tr: ({ children }: any) => <tr className="group border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">{children}</tr>,
   };
 

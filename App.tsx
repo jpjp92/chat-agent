@@ -6,6 +6,9 @@ import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Dialog from './components/Dialog';
 import Toast from './components/Toast';
+import LoadingScreen from './components/LoadingScreen';
+import WelcomeMessage from './components/WelcomeMessage';
+import ChatArea from './components/ChatArea';
 import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
 import { Role, Message, ChatSession, UserProfile, Language, GroundingSource, MessageAttachment } from './types';
 import 'katex/dist/katex.min.css';
@@ -54,14 +57,7 @@ const App: React.FC = () => {
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
   });
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const welcomeMessages = {
-    ko: { title: "반가워요!", subtitle: "오늘은 어떤 이야기를 나눌까요?", desc: "궁금한 질문이나 실시간 검색을 해보세요." },
-    en: { title: "Hello there!", subtitle: "What's on your mind?", desc: "Ask questions or search in real-time." },
-    es: { title: "¡Hola!", subtitle: "¿De qué hablamos hoy?", desc: "Haz preguntas or busca en tempo real." },
-    fr: { title: "Bonjour!", subtitle: "De quoi parlons-nous ?", desc: "Posez des questions ou cherchez en direct." }
-  };
 
   const i18n = {
     ko: {
@@ -196,9 +192,6 @@ const App: React.FC = () => {
     // profile만 저장
   }, [userProfile]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [sessions, currentSessionId, isTyping]);
 
   const handleNewSession = async (userId?: number) => {
     const targetUserId = userId || currentUser?.id;
@@ -505,31 +498,10 @@ const App: React.FC = () => {
     setToast({ message, type });
   };
 
-  const currentWelcome = (welcomeMessages as any)[language] || welcomeMessages.ko;
 
   if (isAuthLoading || !currentUser) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-white dark:bg-[#131314]">
-        <div className="flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-700">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30 animate-pulse">
-              <i className="fa-solid fa-comment-dots text-white text-4xl"></i>
-            </div>
-            <div className="absolute inset-0 bg-primary-500 blur-2xl opacity-20 animate-pulse"></div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
-              {t.preparingSession}
-            </p>
-            <div className="flex space-x-1 pt-2">
-              <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-              <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-              <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <LoadingScreen message={t.preparingSession} />
     );
   }
 
@@ -559,45 +531,20 @@ const App: React.FC = () => {
           language={language}
         />
 
+
         <main className="flex-1 overflow-y-auto px-3 sm:px-10 lg:px-20 custom-scrollbar pt-3 sm:pt-4 pb-2">
           <div className="max-w-3xl mx-auto flex flex-col h-full">
             {currentSession?.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20">
-                <div className="text-center">
-                  <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
-                    {currentWelcome.title}
-                  </h1>
-                  <p className="text-slate-400 dark:text-slate-500 text-base sm:text-2xl font-medium px-4">
-                    {currentWelcome.subtitle}
-                  </p>
-                </div>
-              </div>
+              <WelcomeMessage language={language} />
             )}
 
-            <div className="flex flex-col space-y-2">
-              {currentSession?.messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} />
-              ))}
-            </div>
-
-            {((isTyping && currentSession?.messages && currentSession.messages.length > 0 && currentSession.messages[currentSession.messages.length - 1].role === Role.USER) || loadingStatus) && (
-              <div className="flex items-start gap-4 mt-4 pl-1">
-                <div className="flex-shrink-0 mt-1">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-primary-500 to-violet-500 flex items-center justify-center shadow-lg shadow-primary-500/10">
-                    <i className="fa-solid fa-sparkles text-white text-[10px]"></i>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 py-4">
-                  <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s]"></div>
-                  <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></div>
-                  <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></div>
-                </div>
-              </div>
-            )}
-
-
-
-            <div ref={messagesEndRef} className="h-4 sm:h-10" />
+            <ChatArea
+              messages={currentSession?.messages || []}
+              userProfile={userProfile}
+              language={language}
+              isTyping={isTyping}
+              loadingStatus={loadingStatus}
+            />
           </div>
         </main>
 

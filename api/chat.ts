@@ -13,7 +13,7 @@ const API_KEYS = [
   process.env.API_KEY8,
 ].filter(Boolean) as string[];
 
-const CHAT_MODELS = ['gemini-2.5-flash'];
+const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
 let currentKeyIndex = 0;
 const getNextApiKey = () => {
@@ -69,6 +69,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     - strictly follow the format: | Header | Header |\n| --- | --- |\n| Row | Row |.
     - Keep table headers as SHORT as possible (e.g., use "경기" instead of "경기수", "득점" instead of "득점수").
     - If there are many columns, prioritize compactness.
+    - DO NOT USE HTML TAGS (like <br> or <br/>) INSIDE TABLES. They are not supported in this Markdown implementation and will appear as raw text. Use concise text instead.
+    - DO NOT USE raw HTML tags anywhere in the response. Use Markdown syntax only.
 
   - JSON Format (Strict Compliance Required):
     \`\`\`json:chart

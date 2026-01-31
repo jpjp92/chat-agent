@@ -59,6 +59,17 @@
     - 문서 업로드 또는 세션 전환 시 해당 컬럼을 DB에 업데이트 및 동기화.
     - 세션 로드 시 DB에서 추출된 텍스트 컨텍스트를 불러와 AI에게 즉시 제공.
 
+### 2. 물리학 시뮬레이션 엔진 도입 (Phy-Viz) [NEW]
+- [ ] **Phase 1: 2D 고전역학 (Matter.js)**
+    - 충돌, 중력, 마찰, 탄성을 실시간 웹 캔버스에서 시뮬레이션.
+    - 예: "공이 경사면에서 굴러가는 시뮬레이션 보여줘", "진자 운동 보여줘".
+- [ ] **Phase 2: 수식 기반 그래프 및 벡터장 (Plotly/D3)**
+    - LaTeX 수식 입력 -> JS 수치 해석 -> 동적 그래프 시각화.
+    - 전자기장 벡터 필드, 파동 함수, 3D 표면 차트(Surface Plot) 구현.
+- [ ] **Phase 3: 3D 강체/유체 시뮬레이션 (Three.js + Rapier)**
+    - React Three Fiber(R3F) 기반의 고성능 3D 물리 엔진 탑재.
+    - 입자 시스템(Particle System)을 활용한 유체/기체 시뮬레이션 실험.
+
 ### 2. Bio-Viz 상호작용 심화 (Advanced Interaction)
 - [ ] **선택 부위 강조**: AI 응답 내용에 따라 특정 잔기(Residue)나 도메인을 3D 상에서 즉시 하이라이트/줌인 하는 링크 기능.
 - [ ] **구조 비교 모드**: 두 개의 PDB 구조를 나란히 배치하거나 중첩(Superposition)하여 보여주는 기능.
@@ -77,10 +88,14 @@
 
 ---
 
-## 🧹 Code Quality
+## 🧹 Code Quality & Refactoring
 
+- [ ] **App.tsx 컴포넌트 분리 (Refactoring)**
+    - [ ] **LoadingScreen**: `isAuthLoading` 상태일 때 보여주는 로딩 UI (`LoadingScreen.tsx`) 컴포넌트화.
+    - [ ] **WelcomeMessage**: 채팅 시작 전 웰컴 메시지 UI (`WelcomeMessage.tsx`) 컴포넌트화.
+    - [ ] **ChatArea**: 실제 메시지가 렌더링되는 메인 영역 (`ChatArea.tsx`) 컴포넌트화하여 `App.tsx`의 복잡도 감소.
 - [ ] **API Key 관리 및 보안 강화**
-  - [ ] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
+    - [ ] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
   - [ ] 백엔드(`api/*.ts`)에서 `process.env`를 이용한 동적 API Key 로드 및 로테이션 구현.
   - [ ] Vercel 환경 변수 추가 시 코드 수정 없이 자동 반영되도록 개선.
 - [ ] 불필요한 파일 정리 (`test-supabase.ts`, `metadata.json`).
