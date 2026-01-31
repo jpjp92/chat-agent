@@ -144,16 +144,26 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         const stage = nglStage.current;
         stage.removeAllComponents();
 
-        // 호버 감지 로직 (매번 갱신하여 최신 좌표계 유지)
+        // 툴팁 위치 업데이트를 위한 전역 마우스 좌표 추적
+        let mouseX = 0;
+        let mouseY = 0;
+        const updateMousePos = (e: MouseEvent) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        };
+        window.addEventListener('mousemove', updateMousePos);
+
+        // 호버 감지 로직 개선
         stage.signals.hovered.removeAll();
         stage.signals.hovered.add((pickingProxy: any) => {
+            // 디버깅용: console.log("NGL Hover:", pickingProxy);
             if (pickingProxy && (pickingProxy.atom || pickingProxy.residue)) {
                 const atom = pickingProxy.atom;
                 const residue = pickingProxy.residue;
 
                 setHoverInfo({
-                    x: pickingProxy.canvasPos.x,
-                    y: pickingProxy.canvasPos.y,
+                    x: mouseX,
+                    y: mouseY,
                     text: {
                         resname: residue ? residue.resname : (atom ? atom.resname : "Unknown"),
                         resno: residue ? residue.resno : (atom ? atom.resno : "?"),
@@ -197,12 +207,10 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('mousemove', updateMousePos);
             resizeObserver.disconnect();
             if (nglStage.current) {
                 nglStage.current.signals.hovered.removeAll();
-                // 컴포넌트 전체가 언마운트되거나 PDB 뷰가 사라질 때만 dispose 하는 것이 좋으나
-                // 여기서는 useEffect의 의존성이 변경될 때 호출되므로 무거운 연산이 될 수 있음.
-                // 대신 stageRef가 사라질 때(unmount)의 처리가 더 중요함.
             }
         };
     }, [type, data.pdbId, isDark]);
@@ -288,10 +296,10 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                        className="absolute z-50 pointer-events-none"
+                                        className="fixed z-[9999] pointer-events-none"
                                         style={{
-                                            left: hoverInfo.x + 12,
-                                            top: hoverInfo.y + 12
+                                            left: hoverInfo.x + 15,
+                                            top: hoverInfo.y + 15
                                         }}
                                     >
                                         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border border-slate-200 dark:border-white/10 rounded-2xl p-3 shadow-2xl flex flex-col gap-1 min-w-[120px]">

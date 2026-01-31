@@ -29,10 +29,10 @@
 - **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
 - **Chemical Structure Rendering**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. Now includes **Molecule Naming** and **SVG Export**.
 - **Bioinformatics Visualization (Bio-Viz)**: 
-    - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations (`residueindex` coloring).
-    - **1D Sequence Mapping**: Interactive visualization of amino acid and nucleotide sequences with property-based color-coding and site highlighting.
-    - **Premium Interaction**: Features **Glassmorphic Custom Tooltips** for residue details and **Viewport-relative absolute positioning** to prevent clipping.
-    - **WebGL Optimization**: Explicit context disposal and single-signal management to prevent memory leaks.
+    - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations.
+    - **Intelligent Tracking**: Real-time **Residue Tracking** (#number) with fixed-position Glassmorphic Tooltips. 
+    - **Large Scale Support**: Optimized for massive assemblies like **Connexin Channels** (e.g., 2ZW3) with multi-chain color differentiation.
+    - **WebGL Optimization**: Explicit context disposal (dispose) and robust event listener management.
 - **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support with white-background compatibility for external reports.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
