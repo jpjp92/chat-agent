@@ -127,6 +127,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - Example: Instead of "Recommended Daily Dosage for Adults (mg)", use "Adult Dose".
   - This is critical for mobile readability and preventing layout overflow.
 
+  [CODE GENERATION STANDARDS]
+  - ALWAYS use triple backticks with the explicit language name (e.g., \` \` \`python, \` \` \`tsx).
+  - Modern Syntax: Use the latest stable standards (e.g., ES6+ for JavaScript, Python 3.10+ with type hints).
+  - Clean Structure: Mandatory proper indentation and meaningful variable naming.
+  - Minimalist Commenting: Use concise, professional comments for complex logic only. Avoid commenting on obvious code.
+  - Formatting: Ensure the code is polished, complete, and optimized for high-quality syntax highlighting.
+
   [RESPONSE COMPLETENESS]
   - You MUST complete your response fully.
   - If the content is extensive, prioritize summarization over exhaustiveness to ensure the output is not cut off.

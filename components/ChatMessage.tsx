@@ -4,6 +4,8 @@ import ReactMarkdown from 'https://esm.sh/react-markdown@9';
 import remarkGfm from 'https://esm.sh/remark-gfm@4';
 import remarkMath from 'https://esm.sh/remark-math@6';
 import rehypeKatex from 'https://esm.sh/rehype-katex@7';
+import { Prism as SyntaxHighlighter } from 'https://esm.sh/react-syntax-highlighter@15.5.0';
+import { vscDarkPlus } from 'https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 import ChartRenderer from './ChartRenderer';
@@ -97,21 +99,72 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       return (
         <code
           className={isInline
-            ? "bg-slate-100 dark:bg-[#2a2a2c] px-1.5 py-0.5 rounded text-[13px] font-mono text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-white/5 break-all"
-            : "bg-transparent p-0 border-none text-inherit font-mono shadow-none !bg-none"
+            ? "bg-slate-100 dark:bg-[#2a2a2c] px-1.5 py-0.5 rounded text-[13px] font-mono text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-white/5"
+            : "block text-inherit font-mono"
           }
-          style={{ overflowWrap: 'anywhere' }}
           {...props}
         >
           {children}
         </code>
       );
     },
-    pre: ({ children }: any) => (
-      <pre className="bg-[#0d1117] text-[#e6edf3] p-4 rounded-xl overflow-x-auto my-4 text-[13px] sm:text-[14px] font-mono border border-slate-200 dark:border-white/10 shadow-lg leading-normal">
-        {children}
-      </pre>
-    ),
+    pre: ({ children }: any) => {
+      // children.props.className에서 언어 추출 (예: language-python)
+      const language = children?.props?.className?.replace('language-', '') || 'code';
+      const codeContent = children?.props?.children || '';
+      const [copied, setCopied] = useState(false);
+
+      const copyToClipboard = async () => {
+        try {
+          await navigator.clipboard.writeText(codeContent);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+          console.error('Failed to copy code:', err);
+        }
+      };
+
+      return (
+        <div className="group relative my-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-xl bg-[#0d1117]">
+          {/* Code Header */}
+          <div className="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <i className="fa-solid fa-code text-[10px] text-slate-500"></i>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language}</span>
+            </div>
+            <button
+              onClick={copyToClipboard}
+              className="p-1.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-1.5 text-slate-400 hover:text-white"
+            >
+              <i className={`fa-solid ${copied ? 'fa-check text-emerald-500' : 'fa-copy'} text-[11px]`}></i>
+              <span className="text-[10px] font-bold uppercase tracking-tight">{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+          </div>
+
+          {/* Code Body */}
+          <div className="text-[13px] sm:text-[14px] font-mono leading-relaxed selection:bg-blue-500/30">
+            <SyntaxHighlighter
+              language={language}
+              style={vscDarkPlus}
+              customStyle={{
+                margin: 0,
+                padding: '1rem',
+                backgroundColor: 'transparent',
+                borderRadius: 0,
+              }}
+              codeTagProps={{
+                style: {
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                }
+              }}
+            >
+              {String(codeContent).replace(/\n$/, '')}
+            </SyntaxHighlighter>
+          </div>
+        </div>
+      );
+    },
     table: ({ children }: any) => (
       <div className="my-6 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <table className="w-full text-left border-collapse">{children}</table>

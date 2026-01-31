@@ -89,28 +89,28 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         if (!seq) return <div className="text-slate-400">{t.noSeq}</div>;
 
         return (
-            <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
-                <div className="flex flex-wrap gap-1 min-w-max p-1">
+            <div className="w-full overflow-x-auto custom-scrollbar">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center p-2">
                     {seq.split('').map((aa, idx) => {
                         const color = AMINO_ACID_COLORS[aa.toUpperCase()] || AMINO_ACID_COLORS['default'];
                         const isHighlighted = data.highlights?.some(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
                         const highlight = data.highlights?.find(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
 
                         return (
-                            <div key={idx} className="flex flex-col items-center group relative">
-                                <span className="text-[10px] text-slate-400 font-mono mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div key={idx} className="flex flex-col items-center group relative mb-2">
+                                <span className="text-[9px] text-slate-400 font-mono mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {idx + 1}
                                 </span>
                                 <motion.div
-                                    whileHover={{ scale: 1.2, zIndex: 10 }}
-                                    className={`w-7 h-9 flex items-center justify-center rounded-md font-mono font-bold text-white shadow-sm transition-all
-                                        ${isHighlighted ? 'ring-2 ring-offset-1 ring-indigo-500' : ''}`}
+                                    whileHover={{ scale: 1.15, zIndex: 10 }}
+                                    className={`w-7 h-9 sm:w-8 sm:h-10 flex items-center justify-center rounded-md font-mono font-bold text-white shadow-sm transition-all
+                                        ${isHighlighted ? 'ring-2 ring-offset-1 ring-emerald-500' : ''}`}
                                     style={{ backgroundColor: color }}
                                 >
                                     {aa}
                                 </motion.div>
                                 {isHighlighted && highlight && (
-                                    <div className="absolute top-[-25px] left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-20">
+                                    <div className="absolute top-[-28px] left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none z-20">
                                         {highlight.label}
                                     </div>
                                 )}
@@ -188,34 +188,14 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                 quality: "high"
             });
 
-
             // 로딩 완료 표시
             setIsLoading(false);
 
-            // 패딩과 레이아웃이 완전히 적용된 후 정렬 (두 번 호출로 안정성 확보)
+            // 레이아웃 안정화 후 자동 정렬 (수동 보정 제거하여 시원한 뷰 확보)
             setTimeout(() => {
                 stage.handleResize();
                 comp.autoView();
-
-                // 구조물을 살짝 위로 이동
-                const box = comp.getBox();
-                const height = box.max.y - box.min.y;
-                const upwardShift = height * 0.08; // 8% 위로
-
-                stage.viewerControls.translate(new (NGL as any).Vector3(0, upwardShift, 0));
             }, 600);
-
-            setTimeout(() => {
-                stage.handleResize();
-                comp.autoView();
-
-                // 두 번째 호출에서도 동일한 보정
-                const box = comp.getBox();
-                const height = box.max.y - box.min.y;
-                const upwardShift = height * 0.08;
-
-                stage.viewerControls.translate(new (NGL as any).Vector3(0, upwardShift, 0));
-            }, 1200);
         }).catch((err) => {
             console.error("NGL Load Error:", err);
             setError("Failed to load PDB structure");
@@ -296,7 +276,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                         </div>
 
                         {/* Immersive Canvas Area */}
-                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-20 pb-20">
+                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-10 pb-16">
                             {isLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f8fafc]/80 dark:bg-[#111112]/80 z-10 backdrop-blur-md">
                                     <div className="relative">
@@ -380,7 +360,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                 {t.map1d}
                             </div>
                         </div>
-                        <div className="p-6">
+                        <div className="p-4 sm:p-10 flex items-center justify-center min-h-[300px]">
                             <SequenceView />
                         </div>
                     </>
