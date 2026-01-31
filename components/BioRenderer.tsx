@@ -196,11 +196,25 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
             setTimeout(() => {
                 stage.handleResize();
                 comp.autoView();
+
+                // 구조물을 살짝 위로 이동
+                const box = comp.getBox();
+                const height = box.max.y - box.min.y;
+                const upwardShift = height * 0.08; // 8% 위로
+
+                stage.viewerControls.translate(new (NGL as any).Vector3(0, upwardShift, 0));
             }, 600);
 
             setTimeout(() => {
                 stage.handleResize();
                 comp.autoView();
+
+                // 두 번째 호출에서도 동일한 보정
+                const box = comp.getBox();
+                const height = box.max.y - box.min.y;
+                const upwardShift = height * 0.08;
+
+                stage.viewerControls.translate(new (NGL as any).Vector3(0, upwardShift, 0));
             }, 1200);
         }).catch((err) => {
             console.error("NGL Load Error:", err);
