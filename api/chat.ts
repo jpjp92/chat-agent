@@ -138,6 +138,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - Provide 1D sequences for specific sequence analysis and 3D PDB views for structural explanations.
 
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
+
+  [TABLE FORMATTING]
+  - When generating Markdown tables, ensure that the table headers (column names) are EXTREMELY SHORT and CONCISE.
+  - Avoid long sentences in headers. Use abbreviations or keywords if possible.
+  - Example: Instead of "Recommended Daily Dosage for Adults (mg)", use "Adult Dose".
+  - This is critical for mobile readability and preventing layout overflow.
+
+  [RESPONSE COMPLETENESS]
+  - You MUST complete your response fully.
+  - If the content is extensive, prioritize summarization over exhaustiveness to ensure the output is not cut off.
+  - NEVER leave a Markdown table or sentence unfinished.
+  - Be concise and efficient with your tokens.
   
   [LANGUAGE ENFORCEMENT]
   - THE USER HAS SELECTED ${langNames[currentLang]} AS THE PREFERRED LANGUAGE.
@@ -203,7 +215,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               parts: [{ text: systemInstruction }]
             },
             tools: (isYoutubeRequest ? [] : [{ googleSearch: {} }]) as any,
-            temperature: 0.4,
+            temperature: 0.2,
             topP: 0.8,
             topK: 40,
             maxOutputTokens: 4096
@@ -215,8 +227,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for await (const chunk of result) {
           const chunkText = chunk.text;
           if (chunkText) {
-            fullAiResponse += chunkText;
-            res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+            // Remove excessive spaces (likely hallucination or bad formatting)
+            const sanitizedText = chunkText.replace(/ {10,}/g, ' ');
+            fullAiResponse += sanitizedText;
+            res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
           }
 
           // [CITATIONS] Grounding Metadata 추출 및 전송
