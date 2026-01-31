@@ -1,5 +1,17 @@
 # 📝 Project TODO List
 
+## ✅ Recently Completed (2026-01-31)
+
+### 시각화 모듈 다국어화 (Deep Localization) ✓
+- ✅ **전역 다국어 연동**: Bio, Chemical, Chart 렌더러가 전역 언어 설정(KO, EN, ES, FR)에 맞춰 내부 라벨('Chain', 'Atomic', 'Structure' 등)을 자동 전환.
+- ✅ **AI 응답 강제 고정**: 사용자가 다른 언어로 질문하더라도 설정된 언어로만 답변하도록 시스템 지침(System Instruction) 최적화 및 Gemini API 호출 구조 고도화.
+- ✅ **로딩 상태 로컬라이제이션**: '분석 중...' 등 시각화 장치 로딩 문구를 다국어 대응.
+
+### Bio-Viz 및 시각화 로직 안정화 ✓
+- ✅ **WebGL 자원 관리**: NGL Stage 소멸 시 `.dispose()` 명시적 호출로 메모리 누수 방지 및 WebGL 컨텍스트 최적화.
+- ✅ **PDB 뷰어 UI 정제**: 헤더의 불필요한 중복 라벨을 제거하고 툴팁 좌표 계산 방식을 개선하여 클리핑 현상 해결.
+- ✅ **스냅샷 기능 개선**: 투명 배경 대신 화이트 배경 처리를 보강하여 외부 리포트 호환성 증대.
+
 ## ✅ Recently Completed (2026-01-30)
 
 ### 화학 및 생물 구조 시각화 고도화 ✓
@@ -76,4 +88,4 @@
 
 ---
 
-*Last Updated: 2026-01-31*
+*Last Updated: 2026-01-31 (v2.2)*

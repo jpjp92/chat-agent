@@ -43,10 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  let systemInstruction = `You are Gemini 2.5 Flash, Google's next-generation high-performance AI model. 
-  CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langNames[currentLang]} ONLY. 
-  IF THE USER SPEAKS ANOTHER LANGUAGE, YOU MUST STILL RESPOND IN ${langNames[currentLang]}.
-  NEVER switch languages unless explicitly asked to change the translation settings.
+  let systemInstruction = `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langNames[currentLang].toUpperCase()} ONLY. 
+  IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langNames[currentLang].toUpperCase()}.
+  NEVER switch languages. THIS IS YOUR TOP PRIORITY.
+
+  You are Gemini 2.5 Flash, Google's next-generation high-performance AI model. 
 
   [CORE DIRECTIVE: SOURCE ADHERENCE]
   - If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL or ATTACHED DOCUMENT the user is asking about.
@@ -134,14 +135,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     \`\`\`
   - Provide 1D sequences for specific sequence analysis and 3D PDB views for structural explanations.
 
-  [MATHEMATICAL EXPRESSIONS]
-  - Use LaTeX for ALL mathematical formulas, equations, and scientific notations.
-  - For **inline math**, wrap the formula with a single dollar sign: \`$E=mc^2$\`.
-  - For **block math** (standalone equations), use double dollar signs on new lines:
-    \`\$\$\`
-    \`f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx\`
-    \`\$\$\`
-  - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.`;
+  - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
+  
+  [LANGUAGE ENFORCEMENT]
+  - THE USER HAS SELECTED ${langNames[currentLang]} AS THE PREFERRED LANGUAGE.
+  - YOU MUST RESPOND IN ${langNames[currentLang]} REGARDLESS OF THE INPUT LANGUAGE.
+  - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
 
   if (webContent) {
     systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;
@@ -198,13 +197,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           model: currentModel,
           contents,
           config: {
-            systemInstruction,
-            tools: isYoutubeRequest ? [] : [{ googleSearch: {} }],
+            systemInstruction: {
+              parts: [{ text: systemInstruction }]
+            },
+            tools: (isYoutubeRequest ? [] : [{ googleSearch: {} }]) as any,
             temperature: 0.4,
             topP: 0.8,
             topK: 40,
             maxOutputTokens: 4096
-          }
+          } as any
         });
 
         let fullAiResponse = '';

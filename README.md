@@ -15,9 +15,10 @@
 - **Supabase Integration**: All messages and sessions are stored in Supabase (PostgreSQL). Your chat history remains intact even after a page refresh or device change.
 - **Intelligent Session Management**: Create, delete, and rename chat sessions. An AI-powered titling system (using Gemma 3) automatically generates representative titles for your conversations.
 
-### 🌐 Comprehensive UI Localization
+### 🌐 Comprehensive Deep Localization
 - **Multi-language Support**: Fully supports **English (EN)**, **Korean (KO)**, **Spanish (ES)**, and **French (FR)**.
-- **Deep Localization**: Not just the AI responses, but the **entire UI**—including sidebar menus, confirmation dialogs, error messages, and loading statuses—instantly switches to your preferred language.
+- **Visualizer Localization**: All visualization modules (Bio, Chemical, Charts) automatically localize their UI labels (e.g., "Chain", "Molecular Structure", "Analyzing...") based on the global setting.
+- **Strict Response Enforcement**: Optimized system prompts ensure Gemini adheres to the selected language regardless of input language.
 
 ### 🔍 Intelligence & Multimodality
 - **PDF & Image Analysis**: Upload documents (PDF) or images and ask Gemini to summarize, extract data, or describe visual content (up to 4MB).
@@ -30,8 +31,9 @@
 - **Bioinformatics Visualization (Bio-Viz)**: 
     - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations (`residueindex` coloring).
     - **1D Sequence Mapping**: Interactive visualization of amino acid and nucleotide sequences with property-based color-coding and site highlighting.
-    - **Premium Interaction**: Features **Glassmorphic Custom Tooltips** for residue details and **Responsive forced-resize** for immediate desktop visibility.
-- **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support for all visualization types.
+    - **Premium Interaction**: Features **Glassmorphic Custom Tooltips** for residue details and **Viewport-relative absolute positioning** to prevent clipping.
+    - **WebGL Optimization**: Explicit context disposal and single-signal management to prevent memory leaks.
+- **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support with white-background compatibility for external reports.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements

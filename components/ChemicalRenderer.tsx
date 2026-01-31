@@ -7,6 +7,7 @@ interface ChemicalRendererProps {
     name?: string;
     width?: number;
     height?: number;
+    language?: 'ko' | 'en' | 'es' | 'fr';
 }
 
 // 다크모드 감지 훅
@@ -26,13 +27,21 @@ const useThemeMode = () => {
     return isDark;
 };
 
-const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 240 }) => {
+const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 240, language = 'ko' }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
     const isDark = useThemeMode();
+
+    const i18n = {
+        ko: { smiles: 'SMILES', copy: '복사', copied: '복사됨', structure: '분자 구조', error: '오류' },
+        en: { smiles: 'SMILES', copy: 'COPY', copied: 'COPIED', structure: 'Molecular Structure', error: 'Error' },
+        es: { smiles: 'SMILES', copy: 'COPIAR', copied: 'COPIADO', structure: 'Estructura Molecular', error: 'Error' },
+        fr: { smiles: 'SMILES', copy: 'COPIER', copied: 'COPIÉ', structure: 'Structure Moléculaire', error: 'Erreur' }
+    };
+    const t = i18n[language] || i18n.en;
 
     // 1. SvgDrawer 초기화
     useEffect(() => {
@@ -157,7 +166,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                         <div className="flex items-start gap-2.5 min-w-0">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0 animate-pulse"></div>
                             <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
-                                {name || (error ? 'Error' : 'Molecular Structure')}
+                                {name || (error ? t.error : t.structure)}
                             </h3>
                         </div>
                         {!error && (
@@ -203,7 +212,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                             className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-500 transition-all flex-shrink-0"
                         >
                             <i className={`fa-solid ${isExpanded ? 'fa-square-minus' : 'fa-square-plus'} text-[12px] sm:text-[13px] opacity-70`}></i>
-                            <span className="truncate uppercase">SMILES</span>
+                            <span className="truncate uppercase">{t.smiles}</span>
                         </button>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -215,7 +224,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                                     }`}
                             >
                                 <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                                <span>{copied ? 'COPIED' : 'COPY'}</span>
+                                <span>{copied ? t.copied : t.copy}</span>
                             </button>
                         </div>
                     </div>

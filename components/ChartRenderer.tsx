@@ -15,6 +15,7 @@ interface ChartData {
 
 interface ChartRendererProps {
     chartData: ChartData;
+    language?: 'ko' | 'en' | 'es' | 'fr';
 }
 
 // 다크모드 감지 훅
@@ -46,10 +47,18 @@ const CHART_COLORS = [
     '#06b6d4', // Cyan
 ];
 
-const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
+const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko' }) => {
     const chartRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<ApexCharts | null>(null);
     const isDark = useThemeMode();
+
+    const i18n = {
+        ko: { title: '데이터 시각화', download: 'SVG 다운로드' },
+        en: { title: 'Data Visualization', download: 'Download SVG' },
+        es: { title: 'Visualización de Datos', download: 'Descargar SVG' },
+        fr: { title: 'Visualisation des Données', download: 'Télécharger SVG' }
+    };
+    const t = i18n[language] || i18n.en;
     const { type, title, data } = chartData;
 
     // --- 데이터 정규화 (Normalization) ---
@@ -230,13 +239,13 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
                     <div className="flex items-start gap-2.5 min-w-0">
                         <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm mt-1.5 flex-shrink-0"></div>
                         <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
-                            {title || 'Data Visualization'}
+                            {title || t.title}
                         </h3>
                     </div>
                     <button
                         onClick={handleDownload}
                         className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
-                        title="Download SVG"
+                        title={t.download}
                     >
                         <i className="fa-solid fa-download text-xs"></i>
                     </button>

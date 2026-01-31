@@ -15,6 +15,7 @@ interface BioData {
 
 interface BioRendererProps {
     bioData: BioData;
+    language?: 'ko' | 'en' | 'es' | 'fr';
 }
 
 // 아미노산 색상 테마 (Hydrophobicity/Chemistry)
@@ -48,7 +49,7 @@ const useThemeMode = () => {
     return isDark;
 };
 
-const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
+const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) => {
     const stageRef = useRef<HTMLDivElement>(null);
     const nglStage = useRef<NGL.Stage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -57,10 +58,34 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
     const { type, title, data } = bioData;
     const isDark = useThemeMode();
 
+    const i18n = {
+        ko: {
+            chain: '체인', atom: '원자', element: '원소', interactive: '대화형 3D',
+            initializing: '3D 환경 초기화 중', noSeq: '서열 데이터 없음',
+            seqMap: '서열 지도', map1d: '1D 지도', snapshot: '스냅샷 촬영'
+        },
+        en: {
+            chain: 'Chain', atom: 'Atom', element: 'Element', interactive: 'Interactive 3D',
+            initializing: 'Initializing 3D Environment', noSeq: 'No sequence data',
+            seqMap: 'Sequence Map', map1d: '1D Map', snapshot: 'Capture Snapshot'
+        },
+        es: {
+            chain: 'Cadena', atom: 'Átomo', element: 'Elemento', interactive: '3D Interactivo',
+            initializing: 'Inicializando entorno 3D', noSeq: 'Sin datos de secuencia',
+            seqMap: 'Mapa de Secuencia', map1d: 'Mapa 1D', snapshot: 'Capturar Instantánea'
+        },
+        fr: {
+            chain: 'Chaîne', atom: 'Atome', element: 'Élément', interactive: '3D Interactif',
+            initializing: 'Initialisation de l\'environnement 3D', noSeq: 'Pas de données de séquence',
+            seqMap: 'Carte de Séquence', map1d: 'Carte 1D', snapshot: 'Capturer l\'instantané'
+        }
+    };
+    const t = i18n[language] || i18n.en;
+
     // 1D Sequence View Component
     const SequenceView = () => {
         const seq = data.sequence || "";
-        if (!seq) return <div className="text-slate-400">No sequence data</div>;
+        if (!seq) return <div className="text-slate-400">{t.noSeq}</div>;
 
         return (
             <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
@@ -102,6 +127,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
 
         setIsLoading(true);
         setError(null);
+        setHoverInfo(null); // 새로운 데이터 로드 시 기존 호버 정보 초기화
 
         if (!nglStage.current) {
             nglStage.current = new NGL.Stage(stageRef.current, {
@@ -118,7 +144,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
         const stage = nglStage.current;
         stage.removeAllComponents();
 
-        // 호버 감지 로직 개선
+        // 호버 감지 로직 (매번 갱신하여 최신 좌표계 유지)
         stage.signals.hovered.removeAll();
         stage.signals.hovered.add((pickingProxy: any) => {
             if (pickingProxy && (pickingProxy.atom || pickingProxy.residue)) {
@@ -149,6 +175,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
             comp.autoView();
             setIsLoading(false);
 
+            // 초기 로드 후 레이아웃 깨짐 방지
             setTimeout(() => {
                 stage.handleResize();
             }, 100);
@@ -173,12 +200,24 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
             resizeObserver.disconnect();
             if (nglStage.current) {
                 nglStage.current.signals.hovered.removeAll();
+                // 컴포넌트 전체가 언마운트되거나 PDB 뷰가 사라질 때만 dispose 하는 것이 좋으나
+                // 여기서는 useEffect의 의존성이 변경될 때 호출되므로 무거운 연산이 될 수 있음.
+                // 대신 stageRef가 사라질 때(unmount)의 처리가 더 중요함.
             }
         };
     }, [type, data.pdbId, isDark]);
 
-    const handleDownloadSVG = () => {
-        // SVG download logic (placeholder for 1D, NGL download for 3D)
+    // 컴포넌트 언마운트 시 WebGL 컨텍스트 해제
+    useEffect(() => {
+        return () => {
+            if (nglStage.current) {
+                nglStage.current.dispose();
+                nglStage.current = null;
+            }
+        };
+    }, []);
+
+    const handleDownloadSnapshot = () => {
         if (type === 'pdb' && nglStage.current) {
             nglStage.current.makeImage({ factor: 2, antialias: true, trim: true }).then((blob: Blob) => {
                 const url = URL.createObjectURL(blob);
@@ -186,6 +225,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                 link.href = url;
                 link.download = `${data.pdbId || 'structure'}.png`;
                 link.click();
+                URL.revokeObjectURL(url);
             });
         }
     };
@@ -204,21 +244,16 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></div>
                                     <span
                                         className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider truncate"
-                                        title={title || data.pdbId}
+                                        title={data.name || title || data.pdbId}
                                     >
-                                        {title || data.pdbId}
+                                        {title || data.name || data.pdbId}
                                     </span>
                                 </div>
-                                {data.name && data.name !== title && (
-                                    <div className="bg-white/50 dark:bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10 w-fit ml-4 shadow-sm">
-                                        <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">{data.name}</span>
-                                    </div>
-                                )}
                             </div>
                             <button
-                                onClick={handleDownloadSVG}
+                                onClick={handleDownloadSnapshot}
                                 className="pointer-events-auto w-10 h-10 rounded-full bg-white/70 dark:bg-black/40 backdrop-blur-md border border-white/20 dark:border-white/5 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-all shadow-sm hover:scale-110 active:scale-95"
-                                title="Capture Snapshot"
+                                title={t.snapshot}
                             >
                                 <i className="fa-solid fa-camera text-sm"></i>
                             </button>
@@ -232,7 +267,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                                         <div className="w-12 h-12 border-2 border-blue-500/20 rounded-full"></div>
                                         <div className="absolute inset-0 w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
                                     </div>
-                                    <span className="mt-4 text-[10px] font-black text-blue-500/60 tracking-[0.3em] uppercase">Initializing 3D Environment</span>
+                                    <span className="mt-4 text-[10px] font-black text-blue-500/60 tracking-[0.3em] uppercase">{t.initializing}</span>
                                 </div>
                             )}
                             {error ? (
@@ -266,15 +301,15 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                                             </div>
                                             <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">Chain</span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">{t.chain}</span>
                                                     <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{hoverInfo.text.chainname}</span>
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">Atom</span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">{t.atom}</span>
                                                     <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{hoverInfo.text.atomname}</span>
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">Element</span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-bold tracking-widest">{t.element}</span>
                                                     <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{hoverInfo.text.element}</span>
                                                 </div>
                                             </div>
@@ -290,7 +325,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                                 <i className="fa-solid fa-database opacity-50"></i> RCSB.ORG
                             </div>
                             <div className="flex items-center gap-2 bg-blue-500/10 dark:bg-blue-500/20 backdrop-blur-md px-3 py-1 rounded-full text-[9px] font-black text-blue-600 dark:text-blue-400 tracking-widest uppercase animate-pulse">
-                                <i className="fa-solid fa-rotate"></i> Interactive 3D
+                                <i className="fa-solid fa-rotate"></i> {t.interactive}
                             </div>
                         </div>
                     </div>
@@ -301,12 +336,12 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData }) => {
                             <div className="flex items-center gap-3">
                                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30"></div>
                                 <div className="flex flex-col">
-                                    <h3 className="text-[13px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{title || 'Sequence Map'}</h3>
+                                    <h3 className="text-[13px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{title || t.seqMap}</h3>
                                     {data.name && <span className="text-[10px] text-slate-400 font-medium">{data.name}</span>}
                                 </div>
                             </div>
                             <div className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black tracking-widest uppercase">
-                                1D Map
+                                {t.map1d}
                             </div>
                         </div>
                         <div className="p-6">

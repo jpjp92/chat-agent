@@ -28,10 +28,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   const [isCopied, setIsCopied] = useState(false);
 
   const i18n = {
-    ko: { pdf: 'PDF 문서', attachment: '첨부파일' },
-    en: { pdf: 'PDF Document', attachment: 'Attachment' },
-    es: { pdf: 'Documento PDF', attachment: 'Adjunto' },
-    fr: { pdf: 'Document PDF', attachment: 'Pièce jointe' }
+    ko: { pdf: 'PDF 문서', attachment: '첨부파일', analyzing: '분석 중...' },
+    en: { pdf: 'PDF Document', attachment: 'Attachment', analyzing: 'Analyzing...' },
+    es: { pdf: 'Documento PDF', attachment: 'Adjunto', analyzing: 'Analizando...' },
+    fr: { pdf: 'Document PDF', attachment: 'Pièce jointe', analyzing: 'Analyse...' }
   };
 
   const t = i18n[language] || i18n.ko;
@@ -240,20 +240,20 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       <>
         {parts.map((part, idx) => {
           if (part.type === 'chart') {
-            return <ChartRenderer key={idx} chartData={part.data} />;
+            return <ChartRenderer key={idx} chartData={part.data} language={language} />;
           }
           if (part.type === 'chemical') {
-            return <ChemicalRenderer key={idx} smiles={part.data.smiles} name={part.data.name || part.data.text} />;
+            return <ChemicalRenderer key={idx} smiles={part.data.smiles} name={part.data.name || part.data.text} language={language} />;
           }
           if (part.type === 'bio') {
-            return <BioRenderer key={idx} bioData={part.data} />;
+            return <BioRenderer key={idx} bioData={part.data} language={language} />;
           }
           if (part.type === 'chart_loading') {
             return (
               <div key={idx} className="my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
                 <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-slate-400">
                   <i className="fa-solid fa-flask text-2xl animate-bounce"></i>
-                  <span className="text-sm font-medium">분석 중...</span>
+                  <span className="text-sm font-medium">{t.analyzing}</span>
                 </div>
               </div>
             );
