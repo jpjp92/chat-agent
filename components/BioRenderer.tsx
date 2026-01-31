@@ -282,7 +282,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                         </div>
 
                         {/* Immersive Canvas Area */}
-                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-32 pb-24">
+                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-20 pb-20">
                             {isLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f8fafc]/80 dark:bg-[#111112]/80 z-10 backdrop-blur-md">
                                     <div className="relative">
