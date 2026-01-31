@@ -113,7 +113,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       </pre>
     ),
     table: ({ children }: any) => (
-      <div className="my-6 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="my-6 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <table className="w-full text-left border-collapse">{children}</table>
       </div>
     ),
@@ -163,7 +163,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // 1. Process for numeric ranges first (1~10 -> 1&#126;10)
-    const processedContent = content.replace(/(\d)~(\d)/g, '$1&#126;$2');
+    let processedContent = content.replace(/(\d)~(\d)/g, '$1&#126;$2');
+
+    // Remove <br> tags and replace with newlines
+    processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n');
 
     // 2. Split by Viz Blocks (Chart & Smiles)
     const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'chart_loading'; content?: string; data?: any }[] = [];
