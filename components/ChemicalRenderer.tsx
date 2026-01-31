@@ -26,7 +26,7 @@ const useThemeMode = () => {
     return isDark;
 };
 
-const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 300 }) => {
+const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 240 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -39,10 +39,10 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         const options = {
             width: width,
             height: height,
-            bondThickness: 1.4,
-            bondLength: 22,
+            bondThickness: 2.2,
+            bondLength: 30,
             shortBondLength: 0.85,
-            bondSpacing: 0.18 * 22,
+            bondSpacing: 0.18 * 30,
             atomVisualization: 'default',
             isometric: true,
             debug: false,
@@ -50,10 +50,10 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             explicitHydrogens: true,
             overlapSensitivity: 0.42,
             overlapResolutionIterations: 1,
-            compactDrawing: false,
-            fontSizeLarge: 8.5,
-            fontSizeSmall: 6,
-            padding: 5,
+            compactDrawing: true,
+            fontSizeLarge: 14,
+            fontSizeSmall: 10,
+            padding: 10,
             experimental: false,
             themes: {
                 dark: {
@@ -111,16 +111,40 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     };
 
     const handleDownload = () => {
-        if (!svgRef.current) return;
-        const svgData = new XMLSerializer().serializeToString(svgRef.current);
-        const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-        const svgUrl = URL.createObjectURL(svgBlob);
-        const downloadLink = document.createElement("a");
-        downloadLink.href = svgUrl;
-        downloadLink.download = `${name || 'molecule'}.svg`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+        if (!svgRef.current || !smiles || !drawer) return;
+
+        // 원활한 문서 활용을 위해 다운로드용 SVG는 항상 'light' 테마(검은색 선)로 다시 그려서 내보냅니다.
+        // 또는 배경색을 포함하여 내보내기 위해 임시 캔버스를 사용합니다.
+        const tempSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        tempSvg.setAttribute("width", width.toString());
+        tempSvg.setAttribute("height", height.toString());
+
+        SmilesDrawer.parse(smiles, (tree: any) => {
+            try {
+                // 다운로드용은 항상 투명 배경 대신 흰색 배경을 넣거나, 라이트 테마로 그립니다.
+                drawer.draw(tree, tempSvg, 'light');
+
+                // 배경색 사각형 추가 (다운로드한 파일이 어디서든 잘 보이도록)
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("width", "100%");
+                rect.setAttribute("height", "100%");
+                rect.setAttribute("fill", "white");
+                tempSvg.insertBefore(rect, tempSvg.firstChild);
+
+                const svgData = new XMLSerializer().serializeToString(tempSvg);
+                const svgBlob = new Blob(['<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + svgData], { type: "image/svg+xml;charset=utf-8" });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const downloadLink = document.createElement("a");
+                downloadLink.href = svgUrl;
+                downloadLink.download = `${name || 'molecule'}.svg`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(svgUrl);
+            } catch (e) {
+                console.error("Download render error:", e);
+            }
+        });
     };
 
     return (
@@ -149,7 +173,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                 )}
 
                 {/* Structure Area */}
-                <div className="p-8 flex flex-col items-center justify-center min-h-[280px] relative">
+                <div className="p-8 flex flex-col items-center justify-center min-h-[200px] relative">
                     <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/5 via-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
                     {error ? (
@@ -160,12 +184,12 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                             <span className="text-sm font-semibold tracking-tight">{error}</span>
                         </div>
                     ) : (
-                        <div className="relative w-full overflow-x-auto flex justify-center pb-2 custom-scrollbar">
+                        <div className="relative w-full overflow-x-auto flex justify-center pb-2 custom-scrollbar focus:outline-none">
                             <svg
                                 ref={svgRef}
                                 width={width}
                                 height={height}
-                                className="max-w-full h-auto transition-all duration-700 hover:scale-[1.02]"
+                                className="h-auto transition-all duration-700 hover:scale-[1.02] min-w-[400px] sm:min-w-0"
                             />
                         </div>
                     )}
@@ -179,7 +203,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                             className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-500 transition-all flex-shrink-0"
                         >
                             <i className={`fa-solid ${isExpanded ? 'fa-square-minus' : 'fa-square-plus'} text-[12px] sm:text-[13px] opacity-70`}></i>
-                            <span className="truncate">SMILES NOTATION</span>
+                            <span className="truncate uppercase">SMILES</span>
                         </button>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -191,11 +215,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                                     }`}
                             >
                                 <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                                <span>{copied ? 'COPIED' : (
-                                    <>
-                                        COPY<span className="hidden xs:inline ml-1">SMILES</span>
-                                    </>
-                                )}</span>
+                                <span>{copied ? 'COPIED' : 'COPY'}</span>
                             </button>
                         </div>
                     </div>
