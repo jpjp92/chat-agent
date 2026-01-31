@@ -30,7 +30,9 @@
 - **Chemical Structure Rendering**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. Now includes **Molecule Naming** and **SVG Export**.
 - **Bioinformatics Visualization (Bio-Viz)**: 
     - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations.
-    - **Intelligent Tracking**: Real-time **Residue Tracking** (#number) with fixed-position Glassmorphic Tooltips. 
+    - **Perfect Visual Centering**: CSS-based layout optimization (`pt-32 pb-24`) ensures structures are precisely centered between header and footer badges, with dual `autoView` calls (600ms, 1200ms) for layout stability.
+    - **Mobile-Optimized Tooltips**: On mobile, residue information appears as a **fixed bottom panel** instead of cursor-following tooltips, preventing finger occlusion during touch interactions.
+    - **Intelligent Tracking**: Real-time **Residue Tracking** (#number) with fixed-position Glassmorphic Tooltips on desktop. 
     - **Large Scale Support**: Optimized for massive assemblies like **Connexin Channels** (e.g., 2ZW3) with multi-chain color differentiation.
     - **WebGL Optimization**: Explicit context disposal (dispose) and robust event listener management.
 - **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support with white-background compatibility for external reports.
@@ -41,6 +43,8 @@
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
 - **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
+- **Smart Table Rendering**: Features **Max-height Scrolling** for long tables and automatic **HTML `<br>` tag sanitization** to maintain clean layout and readability.
+- **Optimized Content Delivery**: Strict instructions for **Concise Headers** and **Response Completeness** ensure high-quality, professional outputs without cutoffs.
 
 ---
 
@@ -71,7 +75,7 @@ flowchart TB
     
     subgraph AI["🤖 AI Engine"]
         Gemini["Gemini 2.5 Flash<br/>(Multimodal Reasoning)"]
-        Gemma["Gemma 3 4B<br/>(Title Generation)"]
+        GeminiLite["Gemini 2.5 Flash Lite<br/>(Title & Fallback)"]
         TTS["Gemini 2.5 Flash Preview TTS<br/>(Premium Speech)"]
     end
     
@@ -84,6 +88,7 @@ flowchart TB
         HWPX[JSZip - HWPX]
         DOCX[Mammoth - DOCX]
         XLSX[SheetJS - XLSX]
+        PPTX[JSZip - PPTX]
     end
     
     User -->|Query + Files| Frontend
@@ -115,8 +120,8 @@ flowchart TB
 - **Supabase** (PostgreSQL / Storage / Auth)
 
 ### AI Models
-- **Chat**: `gemini-2.5-flash` (Next-generation high-speed multimodal model)
-- **Summarization**: `gemma-3-4b-it` (High-efficiency title generation)
+- **Chat**: `gemini-2.5-flash` (Primary) & `gemini-2.5-flash-lite` (Automatic Fallback)
+- **Summarization**: `gemini-2.5-flash-lite` (Primary) & `gemma-3-4b-it` (Backup)
 - **Speech**: `gemini-2.5-flash-preview-tts` (Premium natural-sounding voice)
 
 ---
@@ -139,13 +144,16 @@ flowchart TB
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings
 │   ├── ChatInput.tsx     # Multimodal input & text extraction
+│   ├── ChatArea.tsx      # Main message scroll area
 │   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
 │   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
 │   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
 │   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
 │   ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
-│   └── Toast.tsx         # Notification feedback system
+│   ├── Toast.tsx         # Notification feedback system
+│   ├── LoadingScreen.tsx # Initial startup loading UI
+│   └── WelcomeMessage.tsx # Empty state welcome guide
 ├── services/
 │   └── geminiService.ts  # Frontend API bridge & audio control
 ├── App.tsx                # Central state & main layout
@@ -157,7 +165,8 @@ flowchart TB
 
 ## 🔐 Security & Reliability
 
-- **API Key Rotation**: Utilizes up to 5 API keys in a Round-Robin fashion to minimize **429 (Too Many Requests)** errors and ensure uptime.
+- **API Key Rotation & Model Fallback**: Utilizes **10+ API keys** in a Round-Robin fashion combined with an automatic **Model Fallback (Flash ➔ Flash-Lite)** strategy to eliminate **429/quota** errors and ensure maximum uptime.
+- **Output Sanitization**: Real-time filtering for **Whitespace Hallucinations** caused by external tool grounding issues, ensuring a clean and reliable chat experience.
 - **Row Level Security (RLS)**: Enforced via Supabase to ensure users can only access their own private conversation data.
 - **Server-side Secrecy**: All sensitive credentials and API keys are stored in environment variables and never exposed to the client-side browser.
 - **Payload Optimization**: Includes intelligent handling for Vercel's 4.5MB payload limit to prevent deployment-specific upload failures.

@@ -1,16 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
-
-const API_KEYS = [
-    process.env.API_KEY,
-    process.env.API_KEY2,
-    process.env.API_KEY3,
-    process.env.API_KEY4,
-    process.env.API_KEY5,
-    process.env.API_KEY6,
-    process.env.API_KEY7,
-    process.env.API_KEY8,
-].filter(Boolean) as string[];
+import { API_KEYS, getNextApiKey } from './lib/config.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -24,7 +14,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: 'No API keys found in server environment.' });
     }
 
-    for (const apiKey of API_KEYS) {
+    for (let k = 0; k < API_KEYS.length; k++) {
+        const apiKey = getNextApiKey();
+        if (!apiKey) continue;
         try {
             const ai = new GoogleGenAI({ apiKey });
             const response = await ai.models.generateContent({

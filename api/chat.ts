@@ -1,27 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 import { supabase } from './lib/supabase.js';
-
-const API_KEYS = [
-  process.env.API_KEY,
-  process.env.API_KEY2,
-  process.env.API_KEY3,
-  process.env.API_KEY4,
-  process.env.API_KEY5,
-  process.env.API_KEY6,
-  process.env.API_KEY7,
-  process.env.API_KEY8,
-].filter(Boolean) as string[];
+import { API_KEYS, getNextApiKey } from './lib/config.js';
 
 const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-
-let currentKeyIndex = 0;
-const getNextApiKey = () => {
-  if (API_KEYS.length === 0) return null;
-  const key = API_KEYS[currentKeyIndex];
-  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
-  return key;
-};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

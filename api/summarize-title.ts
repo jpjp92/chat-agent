@@ -1,18 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
+import { API_KEYS, getNextApiKey } from './lib/config.js';
 
-const API_KEYS = [
-    process.env.API_KEY,
-    process.env.API_KEY2,
-    process.env.API_KEY3,
-    process.env.API_KEY4,
-    process.env.API_KEY5,
-    process.env.API_KEY6,
-    process.env.API_KEY7,
-    process.env.API_KEY8,
-].filter(Boolean) as string[];
-
-const SUMMARY_MODELS = ['gemini-2.5-flash-lite'];
+const SUMMARY_MODELS = ['gemini-2.5-flash-lite', 'gemma-3-4b-it'];
 const TITLE_PROMPTS: any = {
     ko: "위 대화 내용을 요약하는 아주 짧고 간결한 제목을 한국어로 5단어 이내로 지어줘. 따옴표는 빼고 제목만 출력해줘.",
     en: "Create a very short and concise title summarizing the conversation in English within 5 words. Output only the title without quotes.",
@@ -53,7 +43,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Try each model with each API key
     for (const model of SUMMARY_MODELS) {
-        for (const apiKey of API_KEYS) {
+        for (let k = 0; k < API_KEYS.length; k++) {
+            const apiKey = getNextApiKey();
+            if (!apiKey) continue;
             try {
                 console.log(`[Title API] Trying model: ${model}`);
 

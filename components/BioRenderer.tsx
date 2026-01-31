@@ -55,6 +55,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hoverInfo, setHoverInfo] = useState<{ x: number, y: number, text: any } | null>(null);
+    const [isMobile, setIsMobile] = useState(false);
     const { type, title, data } = bioData;
     const isDark = useThemeMode();
 
@@ -141,6 +142,10 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
             });
         }
 
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
         const stage = nglStage.current;
         stage.removeAllComponents();
 
@@ -182,13 +187,21 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                 colorScheme: "residueindex",
                 quality: "high"
             });
-            comp.autoView();
+
+
+            // 로딩 완료 표시
             setIsLoading(false);
 
-            // 초기 로드 후 레이아웃 깨짐 방지
+            // 패딩과 레이아웃이 완전히 적용된 후 정렬 (두 번 호출로 안정성 확보)
             setTimeout(() => {
                 stage.handleResize();
-            }, 100);
+                comp.autoView();
+            }, 600);
+
+            setTimeout(() => {
+                stage.handleResize();
+                comp.autoView();
+            }, 1200);
         }).catch((err) => {
             console.error("NGL Load Error:", err);
             setError("Failed to load PDB structure");
@@ -207,6 +220,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('resize', checkMobile);
             window.removeEventListener('mousemove', updateMousePos);
             resizeObserver.disconnect();
             if (nglStage.current) {
@@ -268,7 +282,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                         </div>
 
                         {/* Immersive Canvas Area */}
-                        <div className="aspect-[4/3] sm:aspect-video min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112]">
+                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-32 pb-24">
                             {isLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f8fafc]/80 dark:bg-[#111112]/80 z-10 backdrop-blur-md">
                                     <div className="relative">
@@ -286,18 +300,18 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                     <span className="text-sm font-bold leading-relaxed">{error}</span>
                                 </div>
                             ) : (
-                                <div ref={stageRef} className="w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-1000" style={{ opacity: isLoading ? 0 : 1 }} />
+                                <div ref={stageRef} className="w-full h-full cursor-grab active:cursor-grabbing" style={{ opacity: isLoading ? 0 : 1 }} />
                             )}
 
                             {/* Custom Premium Tooltip */}
                             <AnimatePresence>
                                 {hoverInfo && (
                                     <motion.div
-                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        initial={{ opacity: 0, scale: 0.9, y: isMobile ? 20 : 10 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                        className="fixed z-[9999] pointer-events-none"
-                                        style={{
+                                        exit={{ opacity: 0, scale: 0.9, y: isMobile ? 20 : 10 }}
+                                        className={isMobile ? "absolute bottom-16 left-4 right-4 z-50 pointer-events-none" : "fixed z-[9999] pointer-events-none"}
+                                        style={isMobile ? {} : {
                                             left: hoverInfo.x + 15,
                                             top: hoverInfo.y + 15
                                         }}

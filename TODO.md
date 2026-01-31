@@ -2,10 +2,29 @@
 
 ## ✅ Recently Completed (2026-01-31)
 
+### API & UI Resilience Improvements (2026-01-31) ✓
+- ✅ **API Fallback Strategy**: `gemini-2.5-flash` 모델 쿼터 초과 시 `gemini-2.5-flash-lite`로 자동 전환되는 다중 모델 폴백 로직 구현.
+- ✅ **출력 위생 처리 (Sanitization)**: Google Search Grounding 오작동으로 인한 무한 공백 생성(Hallucination) 방지 필터 구현.
+- ✅ **표(Table) UI 고도화**: 긴 표에 대한 세로 스크롤(`max-h-500px`) 및 `<br>` 태그 자동 줄바꿈 처리로 가독성 개선.
+- ✅ **프롬프트 최적화**: 표 헤더 간소화 및 응답 완결성 지침 추가로 답변 품질 및 안정성 강화.
+
+### BioRenderer 3D 구조 시각화 UI/UX 개선 (2026-02-01) ✓
+- ✅ **수직 정렬 최적화**: CSS 패딩 기반 레이아웃(`pt-32 pb-24`)으로 단백질 구조가 상하 배지 사이의 시각적 중앙에 정확히 배치되도록 개선.
+- ✅ **초기 로딩 정렬 안정화**: 지연 실행(600ms, 1200ms) 이중 `autoView` 호출로 레이아웃 확정 후 정렬하여 초기 점프 현상 제거.
+- ✅ **모바일 툴팁 UX**: 모바일 환경에서 잔기 정보 툴팁을 하단 고정 패널로 전환하여 터치 인터랙션 시 가독성 대폭 향상.
+- ✅ **반응형 레이아웃**: 모바일(`min-h-[300px]`)과 데스크탑(`min-h-[350px]`) 각각 최적화된 최소 높이 적용.
+- ✅ **카메라 조작 제거**: 복잡한 수동 `translate`/`zoom` 로직 제거하고 NGL 기본 `autoView`와 CSS만으로 안정적 정렬 구현.
+
+
 ### 시각화 모듈 다국어화 (Deep Localization) ✓
 - ✅ **전역 다국어 연동**: Bio, Chemical, Chart 렌더러가 전역 언어 설정(KO, EN, ES, FR)에 맞춰 내부 라벨('Chain', 'Atomic', 'Structure' 등)을 자동 전환.
 - ✅ **AI 응답 강제 고정**: 사용자가 다른 언어로 질문하더라도 설정된 언어로만 답변하도록 시스템 지침(System Instruction) 최적화 및 Gemini API 호출 구조 고도화.
 - ✅ **로딩 상태 로컬라이제이션**: '분석 중...' 등 시각화 장치 로딩 문구를 다국어 대응.
+
+### API 보안 및 관리 효율화 (2026-01-31) ✓
+- ✅ **동적 API Key 로드**: `API_KEY*` 패턴의 모든 환경 변수를 자동으로 감지하고 로테이션하는 중앙 설정(`api/lib/config.ts`) 구현.
+- ✅ **프론트엔드 보안 강화**: `vite.config.ts`에서 클라이언트로의 API Key 주입 제거 및 백엔드 전용 관리 체계 확립.
+- ✅ **중복 코드 제거**: 여러 API 엔드포인트(`chat`, `speech`, `title`)에서 개별적으로 관리하던 키 로직을 하나로 통합.
 
 ### Bio-Viz 및 시각화 로직 안정화 ✓
 - ✅ **WebGL 자원 관리**: NGL Stage 소멸 시 `.dispose()` 명시적 호출로 메모리 누수 방지 및 WebGL 컨텍스트 최적화.
@@ -95,9 +114,9 @@
     - [ ] **WelcomeMessage**: 채팅 시작 전 웰컴 메시지 UI (`WelcomeMessage.tsx`) 컴포넌트화.
     - [ ] **ChatArea**: 실제 메시지가 렌더링되는 메인 영역 (`ChatArea.tsx`) 컴포넌트화하여 `App.tsx`의 복잡도 감소.
 - [ ] **API Key 관리 및 보안 강화**
-    - [ ] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
-  - [ ] 백엔드(`api/*.ts`)에서 `process.env`를 이용한 동적 API Key 로드 및 로테이션 구현.
-  - [ ] Vercel 환경 변수 추가 시 코드 수정 없이 자동 반영되도록 개선.
+    - [x] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
+  - [x] 백엔드(`api/*.ts`)에서 `process.env`를 이용한 동적 API Key 로드 및 로테이션 구현.
+  - [x] Vercel 환경 변수 추가 시 코드 수정 없이 자동 반영되도록 개선.
 - [ ] 불필요한 파일 정리 (`test-supabase.ts`, `metadata.json`).
 - [ ] `reference/` 폴더 삭제 고려 (HWPX 구현 완료).
 - [ ] ESLint/Prettier 설정 추가.
@@ -105,4 +124,4 @@
 
 ---
 
-*Last Updated: 2026-01-31 (v2.2)*
+*Last Updated: 2026-01-31 (v2.4)*
