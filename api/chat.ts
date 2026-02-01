@@ -151,6 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - ROTATION: Use "angle" (radians) and "angularVelocity" to make objects spin. Useful for angular momentum conservation.
   - RESTITUTION (Bouncing): Set "restitution": 0.8 or higher in "options" to make objects bounce. Default is 0.6.
   - PROACTIVE PHYSICS: Generate a 2D "Illustrated Explainer" for Classical Mechanics (gravity, momentum, projectile). Note: Complex Fluid Dynamics (buoyancy, water flow) should be kept simple or handled as a schematic in 2D.
+  - GRAVITY SCALE: For educational free-fall or projectile simulations, use SLOW MOTION gravity (e.g., "gravity": { "x": 0, "y": 0.3 }) instead of the default 1.0. This makes it easier for users to follow the motion.
   - Global Constants: Canvas coordinate system is 800 (width) x 400 (height).
   - BOUNDARIES: The ground and walls are ALREADY PRE-CONFIGURED and invisible. DO NOT create static rectangles for the ground at y=400.
 

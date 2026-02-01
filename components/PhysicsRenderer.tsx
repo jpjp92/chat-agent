@@ -244,7 +244,14 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
 
                         if (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1) {
                             const color = v.color || (isDark ? '#fbbf24' : '#f59e0b');
-                            drawArrow(context, x, y, x + vx, y + vy, color, v.label);
+
+                            // Calculate offset start position (at the edge of the object)
+                            const angle = Math.atan2(vy, vx);
+                            const dist = (obj.radius || Math.max(obj.width || 40, obj.height || 40) / 2) * scale;
+                            const startX = x + Math.cos(angle) * dist;
+                            const startY = y + Math.sin(angle) * dist;
+
+                            drawArrow(context, startX, startY, startX + vx, startY + vy, color, v.label);
                         }
                     });
                 }
