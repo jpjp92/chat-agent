@@ -262,10 +262,13 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             // 1. Draw Labels first (so they are under arrows if overlapping)
             physicsData.objects.forEach((obj, idx) => {
                 const body = bodies[idx];
+                if (!body) return;
                 const { x, y } = body.position;
                 if (obj.label) {
                     context.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
-                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - 20);
+                    // Stagger labels to prevent overlap in dense layouts (like Newton's Cradle)
+                    const staggerOffset = (idx % 2 === 0) ? 20 : 45;
+                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - staggerOffset);
                 }
             });
 
