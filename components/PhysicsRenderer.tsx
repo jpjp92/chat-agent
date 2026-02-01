@@ -1,0 +1,307 @@
+import React, { useEffect, useRef, useState } from 'react';
+import Matter from 'matter-js';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface PhysicsObject {
+    type: 'circle' | 'rectangle';
+    x: number;
+    y: number;
+    radius?: number;
+    width?: number;
+    height?: number;
+    options?: Matter.IChamferableBodyDefinition;
+    velocity?: { x: number; y: number };
+    angle?: number;
+    angularVelocity?: number;
+    label?: string;
+    vectors?: Array<{
+        type: 'velocity' | 'force' | 'gravity' | 'custom';
+        label?: string;
+        color?: string;
+        value?: { x: number; y: number };
+    }>;
+    color?: string;
+}
+
+interface PhysicsData {
+    title?: string;
+    gravity?: { x: number; y: number };
+    objects: PhysicsObject[];
+    description?: string;
+}
+
+interface PhysicsRendererProps {
+    physicsData: PhysicsData;
+    language?: 'ko' | 'en' | 'es' | 'fr';
+}
+
+const useThemeMode = () => {
+    const [isDark, setIsDark] = React.useState(false);
+
+    useEffect(() => {
+        const checkDarkMode = () => {
+            setIsDark(document.documentElement.classList.contains('dark'));
+        };
+        checkDarkMode();
+        const observer = new MutationObserver(checkDarkMode);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        return () => observer.disconnect();
+    }, []);
+
+    return isDark;
+};
+
+const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language = 'ko' }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const canvasRef = useRef<HTMLDivElement>(null);
+    const engineRef = useRef<Matter.Engine | null>(null);
+    const renderRef = useRef<Matter.Render | null>(null);
+    const runnerRef = useRef<Matter.Runner | null>(null);
+    const isDark = useThemeMode();
+
+    const i18n = {
+        ko: { reset: '초기화', engine: '물리학 엔진' },
+        en: { reset: 'Reset', engine: 'Physics Engine' },
+        es: { reset: 'Reiniciar', engine: 'Motor Físico' },
+        fr: { reset: 'Réinitialiser', engine: 'Moteur Physique' }
+    };
+    const t = i18n[language] || i18n.en;
+
+    const initPhysics = (width: number, height: number) => {
+        if (!canvasRef.current) return;
+
+        // Cleanup
+        if (renderRef.current) {
+            Matter.Render.stop(renderRef.current);
+            Matter.Runner.stop(runnerRef.current!);
+            if (engineRef.current) {
+                Matter.World.clear(engineRef.current.world, false);
+                Matter.Engine.clear(engineRef.current);
+            }
+            renderRef.current.canvas.remove();
+        }
+
+        const engine = Matter.Engine.create();
+        engineRef.current = engine;
+
+        if (physicsData.gravity) {
+            engine.gravity.x = physicsData.gravity.x;
+            engine.gravity.y = physicsData.gravity.y;
+        }
+
+        const render = Matter.Render.create({
+            element: canvasRef.current,
+            engine: engine,
+            options: {
+                width,
+                height,
+                wireframes: false,
+                background: 'transparent',
+                pixelRatio: window.devicePixelRatio,
+            }
+        });
+
+        render.canvas.style.display = 'block';
+        render.canvas.style.width = '100%';
+        render.canvas.style.height = '100%';
+
+        renderRef.current = render;
+
+        const runner = Matter.Runner.create();
+        runnerRef.current = runner;
+
+        // Virtual Coordinate system based on 800x400 standard
+        const virtualWidth = 800;
+        const virtualHeight = 400;
+
+        // Match scaling to container while maintaining aspect ratio behavior
+        const scaleX = width / virtualWidth;
+        const scaleY = height / virtualHeight;
+        const scale = Math.min(scaleX, scaleY);
+
+        // For mobile/tall screens, we want to align the 800x400 "box" to the BOTTOM
+        const offsetX = (width - (virtualWidth * scale)) / 2;
+        const offsetY = height - (virtualHeight * scale) - 20;
+
+        const bodies: Matter.Body[] = physicsData.objects.map(obj => {
+            let body: Matter.Body;
+            const options: Matter.IChamferableBodyDefinition = {
+                restitution: obj.options?.restitution ?? 0.6,
+                friction: obj.options?.friction ?? 0.1,
+                frictionAir: 0.01,
+                isStatic: obj.options?.isStatic ?? false,
+                ...obj.options,
+                render: {
+                    fillStyle: obj.color || (isDark ? '#3b82f6' : '#2563eb'),
+                    strokeStyle: 'transparent',
+                    lineWidth: 0
+                }
+            };
+
+            const x = (obj.x * scale) + offsetX;
+            const y = (obj.y * scale) + offsetY;
+
+            if (obj.type === 'circle') {
+                body = Matter.Bodies.circle(x, y, (obj.radius || 20) * scale, options);
+            } else {
+                body = Matter.Bodies.rectangle(x, y, (obj.width || 40) * scale, (obj.height || 40) * scale, options);
+            }
+            return body;
+        });
+
+        // Invisible Boundaries
+        const wallOptions = { isStatic: true, render: { visible: false } };
+        const ground = Matter.Bodies.rectangle(width / 2, height + 500, width * 5, 1000, wallOptions);
+        const leftWall = Matter.Bodies.rectangle(-500, height / 2, 1000, height * 5, wallOptions);
+        const rightWall = Matter.Bodies.rectangle(width + 500, height / 2, 1000, height * 5, wallOptions);
+        const ceiling = Matter.Bodies.rectangle(width / 2, -500, width * 5, 1000, wallOptions);
+
+        // Add mouse control
+        const mouse = Matter.Mouse.create(render.canvas);
+        const mouseConstraint = Matter.MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.2,
+                render: { visible: false }
+            }
+        });
+
+        // Allow scrolling on mobile
+        const mouseAny = mouse as any;
+        if (mouseAny.element) {
+            mouseAny.element.removeEventListener("mousewheel", mouseAny.mousewheel);
+            mouseAny.element.removeEventListener("DOMMouseScroll", mouseAny.mousewheel);
+        }
+
+        Matter.Composite.add(engine.world, [...bodies, ground, leftWall, rightWall, mouseConstraint]);
+
+        // Apply Initial States
+        physicsData.objects.forEach((obj, idx) => {
+            const body = bodies[idx];
+            if (obj.velocity) {
+                Matter.Body.setVelocity(body, {
+                    x: obj.velocity.x * scale,
+                    y: obj.velocity.y * scale
+                });
+            }
+            if (obj.angle !== undefined) Matter.Body.setAngle(body, obj.angle);
+            if (obj.angularVelocity !== undefined) Matter.Body.setAngularVelocity(body, obj.angularVelocity);
+        });
+
+        // Custom Overlay Drawing
+        const drawArrow = (ctx: CanvasRenderingContext2D, fx: number, fy: number, tx: number, ty: number, color: string, label?: string) => {
+            const headlen = 10;
+            const dx = tx - fx;
+            const dy = ty - fy;
+            const angle = Math.atan2(dy, dx);
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx, ty);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx - headlen * Math.cos(angle - Math.PI / 6), ty - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(tx - headlen * Math.cos(angle + Math.PI / 6), ty - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            if (label) {
+                ctx.fillStyle = color;
+                ctx.fillText(label, tx + Math.cos(angle) * 15, ty + Math.sin(angle) * 15);
+            }
+        };
+
+        Matter.Events.on(render, 'afterRender', () => {
+            const context = render.context;
+            context.font = 'bold 12px Inter, system-ui';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+
+            physicsData.objects.forEach((obj, idx) => {
+                const body = bodies[idx];
+                const { x, y } = body.position;
+                if (obj.label) {
+                    context.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
+                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - 15);
+                }
+                if (obj.vectors) {
+                    obj.vectors.forEach(v => {
+                        let vx = 0, vy = 0;
+                        if (v.type === 'velocity') {
+                            vx = body.velocity.x * 10;
+                            vy = body.velocity.y * 10;
+                        } else if (v.value) {
+                            vx = v.value.x * 10 * scale;
+                            vy = v.value.y * 10 * scale;
+                        } else {
+                            // Fallback for common types if value is missing
+                            if (v.type === 'gravity') vy = 30 * scale;
+                            else if (v.type === 'force' && v.label?.includes('부력')) vy = -30 * scale;
+                            else if (v.type === 'force') vy = 30 * scale;
+                        }
+
+                        if (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1) {
+                            const color = v.color || (isDark ? '#fbbf24' : '#f59e0b');
+                            drawArrow(context, x, y, x + vx, y + vy, color, v.label);
+                        }
+                    });
+                }
+            });
+        });
+
+        Matter.Render.run(render);
+        Matter.Runner.run(runner, engine);
+    };
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (containerRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current;
+                if (clientWidth > 0 && clientHeight > 0) initPhysics(clientWidth, clientHeight);
+            }
+        };
+        handleResize();
+        const resizeObserver = new ResizeObserver(() => handleResize());
+        if (containerRef.current) resizeObserver.observe(containerRef.current);
+        return () => {
+            resizeObserver.disconnect();
+            if (renderRef.current) {
+                Matter.Render.stop(renderRef.current);
+                if (runnerRef.current) Matter.Runner.stop(runnerRef.current);
+                if (engineRef.current) Matter.Engine.clear(engineRef.current);
+                renderRef.current.canvas.remove();
+            }
+        };
+    }, [physicsData, isDark]);
+
+    return (
+        <div className="w-full my-6 animate-in fade-in zoom-in-95 duration-700">
+            <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-lg overflow-hidden flex flex-col relative">
+                <div className="absolute top-0 left-0 right-0 px-5 py-4 flex items-center justify-between z-10 pointer-events-none">
+                    <div className="flex items-center gap-3 bg-white/60 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 shadow-sm pointer-events-auto">
+                        <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                        <h3 className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                            {physicsData.title || t.engine}
+                        </h3>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (containerRef.current) initPhysics(containerRef.current.clientWidth, containerRef.current.clientHeight);
+                        }}
+                        className="pointer-events-auto w-8 h-8 rounded-full bg-white/60 dark:bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-slate-400 hover:text-orange-500 transition-colors shadow-sm"
+                        title={t.reset}
+                    >
+                        <i className="fa-solid fa-rotate-right text-[10px]"></i>
+                    </button>
+                </div>
+                <div ref={containerRef} className="w-full aspect-[4/3] sm:aspect-video relative">
+                    <div ref={canvasRef} className="absolute inset-0 w-full h-full" />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default PhysicsRenderer;

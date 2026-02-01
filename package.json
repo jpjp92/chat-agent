@@ -17,6 +17,7 @@
     "jszip": "^3.10.1",
     "katex": "^0.16.28",
     "mammoth": "^1.11.0",
+    "matter-js": "^0.20.0",
     "ngl": "^2.4.0",
     "react": "^19.0.0",
     "react-apexcharts": "^1.9.0",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/jszip": "^3.4.0",
+    "@types/matter-js": "^0.20.2",
     "@types/node": "^25.0.8",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

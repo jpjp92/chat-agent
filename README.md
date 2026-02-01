@@ -36,6 +36,12 @@
     - **Large Scale Support**: Optimized for massive assemblies like **Connexin Channels** (e.g., 2ZW3) with multi-chain color differentiation.
     - **WebGL Optimization**: Explicit context disposal (dispose) and robust event listener management.
 - **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support with white-background compatibility for external reports.
+- **Interactive Physics Simulation (Phy-Viz)**: 
+    - **Matter.js Engine**: Real-time 2D physics simulations for classical mechanics, gravity, and collisions.
+    - **Illustrated Explainer Mode**: Real-time **Vector Arrow** (Force, Velocity) and **Text Label** overlay for educational diagrams.
+    - **Rotational Dynamics**: Supports angular velocity, torque, and momentum conservation experiments.
+    - **Responsive Scaling**: Automatically adapts coordinates (800x400 Virtual Grid) for **Web (16:9)** and **Mobile (4:3)** views.
+    - **Premium Interaction**: Supports touch-based dragging, reset functionality, and localized headers with glassmorphic design.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
@@ -63,6 +69,7 @@ flowchart TB
             Apex[ApexCharts - 8+ Types]
             SMILES[smiles-drawer - Chemical]
             NGL[NGL - 3D Protein Structures]
+            Matter[Matter.js - 2D Physics]
             KaTeX[KaTeX - Math Expressions]
         end
         State[Session State Management]
@@ -115,6 +122,7 @@ flowchart TB
 - **ApexCharts** (Data Visualization)
 - **smiles-drawer** (Chemical Structure Rendering)
 - **ngl** (3D Biological Visualization)
+- **matter-js** (2D Physics Simulation)
 - **Tailwind CSS** (Premium Responsive Design)
 - **Framer Motion** (Immersive Animations)
 
@@ -151,8 +159,9 @@ flowchart TB
 │   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
 │   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
 │   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
-│   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
-│   ├── Dialog.tsx        # Premium custom modals
+    ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
+    ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
+    ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
 │   ├── Toast.tsx         # Notification feedback system
 │   ├── LoadingScreen.tsx # Initial startup loading UI

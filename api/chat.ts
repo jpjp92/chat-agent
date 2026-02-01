@@ -119,6 +119,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     \`\`\`
   - Provide 1D sequences for specific sequence analysis and 3D PDB views for structural explanations.
 
+  [PHYSICS SIMULATION (Phy-Viz)]
+  - Use this for classical mechanics, collisions, gravity, or motion simulations.
+  - JSON Format:
+    \`\`\`json:physics
+    {
+      "title": "Simulation Title",
+      "description": "Short explanation",
+      "gravity": { "x": 0, "y": 1 },
+      "objects": [
+        { 
+          "type": "circle" | "rectangle", 
+          "x": number, "y": number, 
+          "velocity": { "x": number, "y": number },
+          "angle": number (radians),
+          "angularVelocity": number,
+          "label": "Text Label",
+          "vectors": [
+            { "type": "velocity" | "force" | "custom", "value": { "x": 0, "y": 5 }, "label": "G", "color": "#ff0000" }
+          ],
+          "radius": number, 
+          "width": number, "height": number,
+          "color": "hex_code",
+          "options": { "isStatic": boolean, "restitution": 0.8, "friction": 0.1 }
+        }
+      ]
+    }
+    \`\`\`
+  - ILLUSTRATED EXPLAINER: Best for Classical Mechanics. Use "label" for naming objects and "vectors" to show forces/velocity arrows. Perfect for projectile motion or collision analysis.
+  - VELOCITY: Use "velocity": { "x": 5, "y": -2 } to make objects move. Essential for collisions.
+  - ROTATION: Use "angle" (radians) and "angularVelocity" to make objects spin. Useful for angular momentum conservation.
+  - RESTITUTION (Bouncing): Set "restitution": 0.8 or higher in "options" to make objects bounce. Default is 0.6.
+  - PROACTIVE PHYSICS: Generate a 2D "Illustrated Explainer" for Classical Mechanics (gravity, momentum, projectile). Note: Complex Fluid Dynamics (buoyancy, water flow) should be kept simple or handled as a schematic in 2D.
+  - Global Constants: Canvas coordinate system is 800 (width) x 400 (height).
+  - BOUNDARIES: The ground and walls are ALREADY PRE-CONFIGURED and invisible. DO NOT create static rectangles for the ground at y=400.
+
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
 
   [TABLE FORMATTING]
