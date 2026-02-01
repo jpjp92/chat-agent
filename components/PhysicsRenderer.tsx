@@ -121,7 +121,7 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
 
         // For mobile/tall screens, we want to align the 800x400 "box" to the BOTTOM
         const offsetX = (width - (virtualWidth * scale)) / 2;
-        const offsetY = height - (virtualHeight * scale) - 20;
+        const offsetY = height - (virtualHeight * scale);
 
         const bodies: Matter.Body[] = physicsData.objects.map(obj => {
             let body: Matter.Body;
@@ -209,7 +209,38 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             ctx.fill();
             if (label) {
                 ctx.fillStyle = color;
-                ctx.fillText(label, tx + Math.cos(angle) * 15, ty + Math.sin(angle) * 15);
+                const textPadding = 25;
+                let textOffsetX = Math.cos(angle) * textPadding;
+                const textOffsetY = Math.sin(angle) * textPadding;
+                const verticalCorrection = Math.abs(Math.cos(angle)) > 0.8 ? -15 : 0;
+
+                const posX = tx + textOffsetX;
+                const posY = ty + textOffsetY + verticalCorrection;
+
+                ctx.save();
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 4;
+
+                // Smart alignment: check if text will overflow canvas boundaries
+                const textMetrics = ctx.measureText(label);
+                const textWidth = textMetrics.width;
+                let finalTextAlign: CanvasTextAlign = Math.abs(Math.cos(angle)) > 0.5 ? (Math.cos(angle) > 0 ? 'left' : 'right') : 'center';
+
+                // Boundary correction
+                if (finalTextAlign === 'left' && posX + textWidth > width - 10) {
+                    finalTextAlign = 'right';
+                    textOffsetX = -textPadding; // Flip to other side of arrow head
+                } else if (finalTextAlign === 'right' && posX - textWidth < 10) {
+                    finalTextAlign = 'left';
+                    textOffsetX = textPadding;
+                } else if (finalTextAlign === 'center') {
+                    if (posX + textWidth / 2 > width - 10) finalTextAlign = 'right';
+                    else if (posX - textWidth / 2 < 10) finalTextAlign = 'left';
+                }
+
+                ctx.textAlign = finalTextAlign;
+                ctx.fillText(label, tx + textOffsetX, posY);
+                ctx.restore();
             }
         };
 
@@ -219,33 +250,46 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             context.textAlign = 'center';
             context.textBaseline = 'middle';
 
+            // 0. Draw a subtle Ground line at virtual y=400
+            const groundY = (400 * scale) + offsetY;
+            context.beginPath();
+            context.moveTo(offsetX, groundY);
+            context.lineTo(offsetX + (800 * scale), groundY);
+            context.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            context.lineWidth = 1;
+            context.stroke();
+
+            // 1. Draw Labels first (so they are under arrows if overlapping)
             physicsData.objects.forEach((obj, idx) => {
                 const body = bodies[idx];
                 const { x, y } = body.position;
                 if (obj.label) {
-                    context.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
-                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - 15);
+                    context.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
+                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - 20);
                 }
+            });
+
+            // 2. Draw Vectors on top of everything
+            physicsData.objects.forEach((obj, idx) => {
+                const body = bodies[idx];
+                const { x, y } = body.position;
                 if (obj.vectors) {
                     obj.vectors.forEach(v => {
                         let vx = 0, vy = 0;
                         if (v.type === 'velocity') {
-                            vx = body.velocity.x * 10;
-                            vy = body.velocity.y * 10;
+                            vx = body.velocity.x * 12;
+                            vy = body.velocity.y * 12;
                         } else if (v.value) {
-                            vx = v.value.x * 10 * scale;
-                            vy = v.value.y * 10 * scale;
+                            vx = v.value.x * 12 * scale;
+                            vy = v.value.y * 12 * scale;
                         } else {
-                            // Fallback for common types if value is missing
-                            if (v.type === 'gravity') vy = 30 * scale;
-                            else if (v.type === 'force' && v.label?.includes('부력')) vy = -30 * scale;
-                            else if (v.type === 'force') vy = 30 * scale;
+                            if (v.type === 'gravity') vy = 40 * scale;
+                            else if (v.type === 'force' && v.label?.includes('부력')) vy = -40 * scale;
+                            else if (v.type === 'force') vy = 40 * scale;
                         }
 
                         if (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1) {
                             const color = v.color || (isDark ? '#fbbf24' : '#f59e0b');
-
-                            // Calculate offset start position (at the edge of the object)
                             const angle = Math.atan2(vy, vx);
                             const dist = (obj.radius || Math.max(obj.width || 40, obj.height || 40) / 2) * scale;
                             const startX = x + Math.cos(angle) * dist;
@@ -284,10 +328,10 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
     }, [physicsData, isDark]);
 
     return (
-        <div className="w-full my-6 animate-in fade-in zoom-in-95 duration-700">
-            <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-lg overflow-hidden flex flex-col relative">
-                <div className="absolute top-0 left-0 right-0 px-5 py-4 flex items-center justify-between z-10 pointer-events-none">
-                    <div className="flex items-center gap-3 bg-white/60 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 shadow-sm pointer-events-auto">
+        <div className="w-full my-6 animate-in fade-in zoom-in-95 duration-700 min-h-[300px]">
+            <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-lg overflow-hidden flex flex-col relative w-full h-full">
+                <div className="px-5 py-4 flex items-center justify-between z-10 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 backdrop-blur-sm">
+                    <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
                         <h3 className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
                             {physicsData.title || t.engine}
@@ -297,13 +341,13 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                         onClick={() => {
                             if (containerRef.current) initPhysics(containerRef.current.clientWidth, containerRef.current.clientHeight);
                         }}
-                        className="pointer-events-auto w-8 h-8 rounded-full bg-white/60 dark:bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-slate-400 hover:text-orange-500 transition-colors shadow-sm"
+                        className="w-8 h-8 rounded-full bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 hover:text-orange-500 transition-colors shadow-sm"
                         title={t.reset}
                     >
                         <i className="fa-solid fa-rotate-right text-[10px]"></i>
                     </button>
                 </div>
-                <div ref={containerRef} className="w-full aspect-[4/3] sm:aspect-video relative">
+                <div ref={containerRef} className="w-full min-h-[300px] aspect-[4/3] sm:aspect-video relative bg-slate-50/30 dark:bg-black/20">
                     <div ref={canvasRef} className="absolute inset-0 w-full h-full" />
                 </div>
             </div>

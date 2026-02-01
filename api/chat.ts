@@ -46,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   [FORMATTING & QUALITY]
   - DO NOT output internal thought processes, planning steps, or draft headers (e.g., "| Col | Col |").
   - Output ONLY the final, polished response intended for the user.
+  - [NO DUPLICATION RULE]: NEVER output multiple visualization blocks (Chart, Bio, Smiles, Physics) with redundant or identical data in a single response. One high-quality visualization per entity is the goal.
   - Ensure all Markdown syntax (tables, code blocks) is complete and valid.
   - [TABLE STYLE GUIDE]
     - strictly follow the format: | Header | Header |\n| --- | --- |\n| Row | Row |.
@@ -91,7 +92,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   [BIOLOGICAL VISUALIZATION]
   - Use these for protein/DNA/RNA sequences (1D) or 3D protein structures (PDB).
   - IMPORTANT: Keep "title" as SHORT as possible (e.g., just the name of the protein or ID).
-  - PROACTIVE VISUALIZATION: If the user asks for a specific protein (e.g., "Hemoglobin", "Insulin") or molecular motif (e.g., "Alpha helix", "DNA double helix"), you MUST find the representative PDB ID (using search if needed) and generate a 'bio' JSON block.
+  - PROACTIVE VISUALIZATION: If the user asks for a specific protein (e.g., "Hemoglobin", "Insulin"), you MUST find the representative PDB ID and generate A SINGLE 'bio' JSON block.
+  - [SELECTION RULE]: ALWAYS prioritize the 3D PDB view over the 1D sequence. NEVER provide both for the same entity unless the user explicitly asks for "both sequence and 3D structure".
   - For Sequence Viewer (1D):
     \`\`\`json:bio
     {
@@ -117,7 +119,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     \`\`\`
-  - Provide 1D sequences for specific sequence analysis and 3D PDB views for structural explanations.
 
   [PHYSICS SIMULATION (Phy-Viz)]
   - Use this for classical mechanics, collisions, gravity, or motion simulations.
@@ -146,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ]
     }
     \`\`\`
-  - ILLUSTRATED EXPLAINER: Best for Classical Mechanics. Use "label" for naming objects and "vectors" to show forces/velocity arrows. Perfect for projectile motion or collision analysis.
+  - ILLUSTRATED EXPLAINER: Best for Classical Mechanics. ALWAYS use "label" for naming objects and "vectors" to show forces/velocity arrows. Perfect for projectile motion or collision analysis. MANDATORY for educational clarity.
   - VELOCITY: Use "velocity": { "x": 5, "y": -2 } to make objects move. Essential for collisions.
   - ROTATION: Use "angle" (radians) and "angularVelocity" to make objects spin. Useful for angular momentum conservation.
   - RESTITUTION (Bouncing): Set "restitution": 0.8 or higher in "options" to make objects bounce. Default is 0.6.
@@ -174,12 +175,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - You MUST complete your response fully.
   - If the content is extensive, prioritize summarization over exhaustiveness to ensure the output is not cut off.
   - NEVER leave a Markdown table or sentence unfinished.
+  - Avoid redundant visualization blocks for the same entity.
   - Be concise and efficient with your tokens.
   
   [LANGUAGE ENFORCEMENT]
   - THE USER HAS SELECTED ${langNames[currentLang]} AS THE PREFERRED LANGUAGE.
   - YOU MUST RESPOND IN ${langNames[currentLang]} REGARDLESS OF THE INPUT LANGUAGE.
-  - THIS IS A HARD CONSTRAINT.DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
+  - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
 
   if (webContent) {
     systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;
@@ -243,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             temperature: 0.2,
             topP: 0.8,
             topK: 40,
-            maxOutputTokens: 4096
+            maxOutputTokens: 8192
           } as any
         });
 

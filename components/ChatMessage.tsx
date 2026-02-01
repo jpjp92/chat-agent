@@ -314,7 +314,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           }
           if (part.type === 'chart_loading') {
             return (
-              <div key={idx} className="my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
+              <div key={idx} className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
                 <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-slate-400">
                   <i className="fa-solid fa-flask text-2xl animate-bounce"></i>
                   <span className="text-sm font-medium">{t.analyzing}</span>
