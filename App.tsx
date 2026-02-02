@@ -71,6 +71,7 @@ const App: React.FC = () => {
       checkingYoutube: "유튜브 정보를 확인 중입니다...",
       analyzingTranscript: "자막 데이터를 분석 중입니다...",
       watchingVideo: "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)",
+      analyzingVideo: "영상을 분석 중입니다...",
       fetchingUrl: "URL에서 내용을 가져오는 중...",
       preparingSession: "세션을 준비 중입니다"
     },
@@ -85,6 +86,7 @@ const App: React.FC = () => {
       checkingYoutube: "Checking YouTube info...",
       analyzingTranscript: "Analyzing transcript data...",
       watchingVideo: "Gemini is watching the video... (May take about 1 min)",
+      analyzingVideo: "Analyzing video...",
       fetchingUrl: "Fetching content from URL...",
       preparingSession: "Preparing session"
     },
@@ -99,6 +101,7 @@ const App: React.FC = () => {
       checkingYoutube: "Comprobando información de YouTube...",
       analyzingTranscript: "Analizando transcripción...",
       watchingVideo: "Gemini está viendo el video... (Puede tomar 1 min)",
+      analyzingVideo: "Analizando video...",
       fetchingUrl: "Obteniendo contenido de URL...",
       preparingSession: "Preparando sesión"
     },
@@ -113,6 +116,7 @@ const App: React.FC = () => {
       checkingYoutube: "Vérification des infos YouTube...",
       analyzingTranscript: "Analyse de la transcription...",
       watchingVideo: "Gemini regarde la vidéo... (Peut prendre 1 min)",
+      analyzingVideo: "Analyse de la vidéo...",
       fetchingUrl: "Récupération du contenu URL...",
       preparingSession: "Préparation de la session"
     }
@@ -308,14 +312,15 @@ const App: React.FC = () => {
     if (attachment && attachment.data) {
       try {
         const isImage = attachment.mimeType.startsWith('image/');
+        const isVideo = attachment.mimeType.startsWith('video/');
         const isPDF = attachment.mimeType === 'application/pdf';
 
         // 자연스러운 로딩 문구 설정
-        setLoadingStatus(isImage ? t.analyzingImage : isPDF ? t.analyzingDoc : t.analyzingFile);
+        setLoadingStatus(isVideo ? t.analyzingVideo : isImage ? t.analyzingImage : isPDF ? t.analyzingDoc : t.analyzingFile);
 
-        const bucket = isImage ? 'chat-imgs' : 'chat-docs';
+        const bucket = isVideo ? 'chat-videos' : isImage ? 'chat-imgs' : 'chat-docs';
         const uploadResult = await uploadToStorage({
-          fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : 'image.png'),
+          fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : isVideo ? 'video.mp4' : 'image.png'),
           data: attachment.data,
           mimeType: attachment.mimeType
         }, bucket);
@@ -366,7 +371,9 @@ const App: React.FC = () => {
     }
     // 2. 현재 첨부된 문서가 없지만, 세션에 저장된 이전 문서 컨텍스트가 있다면 보조 적용
     else if (currentSession?.lastActiveDoc?.extractedText) {
-      webContext = `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
+      const isVideoContext = currentSession.lastActiveDoc.mimeType?.startsWith('video/');
+      const tag = isVideoContext ? "[VIDEO_ANALYSIS_SUMMARY]" : "[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT]";
+      webContext = `${tag}: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
     }
 
     // 더 정교한 URL 정규식 (괄호나 문장부호 포함 가능성 고려)
@@ -433,7 +440,7 @@ const App: React.FC = () => {
           }));
         },
         language,
-        (attachment?.mimeType?.startsWith('image/') || attachment?.mimeType === 'application/pdf') ? attachment : undefined,
+        (attachment?.mimeType?.startsWith('image/') || attachment?.mimeType?.startsWith('video/') || attachment?.mimeType === 'application/pdf') ? attachment : undefined,
         webContext,
         'text',
         (sources) => {
@@ -449,6 +456,22 @@ const App: React.FC = () => {
         },
         currentSessionId
       );
+
+      // 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
+      if (finalAttachment?.mimeType?.startsWith('video/') && modelResponse) {
+        setSessions(prev => prev.map(s => {
+          if (s.id === currentSessionId) {
+            return {
+              ...s,
+              lastActiveDoc: {
+                ...finalAttachment!,
+                extractedText: modelResponse // AI가 뽑아준 요약 내용을 텍스트 컨텍스트로 활용
+              }
+            };
+          }
+          return s;
+        }));
+      }
 
       // 제목 자동 업데이트
       if (latestHistory.length <= 2) {

@@ -21,7 +21,7 @@
 - **Strict Response Enforcement**: Optimized system prompts ensure Gemini adheres to the selected language regardless of input language.
 
 ### 🔍 Intelligence & Multimodality
-- **PDF & Image Analysis**: Upload documents (PDF) or images and ask Gemini to summarize, extract data, or describe visual content (up to 4MB).
+- **PDF, Image & Video Analysis**: Upload documents (PDF), images, or native video files (MP4, MOV). Gemini can summarize, extract data, or describe visual/auditory content. Features a **Video-to-Text conversion strategy** that stores AI-generated summaries as session context to optimize subsequent queries.
 - **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
 
@@ -91,7 +91,7 @@ flowchart TB
     
     subgraph Storage["💾 Persistent Storage"]
         DB[(Supabase PostgreSQL<br/>Sessions & Messages)]
-        Files[Supabase Storage<br/>Images & PDFs]
+        Files[Supabase Storage<br/>Images, PDFs & Videos]
     end
     
     subgraph Parser["📄 Client-side Parsers"]
@@ -181,7 +181,7 @@ flowchart TB
 - **Output Sanitization**: Real-time filtering for **Whitespace Hallucinations** caused by external tool grounding issues, ensuring a clean and reliable chat experience.
 - **Row Level Security (RLS)**: Enforced via Supabase to ensure users can only access their own private conversation data.
 - **Server-side Secrecy**: All sensitive credentials and API keys are stored in environment variables and never exposed to the client-side browser.
-- **Payload Optimization**: Includes intelligent handling for Vercel's 4.5MB payload limit to prevent deployment-specific upload failures.
+- **Payload Optimization**: Includes intelligent handling for Vercel's payload limits. Native video support (up to 20MB) uses **Supabase Storage** as an intermediate buffer to bypass serverless size restrictions (30MB API limit).
 
 ---
 

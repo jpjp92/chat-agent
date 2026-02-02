@@ -12,6 +12,7 @@ interface ChatInputProps {
 }
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 20 * 1024 * 1024;
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast }) => {
   const [input, setInput] = useState('');
@@ -25,10 +26,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const finalTranscriptRef = useRef('');
 
   const i18n = {
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (최대 4MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (일반 4MB, 영상 20MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
+    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB, Video 20MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB, Video 20MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
   };
 
   const t = i18n[language] || i18n.ko;
@@ -105,7 +106,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   };
 
   const processFile = useCallback(async (file: File) => {
-    if (file.size > MAX_FILE_SIZE) {
+    const isVideo = file.type.startsWith('video/');
+    const limit = isVideo ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
+
+    if (file.size > limit) {
       showToast(t.sizeError, "error");
       return;
     }
@@ -233,7 +237,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     reader.onloadend = () => {
       setSelectedAttachment({
         data: reader.result as string,
-        mimeType: file.type || 'application/octet-stream',
+        mimeType: file.type || (file.name.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'),
         fileName: file.name,
         extractedText: extractedText || undefined
       });
@@ -254,6 +258,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1 || items[i].type.indexOf('pdf') !== -1 ||
+        items[i].type.indexOf('video') !== -1 ||
         items[i].type.indexOf('word') !== -1 || items[i].type.indexOf('text') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
@@ -290,8 +295,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       ];
-      if (file.type.startsWith('image/') || allowedMimeTypes.includes(file.type) ||
-        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx')) {
+      if (file.type.startsWith('image/') || file.type.startsWith('video/') || allowedMimeTypes.includes(file.type) ||
+        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')) {
         processFile(file);
       } else {
         showToast(t.typeError, "error");
@@ -307,6 +312,12 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             <div className="overflow-hidden rounded-2xl border-2 border-white dark:border-[#2f2f2f] shadow-2xl bg-white dark:bg-[#1e1e1f]">
               {selectedAttachment.mimeType.startsWith('image/') ? (
                 <img src={selectedAttachment.data} alt="Upload" className="h-16 w-16 sm:h-20 sm:w-20 object-cover" />
+              ) : selectedAttachment.mimeType.startsWith('video/') ? (
+                <div className="h-16 w-16 sm:h-20 sm:w-20 flex flex-col items-center justify-center bg-slate-900 border-none relative overflow-hidden">
+                  <video src={selectedAttachment.data} className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                  <i className="fa-solid fa-circle-play text-white text-2xl z-10 drop-shadow-md"></i>
+                  <span className="absolute bottom-1 right-1 text-[8px] text-white bg-black/50 px-1 rounded z-10 font-bold uppercase overflow-hidden max-w-[90%] truncate">{(selectedAttachment.fileName || 'video').split('.').pop()}</span>
+                </div>
               ) : (
                 <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
                   <i className={`fa-solid ${selectedAttachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
@@ -344,7 +355,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx,.pptx"
+          accept="image/*,video/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx,.pptx"
           className="hidden"
         />
 

@@ -1,6 +1,6 @@
 # 📝 Project TODO List
 
-## ✅ Recently Completed (2026-01-31)
+## ✅ Recently Completed (2026-02-02)
 
 ### API & UI Resilience Improvements (2026-01-31) ✓
 - ✅ **API Fallback Strategy**: `gemini-2.5-flash` 모델 쿼터 초과 시 `gemini-2.5-flash-lite`로 자동 전환되는 다중 모델 폴백 로직 구현.
@@ -36,6 +36,12 @@
 - ✅ **전역 다국어 연동**: Bio, Chemical, Chart 렌더러가 전역 언어 설정(KO, EN, ES, FR)에 맞춰 내부 라벨('Chain', 'Atomic', 'Structure' 등)을 자동 전환.
 - ✅ **AI 응답 강제 고정**: 사용자가 다른 언어로 질문하더라도 설정된 언어로만 답변하도록 시스템 지침(System Instruction) 최적화 및 Gemini API 호출 구조 고도화.
 - ✅ **로딩 상태 로컬라이제이션**: '분석 중...' 등 시각화 장치 로딩 문구를 다국어 대응.
+
+### 멀티모달 영상 분석 (Video-to-Text) 도입 (2026-02-02) ✓
+- ✅ **직접 영상 분석**: MP4, MOV 등 영상 파일을 Gemini 2.5 Flash로 직접 분석하는 기능 구현.
+- ✅ **Video-to-Text 전환**: 최초 분석 시 영상 내용을 상세 텍스트로 추출하여 세션 컨텍스트(`lastActiveDoc`)로 자동 저장.
+- ✅ **대용량 처리 최적화**: Supabase Storage(`chat-videos`) 연동 및 Vercel API 크기 제한(30MB) 상향 조정.
+- ✅ **UI/UX 개선**: 영상 파일 전용 프리뷰 아이콘, 크기 제한(20MB) 안내 및 단계별 로딩 상태(분석 중, 시청 중) 구현.
 
 ### API 보안 및 관리 효율화 (2026-01-31) ✓
 - ✅ **동적 API Key 로드**: `API_KEY*` 패턴의 모든 환경 변수를 자동으로 감지하고 로테이션하는 중앙 설정(`api/lib/config.ts`) 구현.
@@ -117,12 +123,6 @@
     - React Three Fiber(R3F) 기반의 고성능 3D 물리 엔진 탑재.
     - **유체 역학(Fluid Dynamics)**: 입자 시스템(SPH)을 활용한 물/액체 시뮬레이션.
     - 복잡한 3D 구조물 및 강체 상호작용 실험.
-
-### 2. Bio-Viz 상호작용 심화 (Advanced Interaction)
-- [ ] **선택 부위 강조**: AI 응답 내용에 따라 특정 잔기(Residue)나 도메인을 3D 상에서 즉시 하이라이트/줌인 하는 링크 기능.
-- [ ] **구조 비교 모드**: 두 개의 PDB 구조를 나란히 배치하거나 중첩(Superposition)하여 보여주는 기능.
-- [ ] **애니메이션 제어**: 단백질의 유연성을 보여주는 궤적(Trajectory) 애니메이션 재생 컨트롤 추가.
-
 
 ---
 
