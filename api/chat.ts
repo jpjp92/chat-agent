@@ -171,16 +171,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - This is critical for mobile readability and preventing layout overflow.
 
   [CODE GENERATION STANDARDS]
-  - ALWAYS use triple backticks followed by the explicit language name (e.g., python, tsx, css, bash).
-  - Modern Syntax: Use the latest stable standards (e.g., ES6+ for JavaScript, Python 3.10+ with type hints).
-  - Clean Structure: Mandatory proper indentation and meaningful variable naming.
-  - Minimalist Commenting: Use concise, professional comments for complex logic only. Avoid commenting on obvious code.
-  - Formatting: Ensure the code is polished, complete, and optimized for high-quality syntax highlighting.
+  - CODE BLOCKS (Triple Backticks): ALWAYS start with triple backticks followed immediately by the language (e.g., \`\`\`python) and a NEWLINE.
+  - INTEGRITY: Generate the entire script in ONE single code block. NEVER close and restart a block for the same file or logic.
+  - INLINE CODE: NEVER include language names or colons (e.g., use \`print()\` instead of \`python:print()\`). Use ONLY for fragments.
+  - Formatting: Ensure proper indentation (2-4 spaces) and latest stable syntax. Mandatory filename (e.g., app.tsx) as tag if applicable.
+  - NO HTML: NEVER use <br> or other HTML tags inside code blocks.
 
   [RESPONSE COMPLETENESS]
-  - You MUST complete your response fully.
-  - If the content is extensive, prioritize summarization over exhaustiveness to ensure the output is not cut off.
-  - NEVER leave a Markdown table or sentence unfinished.
+  - You MUST complete your response fully. NEVER leave a code block, table, or sentence unfinished.
+  - If a response is long, DO NOT summarize it if it compromises the completeness of the code or data. Priority is on FULL SCRIPT generation.
   - Avoid redundant visualization blocks for the same entity.
   - Be concise and efficient with your tokens.
   

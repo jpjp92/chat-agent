@@ -48,10 +48,8 @@
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
 - **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.
-- **Premium Code Rendering**: 
-    - **Syntax Highlighting**: Editor-grade coloring using **Prism.js** (VS Code Dark Plus style) for all major languages.
-    - **Minimalist Window UI**: Sleek headers with **Language Labels** and a dedicated **Copy to Clipboard** button.
-    - **AI Standards**: System-level directives ensure modern, clean, and well-typed code generation (ES6+, Python Type Hints).
+    - **AI Standards**: System-level directives ensure **Code Integrity** (single-block generation), modern syntax (ES6+, Python Type Hints), and proper language labeling.
+    - **Advanced Typography**: Premium support for **H3 headings, Blockquotes, Keyboard keys (<kbd>), Strong/Emphasis**, and responsive Tables.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
 - **Improved Bio-Viz Alignment**: Enhanced **Vertical Centering** (`pt-10 pb-16`) and **Mobile Sequence Map** layout for balanced, professional presentation.
 

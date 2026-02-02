@@ -92,15 +92,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   const MarkdownComponents = {
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 mt-2 text-slate-900 dark:text-white" {...props} />,
     h2: ({ ...props }) => <h2 className="text-lg font-bold mb-3 mt-4 text-slate-800 dark:text-slate-100" {...props} />,
+    h3: ({ ...props }) => <h3 className="text-base font-bold mb-2 mt-4 text-slate-800 dark:text-slate-200" {...props} />,
     p: ({ ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-[15px] sm:text-[16px] break-all" style={{ overflowWrap: 'anywhere' }} {...props} />,
     ul: ({ ...props }) => <ul className="list-disc ml-5 mb-4 space-y-2" {...props} />,
+    ol: ({ ...props }) => <ol className="list-decimal ml-5 mb-4 space-y-2" {...props} />,
     li: ({ ...props }) => <li className="pl-1 text-slate-700 dark:text-slate-300 break-all" style={{ overflowWrap: 'anywhere' }} {...props} />,
+    strong: ({ ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+    em: ({ ...props }) => <em className="italic text-slate-700 dark:text-slate-300" {...props} />,
+    a: ({ ...props }) => <a className="text-primary-600 dark:text-primary-400 hover:underline transition-all font-medium" target="_blank" rel="noopener noreferrer" {...props} />,
+    kbd: ({ ...props }) => <kbd className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded shadow-sm text-[11px] font-sans mx-0.5 font-bold" {...props} />,
+    blockquote: ({ ...props }) => <blockquote className="border-l-4 border-slate-200 dark:border-white/10 pl-4 py-1 my-4 italic text-slate-500" {...props} />,
+    hr: () => <hr className="my-8 border-t border-slate-200 dark:border-white/5" />,
     code: ({ children, className, ...props }: any) => {
       const isInline = !className || !className.includes('language-');
       return (
         <code
           className={isInline
-            ? "bg-slate-100 dark:bg-[#2a2a2c] px-1.5 py-0.5 rounded text-[13px] font-mono text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-white/5"
+            ? "bg-slate-100 dark:bg-[#2a2a2c] px-1.5 py-0.5 rounded-md text-[0.9em] font-mono font-medium text-primary-700 dark:text-primary-400 border border-slate-200 dark:border-white/5 mx-0.5"
             : "block text-inherit font-mono"
           }
           {...props}
