@@ -75,6 +75,7 @@ flowchart TB
             NGL[NGL - 3D Protein Structures]
             Matter[Matter.js - 2D Physics]
             KaTeX[KaTeX - Math Expressions]
+            Astro[HTML5 Canvas - Astro-Viz]
         end
         State[Session State Management]
     end
@@ -127,6 +128,7 @@ flowchart TB
 - **smiles-drawer** (Chemical Structure Rendering)
 - **ngl** (3D Biological Visualization)
 - **matter-js** (2D Physics Simulation)
+- **HTML5 Canvas** (Constellation Rendering)
 - **Tailwind CSS** (Premium Responsive Design)
 - **Framer Motion** (Immersive Animations)
 
@@ -144,7 +146,7 @@ flowchart TB
 ## 📁 Project Structure
 
 ```
-.
+
 ├── api/                   # Vercel Serverless Functions (Backend)
 │   ├── auth.ts           # Anonymous login & Profile management
 │   ├── chat.ts           # Gemini streaming logic (w/ Key Rotation & Viz Prompts)
@@ -165,6 +167,7 @@ flowchart TB
 │   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
     ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
     ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
+    ├── ConstellationRenderer.tsx # Star map & Milky Way (Canvas)
     ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
 │   ├── Toast.tsx         # Notification feedback system
