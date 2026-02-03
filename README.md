@@ -64,60 +64,46 @@
 ## 🗺️ System Architecture
 
 ```mermaid
-flowchart TB
+flowchart LR
     User([👤 User])
     
-    subgraph Frontend["🎨 Frontend Layer"]
-        UI[React UI Components]
-        subgraph Viz["📊 Visualization Engines"]
-            Apex[ApexCharts - 8+ Types]
-            SMILES[smiles-drawer - Chemical]
-            NGL[NGL - 3D Protein Structures]
-            Matter[Matter.js - 2D Physics]
-            KaTeX[KaTeX - Math Expressions]
-            Astro[HTML5 Canvas - Astro-Viz]
+    subgraph Frontend["🎨 Frontend (React + Vite)"]
+        direction TB
+        UI[UI Components]
+        
+        subgraph ClientTools["Client-side Tools"]
+            direction LR
+            Parsers["📄 Parsers<br/><small>DOCX/HWPX/XLSX/PPTX</small>"]
+            State[Session State]
         end
-        State[Session State Management]
+        
+        subgraph Visualizers["📊 Visualization Layer"]
+            direction LR
+            Charts["Charts      <br/><small>ApexCharts</small>"]
+            Scientific["Scientific  <br/><small>Bio/Chem/Physics/Astro</small>"]
+            Math["Math        <br/><small>KaTeX</small>"]
+        end
     end
     
-    subgraph Backend["⚙️ Vercel Serverless API"]
-        Auth[/api/auth - Anonymous Login/]
-        Chat[/api/chat - Streaming/]
-        Sessions[/api/sessions - CRUD/]
-        Upload[/api/upload - Storage Proxy/]
-        Tools[/api/fetch-url, /api/speech/]
+    subgraph Backend["⚙️ Backend (Vercel Serverless)"]
+        direction TB
+        API["API Gateway"]
+        Endpoints["Endpoints<br/><small>auth/chat/sessions/upload/tools</small>"]
     end
     
-    subgraph AI["🤖 AI Engine"]
-        Gemini["Gemini 2.5 Flash<br/>(Multimodal Reasoning)"]
-        GeminiLite["Gemini 2.5 Flash Lite<br/>(Title & Fallback)"]
-        TTS["Gemini 2.5 Flash Preview TTS<br/>(Premium Speech)"]
+    subgraph External["🌐 External Services"]
+        direction TB
+        AI["🤖 Gemini AI<br/><small>Flash 2.5 / Lite / TTS</small>"]
+        Storage["💾 Supabase<br/><small>PostgreSQL + Storage</small>"]
     end
     
-    subgraph Storage["💾 Persistent Storage"]
-        DB[(Supabase PostgreSQL<br/>Sessions & Messages)]
-        Files[Supabase Storage<br/>Images, PDFs & Videos]
-    end
-    
-    subgraph Parser["📄 Client-side Parsers"]
-        HWPX[JSZip - HWPX]
-        DOCX[Mammoth - DOCX]
-        XLSX[SheetJS - XLSX]
-        PPTX[JSZip - PPTX]
-    end
-    
-    User -->|Query + Files| Frontend
-    Frontend -->|API Calls| Backend
-    Backend -->|Requests| AI
-    AI -->|Streaming/Audio/Title| Backend
-    Backend <-->|Store/Retrieve| Storage
-    Frontend -->|Extract Text| Parser
-    Parser -->|Context| Backend
-    AI -->|Grounded Response| Backend
-    Backend -->|Real-time Stream| UI
-    UI -->|JSON Blocks| Viz
-    Viz -->|SVG/Canvas| UI
-    UI -->|Display| User
+    User <-->|Interact| UI
+    UI <--> ClientTools
+    UI <--> Visualizers
+    UI <-->|REST API| API
+    API <--> Endpoints
+    Endpoints <--> AI
+    Endpoints <--> Storage
 ```
 
 ---
