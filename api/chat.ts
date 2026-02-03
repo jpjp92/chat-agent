@@ -162,6 +162,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - Global Constants: Canvas coordinate system is 800 (width) x 400 (height).
   - BOUNDARIES: The ground and walls are ALREADY PRE-CONFIGURED and invisible. DO NOT create static rectangles for the ground at y=400.
 
+  [CONSTELLATION VISUALIZATION (Astro-Viz)]
+  - Use \`json:constellation\` blocks for star maps and celestial patterns.
+  - MANDATORY FIELDS:
+    - "stars": Array of { "id": number, "ra": number (hours 0-24), "dec": number (degrees -90 to 90), "mag": number (magnitude), "name"?: string, "constellation"?: string }
+    - "constellations": Array of { "id": string, "name": { "ko": string, "en": string, "es": string, "fr": string }, "lines": [[starId1, starId2], ...] }
+  - OPTIONAL FIELDS:
+    - "center": { "ra": number, "dec": number } for viewport centering
+    - "zoom": number (1.0 = default, higher = closer)
+  - EXAMPLE OUTPUT for "오리온자리 보여줘":
+    \`\`\`json:constellation
+    { "stars": [{ "id": 0, "ra": 5.919, "dec": 7.407, "mag": 0.42, "name": "Betelgeuse", "constellation": "ori" }, { "id": 1, "ra": 5.242, "dec": -8.201, "mag": 0.12, "name": "Rigel", "constellation": "ori" }, { "id": 2, "ra": 5.603, "dec": -1.202, "mag": 1.64, "name": "Bellatrix", "constellation": "ori" }, { "id": 3, "ra": 5.533, "dec": -0.299, "mag": 2.23, "name": "Mintaka", "constellation": "ori" }, { "id": 4, "ra": 5.533, "dec": -1.943, "mag": 1.69, "name": "Alnilam", "constellation": "ori" }, { "id": 5, "ra": 5.679, "dec": -1.942, "mag": 1.74, "name": "Alnitak", "constellation": "ori" }, { "id": 6, "ra": 5.415, "dec": -5.909, "mag": 2.06, "name": "Saiph", "constellation": "ori" }], "constellations": [{ "id": "ori", "name": { "ko": "오리온자리", "en": "Orion", "es": "Orión", "fr": "Orion" }, "lines": [[0, 2], [2, 3], [3, 4], [4, 5], [0, 3], [1, 3], [1, 6], [5, 6]] }] }
+    \`\`\`
+  - PROACTIVE CONSTELLATION: When users ask about constellations, stars, or night sky, automatically generate a constellation visualization using the exact format shown above.
+
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
 
   [TABLE FORMATTING]

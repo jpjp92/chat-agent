@@ -1,6 +1,12 @@
 # 📝 Project TODO List
 
-## ✅ Recently Completed (2026-02-02)
+## ✅ Recently Completed (2026-02-03)
+
+### 별자리 시각화 엔진 (Astro-Viz) (2026-02-03) ✓
+- ✅ **Phase 1: 2D 별자리 렌더링 (Canvas)**: 천구좌표(RA/Dec) 투영 엔진 및 12개 황도 별자리(Zodiac) 데이터셋 구축.
+- ✅ **Phase 2: 인터랙션 시스템**: 줌/팬(Zoom/Pan) 제어, 시간 여행(Time Travel), 반응형 라벨링(Zoom-based Labels) 구현.
+- ✅ **Phase 3: 은하수 렌더링 (Milky Way)**: 파티클 클라우드(Particle Cloud) 기반의 은하수 배경 렌더링 및 심미적 튜닝.
+- ✅ **UI/UX 폴리시**: 커서 호버 효과, 버튼 피드백, 줌 인디케이터 등 사용자 경험 개선.
 
 ### API & UI Resilience Improvements (2026-01-31) ✓
 - ✅ **API Fallback Strategy**: `gemini-2.5-flash` 모델 쿼터 초과 시 `gemini-2.5-flash-lite`로 자동 전환되는 다중 모델 폴백 로직 구현.
@@ -48,6 +54,11 @@
 - ✅ **프리미엄 타이포그래피**: `H3`, `Strong`, `EM`, `Blockquote`, `KBD` 등 마크다운 태그별 전용 스타일 설계로 AI 응답 가독성 극대화.
 - ✅ **인라인 코드 스타일 개선**: 대비와 가시성을 높인 전용 컬러팩 및 모서리 곡률(`rounded-md`) 조정.
 - ✅ **인라인 언어 태그 방지**: 인라인 백틱 내부에 `python:` 등의 불필요한 언어 접두사가 포함되지 않도록 시스템 프롬프트 정교화.
+
+### App.tsx 컴포넌트 분리 (Refactoring) ✓
+- ✅ **LoadingScreen 컴포넌트화**: `isAuthLoading` 상태일 때 보여주는 로딩 UI를 독립 컴포넌트(`LoadingScreen.tsx`)로 분리.
+- ✅ **WelcomeMessage 컴포넌트화**: 채팅 시작 전 웰컴 메시지 UI를 독립 컴포넌트(`WelcomeMessage.tsx`)로 분리하여 다국어 지원 강화.
+- ✅ **ChatArea 컴포넌트화**: 실제 메시지가 렌더링되는 메인 영역을 독립 컴포넌트(`ChatArea.tsx`)로 분리하여 `App.tsx`의 복잡도 감소 및 유지보수성 향상.
 
 ### API 보안 및 관리 효율화 (2026-01-31) ✓
 - ✅ **동적 API Key 로드**: `API_KEY*` 패턴의 모든 환경 변수를 자동으로 감지하고 로테이션하는 중앙 설정(`api/lib/config.ts`) 구현.
@@ -122,7 +133,15 @@
 - [ ] **동적 본드 길이(Bond Length) 조절**: SMILES 문자열 길이에 따라 결합선 길이를 반비례 조절하여 긴 분자의 디테일 보존.
 - [ ] **가로 스크롤 레이아웃 보강**: 초거대 분자 대응을 위한 터치 기반 가로 탐색 UI 강화.
 
-### 4. 수식 기반 그래프 및 벡터장 (Plotly/D3)
+### 4. 별자리 시각화 엔진 고도화 (Astro-Viz Advanced)
+- [ ] **Phase 4: 3D 천구 및 고급 기능 (Expert)**
+    - [ ] Three.js 기반 3D 천구 전환 (회전/확대 가능).
+    - [ ] 행성 위치 계산 (케플러 궤도 방정식).
+    - [ ] 실시간 ISS 위치 오버레이.
+    - [ ] 별 클릭 시 위키/상세 정보 툴팁 표시.
+
+
+### 5. 수식 기반 그래프 및 벡터장 (Plotly/D3)
     - LaTeX 수식 입력 -> JS 수치 해석 -> 동적 그래프 시각화.
     - 전자기장 벡터 필드, 파동 함수, 3D 표면 차트(Surface Plot) 구현.
 - [ ] **Phase 3: 3D 강체/유체 시뮬레이션 (Three.js + Rapier)**
@@ -144,10 +163,6 @@
 
 ## 🧹 Code Quality & Refactoring
 
-- [ ] **App.tsx 컴포넌트 분리 (Refactoring)**
-    - [ ] **LoadingScreen**: `isAuthLoading` 상태일 때 보여주는 로딩 UI (`LoadingScreen.tsx`) 컴포넌트화.
-    - [ ] **WelcomeMessage**: 채팅 시작 전 웰컴 메시지 UI (`WelcomeMessage.tsx`) 컴포넌트화.
-    - [ ] **ChatArea**: 실제 메시지가 렌더링되는 메인 영역 (`ChatArea.tsx`) 컴포넌트화하여 `App.tsx`의 복잡도 감소.
 - [ ] **API Key 관리 및 보안 강화**
     - [x] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
   - [x] 백엔드(`api/*.ts`)에서 `process.env`를 이용한 동적 API Key 로드 및 로테이션 구현.

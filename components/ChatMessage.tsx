@@ -12,6 +12,7 @@ import ChartRenderer from './ChartRenderer';
 import ChemicalRenderer from './ChemicalRenderer';
 import BioRenderer from './BioRenderer';
 import PhysicsRenderer from './PhysicsRenderer';
+import ConstellationRenderer from './ConstellationRenderer';
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -233,8 +234,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n');
 
     // 2. Split by Viz Blocks (Chart & Smiles)
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json:(chart|smiles|bio|physics)\n([\s\S]*?)\n```/g;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'constellation' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json:(chart|smiles|bio|physics|constellation)\n([\s\S]*?)\n```/g;
     let lastIndex = 0;
     let match;
 
@@ -260,6 +261,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'bio', data: jsonData });
         } else if (blockType === 'physics') {
           parts.push({ type: 'physics', data: jsonData });
+        } else if (blockType === 'constellation') {
+          parts.push({ type: 'constellation', data: jsonData });
         }
       } catch (e) {
         // Fallback: render as code block if JSON invalid
@@ -277,14 +280,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = processedContent.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles') || remainingText.includes('```json:bio') || remainingText.includes('```json:physics');
+      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles') || remainingText.includes('```json:bio') || remainingText.includes('```json:physics') || remainingText.includes('```json:constellation');
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         // Split text to show only complete parts
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json:(chart|smiles|bio|physics)/)[0];
+          visibleText = visibleText.split(/```json:(chart|smiles|bio|physics|constellation)/)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -319,6 +322,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           }
           if (part.type === 'physics') {
             return <PhysicsRenderer key={idx} physicsData={part.data} language={language} />;
+          }
+          if (part.type === 'constellation') {
+            return <ConstellationRenderer key={idx} data={part.data} language={language} />;
           }
           if (part.type === 'chart_loading') {
             return (

@@ -42,6 +42,12 @@
     - **Rotational Dynamics**: Supports angular velocity, torque, and momentum conservation experiments.
     - **Responsive Scaling**: Automatically adapts coordinates (800x400 Virtual Grid) for **Web (16:9)** and **Mobile (4:3)** views.
     - **Premium Interaction**: Supports touch-based dragging, reset functionality, and localized headers with glassmorphic design.
+- **Interactive Constellation Map (Astro-Viz)**: 
+    - **Real-time Sky Rendering**: Accurately renders the night sky based on current date/time and observer location with **diurnal motion** (star rotation).
+    - **Zodiac 12 Support**: Full visualization of all 12 Zodiac constellations with connecting lines and localized names (KO/EN/ES/FR).
+    - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
+    - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
+    - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements

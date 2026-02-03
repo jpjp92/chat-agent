@@ -1,0 +1,727 @@
+{
+    "stars": [
+        {
+            "id": 0,
+            "ra": 5.919,
+            "dec": 7.407,
+            "mag": 0.42,
+            "name": "Betelgeuse",
+            "constellation": "ori"
+        },
+        {
+            "id": 1,
+            "ra": 5.242,
+            "dec": -8.201,
+            "mag": 0.12,
+            "name": "Rigel",
+            "constellation": "ori"
+        },
+        {
+            "id": 2,
+            "ra": 5.603,
+            "dec": -1.202,
+            "mag": 1.64,
+            "name": "Bellatrix",
+            "constellation": "ori"
+        },
+        {
+            "id": 3,
+            "ra": 5.533,
+            "dec": -0.299,
+            "mag": 2.23,
+            "name": "Mintaka",
+            "constellation": "ori"
+        },
+        {
+            "id": 4,
+            "ra": 5.533,
+            "dec": -1.943,
+            "mag": 1.69,
+            "name": "Alnilam",
+            "constellation": "ori"
+        },
+        {
+            "id": 5,
+            "ra": 5.679,
+            "dec": -1.942,
+            "mag": 1.74,
+            "name": "Alnitak",
+            "constellation": "ori"
+        },
+        {
+            "id": 6,
+            "ra": 5.415,
+            "dec": -5.909,
+            "mag": 2.06,
+            "name": "Saiph",
+            "constellation": "ori"
+        },
+        {
+            "id": 7,
+            "ra": 11.062,
+            "dec": 61.751,
+            "mag": 1.79,
+            "name": "Dubhe",
+            "constellation": "uma"
+        },
+        {
+            "id": 8,
+            "ra": 11.031,
+            "dec": 56.382,
+            "mag": 2.37,
+            "name": "Merak",
+            "constellation": "uma"
+        },
+        {
+            "id": 9,
+            "ra": 11.897,
+            "dec": 53.695,
+            "mag": 2.44,
+            "name": "Phecda",
+            "constellation": "uma"
+        },
+        {
+            "id": 10,
+            "ra": 12.257,
+            "dec": 57.032,
+            "mag": 3.31,
+            "name": "Megrez",
+            "constellation": "uma"
+        },
+        {
+            "id": 11,
+            "ra": 13.398,
+            "dec": 54.925,
+            "mag": 1.86,
+            "name": "Alioth",
+            "constellation": "uma"
+        },
+        {
+            "id": 12,
+            "ra": 13.792,
+            "dec": 49.313,
+            "mag": 2.23,
+            "name": "Mizar",
+            "constellation": "uma"
+        },
+        {
+            "id": 13,
+            "ra": 13.792,
+            "dec": 49.313,
+            "mag": 3.95,
+            "name": "Alcor",
+            "constellation": "uma"
+        },
+        {
+            "id": 14,
+            "ra": 13.473,
+            "dec": 49.313,
+            "mag": 1.85,
+            "name": "Alkaid",
+            "constellation": "uma"
+        },
+        {
+            "id": 15,
+            "ra": 0.140,
+            "dec": 15.184,
+            "mag": 2.06,
+            "name": "Alpheratz",
+            "constellation": "and"
+        },
+        {
+            "id": 16,
+            "ra": 1.162,
+            "dec": 35.620,
+            "mag": 2.06,
+            "name": "Mirach",
+            "constellation": "and"
+        },
+        {
+            "id": 17,
+            "ra": 2.065,
+            "dec": 42.330,
+            "mag": 2.10,
+            "name": "Almach",
+            "constellation": "and"
+        },
+        {
+            "id": 18,
+            "ra": 1.916,
+            "dec": 23.462,
+            "mag": 1.80,
+            "name": "Hamal",
+            "constellation": "ari"
+        },
+        {
+            "id": 19,
+            "ra": 1.892,
+            "dec": 20.808,
+            "mag": 2.64,
+            "name": "Sheratan",
+            "constellation": "ari"
+        },
+        {
+            "id": 20,
+            "ra": 4.599,
+            "dec": 16.509,
+            "mag": 0.85,
+            "name": "Aldebaran",
+            "constellation": "tau"
+        },
+        {
+            "id": 21,
+            "ra": 5.438,
+            "dec": 28.608,
+            "mag": 2.87,
+            "name": "Elnath",
+            "constellation": "tau"
+        },
+        {
+            "id": 22,
+            "ra": 7.655,
+            "dec": 28.026,
+            "mag": 1.58,
+            "name": "Pollux",
+            "constellation": "gem"
+        },
+        {
+            "id": 23,
+            "ra": 7.576,
+            "dec": 31.888,
+            "mag": 1.93,
+            "name": "Castor",
+            "constellation": "gem"
+        },
+        {
+            "id": 24,
+            "ra": 10.139,
+            "dec": 11.967,
+            "mag": 1.35,
+            "name": "Regulus",
+            "constellation": "leo"
+        },
+        {
+            "id": 25,
+            "ra": 11.817,
+            "dec": 14.572,
+            "mag": 2.14,
+            "name": "Denebola",
+            "constellation": "leo"
+        },
+        {
+            "id": 26,
+            "ra": 10.333,
+            "dec": 19.841,
+            "mag": 2.56,
+            "name": "Algieba",
+            "constellation": "leo"
+        },
+        {
+            "id": 27,
+            "ra": 8.275,
+            "dec": 9.186,
+            "mag": 3.53,
+            "name": "Al Tarf",
+            "constellation": "cnc"
+        },
+        {
+            "id": 28,
+            "ra": 8.722,
+            "dec": 21.468,
+            "mag": 4.26,
+            "name": "Asellus Borealis",
+            "constellation": "cnc"
+        },
+        {
+            "id": 29,
+            "ra": 8.745,
+            "dec": 18.154,
+            "mag": 3.94,
+            "name": "Asellus Australis",
+            "constellation": "cnc"
+        },
+        {
+            "id": 30,
+            "ra": 8.975,
+            "dec": 11.858,
+            "mag": 4.25,
+            "name": "Acubens",
+            "constellation": "cnc"
+        },
+        {
+            "id": 31,
+            "ra": 8.778,
+            "dec": 28.760,
+            "mag": 4.03,
+            "name": "Iota Cancri",
+            "constellation": "cnc"
+        },
+        {
+            "id": 32,
+            "ra": 13.420,
+            "dec": -11.161,
+            "mag": 1.04,
+            "name": "Spica",
+            "constellation": "vir"
+        },
+        {
+            "id": 33,
+            "ra": 12.695,
+            "dec": -1.449,
+            "mag": 2.74,
+            "name": "Porrima",
+            "constellation": "vir"
+        },
+        {
+            "id": 34,
+            "ra": 13.036,
+            "dec": 10.959,
+            "mag": 2.83,
+            "name": "Vindemiatrix",
+            "constellation": "vir"
+        },
+        {
+            "id": 35,
+            "ra": 14.847,
+            "dec": -16.041,
+            "mag": 2.75,
+            "name": "Zubenelgenubi",
+            "constellation": "lib"
+        },
+        {
+            "id": 36,
+            "ra": 15.283,
+            "dec": -9.383,
+            "mag": 2.61,
+            "name": "Zubeneschamali",
+            "constellation": "lib"
+        },
+        {
+            "id": 37,
+            "ra": 16.490,
+            "dec": -26.432,
+            "mag": 0.96,
+            "name": "Antares",
+            "constellation": "sco"
+        },
+        {
+            "id": 38,
+            "ra": 17.560,
+            "dec": -37.104,
+            "mag": 1.63,
+            "name": "Shaula",
+            "constellation": "sco"
+        },
+        {
+            "id": 39,
+            "ra": 17.622,
+            "dec": -42.998,
+            "mag": 1.84,
+            "name": "Sargas",
+            "constellation": "sco"
+        },
+        {
+            "id": 40,
+            "ra": 18.403,
+            "dec": -34.384,
+            "mag": 1.85,
+            "name": "Kaus Australis",
+            "constellation": "sgr"
+        },
+        {
+            "id": 41,
+            "ra": 18.921,
+            "dec": -26.297,
+            "mag": 2.05,
+            "name": "Nunki",
+            "constellation": "sgr"
+        },
+        {
+            "id": 42,
+            "ra": 19.080,
+            "dec": -29.880,
+            "mag": 2.82,
+            "name": "Ascella",
+            "constellation": "sgr"
+        },
+        {
+            "id": 43,
+            "ra": 21.784,
+            "dec": -16.127,
+            "mag": 2.87,
+            "name": "Deneb Algedi",
+            "constellation": "cap"
+        },
+        {
+            "id": 44,
+            "ra": 21.099,
+            "dec": -17.233,
+            "mag": 3.08,
+            "name": "Dabih",
+            "constellation": "cap"
+        },
+        {
+            "id": 45,
+            "ra": 21.526,
+            "dec": -5.571,
+            "mag": 2.91,
+            "name": "Sadalsuud",
+            "constellation": "aqr"
+        },
+        {
+            "id": 46,
+            "ra": 22.096,
+            "dec": -0.320,
+            "mag": 2.96,
+            "name": "Sadalmelik",
+            "constellation": "aqr"
+        },
+        {
+            "id": 47,
+            "ra": 22.875,
+            "dec": -7.575,
+            "mag": 2.91,
+            "name": "Skat",
+            "constellation": "aqr"
+        },
+        {
+            "id": 48,
+            "ra": 1.524,
+            "dec": 15.346,
+            "mag": 3.62,
+            "name": "Alpherg",
+            "constellation": "psc"
+        },
+        {
+            "id": 49,
+            "ra": 2.034,
+            "dec": 2.764,
+            "mag": 3.82,
+            "name": "Alrescha",
+            "constellation": "psc"
+        },
+        {
+            "id": 50,
+            "ra": 23.286,
+            "dec": 3.282,
+            "mag": 3.69,
+            "name": "Gamma Piscium",
+            "constellation": "psc"
+        }
+    ],
+    "constellations": [
+        {
+            "id": "ori",
+            "name": {
+                "en": "Orion",
+                "ko": "오리온자리",
+                "es": "Orión",
+                "fr": "Orion"
+            },
+            "lines": [
+                [
+                    0,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    4
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    0,
+                    3
+                ],
+                [
+                    1,
+                    3
+                ],
+                [
+                    1,
+                    6
+                ],
+                [
+                    5,
+                    6
+                ]
+            ]
+        },
+        {
+            "id": "uma",
+            "name": {
+                "en": "Ursa Major (Big Dipper)",
+                "ko": "큰곰자리 (북두칠성)",
+                "es": "Osa Mayor",
+                "fr": "Grande Ourse"
+            },
+            "lines": [
+                [
+                    7,
+                    8
+                ],
+                [
+                    8,
+                    9
+                ],
+                [
+                    9,
+                    10
+                ],
+                [
+                    10,
+                    11
+                ],
+                [
+                    11,
+                    12
+                ],
+                [
+                    12,
+                    14
+                ]
+            ]
+        },
+        {
+            "id": "and",
+            "name": {
+                "en": "Andromeda",
+                "ko": "안드로메다자리",
+                "es": "Andrómeda",
+                "fr": "Andromède"
+            },
+            "lines": [
+                [
+                    15,
+                    16
+                ],
+                [
+                    16,
+                    17
+                ]
+            ]
+        },
+        {
+            "id": "ari",
+            "name": {
+                "en": "Aries",
+                "ko": "양자리",
+                "es": "Aries",
+                "fr": "Bélier"
+            },
+            "lines": [
+                [
+                    18,
+                    19
+                ]
+            ]
+        },
+        {
+            "id": "tau",
+            "name": {
+                "en": "Taurus",
+                "ko": "황소자리",
+                "es": "Tauro",
+                "fr": "Taureau"
+            },
+            "lines": [
+                [
+                    20,
+                    21
+                ]
+            ]
+        },
+        {
+            "id": "gem",
+            "name": {
+                "en": "Gemini",
+                "ko": "쌍둥이자리",
+                "es": "Géminis",
+                "fr": "Gémeaux"
+            },
+            "lines": [
+                [
+                    22,
+                    23
+                ]
+            ]
+        },
+        {
+            "id": "cnc",
+            "name": {
+                "en": "Cancer",
+                "ko": "게자리",
+                "es": "Cáncer",
+                "fr": "Cancer"
+            },
+            "lines": [
+                [
+                    27,
+                    30
+                ],
+                [
+                    30,
+                    29
+                ],
+                [
+                    29,
+                    28
+                ],
+                [
+                    28,
+                    31
+                ]
+            ]
+        },
+        {
+            "id": "leo",
+            "name": {
+                "en": "Leo",
+                "ko": "사자자리",
+                "es": "Leo",
+                "fr": "Lion"
+            },
+            "lines": [
+                [
+                    24,
+                    25
+                ],
+                [
+                    24,
+                    26
+                ]
+            ]
+        },
+        {
+            "id": "vir",
+            "name": {
+                "en": "Virgo",
+                "ko": "처녀자리",
+                "es": "Virgo",
+                "fr": "Vierge"
+            },
+            "lines": [
+                [
+                    32,
+                    33
+                ],
+                [
+                    33,
+                    34
+                ]
+            ]
+        },
+        {
+            "id": "lib",
+            "name": {
+                "en": "Libra",
+                "ko": "천칭자리",
+                "es": "Libra",
+                "fr": "Balance"
+            },
+            "lines": [
+                [
+                    35,
+                    36
+                ]
+            ]
+        },
+        {
+            "id": "sco",
+            "name": {
+                "en": "Scorpius",
+                "ko": "전갈자리",
+                "es": "Escorpio",
+                "fr": "Scorpion"
+            },
+            "lines": [
+                [
+                    37,
+                    38
+                ],
+                [
+                    38,
+                    39
+                ]
+            ]
+        },
+        {
+            "id": "sgr",
+            "name": {
+                "en": "Sagittarius",
+                "ko": "궁수자리",
+                "es": "Sagitario",
+                "fr": "Sagittaire"
+            },
+            "lines": [
+                [
+                    40,
+                    41
+                ],
+                [
+                    41,
+                    42
+                ]
+            ]
+        },
+        {
+            "id": "cap",
+            "name": {
+                "en": "Capricornus",
+                "ko": "염소자리",
+                "es": "Capricornio",
+                "fr": "Capricorne"
+            },
+            "lines": [
+                [
+                    43,
+                    44
+                ]
+            ]
+        },
+        {
+            "id": "aqr",
+            "name": {
+                "en": "Aquarius",
+                "ko": "물병자리",
+                "es": "Acuario",
+                "fr": "Verseau"
+            },
+            "lines": [
+                [
+                    45,
+                    46
+                ],
+                [
+                    46,
+                    47
+                ]
+            ]
+        },
+        {
+            "id": "psc",
+            "name": {
+                "en": "Pisces",
+                "ko": "물고기자리",
+                "es": "Piscis",
+                "fr": "Poissons"
+            },
+            "lines": [
+                [
+                    48,
+                    49
+                ],
+                [
+                    49,
+                    50
+                ]
+            ]
+        }
+    ]
+}
