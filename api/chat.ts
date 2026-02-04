@@ -161,6 +161,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - GRAVITY SCALE: For educational free-fall or projectile simulations, use SLOW MOTION gravity (e.g., "gravity": { "x": 0, "y": 0.3 }) instead of the default 1.0. This makes it easier for users to follow the motion.
   - Global Constants: Canvas coordinate system is 800 (width) x 400 (height).
   - BOUNDARIES: The ground and walls are ALREADY PRE-CONFIGURED and invisible. DO NOT create static rectangles for the ground at y=400.
+  
+  
+  [INCLINED PLANE FORCE DIAGRAM (Diagram-Viz)]
+  - Use \`json:diagram\` blocks for clean educational force diagrams (NO physics simulation).
+  - This uses pure Canvas 2D rendering for textbook-quality illustrations.
+  - Format:
+    \`\`\`json:diagram
+    {
+      "type": "inclined_plane",
+      "angle": 30,
+      "showBaseline": true,
+      "showAngle": true,
+      "forces": [
+        { "label": "중력 (mg)", "angle": 90, "magnitude": 1.5, "color": "#0066CC" },
+        { "label": "수직항력 (N)", "angle": -60, "magnitude": 1.3, "color": "#FFA500" },
+        { "label": "평행 분력 (mg sinθ)", "angle": 30, "magnitude": 0.75, "color": "#00CC00" },
+        { "label": "수직 분력 (mg cosθ)", "angle": -60, "magnitude": 1.3, "color": "#87CEEB" },
+        { "label": "마찰력 (f)", "angle": 210, "magnitude": 0.5, "color": "#FF0000" }
+      ]
+    }
+    \`\`\`
+  - "angle": Incline angle in degrees (e.g., 30 for 30°)
+  - "forces": Array of force vectors
+    * "label": Force name (can include formulas in parentheses)
+    * "angle": Direction in degrees (0 = right, 90 = down, -90 = up, 180 = left)
+    * "magnitude": Relative length (1.0 = medium arrow)
+    * "color": Hex color code
+  - Result: Clean diagram with baseline, angle marker, and labeled force vectors.
 
   [CONSTELLATION VISUALIZATION (Astro-Viz)]
   - Use \`json:constellation\` blocks for star maps and celestial patterns.

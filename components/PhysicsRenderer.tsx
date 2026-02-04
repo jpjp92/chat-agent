@@ -81,7 +81,12 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             renderRef.current.canvas.remove();
         }
 
-        const engine = Matter.Engine.create();
+        // Enhanced engine configuration for better collision detection
+        const engine = Matter.Engine.create({
+            positionIterations: 10,      // Increased from default 6 (better collision accuracy)
+            velocityIterations: 8,       // Increased from default 4 (prevents tunneling)
+            constraintIterations: 4      // Increased from default 2 (stable constraints)
+        });
         engineRef.current = engine;
 
         if (physicsData.gravity) {
@@ -107,7 +112,11 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
 
         renderRef.current = render;
 
-        const runner = Matter.Runner.create();
+        // Fixed timestep runner for consistent physics (prevents frame-rate dependent behavior)
+        const runner = Matter.Runner.create({
+            isFixed: true,
+            delta: 1000 / 60  // 60 FPS fixed timestep
+        });
         runnerRef.current = runner;
 
         // Virtual Coordinate system based on 800x400 standard
@@ -138,8 +147,34 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                 }
             };
 
-            const x = (obj.x * scale) + offsetX;
-            const y = (obj.y * scale) + offsetY;
+            // Template-based positioning for inclined planes (overrides AI coordinates)
+            const isInclinedPlane = physicsData.objects.some(o =>
+                o.type === 'rectangle' && o.angle && Math.abs(o.angle - 0.524) < 0.2
+            );
+
+            if (isInclinedPlane) {
+                console.log('🔧 Inclined plane template detected!', physicsData.objects);
+            }
+
+            let x = (obj.x * scale) + offsetX;
+            let y = (obj.y * scale) + offsetY;
+
+            if (isInclinedPlane && obj.type === 'rectangle' && obj.angle) {
+                // Detect which object this is based on size (plane is wider)
+                const isPlane = (obj.width || 0) > 100;
+
+                if (isPlane) {
+                    // Inclined plane: use virtual coordinates
+                    x = (450 * scale) + offsetX;
+                    y = (320 * scale) + offsetY;
+                    console.log('📐 Plane template applied:', { virtual: [450, 320], actual: [x, y] });
+                } else {
+                    // Sliding box: use virtual coordinates
+                    x = (300 * scale) + offsetX;
+                    y = (235 * scale) + offsetY;
+                    console.log('📦 Box template applied:', { virtual: [300, 235], actual: [x, y] });
+                }
+            }
 
             if (obj.type === 'circle') {
                 body = Matter.Bodies.circle(x, y, (obj.radius || 20) * scale, options);
@@ -210,12 +245,17 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             if (label) {
                 ctx.fillStyle = color;
                 const textPadding = 25;
+
+                // Use arrow MIDPOINT instead of endpoint to prevent overflow
+                const midX = (fx + tx) / 2;
+                const midY = (fy + ty) / 2;
+
                 let textOffsetX = Math.cos(angle) * textPadding;
                 const textOffsetY = Math.sin(angle) * textPadding;
                 const verticalCorrection = Math.abs(Math.cos(angle)) > 0.8 ? -15 : 0;
 
-                const posX = tx + textOffsetX;
-                const posY = ty + textOffsetY + verticalCorrection;
+                let posX = midX + textOffsetX;
+                const posY = midY + textOffsetY + verticalCorrection;
 
                 ctx.save();
                 ctx.shadowColor = 'rgba(0,0,0,0.5)';
@@ -229,17 +269,26 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                 // Boundary correction
                 if (finalTextAlign === 'left' && posX + textWidth > width - 10) {
                     finalTextAlign = 'right';
-                    textOffsetX = -textPadding; // Flip to other side of arrow head
+                    textOffsetX = -textPadding; // Flip to other side
+                    posX = midX + textOffsetX;
                 } else if (finalTextAlign === 'right' && posX - textWidth < 10) {
                     finalTextAlign = 'left';
                     textOffsetX = textPadding;
+                    posX = midX + textOffsetX;
                 } else if (finalTextAlign === 'center') {
-                    if (posX + textWidth / 2 > width - 10) finalTextAlign = 'right';
-                    else if (posX - textWidth / 2 < 10) finalTextAlign = 'left';
+                    if (posX + textWidth / 2 > width - 10) {
+                        finalTextAlign = 'right';
+                        textOffsetX = -textPadding;
+                        posX = midX + textOffsetX;
+                    } else if (posX - textWidth / 2 < 10) {
+                        finalTextAlign = 'left';
+                        textOffsetX = textPadding;
+                        posX = midX + textOffsetX;
+                    }
                 }
 
                 ctx.textAlign = finalTextAlign;
-                ctx.fillText(label, tx + textOffsetX, posY);
+                ctx.fillText(label, posX, posY);
                 ctx.restore();
             }
         };
@@ -293,10 +342,10 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
 
                         if (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1) {
                             const color = v.color || (isDark ? '#fbbf24' : '#f59e0b');
-                            const angle = Math.atan2(vy, vx);
-                            const dist = (obj.radius || Math.max(obj.width || 40, obj.height || 40) / 2) * scale;
-                            const startX = x + Math.cos(angle) * dist;
-                            const startY = y + Math.sin(angle) * dist;
+
+                            // Draw vectors from object center (not edge) for clean free-body diagrams
+                            const startX = x;
+                            const startY = y;
 
                             drawArrow(context, startX, startY, startX + vx, startY + vy, color, v.label);
                         }
