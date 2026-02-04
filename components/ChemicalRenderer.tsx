@@ -48,32 +48,32 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         const options = {
             width: width,
             height: height,
-            bondThickness: 2.2,
-            bondLength: 30,
+            bondThickness: 2.0,
+            bondLength: 35.0,
             shortBondLength: 0.85,
-            bondSpacing: 0.18 * 30,
+            bondSpacing: 0.18 * 35.0,
             atomVisualization: 'default',
             isometric: true,
             debug: false,
             terminalCarbons: true,
             explicitHydrogens: true,
             overlapSensitivity: 0.42,
-            overlapResolutionIterations: 1,
-            compactDrawing: true,
-            fontSizeLarge: 14,
-            fontSizeSmall: 10,
-            padding: 10,
+            overlapResolutionIterations: 2,
+            compactDrawing: false,
+            fontSizeLarge: 16,
+            fontSizeSmall: 12,
+            padding: 20,
             experimental: false,
             themes: {
                 dark: {
-                    C: '#fff', O: '#ef4444', N: '#3b82f6', F: '#10b981', CL: '#10b981',
-                    BR: '#f59e0b', I: '#8b5cf6', P: '#f59e0b', S: '#fbbf24', B: '#f59e0b',
-                    SI: '#f59e0b', H: '#fff', BACKGROUND: 'transparent'
+                    C: '#fff', O: '#ef4444', N: '#3b82f6', F: '#34d399', CL: '#10b981',
+                    BR: '#f59e0b', I: '#a855f7', P: '#f59e0b', S: '#fbbf24', B: '#f59e0b',
+                    SI: '#94a3b8', H: '#fff', BACKGROUND: 'transparent'
                 },
                 light: {
-                    C: '#222', O: '#ef4444', N: '#3b82f6', F: '#10b981', CL: '#10b981',
-                    BR: '#f59e0b', I: '#8b5cf6', P: '#f59e0b', S: '#fbbf24', B: '#f59e0b',
-                    SI: '#f59e0b', H: '#222', BACKGROUND: 'transparent'
+                    C: '#222', O: '#ef4444', N: '#3b82f6', F: '#34d399', CL: '#10b981',
+                    BR: '#f59e0b', I: '#a855f7', P: '#f59e0b', S: '#fbbf24', B: '#f59e0b',
+                    SI: '#64748b', H: '#222', BACKGROUND: 'transparent'
                 }
             }
         };
