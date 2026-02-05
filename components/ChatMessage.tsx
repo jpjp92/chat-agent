@@ -14,6 +14,7 @@ import BioRenderer from './BioRenderer';
 import PhysicsRenderer from './PhysicsRenderer';
 import { DiagramRenderer } from './DiagramRenderer';
 import ConstellationRenderer from './ConstellationRenderer';
+import { DrugRenderer } from './DrugRenderer';
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -235,13 +236,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n');
 
     // 2. Split by Viz Blocks (Chart & Smiles)
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'constellation' | 'diagram' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json:(chart|smiles|bio|physics|constellation|diagram)\n([\s\S]*?)\n```/g;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'constellation' | 'diagram' | 'drug' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
     while ((match = blockRegex.exec(processedContent)) !== null) {
-      const blockType = match[1]; // 'chart' or 'smiles'
+      const blockType = match[1].toLowerCase();
 
       // Add text before the block
       if (match.index > lastIndex) {
@@ -266,6 +267,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'constellation', data: jsonData });
         } else if (blockType === 'diagram') {
           parts.push({ type: 'diagram', data: jsonData });
+        } else if (blockType === 'drug') {
+          parts.push({ type: 'drug', data: jsonData });
         }
       } catch (e) {
         // Fallback: render as code block if JSON invalid
@@ -283,14 +286,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = processedContent.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = remainingText.includes('```json:chart') || remainingText.includes('```json:smiles') || remainingText.includes('```json:bio') || remainingText.includes('```json:physics') || remainingText.includes('```json:constellation') || remainingText.includes('```json:diagram');
+      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         // Split text to show only complete parts
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json:(chart|smiles|bio|physics|constellation|diagram)/)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -331,6 +334,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           }
           if (part.type === 'diagram') {
             return <DiagramRenderer key={idx} data={part.data} />;
+          }
+          if (part.type === 'drug') {
+            return <DrugRenderer key={idx} data={part.data} language={language} />;
           }
           if (part.type === 'chart_loading') {
             return (

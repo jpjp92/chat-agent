@@ -36,3 +36,5 @@ yarn-error.log*
 # reference
 reference/
 test-supabase.ts
+test-port.js
+scripts/test-drug-viz.js

@@ -17,7 +17,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Connection', 'keep-alive');
 
   const langNames: any = { ko: 'Korean', en: 'English', es: 'Spanish', fr: 'French' };
-  const currentLang = language || 'ko';
+  const currentLang = (language && langNames[language]) ? language : 'ko';
+  const langName = langNames[currentLang];
 
   if (API_KEYS.length === 0) {
     res.write(`data: ${JSON.stringify({ error: 'No API keys found in server environment.' })}\n\n`);
@@ -25,8 +26,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  let systemInstruction = `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langNames[currentLang].toUpperCase()} ONLY. 
-  IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langNames[currentLang].toUpperCase()}.
+  let systemInstruction = `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langName.toUpperCase()} ONLY. 
+  IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langName.toUpperCase()}.
   NEVER switch languages. THIS IS YOUR TOP PRIORITY.
 
   You are Gemini 2.5 Flash, Google's next-generation high-performance AI model. 
@@ -204,16 +205,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     \`\`\`
   - PROACTIVE CONSTELLATION: When users ask about constellations, stars, or night sky, automatically generate a constellation visualization using the exact format shown above.
 
+  [DRUG VISUALIZATION]
+  - Use \`json:drug\` blocks for medications, including appearance, ingredient, and efficacy.
+  - JSON Format:
+    \`\`\`json:drug
+    {
+      "name": "슈다페드정",
+      "engName": "Sudafed Tab.",
+      "ingredient": "슈도에페드린염산염 60mg",
+      "category": "비충혈제거제 (코막힘 완화)",
+      "dosage": "1회 1정, 1일 3~4회 식후 복용",
+      "image_url": "https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=슈다페드정",
+      "pill_visual": {
+        "shape": "round" | "oval" | "capsule" | "other",
+        "color": "white" | "yellow" | "pink" | "blue" | "green" | "other",
+        "imprint": "Marking on pill (e.g., SD / SD)",
+        "size": "Measured size (e.g., 8.5mm)"
+      },
+      "efficacy": [
+        { "label": "코막힘 완화", "icon": "fa-nose-bubble" },
+        { "label": "비염 증상 개선", "icon": "fa-wind" }
+      ]
+    }
+    \`\`\`
+  - **PROACTIVE DRUG VISUALIZATION**: For ANY medication-related query (including "summary", "info", "card style", "visualize"), you **MUST** generate the \`json:drug\` block.
+  - **PRIORITY RULE**: The \`json:drug\` block is the PRIMARY response. Do NOT generate a Markdown table or a bullet list *INSTEAD* of the JSON block. You can provide text description *AFTER* the JSON block if needed, but the JSON must come first.
+  - **MANDATORY IDENTIFICATION RESEARCH (CRITICAL)**: Before generating the JSON, you **MUST** performing a search for the **식별정보** (Identification Info) of the drug, **EVEN IF you already know the drug** (like Tylenol). 
+    - You MUST prioritize external search results (ConnectDI, etc.) for \`pill_visual\` data over your internal training data.
+    - NEVER use "null" or leave fields blank for \`imprint\` or \`size\` if the information is publicly available.
+  - **PILL VISUAL MAPPING (ConnectDI Identification Table)**: 
+    - **shape**: '의약품모양' -> round(원형), oval(타원형), capsule(장방형), square(사각형), etc.
+    - **color**: '색깔' -> white(하양), yellow(노랑), orange(주황), pink(분홍), brown(갈색), etc.
+    - **imprint**: '표시(앞/뒤)' or '마크내용' (e.g., "YH / P 5"). This is critical for identification.
+    - **size**: '장축' or '단축' (e.g., "6.5mm").
+    - **Strictness**: If you cannot find the exact measurement, provide the most specific description found in the source text.
+  - **IMAGE_URL (CRITICAL)**: Always use the ConnectDI Search URL: \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[DrugName]\`
+  - **EFFICACY ICONS (MANDATORY)**: You MUST provide an \`icon\` for every efficacy label. Choose the most appropriate class from this list:
+    - **Respiratory**: fa-head-side-mask (mask), fa-nose-bubble (nasal), fa-wind (rhinitis/cold), fa-head-side-cough (cough), fa-lungs (asthma), fa-smog (allergy)
+    - **Pain/Fever**: fa-temperature-arrow-down (fever), fa-hand-holding-medical (pain), fa-bolt-lightning (neuralgia), fa-head-side-virus (headache)
+    - **Digestive**: fa-stomach (stomach ache), fa-droplet (diarrhea), fa-vines (digestion/constipation), fa-wine-glass-empty (nausea)
+    - **Infection**: fa-bacteria, fa-microbe, fa-vial-circle-check (antibiotics)
+    - **Psychiatric**: fa-brain (nervous system), fa-couch (sedation/sleep), fa-sun (depression)
+    - **Systemic**: fa-shield-halved (immunity), fa-heart-pulse (cardiac), fa-bone (musculoskeletal), fa-droplet-degree (diabetes)
+    - **General/Fallback**: fa-pills, fa-house-medical, fa-circle-info
+
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
 
   [TABLE FORMATTING]
-  - When generating Markdown tables, ensure that the table headers (column names) are EXTREMELY SHORT and CONCISE.
-  - Avoid long sentences in headers. Use abbreviations or keywords if possible.
+  - When generating Markdown tables, ensure that the table headers(column names) are EXTREMELY SHORT and CONCISE.
+  - Avoid long sentences in headers.Use abbreviations or keywords if possible.
   - Example: Instead of "Recommended Daily Dosage for Adults (mg)", use "Adult Dose".
   - This is critical for mobile readability and preventing layout overflow.
 
   [CODE GENERATION STANDARDS]
-  - CODE BLOCKS (Triple Backticks): ALWAYS start with triple backticks followed immediately by the language (e.g., \`\`\`python) and a NEWLINE.
+  - CODE BLOCKS(Triple Backticks): ALWAYS start with triple backticks followed immediately by the language(e.g., \`\`\`python) and a NEWLINE.
   - INTEGRITY: Generate the entire script in ONE single code block. NEVER close and restart a block for the same file or logic.
   - INLINE CODE: NEVER include language names or colons (e.g., use \`print()\` instead of \`python:print()\`). Use ONLY for fragments.
   - Formatting: Ensure proper indentation (2-4 spaces) and latest stable syntax. Mandatory filename (e.g., app.tsx) as tag if applicable.
@@ -252,7 +297,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userParts.push({ fileData: { fileUri: normalizedYtUrl, mimeType: 'video/mp4' } });
   }
 
-  if (attachment && attachment.data) {
+  if (attachment && attachment.data && attachment.mimeType) {
     const isPublicUrl = attachment.data.startsWith('http');
     const isVideo = attachment.mimeType.startsWith('video/');
 
