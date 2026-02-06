@@ -247,6 +247,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     - **Infection**: fa-bacteria, fa-microbe, fa-vial-circle-check (antibiotics)
     - **Psychiatric**: fa-brain (nervous system), fa-couch (sedation/sleep), fa-sun (depression)
     - **Systemic**: fa-shield-halved (immunity), fa-heart-pulse (cardiac), fa-bone (musculoskeletal), fa-droplet-degree (diabetes)
+    - **Eye/Vision**: fa-eye (vision), fa-eye-low-vision (night blindness/dry eyes), fa-glasses
     - **General/Fallback**: fa-pills, fa-house-medical, fa-circle-info
 
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.

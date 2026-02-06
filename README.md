@@ -48,6 +48,13 @@
     - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
     - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
     - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
+- **Intelligent Drug Visualization (Drug-Viz) (Overhauled!)**: 
+    - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
+    - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.
+    - **Visual Specs Header**: Added explicit **Appearance Reference** headers and **Digital Specimen Slide** backgrounds for dark mode.
+    - **Mandatory Research**: Forced real-time research (ConnectDI, etc.) for physical characteristics (shape, color, imprint, size).
+    - **Smart Image Sync**: Automatically fetches and caches drug photos to **Supabase Storage**.
+    - **Efficacy Mapping**: Visual tags with expanded **Eye/Vision** and Systemic categories.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
@@ -151,10 +158,11 @@ flowchart LR
 │   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
 │   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
 │   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
-    ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
-    ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
-    ├── ConstellationRenderer.tsx # Star map & Milky Way (Canvas)
-    ├── Dialog.tsx        # Premium custom modals
+│   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
+│   ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
+│   ├── ConstellationRenderer.tsx # Star map & Milky Way (Canvas)
+│   ├── DrugRenderer.tsx  # Detailed medication cards (New!)
+│   ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
 │   ├── Toast.tsx         # Notification feedback system
 │   ├── LoadingScreen.tsx # Initial startup loading UI

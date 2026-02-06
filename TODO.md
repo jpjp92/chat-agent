@@ -7,6 +7,17 @@
 - ✅ **Phase 2: 인터랙션 시스템**: 줌/팬(Zoom/Pan) 제어, 시간 여행(Time Travel), 반응형 라벨링(Zoom-based Labels) 구현.
 - ✅ **Phase 3: 은하수 렌더링 (Milky Way)**: 파티클 클라우드(Particle Cloud) 기반의 은하수 배경 렌더링 및 심미적 튜닝.
 - ✅ **UI/UX 폴리시**: 커서 호버 효과, 버튼 피드백, 줌 인디케이터 등 사용자 경험 개선.
+- 
+- ### 의약품 시각화 엔진 (Drug-Viz) (2026-02-06) ✓
+- - ✅ **UI/UX 전면 개편 (DrugRenderer)**: 히어로 섹션(Top Hero), 성분/용법 통합 박스, 배지형 식별 정보 등 프리미엄 카드 UI 고도화.
+- - ✅ **이미지 영역 개선**: '외형 사진' 헤더 추가 및 다크모드 전용 **디지털 슬라이드(Digital Slide)** 배경 최적화로 시인성 확보.
+- - ✅ **아이콘 매핑 강화**: 안구 건조, 야맹증 등 **Eye/Vision** 카테고리 아이콘 세트 추가 및 키워드 매칭 로직 보강.
+- - ✅ **이미지 동기화 엔진**: ConnectDI/네이버 이미지의 Referer 차단을 우회하여 Supabase Storage에 자동 캐싱하는 `/api/sync-drug-image` 구현.
+- - ✅ **프롬프트 강화**: 유명 약물이라도 반드시 실시간 검색을 통해 최신 식별 정보를 추출하도록 시스템 지침 고도화.
+- 
+- ### 인프라 및 설정 최적화 (2026-02-05) ✓
+- - ✅ **Vite 설정 개선**: `host: 0.0.0.0` 설정으로 모바일 기기 테스트 환경 구축 및 불필요한 주석 정리.
+- - ✅ **API 프록시**: 배포 환경(`chat-gem.vercel.app`)과의 통신을 위한 로컬 서버 프록시 설정 최적화.
 
 ### API & UI Resilience Improvements (2026-01-31) ✓
 - ✅ **API Fallback Strategy**: `gemini-2.5-flash` 모델 쿼터 초과 시 `gemini-2.5-flash-lite`로 자동 전환되는 다중 모델 폴백 로직 구현.
@@ -148,6 +159,9 @@
     - React Three Fiber(R3F) 기반의 고성능 3D 물리 엔진 탑재.
     - **유체 역학(Fluid Dynamics)**: 입자 시스템(SPH)을 활용한 물/액체 시뮬레이션.
     - 복잡한 3D 구조물 및 강체 상호작용 실험.
+- [ ] **Phase 4: 정밀 식별 데이터 스크래핑 (Drug-Viz Advanced)**
+    - [ ] `sync-drug-image.ts` 크롤링 범위를 HTML 테이블(`tbody.identify`)로 확장.
+    - [ ] AI 요약 대신 제조사 등록 원본 데이터(장축/단축, 각인 등)를 100% 정밀도로 수집 및 UI 연동.
 
 ---
 
@@ -174,4 +188,4 @@
 
 ---
 
-*Last Updated: 2026-02-02 (v2.7)*
+*Last Updated: 2026-02-06 (v2.9)*

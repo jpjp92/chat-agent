@@ -36,22 +36,22 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
     const i18n = {
         ko: {
-            ingredient: '성분',
-            category: '분류',
-            dosage: '용법',
-            efficacy: '효능',
+            ingredient: '핵심 성분',
+            category: '약물 분류',
+            dosage: '복용 안내',
+            efficacy: '주요 효능 및 효과',
             noImage: '이미지 준비 중',
-            details: '상세 정보',
-            features: '형태 및 특징'
+            details: '자세히 보기',
+            features: '식별 정보'
         },
         en: {
-            ingredient: 'Ingredient',
+            ingredient: 'Active Ingredients',
             category: 'Category',
             dosage: 'Dosage',
-            efficacy: 'Efficacy',
+            efficacy: 'Efficacy & Effects',
             noImage: 'No Image',
-            details: 'Details',
-            features: 'Features'
+            details: 'View Details',
+            features: 'Identification'
         }
     };
     const t = i18n[language] || i18n.ko;
@@ -87,7 +87,13 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '고지혈': 'fa-droplet',
             '혈압': 'fa-droplet',
             '당뇨': 'fa-droplet',
-            '심장': 'fa-heart-pulse'
+            '심장': 'fa-heart-pulse',
+            '눈': 'fa-eye',
+            '야맹증': 'fa-eye-low-vision',
+            '시력': 'fa-eye',
+            '피로': 'fa-battery-quarter',
+            '영양': 'fa-apple-whole',
+            '비타민': 'fa-pills'
         };
 
         for (const [key, value] of Object.entries(iconMap)) {
@@ -97,7 +103,6 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         return providedIcon || 'fa-circle-check';
     };
 
-    // Use Proxy only for valid URLs
     const isValidUrl = (url: string | undefined): boolean => {
         if (!url) return false;
         try {
@@ -107,8 +112,6 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             return false;
         }
     };
-
-    console.log(`[DrugRenderer] Initializing for ${data.name}. image_url:`, data.image_url);
 
     const isSearchOrEntryPage =
         data.image_url?.includes('search_result') ||
@@ -122,17 +125,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             ? `/api/proxy-image?url=${encodeURIComponent(data.image_url!)}`
             : null;
 
-    if (proxiedImageUrl) {
-        console.log('[DrugRenderer] Final source being used:', proxiedImageUrl);
-    } else {
-        console.log('[DrugRenderer] No valid source available.');
-    }
-
     useEffect(() => {
         const syncImage = async () => {
             if (isValidUrl(data.image_url) && !syncedUrl) {
                 try {
-                    console.log(`[DrugRenderer] Requesting sync for: ${data.image_url}`);
                     const response = await fetch('/api/sync-drug-image', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -142,16 +138,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     if (response.ok) {
                         const { publicUrl } = await response.json();
                         setSyncedUrl(publicUrl);
-                        setImageError(false); // ✅ Reset error state to try new URL
-                        console.log(`[DrugRenderer] ✅ Image synced to Supabase: ${publicUrl}`);
-                    } else if (response.status === 404) {
-                        console.warn(`[DrugRenderer] ⚠️ Image not found at source for: ${data.name}`);
-                    } else {
-                        const err = await response.json();
-                        console.error(`[DrugRenderer] ❌ Sync failed (${response.status}):`, err.message);
+                        setImageError(false);
                     }
                 } catch (error) {
-                    console.error('[DrugRenderer] ❌ Network error during image sync:', error);
+                    console.error('[DrugRenderer] Image sync error:', error);
                 }
             }
         };
@@ -160,117 +150,176 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     }, [data.image_url, syncedUrl]);
 
     return (
-        <div className="w-full my-4 animate-in fade-in zoom-in-95 duration-500 ease-out">
-            <div className="max-w-3xl mx-auto rounded-[1.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-xl overflow-hidden">
+        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+            <div className="max-w-2xl mx-auto rounded-[1.5rem] border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-lg overflow-hidden">
 
-                {/* Compact Header */}
-                <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-black/20">
-                    <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">
-                            {data.name}
-                            {data.engName && (
-                                <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">{data.engName}</span>
-                            )}
-                        </h2>
-                    </div>
-                </div>
-
-                <div className="p-6 space-y-6">
-                    {/* Visual & Features Row */}
-                    <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-                        {/* Smaller Image Area */}
-                        <div className="w-40 h-40 flex-shrink-0 bg-slate-50 dark:bg-black/30 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden">
-                            {!proxiedImageUrl || imageError ? (
-                                <div className="flex flex-col items-center gap-2 text-slate-300 dark:text-slate-600">
-                                    <i className="fa-solid fa-image text-3xl opacity-30"></i>
-                                    <span className="text-[10px] font-bold">{t.noImage}</span>
+                {/* Hero Section: Integrated Title & Image */}
+                <div className="relative bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 dark:from-transparent dark:to-transparent border-b border-slate-100 dark:border-white/5">
+                    <div className="p-8 pb-6">
+                        <div className="flex flex-col gap-6">
+                            {/* Title & Badge */}
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/20 text-[10px] font-black text-indigo-600 dark:text-indigo-400 rounded-full uppercase tracking-tighter border border-indigo-200/50 dark:border-indigo-500/30">
+                                        {data.category.split(' ')[0]}
+                                    </span>
                                 </div>
-                            ) : (
-                                <img
-                                    src={proxiedImageUrl}
-                                    alt={data.name}
-                                    onError={() => setImageError(true)}
-                                    className="w-full h-full object-contain p-2"
-                                />
-                            )}
-                        </div>
+                                <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+                                    {data.name}
+                                    {data.engName && (
+                                        <div className="text-sm font-medium text-slate-400 dark:text-slate-500 mt-1">{data.engName}</div>
+                                    )}
+                                </h2>
+                            </div>
 
-                        {/* Pill Features as Text (Integrated below or beside image) */}
-                        <div className="flex-1 space-y-4">
-                            <div className="bg-slate-50 dark:bg-white/[0.03] p-4 rounded-xl">
-                                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-2 block">{t.features}</span>
-                                <div className="grid grid-cols-2 gap-y-2 gap-x-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></div>
-                                        <span className="text-[11px] text-slate-400">모양:</span>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{data.pill_visual?.shape || '정보 없음'}</span>
+                            {/* Main Image Viewport in Hero */}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 px-1">
+                                    <i className="fa-solid fa-camera text-[10px] text-indigo-500/70"></i>
+                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        {language === 'ko' ? '외형 사진' : 'Reference Photo'}
+                                    </span>
+                                </div>
+                                <div className="relative group mx-auto sm:mx-0">
+                                    {/* Digital Specimen Slide Look: Unified dark background */}
+                                    <div className="w-full min-h-[12rem] sm:min-h-[14rem] bg-slate-50/50 dark:bg-white/[0.03] rounded-2xl border border-slate-200/50 dark:border-white/10 flex items-center justify-center overflow-hidden transition-all duration-500 shadow-inner">
+                                        {!proxiedImageUrl || imageError ? (
+                                            <div className="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-700">
+                                                <i className="fa-solid fa-pills text-5xl opacity-20"></i>
+                                                <span className="text-xs font-bold tracking-tight">{t.noImage}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="relative w-full h-full flex items-center justify-center p-4">
+                                                <img
+                                                    src={proxiedImageUrl}
+                                                    alt={data.name}
+                                                    onError={() => setImageError(true)}
+                                                    className="max-w-full max-h-full object-contain drop-shadow-sm transition-transform duration-500 group-hover:scale-105"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></div>
-                                        <span className="text-[11px] text-slate-400">색상:</span>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{data.pill_visual?.color || '정보 없음'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></div>
-                                        <span className="text-[11px] text-slate-400">각인:</span>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{data.pill_visual?.imprint || '정보 없음'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></div>
-                                        <span className="text-[11px] text-slate-400">크기:</span>
-                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{data.pill_visual?.size || '정보 없음'}</span>
+                                    {/* Action Hint */}
+                                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="w-6 h-6 rounded-lg bg-black/20 backdrop-blur-md border border-white/10 flex items-center justify-center">
+                                            <i className="fa-solid fa-expand text-[10px] text-white/50"></i>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Metadata Grid (Compact) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="p-4 bg-slate-50/50 dark:bg-white/[0.02] rounded-xl border border-slate-100 dark:border-white/5">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">{t.ingredient}</span>
-                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 italic">{data.ingredient}</p>
+                <div className="p-8 space-y-8">
+                    {/* Identification Section */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-[11px] font-black text-slate-400 dark:text-indigo-400 uppercase tracking-widest">{t.features}</span>
+                            <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
                         </div>
-                        <div className="p-4 bg-slate-50/50 dark:bg-white/[0.02] rounded-xl border border-slate-100 dark:border-white/5">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">{t.category}</span>
-                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{data.category}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {/* Shape Badge */}
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
+                                <i className="fa-solid fa-shapes text-[10px] text-indigo-500"></i>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '모양' : 'Shape'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.shape || '-'}</span>
+                                </div>
+                            </div>
+                            {/* Color Badge */}
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
+                                <i className="fa-solid fa-palette text-[10px] text-purple-500"></i>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '색상' : 'Color'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.color || '-'}</span>
+                                </div>
+                            </div>
+                            {/* Imprint Badge */}
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
+                                <i className="fa-solid fa-font text-[10px] text-blue-500"></i>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '각인' : 'Marking'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint || '-'}</span>
+                                </div>
+                            </div>
+                            {/* Size Badge */}
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
+                                <i className="fa-solid fa-ruler-combined text-[10px] text-teal-500"></i>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '크기' : 'Size'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.size || '-'}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Dosage (Single Row) */}
-                    {data.dosage && (
-                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100/50 dark:border-indigo-500/10">
-                            <div className="flex items-center gap-2 mb-1">
-                                <i className="fa-solid fa-clock-rotate-left text-indigo-500 text-[10px]"></i>
-                                <span className="text-[9px] font-black text-indigo-500/70 uppercase tracking-widest">{t.dosage}</span>
+                    {/* Unified Info Section (Ingredients & Dosage) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Ingredients */}
+                        <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
+                                    <i className="fa-solid fa-microscope text-indigo-500 text-sm"></i>
+                                </div>
+                                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.ingredient}</span>
                             </div>
-                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{data.dosage}</p>
+                            <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                                {data.ingredient}
+                            </p>
                         </div>
-                    )}
 
-                    {/* Efficacy (Compact List) */}
-                    {data.efficacy && data.efficacy.length > 0 && (
-                        <div className="space-y-4 pt-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] pl-1">{t.efficacy}</span>
-                            <div className="flex flex-wrap gap-2">
-                                {data.efficacy.map((eff, i) => (
-                                    <div key={i} className="px-3 py-2 bg-white dark:bg-white/[0.04] border border-slate-100 dark:border-white/5 rounded-lg flex items-center gap-2 shadow-sm">
-                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-[10px]`}></i>
-                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{eff.label}</span>
-                                    </div>
-                                ))}
+                        {/* Dosage */}
+                        <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
+                                    <i className="fa-solid fa-clock-rotate-left text-indigo-500 text-sm"></i>
+                                </div>
+                                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.dosage}</span>
                             </div>
+                            <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                                {data.dosage || (language === 'ko' ? '복용 전 의사·약사와 상의하세요.' : 'Please consult a doctor or pharmacist.')}
+                            </p>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Efficacy Section */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{t.efficacy}</span>
+                            <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {data.efficacy?.map((eff, i) => (
+                                <div
+                                    key={i}
+                                    className="p-4 bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl flex flex-col items-center justify-center text-center gap-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
+                                >
+                                    <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-black/30 flex items-center justify-center border border-slate-100 dark:border-white/5">
+                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-lg`}></i>
+                                    </div>
+                                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight">
+                                        {eff.label}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
-                {/* Minimal Footer */}
-                <div className="px-6 py-3 bg-slate-50/50 dark:bg-black/30 flex items-center justify-between border-t border-slate-100 dark:border-white/5">
-                    <span className="text-[8px] font-black text-slate-400 tracking-[0.3em] uppercase">Medicine Indexer v1.1</span>
-                    <button className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
-                        {t.details} <i className="fa-solid fa-chevron-right text-[8px]"></i>
-                    </button>
+                {/* Refined Footer */}
+                <div className="px-8 py-5 bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase">Medicine Index Meta-Data</span>
+                    </div>
+                    <a
+                        href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(data.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-all"
+                    >
+                        {t.details} <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                    </a>
                 </div>
             </div>
         </div>
