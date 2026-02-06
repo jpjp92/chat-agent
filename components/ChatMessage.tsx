@@ -229,26 +229,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const renderContent = (content: string) => {
-    // 1. Process for numeric ranges first (1~10 -> 1&#126;10)
-    let processedContent = content.replace(/(\d)~(\d)/g, '$1&#126;$2');
-
-    // Remove <br> tags and replace with newlines
-    processedContent = processedContent.replace(/<br\s*\/?>/gi, '\n');
-
-    // 2. Split by Viz Blocks (Chart & Smiles)
+    // Split by Viz Blocks
     const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'constellation' | 'diagram' | 'drug' | 'chart_loading'; content?: string; data?: any }[] = [];
     const blockRegex = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
-    while ((match = blockRegex.exec(processedContent)) !== null) {
+    while ((match = blockRegex.exec(content)) !== null) {
       const blockType = match[1].toLowerCase();
 
       // Add text before the block
       if (match.index > lastIndex) {
+        let textPart = content.substring(lastIndex, match.index);
+        // Process for numeric ranges (1~10 -> 1&#126;10)
+        textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
         parts.push({
           type: 'text',
-          content: processedContent.substring(lastIndex, match.index)
+          content: textPart
         });
       }
 
@@ -271,7 +268,6 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'drug', data: jsonData });
         }
       } catch (e) {
-        // Fallback: render as code block if JSON invalid
         parts.push({
           type: 'text',
           content: match[0]
@@ -282,8 +278,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     }
 
     // Add remaining text
-    if (lastIndex < processedContent.length) {
-      const remainingText = processedContent.substring(lastIndex);
+    if (lastIndex < content.length) {
+      const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
       const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)/i.test(remainingText);
@@ -299,17 +295,21 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         }
 
         if (visibleText.trim()) {
+          // Process for numeric ranges (1~10 -> 1&#126;10)
+          const processedVisible = visibleText.replace(/(\d)~(\d)/g, '$1&#126;$2');
           parts.push({
             type: 'text',
-            content: visibleText
+            content: processedVisible
           });
         }
         // Add loading placeholder
         parts.push({ type: 'chart_loading' } as any);
       } else {
+        // Process for numeric ranges (1~10 -> 1&#126;10)
+        const processedRemaining = remainingText.replace(/(\d)~(\d)/g, '$1&#126;$2');
         parts.push({
           type: 'text',
-          content: remainingText
+          content: processedRemaining
         });
       }
     }

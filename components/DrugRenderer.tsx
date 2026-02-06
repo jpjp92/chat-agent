@@ -27,12 +27,14 @@ interface DrugData {
 
 interface DrugRendererProps {
     data: DrugData;
-    language?: 'ko' | 'en';
+    language?: 'ko' | 'en' | 'es' | 'fr';
 }
 
 export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko' }) => {
     const [imageError, setImageError] = useState(false);
     const [syncedUrl, setSyncedUrl] = useState<string | null>(null);
+    const [syncing, setSyncing] = useState(!!data.image_url);
+    const [isReady, setIsReady] = useState(false);
 
     const i18n = {
         ko: {
@@ -41,7 +43,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             dosage: '복용 안내',
             efficacy: '주요 효능 및 효과',
             noImage: '이미지 준비 중',
-            details: '자세히 보기',
+            syncing: '이미지 정보를 찾는 중...',
+            details: '자세히',
             features: '식별 정보'
         },
         en: {
@@ -50,57 +53,98 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             dosage: 'Dosage',
             efficacy: 'Efficacy & Effects',
             noImage: 'No Image',
-            details: 'View Details',
+            details: 'View',
+            features: 'Identification'
+        },
+        es: {
+            ingredient: 'Ingredientes',
+            category: 'Categoría',
+            dosage: 'Dosis',
+            efficacy: 'Eficacia y Efectos',
+            noImage: 'Sin Imagen',
+            details: 'Detalles',
+            features: 'Identificación'
+        },
+        fr: {
+            ingredient: 'Ingrédients',
+            category: 'Catégorie',
+            dosage: 'Dosage',
+            efficacy: 'Efficacité',
+            noImage: 'Pas d\'image',
+            details: 'Détails',
             features: 'Identification'
         }
     };
-    const t = i18n[language] || i18n.ko;
+    const t = i18n[language as keyof typeof i18n] || i18n.ko;
 
     // Helper: Map efficacy label to FontAwesome icon
     const getEfficacyIcon = (label: string, providedIcon?: string): string => {
-        if (providedIcon && providedIcon.startsWith('fa-') && providedIcon !== 'fa-circle-check') {
-            return providedIcon;
-        }
-
         const iconMap: Record<string, string> = {
-            '코막힘': 'fa-nose-bubble',
+            // Respiratory & Cold (Free icons)
+            '콧물': 'fa-wind',
+            '코막힘': 'fa-wind',
             '비염': 'fa-wind',
-            '두통': 'fa-head-side-mask',
-            '통증': 'fa-hand-holding-medical',
-            '해열': 'fa-temperature-arrow-down',
-            '발열': 'fa-temperature-high',
-            '염증': 'fa-fire-flame-curved',
-            '감염': 'fa-microbe',
-            '세균': 'fa-bacteria',
-            '항생': 'fa-capsules',
-            '알레르기': 'fa-hand-dots',
-            '피부': 'fa-hand-dots',
-            '가려움': 'fa-hand-dots',
-            '복통': 'fa-stomach',
-            '설사': 'fa-droplet',
-            '위장': 'fa-stomach',
-            '궤양': 'fa-stomach',
-            '기침': 'fa-head-side-cough',
+            '재채기': 'fa-wind',
+            '기침': 'fa-head-side-mask',
             '가래': 'fa-head-side-mask',
-            '치료': 'fa-vial-circle-check',
+            '인후': 'fa-lungs',
+            '목구멍': 'fa-lungs',
+            '감기': 'fa-head-side-mask', // General cold symptom
+
+            // Pain & Fever (Free icons)
+            '해열': 'fa-temperature-arrow-down',
+            '발열': 'fa-temperature-high', // Keeping this as it's a valid FA icon
+            '오한': 'fa-temperature-low', // Keeping this as it's a valid FA icon
+            '두통': 'fa-brain',
+            '통증': 'fa-hand-holding-medical',
+            '치통': 'fa-tooth',
+            '신경통': 'fa-bolt',
+            '근육통': 'fa-bone',
+            '관절통': 'fa-bone',
+
+            // Digestive (Free icons - fa-stomach is Pro)
+            '복통': 'fa-pills',
+            '위장': 'fa-pills',
+            '소화': 'fa-pills',
+            '설사': 'fa-droplet',
+            '변비': 'fa-pills',
+            '구역': 'fa-pills',
+            '구토': 'fa-pills',
+
+            // Systemic (Free icons)
+            '면역': 'fa-shield-halved',
             '예방': 'fa-shield-halved',
             '고지혈': 'fa-droplet',
-            '혈압': 'fa-droplet',
+            '혈압': 'fa-heart-pulse',
             '당뇨': 'fa-droplet',
             '심장': 'fa-heart-pulse',
-            '눈': 'fa-eye',
-            '야맹증': 'fa-eye-low-vision',
-            '시력': 'fa-eye',
             '피로': 'fa-battery-quarter',
-            '영양': 'fa-apple-whole',
-            '비타민': 'fa-pills'
+
+            // Eye & Others (Free icons)
+            '눈': 'fa-eye',
+            '시력': 'fa-eye',
+            '야맹증': 'fa-eye-low-vision',
+
+            // Metabolism (Free icons)
+            '식욕': 'fa-utensils',
+            '비만': 'fa-weight-scale',
+            '체중': 'fa-weight-scale',
+            '대사': 'fa-bolt',
+            '지방': 'fa-fire'
         };
 
+        // Priority 1: Curated Keyword Map
         for (const [key, value] of Object.entries(iconMap)) {
             if (label.includes(key)) return value;
         }
 
-        return providedIcon || 'fa-circle-check';
+        // Priority 2: AI Provided Icon (if valid and not default)
+        if (providedIcon && providedIcon.startsWith('fa-') && providedIcon !== 'fa-circle-check' && providedIcon !== 'fa-pills') {
+            return providedIcon;
+        }
+
+        // Final Fallback
+        return 'fa-pills';
     };
 
     const isValidUrl = (url: string | undefined): boolean => {
@@ -128,6 +172,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     useEffect(() => {
         const syncImage = async () => {
             if (isValidUrl(data.image_url) && !syncedUrl) {
+                setSyncing(true);
                 try {
                     const response = await fetch('/api/sync-drug-image', {
                         method: 'POST',
@@ -139,18 +184,35 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         const { publicUrl } = await response.json();
                         setSyncedUrl(publicUrl);
                         setImageError(false);
+                    } else {
+                        setImageError(true);
                     }
                 } catch (error) {
                     console.error('[DrugRenderer] Image sync error:', error);
+                    setImageError(true);
+                } finally {
+                    setSyncing(false);
                 }
+            } else {
+                setSyncing(false);
             }
         };
 
         syncImage();
     }, [data.image_url, syncedUrl]);
 
+    // Smart Reveal Logic: Wait up to 600ms for the image, then show anyway
+    useEffect(() => {
+        if (!syncing) {
+            setIsReady(true);
+        } else {
+            const timer = setTimeout(() => setIsReady(true), 600);
+            return () => clearTimeout(timer);
+        }
+    }, [syncing]);
+
     return (
-        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+        <div className={`w-full my-6 transform transition-all duration-1000 ease-out ${isReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <div className="max-w-2xl mx-auto rounded-[1.5rem] border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-lg overflow-hidden">
 
                 {/* Hero Section: Integrated Title & Image */}
@@ -182,22 +244,58 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 </div>
                                 <div className="relative group mx-auto sm:mx-0">
                                     {/* Digital Specimen Slide Look: Unified dark background */}
-                                    <div className="w-full min-h-[12rem] sm:min-h-[14rem] bg-slate-50/50 dark:bg-white/[0.03] rounded-2xl border border-slate-200/50 dark:border-white/10 flex items-center justify-center overflow-hidden transition-all duration-500 shadow-inner">
-                                        {!proxiedImageUrl || imageError ? (
-                                            <div className="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-700">
-                                                <i className="fa-solid fa-pills text-5xl opacity-20"></i>
-                                                <span className="text-xs font-bold tracking-tight">{t.noImage}</span>
-                                            </div>
-                                        ) : (
-                                            <div className="relative w-full h-full flex items-center justify-center p-4">
-                                                <img
-                                                    src={proxiedImageUrl}
-                                                    alt={data.name}
-                                                    onError={() => setImageError(true)}
-                                                    className="max-w-full max-h-full object-contain drop-shadow-sm transition-transform duration-500 group-hover:scale-105"
-                                                />
-                                            </div>
-                                        )}
+                                    <div className="w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500">
+                                        <AnimatePresence mode="wait">
+                                            {syncing && !syncedUrl ? (
+                                                <motion.div
+                                                    key="shimmer"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="w-full h-full flex flex-col items-center justify-center gap-4 bg-indigo-500/[0.02] dark:bg-indigo-500/[0.01]"
+                                                >
+                                                    <div className="relative">
+                                                        <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full animate-pulse"></div>
+                                                        <div className="relative w-16 h-16 bg-white dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-center shadow-xl">
+                                                            <i className="fa-solid fa-rotate fa-spin text-xl text-indigo-500 dark:text-indigo-400/80"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-[10px] font-black text-indigo-600/60 dark:text-indigo-400/50 uppercase tracking-[0.2em] animate-pulse">
+                                                            {language === 'ko' ? '이미지 동기화 중' : 'Syncing Specimen'}
+                                                        </span>
+                                                        <div className="w-12 h-0.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
+                                                            <div className="w-full h-full bg-indigo-500/50 animate-[shimmer_1.5s_infinite]"></div>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            ) : !proxiedImageUrl || imageError ? (
+                                                <motion.div
+                                                    key="no-image"
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    className="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-700"
+                                                >
+                                                    <i className="fa-solid fa-pills text-5xl opacity-20"></i>
+                                                    <span className="text-xs font-bold tracking-tight">{t.noImage}</span>
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div
+                                                    key="image"
+                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                                    className="relative w-full h-full flex items-center justify-center p-6"
+                                                >
+                                                    <img
+                                                        src={proxiedImageUrl}
+                                                        alt={data.name}
+                                                        onError={() => setImageError(true)}
+                                                        className="max-w-full max-h-full object-contain drop-shadow-xl transition-transform duration-500 group-hover:scale-110"
+                                                    />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                     {/* Action Hint */}
                                     <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">

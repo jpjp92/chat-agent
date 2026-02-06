@@ -48,13 +48,14 @@
     - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
     - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
     - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
-- **Intelligent Drug Visualization (Drug-Viz) (Overhauled!)**: 
+- **Intelligent Drug Visualization (Drug-Viz) (v3.1 - Enhanced UX)**: 
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
+    - **Smart Reveal Architecture**: Integrated **600ms Synchronized Entrance** logic—waits for image data before revealing the card for a seamless first impression.
+    - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
     - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.
-    - **Visual Specs Header**: Added explicit **Appearance Reference** headers and **Digital Specimen Slide** backgrounds for dark mode.
-    - **Mandatory Research**: Forced real-time research (ConnectDI, etc.) for physical characteristics (shape, color, imprint, size).
-    - **Smart Image Sync**: Automatically fetches and caches drug photos to **Supabase Storage**.
-    - **Efficacy Mapping**: Visual tags with expanded **Eye/Vision** and Systemic categories.
+    - **Efficacy Icon Overhaul**: Utilizes **100% Guaranteed Free FontAwesome 6** icons with a robust hybrid mapping system (Keyword > AI > Fallback).
+    - **Expanded Efficacy Mapping**: Visual tags for **Metabolism, Weight Loss, Respiratory, and Eye/Vision** categories.
+    - **Deep Localization**: Fully supports **KO, EN, ES, FR** with localized footer actions and headers.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements

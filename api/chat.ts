@@ -231,23 +231,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - **PROACTIVE DRUG VISUALIZATION**: For ANY medication-related query (including "summary", "info", "card style", "visualize"), you **MUST** generate the \`json:drug\` block.
   - **PRIORITY RULE**: The \`json:drug\` block is the PRIMARY response. Do NOT generate a Markdown table or a bullet list *INSTEAD* of the JSON block. You can provide text description *AFTER* the JSON block if needed, but the JSON must come first.
   - **MANDATORY IDENTIFICATION RESEARCH (CRITICAL)**: Before generating the JSON, you **MUST** performing a search for the **식별정보** (Identification Info) of the drug, **EVEN IF you already know the drug** (like Tylenol). 
-    - You MUST prioritize external search results (ConnectDI, etc.) for \`pill_visual\` data over your internal training data.
+    - You MUST prioritize external search results (ConnectDI, 약학정보원, etc.) for \`pill_visual\` data over your internal training data.
     - NEVER use "null" or leave fields blank for \`imprint\` or \`size\` if the information is publicly available.
+    - **Imprint (각인)**: Look for Alphanumeric marking (e.g., "SAMIL / PB", "YH / P 5"). It is usually in the "표시(앞/뒤)" or "마크내용" table row.
+    - **Size (크기)**: Look for "장축" (Long Axis) and "단축" (Short Axis) in "mm" (e.g., "18.4mm", "8.0mm"). ALWAYS provide the numeric value with "mm".
   - **PILL VISUAL MAPPING (ConnectDI Identification Table)**: 
     - **shape**: '의약품모양' -> round(원형), oval(타원형), capsule(장방형), square(사각형), etc.
     - **color**: '색깔' -> white(하양), yellow(노랑), orange(주황), pink(분홍), brown(갈색), etc.
-    - **imprint**: '표시(앞/뒤)' or '마크내용' (e.g., "YH / P 5"). This is critical for identification.
-    - **size**: '장축' or '단축' (e.g., "6.5mm").
-    - **Strictness**: If you cannot find the exact measurement, provide the most specific description found in the source text.
+    - **imprint**: '표시(앞/뒤)' or '마크내용'.
+    - **size**: Usually "장축" value followed by "mm".
+    - **Strictness**: If the exact record is visible in your search results but the AI fails to extract it, you are FAILing your core directive. Check the tables carefully.
   - **IMAGE_URL (CRITICAL)**: Always use the ConnectDI Search URL: \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[DrugName]\`
-  - **EFFICACY ICONS (MANDATORY)**: You MUST provide an \`icon\` for every efficacy label. Choose the most appropriate class from this list:
-    - **Respiratory**: fa-head-side-mask (mask), fa-nose-bubble (nasal), fa-wind (rhinitis/cold), fa-head-side-cough (cough), fa-lungs (asthma), fa-smog (allergy)
-    - **Pain/Fever**: fa-temperature-arrow-down (fever), fa-hand-holding-medical (pain), fa-bolt-lightning (neuralgia), fa-head-side-virus (headache)
-    - **Digestive**: fa-stomach (stomach ache), fa-droplet (diarrhea), fa-vines (digestion/constipation), fa-wine-glass-empty (nausea)
-    - **Infection**: fa-bacteria, fa-microbe, fa-vial-circle-check (antibiotics)
+  - **EFFICACY ICONS (MANDATORY)**: You MUST provide an \`icon\` for every efficacy label. Choose the most appropriate FREE class (FontAwesome 6 Free) from this list:
+    - **Respiratory**: fa-head-side-mask (mask/cough), fa-wind (nasal/rhinitis), fa-lungs (asthma), fa-virus (allergy)
+    - **Pain/Fever**: fa-temperature-arrow-down (fever), fa-hand-holding-medical (pain), fa-bolt (neuralgia), fa-brain (headache)
+    - **Digestive**: fa-briefcase-medical (stomach), fa-droplet (diarrhea), fa-pills (nausea)
+    - **Infection**: fa-virus, fa-bacteria, fa-microbe, fa-vial-circle-check (antibiotics)
     - **Psychiatric**: fa-brain (nervous system), fa-couch (sedation/sleep), fa-sun (depression)
-    - **Systemic**: fa-shield-halved (immunity), fa-heart-pulse (cardiac), fa-bone (musculoskeletal), fa-droplet-degree (diabetes)
-    - **Eye/Vision**: fa-eye (vision), fa-eye-low-vision (night blindness/dry eyes), fa-glasses
+    - **Systemic**: fa-shield-halved (immunity), fa-heart-pulse (cardiac), fa-bone (musculoskeletal), fa-droplet (diabetes)
+    - **Metabolism/Weight**: fa-weight-scale (obesity), fa-utensils (appetite), fa-fire (fat burning), fa-bolt (metabolism)
+    - **Eye/Vision**: fa-eye (vision), fa-eye-low-vision (night blindness/dry eyes)
     - **General/Fallback**: fa-pills, fa-house-medical, fa-circle-info
 
   - Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
