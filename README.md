@@ -69,49 +69,110 @@
 
 ---
 
-## 🗺️ System Architecture
+## 🗺️ System Architecture & Intelligence
+
+### 🏗️ Global Architecture
+A high-level overview of the communication between the frontend React application, Vercel backend logic, and external powerhouse services.
 
 ```mermaid
-flowchart LR
+flowchart TB
+    %% Nodes Definition
     User([👤 User])
     
-    subgraph Frontend["🎨 Frontend (React + Vite)"]
+    subgraph Frontend ["🎨 Frontend Framework (React 19 + Vite)"]
         direction TB
-        UI[UI Components]
+        UI[Main UI & App State]
         
-        subgraph ClientTools["Client-side Tools"]
+        subgraph ClientTools ["🛠️ Processing Tools"]
             direction LR
-            Parsers["📄 Parsers<br/><small>DOCX/HWPX/XLSX/PPTX</small>"]
-            State[Session State]
+            Parsers["📄 Data Parsers<br/><small>Office/HWPX/PDF</small>"]
+            LocalStore["💾 Browser Memory<br/><small>Persistence Layer</small>"]
         end
         
-        subgraph Visualizers["📊 Visualization Layer"]
-            direction LR
-            Charts["Charts      <br/><small>ApexCharts</small>"]
-            Scientific["Scientific  <br/><small>Bio/Chem/Physics/Astro</small>"]
-            Math["Math        <br/><small>KaTeX</small>"]
+        subgraph Visualizers ["📊 Visualization Modules"]
+            direction TB
+            Astro["✨ Astro-Viz<br/><small>Sky Canvas</small>"]
+            Bio["🧬 Bio-Viz<br/><small>3D PDB Rendering</small>"]
+            Chem["🧪 Chem-Viz<br/><small>SMILES Drawer</small>"]
+            Phy["🎾 Phy-Viz<br/><small>Physics Engine</small>"]
+            Drug["💊 Drug-Viz<br/><small>Medication Cards</small>"]
+            Charts["📈 Data-Viz<br/><small>ApexCharts</small>"]
         end
     end
     
-    subgraph Backend["⚙️ Backend (Vercel Serverless)"]
+    subgraph Backend ["⚙️ Serverless Infrastructure (Vercel)"]
         direction TB
-        API["API Gateway"]
-        Endpoints["Endpoints<br/><small>auth/chat/sessions/upload/tools</small>"]
+        Gateway["API Gateway / Auth"]
+        subgraph Logic ["Business Logic"]
+            ChatPipe["/api/chat<br/><small>Prompt Engineering</small>"]
+            TTS["/api/speech<br/><small>Audio Stream</small>"]
+            Sync["/api/sync-image<br/><small>Secure Cache</small>"]
+        end
     end
     
-    subgraph External["🌐 External Services"]
+    subgraph Providers ["🌐 External Ecosystem"]
         direction TB
-        AI["🤖 Gemini AI<br/><small>Flash 2.5 / Lite / TTS</small>"]
-        Storage["💾 Supabase<br/><small>PostgreSQL + Storage</small>"]
+        Gemini[["🤖 Google Gemini AI<br/><small>Flash 2.5 / Lite</small>"]]
+        Supabase[("💾 Supabase Storage<br/><small>PostgreSQL / RLS</small>")]
     end
+
+    %% Connection Logic
+    User <-->|WebSocket/HTTP| UI
+    UI ==>|Structured Data| Astro
+    UI ==>|Structured Data| Bio
+    UI ==>|Structured Data| Chem
+    UI ==>|Structured Data| Phy
+    UI ==>|Structured Data| Drug
+    UI ==>|Structured Data| Charts
+    UI <--> Parsers
+    UI <--> LocalStore
+    UI <-->|HTTPS POST| Gateway
+    Gateway --- ChatPipe
+    Gateway --- TTS
+    Gateway --- Sync
+    ChatPipe <-->|Streaming| Gemini
+    Sync <-->|Cache| Supabase
+    ChatPipe <-->|Auth/Data| Supabase
+    TTS <-->|Auth/Data| Supabase
+
+    %% Styling
+    classDef frontend fill:#f0f9ff,stroke:#0ea5e9,stroke-width:2px,color:#0369a1;
+    classDef backend fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#15803d;
+    classDef external fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#c2410c;
+    classDef user fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#7e22ce;
     
-    User <-->|Interact| UI
-    UI <--> ClientTools
-    UI <--> Visualizers
-    UI <-->|REST API| API
-    API <--> Endpoints
-    Endpoints <--> AI
-    Endpoints <--> Storage
+    class User user;
+    class Frontend,UI,ClientTools,Visualizers,Astro,Bio,Chem,Phy,Drug,Charts,Parsers,LocalStore frontend;
+    class Backend,Gateway,Logic,ChatPipe,TTS,Sync backend;
+    class Providers,Gemini,Supabase external;
+```
+
+### 🧠 Intelligence Trigger Logic
+This decision flow illustrates how Gemini AI analyzes incoming queries to dynamically activate the most relevant visualization module.
+
+```mermaid
+flowchart TD
+    In([User Query / File Upload]) --> AI{AI Intent Analysis}
+    
+    AI -- "General Inquiry" --> Text([Markdown Chat Response])
+    AI -- "Scientific/Data Topic" --> Pattern{Pattern Match?}
+    
+    Pattern -- "SMILES/Molecules" --> Chem((🧪 Chem-Viz))
+    Pattern -- "PDB ID/Protein" --> Bio((🧬 Bio-Viz))
+    Pattern -- "Physical Laws" --> Phy((🎾 Phy-Viz))
+    Pattern -- "Drug/Medication" --> Drug((💊 Drug-Viz))
+    Pattern -- "Celestial Body" --> Astro((✨ Astro-Viz))
+    Pattern -- "Tabular Data" --> Charts((📈 Data-Viz))
+
+    subgraph Output ["Premium UI Delivery"]
+        Chem & Bio & Phy & Drug & Astro & Charts --> Card([Interactive Card Rendering])
+    end
+
+    %% Logic Styling (Decision Tree Style)
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef process fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
+    class AI,Pattern decision;
+    class Chem,Bio,Phy,Drug,Astro,Charts,Text process;
 ```
 
 ---
