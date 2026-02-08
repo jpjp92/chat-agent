@@ -112,7 +112,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   return (
     <header className="relative z-40 sticky top-0 w-full transition-all">
       {/* Background with Glass Effect */}
-      <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 glass-effect border-b border-slate-200 dark:border-slate-800 -z-10"></div>
+      <div className="absolute inset-0 bg-white/80 dark:bg-[#131314]/80 glass-effect border-none -z-10"></div>
 
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center space-x-2 sm:space-x-4">

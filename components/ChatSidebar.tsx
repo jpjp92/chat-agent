@@ -105,7 +105,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         ></div>
       )}
 
-      <aside className={`fixed md:relative flex flex-col bg-slate-50 dark:bg-[#0b0b0c] border-r border-slate-200 dark:border-slate-800 h-full transition-all duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
+      <aside className={`fixed md:relative flex flex-col bg-slate-50 dark:bg-[#131314] border-none h-full transition-all duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
         } ${
         // Desktop collapse logic
         isCollapsed ? 'md:w-[68px]' : 'md:w-[300px]'
