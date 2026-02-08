@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>('ko');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
@@ -535,7 +536,9 @@ const App: React.FC = () => {
         currentSessionId={currentSessionId}
         language={language}
         isOpen={isSidebarOpen}
+        isCollapsed={isSidebarCollapsed}
         onClose={() => setIsSidebarOpen(false)}
+        toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onLanguageChange={handleLanguageChange}
         onSelectSession={handleSelectSession}
         onNewSession={() => handleNewSession()}

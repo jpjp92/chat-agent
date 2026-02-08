@@ -13,6 +13,8 @@ interface ChatSidebarProps {
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, newTitle: string) => void;
   showConfirmDialog: (title: string, message: string, onConfirm: () => void, type?: 'danger' | 'info') => void;
+  isCollapsed?: boolean;
+  toggleCollapse?: () => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -20,7 +22,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   currentSessionId,
   language,
   isOpen,
+  isCollapsed,
   onClose,
+  toggleCollapse,
   onLanguageChange,
   onSelectSession,
   onNewSession,
@@ -43,8 +47,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const i18n = {
     ko: {
-      newChat: "새 대화",
-      history: "기록",
+      newChat: "새 채팅",
+      history: "최근 기록",
       deleteTitle: "채팅방 삭제",
       deleteMsg: "이 채팅방을 정말 삭제하시겠습니까? 삭제된 기록은 복구할 수 없습니다.",
       doubleClick: "더블 클릭하여 수정",
@@ -52,7 +56,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     },
     en: {
       newChat: "New Chat",
-      history: "History",
+      history: "Recent",
       deleteTitle: "Delete Chat",
       deleteMsg: "Are you sure you want to delete this chat? This cannot be undone.",
       doubleClick: "Double-click to edit",
@@ -60,7 +64,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     },
     es: {
       newChat: "Nuevo Chat",
-      history: "Historial",
+      history: "Reciente",
       deleteTitle: "Eliminar Chat",
       deleteMsg: "¿Estás seguro de que quieres eliminar este chat? No se puede deshacer.",
       doubleClick: "Doble clic para editar",
@@ -68,7 +72,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     },
     fr: {
       newChat: "Nouveau Chat",
-      history: "Historique",
+      history: "Récent",
       deleteTitle: "Supprimer le Chat",
       deleteMsg: "Êtes-vous sûr de vouloir supprimer ce chat ? Cette action est irréversible.",
       doubleClick: "Double-cliquez pour modifier",
@@ -101,135 +105,172 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         ></div>
       )}
 
-      <aside className={`fixed md:relative flex flex-col w-72 lg:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full transition-all duration-300 z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      <aside className={`fixed md:relative flex flex-col bg-slate-50 dark:bg-[#0b0b0c] border-r border-slate-200 dark:border-slate-800 h-full transition-all duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
+        } ${
+        // Desktop collapse logic
+        isCollapsed ? 'md:w-[68px]' : 'md:w-[300px]'
         }`}>
-        <div className="p-6 flex items-center justify-between">
-          <button
-            onClick={onNewSession}
-            className="flex-1 group flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3.5 px-4 rounded-2xl transition-all duration-300 shadow-lg shadow-primary-500/25 active:scale-[0.98]"
-          >
-            <i className="fa-solid fa-plus group-hover:rotate-90 transition-transform duration-300"></i>
-            <span>{t.newChat}</span>
-          </button>
 
-          <button
-            onClick={onClose}
-            className="md:hidden ml-4 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500"
-          >
-            <i className="fa-solid fa-xmark"></i>
-          </button>
-        </div>
+        {/* Header Section */}
+        <div className={`flex ${isCollapsed ? 'flex-col items-center py-3 space-y-6' : 'flex-col px-4 py-3'}`}>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6">
-          <div className="flex items-center justify-between px-2 mb-4">
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{t.history}</h3>
-            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500">{sessions.length}</span>
-          </div>
-
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              onClick={() => editingId !== session.id && onSelectSession(session.id)}
-              className={`group relative flex items-center px-4 py-3.5 rounded-2xl cursor-pointer transition-all duration-300 border-2 ${currentSessionId === session.id
-                ? 'bg-primary-50 dark:bg-primary-950/30 border-primary-100 dark:border-primary-900/30 text-primary-700 dark:text-primary-400'
-                : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+          {/* Top Bar (Hamburger & Mobile Close) */}
+          <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-between mb-4 pl-2'}`}>
+            {/* Desktop Collapse Button */}
+            <button
+              onClick={toggleCollapse}
+              className={`hidden md:flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors ${isCollapsed ? 'w-10 h-10' : 'w-10 h-10 -ml-2'
                 }`}
             >
-              <div className={`w-2 h-2 rounded-full mr-3 transition-all duration-300 ${currentSessionId === session.id ? 'bg-primary-500' : 'bg-slate-300 dark:bg-slate-700'
-                }`}></div>
+              <i className="fa-solid fa-bars text-lg"></i>
+            </button>
 
-              {editingId === session.id ? (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      onRenameSession(session.id, editingTitle.trim() || session.title);
-                      setEditingId(null);
-                    } else if (e.key === 'Escape') {
-                      setEditingId(null);
-                    }
-                  }}
-                  onBlur={() => {
-                    onRenameSession(session.id, editingTitle.trim() || session.title);
-                    setEditingId(null);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 text-sm font-semibold bg-white dark:bg-slate-800 border border-primary-300 dark:border-primary-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className="truncate flex-1 text-sm font-semibold"
-                  onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    setEditingId(session.id);
-                    setEditingTitle(session.title);
-                  }}
-                  title={t.doubleClick}
-                >
-                  {session.title}
-                </span>
-              )}
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showConfirmDialog(
-                    t.deleteTitle,
-                    t.deleteMsg,
-                    () => onDeleteSession(session.id),
-                    'danger'
-                  );
-                }}
-                className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 transition-all transform hover:scale-110"
-              >
-                <i className="fa-solid fa-trash-can text-xs"></i>
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Custom Language Selector */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
-          <div className="relative" ref={dropdownRef}>
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 px-1 block">{t.languageLabel}</label>
-
-            {/* Language Menu Popover */}
-            {isLangMenuOpen && (
-              <div className="absolute bottom-full left-0 w-full mb-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 z-[60]">
-                {languages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => {
-                      onLanguageChange(lang.code);
-                      setIsLangMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center px-4 py-3.5 text-sm transition-colors ${language === lang.code
-                      ? 'bg-primary-500 text-white font-bold'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                      }`}
-                  >
-                    <span className="flex-1 text-left">{lang.name} ({lang.label})</span>
-                    {language === lang.code && <i className="fa-solid fa-check text-xs"></i>}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Trigger Button */}
+            {/* Mobile Close Button */}
             <button
-              onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-              className="w-full flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:shadow-md transition-all active:scale-[0.98] ring-offset-2 focus:ring-2 focus:ring-primary-500/20"
+              onClick={onClose}
+              className="md:hidden w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
             >
-              <i className="fa-solid fa-globe mr-3 text-slate-400"></i>
-              <span className="flex-1 text-left">{currentLang.name} ({currentLang.label})</span>
-              <i className={`fa-solid fa-chevron-up transition-transform duration-300 text-[10px] text-slate-400 ${isLangMenuOpen ? 'rotate-180' : ''}`}></i>
+              <i className="fa-solid fa-xmark text-lg"></i>
             </button>
           </div>
+
+          {/* New Chat Button */}
+          <button
+            onClick={onNewSession}
+            title={t.newChat}
+            className={`group flex items-center transition-all duration-300 shadow-sm hover:shadow-md active:scale-95 ${isCollapsed
+              ? 'justify-center w-10 h-10 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              : 'w-full justify-start space-x-3 bg-slate-100/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold py-3 px-4 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+          >
+            <i className="fa-regular fa-pen-to-square text-sm"></i>
+            {!isCollapsed && <span className="text-sm">{t.newChat}</span>}
+          </button>
         </div>
+
+        {/* Content Section (Hidden when collapsed) */}
+        {!isCollapsed && (
+          <div className="flex-1 overflow-y-auto px-3 space-y-1 pb-4 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between px-3 mb-2 mt-2">
+              <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400">{t.history}</h3>
+            </div>
+
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                onClick={() => editingId !== session.id && onSelectSession(session.id)}
+                className={`group relative flex items-center px-3 py-2.5 rounded-full cursor-pointer transition-all duration-200 overflow-hidden ${currentSessionId === session.id
+                  ? 'bg-primary-100 dark:bg-[#1e1e1f] text-slate-900 dark:text-slate-100 font-medium'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                  }`}
+              >
+                {/* Icon based on session state? For now just a chat bubble */}
+                <i className={`fa-regular fa-message text-xs mr-3 ${currentSessionId === session.id ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`}></i>
+
+                {editingId === session.id ? (
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        onRenameSession(session.id, editingTitle.trim() || session.title);
+                        setEditingId(null);
+                      } else if (e.key === 'Escape') {
+                        setEditingId(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      onRenameSession(session.id, editingTitle.trim() || session.title);
+                      setEditingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 text-sm bg-transparent border-b border-primary-500 outline-none"
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className="truncate flex-1 text-sm"
+                    title={session.title}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(session.id);
+                      setEditingTitle(session.title);
+                    }}
+                  >
+                    {session.title}
+                  </span>
+                )}
+
+                {/* Hover Menu */}
+                <div className={`absolute right-2 flex items-center space-x-1 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity bg-gradient-to-l from-primary-100 dark:from-[#1e1e1f] via-primary-100 dark:via-[#1e1e1f] to-transparent pl-4`}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(session.id);
+                      setEditingTitle(session.title);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                    title={t.doubleClick}
+                  >
+                    <i className="fa-solid fa-pen text-[10px]"></i>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showConfirmDialog(t.deleteTitle, t.deleteMsg, () => onDeleteSession(session.id), 'danger');
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <i className="fa-solid fa-trash-can text-[10px]"></i>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Custom Language Selector (Hidden when collapsed) */}
+        {!isCollapsed && (
+          <div className="p-3 mt-auto">
+            <div className="relative" ref={dropdownRef}>
+              {/* Language Menu Popover */}
+              {isLangMenuOpen && (
+                <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[60]">
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        onLanguageChange(lang.code);
+                        setIsLangMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center px-4 py-2.5 text-sm transition-colors ${language === lang.code
+                        ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300 font-medium'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                    >
+                      <span className="flex-1 text-left">{lang.name}</span>
+                      {language === lang.code && <i className="fa-solid fa-check text-xs"></i>}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Trigger Button */}
+              <button
+                onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+                className="w-full flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 transition-colors"
+              >
+                <div className="flex items-center">
+                  <i className="fa-solid fa-globe mr-2"></i>
+                  <span>{currentLang.label}</span>
+                </div>
+                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{currentLang.code.toUpperCase()}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );

@@ -66,6 +66,7 @@
     - **Advanced Typography**: Premium support for **H3 headings, Blockquotes, Keyboard keys (<kbd>), Strong/Emphasis**, and responsive Tables.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
 - **Improved Bio-Viz Alignment**: Enhanced **Vertical Centering** (`pt-10 pb-16`) and **Mobile Sequence Map** layout for balanced, professional presentation.
+- **Collapsible Sidebar (Desktop)**: A Gemini-inspired, collapsible sidebar that maximizes workspace on large screens. Features a responsive "New Chat" button reconfiguration (Pill -> Icon).
 
 ---
 
