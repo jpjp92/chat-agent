@@ -27,7 +27,7 @@ const useThemeMode = () => {
     return isDark;
 };
 
-const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 450, height = 240, language = 'ko' }) => {
+const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 600, height = 300, language = 'ko' }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -193,13 +193,17 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                             <span className="text-sm font-semibold tracking-tight">{error}</span>
                         </div>
                     ) : (
-                        <div className="relative w-full overflow-x-auto flex justify-center pb-2 custom-scrollbar focus:outline-none">
-                            <svg
-                                ref={svgRef}
-                                width={width}
-                                height={height}
-                                className="h-auto transition-all duration-700 hover:scale-[1.02] min-w-[400px] sm:min-w-0"
-                            />
+                        <div className="relative w-full flex justify-center">
+                            <div className="w-full max-w-3xl">
+                                <svg
+                                    ref={svgRef}
+                                    viewBox={`0 0 ${width} ${height}`}
+                                    width="100%"
+                                    height="auto"
+                                    preserveAspectRatio="xMidYMid meet"
+                                    className="transition-all duration-700 hover:scale-[1.02]"
+                                />
+                            </div>
                         </div>
                     )}
                 </div>

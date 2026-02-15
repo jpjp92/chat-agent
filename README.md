@@ -27,7 +27,10 @@
 
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 - **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
-- **Chemical Structure Rendering**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. Now includes **Molecule Naming** and **SVG Export**.
+- **Chemical Structure Rendering (Chem-Viz)**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. 
+    - **ViewBox Responsive Design (NEW)**: SVG viewBox-based scaling ensures optimal display on all screen sizes—spacious on desktop (up to 768px), perfectly fitted on mobile.
+    - **Enhanced Resolution**: Increased default canvas size (600x300) for sharper molecular details.
+    - **Molecule Naming & SVG Export**: Download publication-ready molecular structures with white backgrounds.
 - **Bioinformatics Visualization (Bio-Viz)**: 
     - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations.
     - **Perfect Visual Centering**: CSS-based layout optimization (`pt-32 pb-24`) ensures structures are precisely centered between header and footer badges, with dual `autoView` calls (600ms, 1200ms) for layout stability.
