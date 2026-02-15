@@ -48,17 +48,22 @@
     - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
     - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
     - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
-- **Intelligent Drug Visualization (Drug-Viz) (v3.1 - Enhanced UX)**: 
+- **Intelligent Drug Visualization (Drug-Viz) (v3.2 - Enhanced Accuracy & UX)**: 
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
     - **Smart Reveal Architecture**: Integrated **600ms Synchronized Entrance** logic—waits for image data before revealing the card for a seamless first impression.
     - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
     - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.
     - **Efficacy Icon Overhaul**: Utilizes **100% Guaranteed Free FontAwesome 6** icons with a robust hybrid mapping system (Keyword > AI > Fallback).
     - **Expanded Efficacy Mapping**: Visual tags for **Metabolism, Weight Loss, Respiratory, and Eye/Vision** categories.
+    - **Dosage Consistency Enforcement (NEW)**: AI-powered verification ensures all data (name, ingredient, imprint, image) belongs to the **exact same dosage version** (e.g., 120mg vs 180mg), preventing mismatched identification information.
+    - **Front/Back Imprint Separation (NEW)**: Pill markings are now displayed as separate **Front** and **Back** badges for accurate real-world identification. Displays "없음" (None) when no marking exists.
+    - **Optimized Identification Badges**: Removed redundant size information (already visible in image ruler). Streamlined 4-badge layout: **Shape, Color, Front, Back**.
+    - **Smart Category Parsing**: Multi-category drugs (e.g., "비충혈제거제, 항히스타민제") are displayed as separate, clean badges without word-splitting issues.
     - **Deep Localization**: Fully supports **KO, EN, ES, FR** with localized footer actions and headers.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
+- **Streamlined Mobile Sidebar (NEW)**: Removed intrusive close button (X) from mobile sidebar. Users can now close the sidebar naturally by tapping the backdrop, matching modern mobile app patterns (e.g., ChatGPT).
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
 - **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.

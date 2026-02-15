@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface PillVisual {
     shape: 'round' | 'oval' | 'capsule' | 'triangle' | 'pentagon' | 'hexagon';
     color: string;
-    imprint?: string;
-    size?: string;
+    imprint_front?: string;
+    imprint_back?: string;
 }
 
 interface Efficacy {
@@ -221,10 +221,12 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         <div className="flex flex-col gap-6">
                             {/* Title & Badge */}
                             <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="px-2 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/20 text-[10px] font-black text-indigo-600 dark:text-indigo-400 rounded-full uppercase tracking-tighter border border-indigo-200/50 dark:border-indigo-500/30">
-                                        {data.category.split(' ')[0]}
-                                    </span>
+                                <div className="flex flex-wrap items-center gap-1">
+                                    {data.category.split(/[,/()]+/).filter(Boolean).map((cat, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/20 text-[8px] sm:text-[10px] font-black text-indigo-600 dark:text-indigo-400 rounded-full uppercase tracking-tighter border border-indigo-200/50 dark:border-indigo-500/30">
+                                            {cat.trim()}
+                                        </span>
+                                    ))}
                                 </div>
                                 <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
                                     {data.name}
@@ -333,20 +335,20 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.color || '-'}</span>
                                 </div>
                             </div>
-                            {/* Imprint Badge */}
+                            {/* Front Imprint Badge */}
                             <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
                                 <i className="fa-solid fa-font text-[10px] text-blue-500"></i>
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '각인' : 'Marking'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint || '-'}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '앞면' : 'Front'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}</span>
                                 </div>
                             </div>
-                            {/* Size Badge */}
+                            {/* Back Imprint Badge */}
                             <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
-                                <i className="fa-solid fa-ruler-combined text-[10px] text-teal-500"></i>
+                                <i className="fa-solid fa-font text-[10px] text-teal-500"></i>
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '크기' : 'Size'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.size || '-'}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '뒷면' : 'Back'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}</span>
                                 </div>
                             </div>
                         </div>
@@ -408,7 +410,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 {/* Refined Footer */}
                 <div className="px-8 py-5 bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
                     <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase">Medicine Index Meta-Data</span>
+                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase">Medicine Index</span>
                     </div>
                     <a
                         href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(data.name)}`}

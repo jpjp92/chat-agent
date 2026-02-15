@@ -219,8 +219,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "pill_visual": {
         "shape": "round" | "oval" | "capsule" | "other",
         "color": "white" | "yellow" | "pink" | "blue" | "green" | "other",
-        "imprint": "Marking on pill (e.g., SD / SD)",
-        "size": "Measured size (e.g., 8.5mm)"
+        "imprint_front": "Front marking (e.g., 012, SAMIL)",
+        "imprint_back": "Back marking (e.g., blank, PB, or specific text)"
       },
       "efficacy": [
         { "label": "코막힘 완화", "icon": "fa-nose-bubble" },
@@ -230,7 +230,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     \`\`\`
   - **PROACTIVE DRUG VISUALIZATION**: For ANY medication-related query (including "summary", "info", "card style", "visualize"), you **MUST** generate the \`json:drug\` block.
   - **PRIORITY RULE**: The \`json:drug\` block is the PRIMARY response. Do NOT generate a Markdown table or a bullet list *INSTEAD* of the JSON block. You can provide text description *AFTER* the JSON block if needed, but the JSON must come first.
-  - **MANDATORY IDENTIFICATION RESEARCH (CRITICAL)**: Before generating the JSON, you **MUST** performing a search for the **식별정보** (Identification Info) of the drug, **EVEN IF you already know the drug** (like Tylenol). 
+  - **DOSAGE CONSISTENCY RULE (CRITICAL)**: Many drugs (e.g., Allegra, Tylenol) have multiple dosage versions (120mg, 180mg, etc.) with DIFFERENT identification data (imprint, size, color).
+    - You **MUST** ensure that \`name\`, \`ingredient\`, \`pill_visual\` (imprint/size/color), \`dosage\`, and \`image_url\` ALL belong to the **EXACT SAME dosage version**.
+    - **NEVER mix data**: Do NOT use 120mg imprint ("012") with 180mg product name. This is a CRITICAL error.
+    - **Selection priority**: If the user doesn't specify dosage, pick the FIRST or MOST COMMON version found in search results, then maintain 100% consistency for that specific version across all fields.
+    - **Verification step**: After extracting data, cross-check that the imprint matches the dosage in the product name (e.g., if imprint is "012", ensure the name reflects 120mg version).
+  - **MANDATORY IDENTIFICATION RESEARCH (CRITICAL)**: Before generating the JSON, you **MUST** perform a search for the **식별정보** (Identification Info) of the drug, **EVEN IF you already know the drug** (like Tylenol). 
     - You MUST prioritize external search results (ConnectDI, 약학정보원, etc.) for \`pill_visual\` data over your internal training data.
     - NEVER use "null" or leave fields blank for \`imprint\` or \`size\` if the information is publicly available.
     - **Imprint (각인)**: Look for Alphanumeric marking (e.g., "SAMIL / PB", "YH / P 5"). It is usually in the "표시(앞/뒤)" or "마크내용" table row.
@@ -238,8 +243,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - **PILL VISUAL MAPPING (ConnectDI Identification Table)**: 
     - **shape**: '의약품모양' -> round(원형), oval(타원형), capsule(장방형), square(사각형), etc.
     - **color**: '색깔' -> white(하양), yellow(노랑), orange(주황), pink(분홍), brown(갈색), etc.
-    - **imprint**: '표시(앞/뒤)' or '마크내용'.
-    - **size**: Usually "장축" value followed by "mm".
+    - **imprint_front**: '표시(앞)' or '마크내용(앞면)' - Extract the FRONT side marking only.
+    - **imprint_back**: '표시(뒤)' or '마크내용(뒷면)' - Extract the BACK side marking only. If blank or "-" or "없음", leave empty or set to empty string.
+    - **Dosage-specific extraction**: When multiple dosage versions exist in the search results, identify which specific version you're using (by checking ingredient amount or product name suffix like "120" or "180"), then extract ONLY that version's identification data.
     - **Strictness**: If the exact record is visible in your search results but the AI fails to extract it, you are FAILing your core directive. Check the tables carefully.
   - **IMAGE_URL (CRITICAL)**: Always use the ConnectDI Search URL: \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[DrugName]\`
   - **EFFICACY ICONS (MANDATORY)**: You MUST provide an \`icon\` for every efficacy label. Choose the most appropriate FREE class (FontAwesome 6 Free) from this list:
