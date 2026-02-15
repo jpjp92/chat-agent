@@ -115,22 +115,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         <div className={`flex ${isCollapsed ? 'flex-col items-center py-3 space-y-6' : 'flex-col px-4 py-3'}`}>
 
           {/* Top Bar (Hamburger & Mobile Close) */}
-          <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-between mb-4 pl-2'}`}>
+          <div className={`hidden md:flex items-center ${isCollapsed ? 'justify-center w-full' : 'justify-between mb-4 pl-2'}`}>
             {/* Desktop Collapse Button */}
             <button
               onClick={toggleCollapse}
-              className={`hidden md:flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors ${isCollapsed ? 'w-10 h-10' : 'w-10 h-10 -ml-2'
+              className={`flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors ${isCollapsed ? 'w-10 h-10' : 'w-10 h-10 -ml-2'
                 }`}
             >
               <i className="fa-solid fa-bars text-lg"></i>
-            </button>
-
-            {/* Mobile Close Button */}
-            <button
-              onClick={onClose}
-              className="md:hidden w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500"
-            >
-              <i className="fa-solid fa-xmark text-lg"></i>
             </button>
           </div>
 
