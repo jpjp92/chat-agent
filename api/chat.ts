@@ -243,8 +243,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   - **PILL VISUAL MAPPING (ConnectDI Identification Table)**: 
     - **shape**: '의약품모양' -> round(원형), oval(타원형), capsule(장방형), square(사각형), etc.
     - **color**: '색깔' -> white(하양), yellow(노랑), orange(주황), pink(분홍), brown(갈색), etc.
-    - **imprint_front**: '표시(앞)' or '마크내용(앞면)' - Extract the FRONT side marking only.
-    - **imprint_back**: '표시(뒤)' or '마크내용(뒷면)' - Extract the BACK side marking only. If blank or "-" or "없음", leave empty or set to empty string.
+    - **imprint_front**: '표시(앞)' or '마크내용(앞면)' - Extract the FRONT side marking only. **IMPORTANT**: If the front has multiple lines (e.g., "QTPN" and "100" on separate lines), combine them with a space or slash (e.g., "QTPN 100" or "QTPN/100"). Do NOT split multi-line front markings into front and back.
+    - **imprint_back**: '표시(뒤)' or '마크내용(뒷면)' - Extract the BACK side marking only. If blank or "-" or "없음", leave empty or set to empty string. **CRITICAL**: Only use this field if the marking is ACTUALLY on the back side of the pill, not for second-line front markings.
     - **Dosage-specific extraction**: When multiple dosage versions exist in the search results, identify which specific version you're using (by checking ingredient amount or product name suffix like "120" or "180"), then extract ONLY that version's identification data.
     - **Strictness**: If the exact record is visible in your search results but the AI fails to extract it, you are FAILing your core directive. Check the tables carefully.
   - **IMAGE_URL (CRITICAL)**: Always use the ConnectDI Search URL: \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[DrugName]\`

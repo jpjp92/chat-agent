@@ -34,7 +34,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     const [imageError, setImageError] = useState(false);
     const [syncedUrl, setSyncedUrl] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(!!data.image_url);
-    const [isReady, setIsReady] = useState(false);
+    const [serverPillVisual, setServerPillVisual] = useState<any>(null); // Server-extracted pill visual
+
 
     const i18n = {
         ko: {
@@ -177,12 +178,20 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     const response = await fetch('/api/sync-drug-image', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: data.image_url })
+                        body: JSON.stringify({
+                            url: data.image_url,
+                            imprint_front: data.pill_visual?.imprint_front,
+                            imprint_back: data.pill_visual?.imprint_back
+                        })
                     });
 
                     if (response.ok) {
-                        const { publicUrl } = await response.json();
+                        const { publicUrl, pillVisual } = await response.json();
                         setSyncedUrl(publicUrl);
+                        if (pillVisual) {
+                            console.log('[DrugRenderer] Server extracted pill visual:', pillVisual);
+                            setServerPillVisual(pillVisual);
+                        }
                         setImageError(false);
                     } else {
                         setImageError(true);
@@ -201,18 +210,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         syncImage();
     }, [data.image_url, syncedUrl]);
 
-    // Smart Reveal Logic: Wait up to 600ms for the image, then show anyway
-    useEffect(() => {
-        if (!syncing) {
-            setIsReady(true);
-        } else {
-            const timer = setTimeout(() => setIsReady(true), 600);
-            return () => clearTimeout(timer);
-        }
-    }, [syncing]);
+
 
     return (
-        <div className={`w-full my-6 transform transition-all duration-1000 ease-out ${isReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="w-full my-6">
             <div className="max-w-2xl mx-auto rounded-[1.5rem] border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-lg overflow-hidden">
 
                 {/* Hero Section: Integrated Title & Image */}
@@ -251,7 +252,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                             {syncing && !syncedUrl ? (
                                                 <motion.div
                                                     key="shimmer"
-                                                    initial={{ opacity: 0 }}
+                                                    initial={{ opacity: 1 }}
                                                     animate={{ opacity: 1 }}
                                                     exit={{ opacity: 0 }}
                                                     className="w-full h-full flex flex-col items-center justify-center gap-4 bg-indigo-500/[0.02] dark:bg-indigo-500/[0.01]"
@@ -274,7 +275,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                             ) : !proxiedImageUrl || imageError ? (
                                                 <motion.div
                                                     key="no-image"
-                                                    initial={{ opacity: 0 }}
+                                                    initial={{ opacity: 1 }}
                                                     animate={{ opacity: 1 }}
                                                     className="flex flex-col items-center gap-3 text-slate-300 dark:text-slate-700"
                                                 >
@@ -284,9 +285,9 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                             ) : (
                                                 <motion.div
                                                     key="image"
-                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    initial={{ opacity: 1, scale: 1 }}
                                                     animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                                    transition={{ duration: 0.3, ease: "easeOut" }}
                                                     className="relative w-full h-full flex items-center justify-center p-6"
                                                 >
                                                     <img
@@ -324,7 +325,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-shapes text-[10px] text-indigo-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '모양' : 'Shape'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.shape || '-'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.shape || data.pill_visual?.shape || '-'}</span>
                                 </div>
                             </div>
                             {/* Color Badge */}
@@ -332,7 +333,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-palette text-[10px] text-purple-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '색상' : 'Color'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{data.pill_visual?.color || '-'}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.color || data.pill_visual?.color || '-'}</span>
                                 </div>
                             </div>
                             {/* Front Imprint Badge */}
@@ -340,7 +341,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-font text-[10px] text-blue-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '앞면' : 'Front'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{serverPillVisual?.imprint_front || data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}</span>
                                 </div>
                             </div>
                             {/* Back Imprint Badge */}
@@ -348,7 +349,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-font text-[10px] text-teal-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '뒷면' : 'Back'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{serverPillVisual?.imprint_back || data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}</span>
                                 </div>
                             </div>
                         </div>

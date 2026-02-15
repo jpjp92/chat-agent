@@ -3,12 +3,14 @@ import { supabase } from './lib/supabase.js';
 import crypto from 'crypto';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    const { url } = req.body;
+    const { url, imprint_front, imprint_back } = req.body;
 
     if (!url || typeof url !== 'string') {
         console.error('[Sync] Error: Missing or invalid URL in request body');
         return res.status(400).json({ error: 'Image URL is required' });
     }
+
+    console.log(`[Sync] Imprint verification data - Front: "${imprint_front}", Back: "${imprint_back}"`);
 
     try {
         console.log(`[Sync] original url: ${url}`);
@@ -57,7 +59,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const headCheck = await fetch(publicUrlData.publicUrl, { method: 'HEAD' });
                 if (headCheck.ok) {
                     console.log(`[Sync] File exists. Returning cached URL.`);
-                    return res.status(200).json({ publicUrl: publicUrlData.publicUrl });
+
+                    // Even if cached, extract pill visual from ConnectDI if applicable
+                    let pillVisual = null;
+                    const isConnectDI = repairedUrl.includes('connectdi.com');
+
+                    if (isConnectDI) {
+                        try {
+                            console.log(`[Sync] Fetching ConnectDI HTML for pill visual extraction...`);
+                            const html = await fetchConnectDIDetailHTML(repairedUrl);
+
+                            if (html) {
+                                pillVisual = extractPillVisual(html);
+                            }
+                        } catch (e) {
+                            console.warn('[Sync] Failed to extract pill visual from cached ConnectDI:', e);
+                        }
+                    }
+
+                    return res.status(200).json({ publicUrl: publicUrlData.publicUrl, pillVisual });
                 }
             } catch (headErr) {
                 console.warn(`[Sync] HEAD check failed (file probably doesn't exist yet):`, headErr);
@@ -107,10 +127,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- 3.5. Scraping Fallbacks ---
         const isNaverEntry = finalUrl.includes('terms.naver.com');
         const isConnectDIEntry = finalUrl.includes('connectdi.com');
+        let html = ''; // Declare outside for wider scope
 
         if (contentType.includes('text/html') && (isNaverEntry || isConnectDIEntry)) {
             console.log(`[Sync] HTML content detected, searching for pill photo in ${isNaverEntry ? 'Naver' : 'ConnectDI'}...`);
-            const html = await externalResponse.text();
+            html = await externalResponse.text();
             let targetScrapedUrl = null;
 
             if (isNaverEntry) {
@@ -142,14 +163,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             } else if (isConnectDIEntry) {
-                // 2. ConnectDI Logic
+                // 2. ConnectDI Logic with Imprint Verification
                 const isSearchResult = finalUrl.includes('search_result');
                 console.log(`[Sync] ConnectDI content detected (${isSearchResult ? 'Search Result' : 'Detail Page'})...`);
 
-                // Example: <img src="/design/img/drug/1PEPKBUcmBO.jpg" alt="">
-                const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                if (drugMatch && drugMatch[1]) {
-                    targetScrapedUrl = 'https://www.connectdi.com' + drugMatch[1];
+                if (isSearchResult && (imprint_front || imprint_back)) {
+                    console.log(`[Sync] Searching for product with matching imprint...`);
+                    const productBlocks = html.split(/<div[^>]*class="[^"]*drug_list[^"]*"[^>]*>/i).slice(1);
+
+                    for (const block of productBlocks) {
+                        const frontMatch = block.match(/표시\s*\(앞\)[^<]*<[^>]*>([^<]+)</i);
+                        const backMatch = block.match(/표시\s*\(뒤\)[^<]*<[^>]*>([^<]+)</i);
+                        const blockFront = frontMatch ? frontMatch[1].trim() : '';
+                        const blockBack = backMatch ? backMatch[1].trim() : '';
+
+                        const normalizeFront = (s: string) => s.replace(/\s+/g, '').toUpperCase();
+                        const normalizeBack = (s: string) => s.replace(/\s+/g, '').toUpperCase().replace(/없음|NONE|-/g, '');
+                        const frontMatches = !imprint_front || normalizeFront(blockFront) === normalizeFront(imprint_front);
+                        const backMatches = !imprint_back || normalizeBack(blockBack) === normalizeBack(imprint_back || '');
+
+                        console.log(`[Sync] Checking - Front: "${blockFront}" (${frontMatches}), Back: "${blockBack}" (${backMatches})`);
+
+                        if (frontMatches && backMatches) {
+                            const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                            if (imgMatch && imgMatch[1]) {
+                                targetScrapedUrl = 'https://www.connectdi.com' + imgMatch[1];
+                                console.log(`[Sync] ✅ Found matching product: ${targetScrapedUrl}`);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!targetScrapedUrl) {
+                        console.warn(`[Sync] ⚠️ No match for Front:"${imprint_front}" Back:"${imprint_back}"`);
+                        const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                        if (drugMatch && drugMatch[1]) {
+                            targetScrapedUrl = 'https://www.connectdi.com' + drugMatch[1];
+                            console.log(`[Sync] Using fallback (first image)`);
+                        }
+                    }
+                } else {
+                    const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                    if (drugMatch && drugMatch[1]) {
+                        targetScrapedUrl = 'https://www.connectdi.com' + drugMatch[1];
+                    }
                 }
             }
 
@@ -166,7 +223,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const scrapedBuffer = Buffer.from(await scrapedResponse.arrayBuffer());
                     const scrapedContentType = scrapedResponse.headers.get('content-type') || 'image/jpeg';
                     const result = await uploadAndReturn(scrapedBuffer, scrapedContentType, fileName);
-                    return res.status(200).json(result);
+
+                    // Extract pill visual info from ConnectDI HTML (fetch detail page if needed)
+                    let pillVisual = null;
+                    if (isConnectDIEntry) {
+                        const detailHtml = await fetchConnectDIDetailHTML(finalUrl);
+                        if (detailHtml) {
+                            pillVisual = extractPillVisual(detailHtml);
+                        }
+                    }
+
+                    return res.status(200).json({ ...result, pillVisual });
                 }
             }
 
@@ -178,7 +245,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log(`[Sync] Downloaded ${buffer.length} bytes. Type: ${contentType}`);
 
         const result = await uploadAndReturn(buffer, contentType, fileName);
-        return res.status(200).json(result);
+
+        // Extract pill visual info if ConnectDI (fetch detail page if needed)
+        let pillVisual = null;
+        if (isConnectDIEntry) {
+            const detailHtml = await fetchConnectDIDetailHTML(finalUrl);
+            if (detailHtml) {
+                pillVisual = extractPillVisual(detailHtml);
+            }
+        }
+
+        return res.status(200).json({ ...result, pillVisual });
 
     } catch (error: any) {
         console.error(`[Sync] Fatal error during sync:`, error);
@@ -187,6 +264,159 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             message: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
+    }
+}
+
+// Fetch ConnectDI detail page HTML (handles search result redirect)
+async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {
+    try {
+        const htmlResponse = await fetch(url, {
+            headers: {
+                'Referer': 'https://www.connectdi.com/',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        if (!htmlResponse.ok) return null;
+
+        let html = await htmlResponse.text();
+
+        // If it's a search result page, extract detail page link
+        if (url.includes('search_result')) {
+            console.log('[Sync] Search result page detected, looking for detail page link...');
+            const detailLinkMatch = html.match(/href=["']([^"']*pap=detail[^"']*)["']/i);
+
+            if (detailLinkMatch) {
+                const detailPath = detailLinkMatch[1];
+                const detailUrl = detailPath.startsWith('http')
+                    ? detailPath
+                    : `https://www.connectdi.com${detailPath.startsWith('/') ? '' : '/mobile/drug/'}${detailPath}`;
+
+                console.log(`[Sync] Found detail page: ${detailUrl}`);
+
+                // Fetch detail page
+                const detailResponse = await fetch(detailUrl, {
+                    headers: {
+                        'Referer': 'https://www.connectdi.com/',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                if (detailResponse.ok) {
+                    html = await detailResponse.text();
+                }
+            } else {
+                console.warn('[Sync] No detail page link found in search results');
+            }
+        }
+
+        return html;
+    } catch (e) {
+        console.error('[Sync] Error fetching ConnectDI HTML:', e);
+        return null;
+    }
+}
+
+// Extract pill identification info from ConnectDI HTML
+function extractPillVisual(html: string): {
+    shape?: string;
+    color?: string;
+    imprint_front?: string;
+    imprint_back?: string;
+} | null {
+    try {
+        const pillVisual: any = {};
+
+        // Extract from identification table
+        const shapeMatch = html.match(/<th>의약품모양<\/th>\s*<td>([^<]+)<\/td>/i);
+        const colorMatch = html.match(/<th>색깔\(앞\)<\/th>\s*<td>([^<]+)<\/td>/i);
+        const frontMatch = html.match(/<th>표시\(앞\)<\/th>\s*<td>([^<]+)<\/td>/i);
+        const backMatch = html.match(/<th>표시\(뒤\)<\/th>\s*<td>([^<]+)<\/td>/i);
+
+        console.log('[Sync] Regex matches:', {
+            shape: shapeMatch ? shapeMatch[1] : 'NOT FOUND',
+            color: colorMatch ? colorMatch[1] : 'NOT FOUND',
+            front: frontMatch ? frontMatch[1] : 'NOT FOUND',
+            back: backMatch ? backMatch[1] : 'NOT FOUND'
+        });
+
+        if (shapeMatch) {
+            const shapeKo = shapeMatch[1].trim();
+            const shapeMap: Record<string, string> = {
+                '원형': 'round',
+                '타원형': 'oval',
+                '장방형': 'capsule',
+                '사각형': 'square',
+                '오각형': 'pentagon',
+                '육각형': 'hexagon',
+                '팔각형': 'octagon',
+                '마름모형': 'diamond',
+                '반원형': 'semicircle',
+                '삼각형': 'triangle'
+            };
+            pillVisual.shape = shapeMap[shapeKo] || shapeKo;
+        }
+
+        if (colorMatch) {
+            const colorKo = colorMatch[1].trim();
+            const colorMap: Record<string, string> = {
+                '하양': 'white',
+                '노랑': 'yellow',
+                '주황': 'orange',
+                '분홍': 'pink',
+                '빨강': 'red',
+                '갈색': 'brown',
+                '연두': 'light green',
+                '초록': 'green',
+                '청록': 'cyan',
+                '파랑': 'blue',
+                '남색': 'navy',
+                '자주': 'purple',
+                '보라': 'violet',
+                '회색': 'gray',
+                '검정': 'black',
+                '투명': 'clear'
+            };
+            pillVisual.color = colorMap[colorKo] || colorKo;
+        }
+
+        if (frontMatch) {
+            let front = frontMatch[1].trim();
+
+            // If "표시" is generic (마크, 각인, etc.), try "마크내용" instead
+            if (front === '마크' || front === '각인' || front === 'mark') {
+                const markMatch = html.match(/<th>마크내용\(앞\)<\/th>\s*<td>([^<]+)<\/td>/i);
+                if (markMatch && markMatch[1].trim() && markMatch[1].trim() !== '-') {
+                    front = markMatch[1].trim();
+                }
+            }
+
+            if (front && front !== '-' && front !== '없음' && front !== '마크' && front !== '각인') {
+                pillVisual.imprint_front = front;
+            }
+        }
+
+        if (backMatch) {
+            let back = backMatch[1].trim();
+
+            // If "표시" is generic, try "마크내용" instead
+            if (back === '마크' || back === '각인' || back === 'mark') {
+                const markMatch = html.match(/<th>마크내용\(뒤\)<\/th>\s*<td>([^<]+)<\/td>/i);
+                if (markMatch && markMatch[1].trim() && markMatch[1].trim() !== '-') {
+                    back = markMatch[1].trim();
+                }
+            }
+
+            if (back && back !== '-' && back !== '없음' && back !== '마크' && back !== '각인') {
+                pillVisual.imprint_back = back;
+            }
+        }
+
+        console.log(`[Sync] Extracted pill visual:`, pillVisual);
+        return Object.keys(pillVisual).length > 0 ? pillVisual : null;
+    } catch (e) {
+        console.error('[Sync] Error extracting pill visual:', e);
+        return null;
     }
 }
 
