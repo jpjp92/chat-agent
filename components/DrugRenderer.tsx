@@ -244,7 +244,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                         {language === 'ko' ? '외형 사진' : 'Reference Photo'}
                                     </span>
                                 </div>
-                                <div className="relative group mx-auto sm:mx-0">
+                                <div className="relative group w-full">
                                     {/* Digital Specimen Slide Look: Unified dark background */}
                                     <div className="w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500">
                                         <AnimatePresence mode="wait">

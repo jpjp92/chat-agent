@@ -28,12 +28,12 @@
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 - **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
 - **Chemical Structure Rendering (Chem-Viz)**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support. 
-    - **ViewBox Responsive Design (NEW)**: SVG viewBox-based scaling ensures optimal display on all screen sizes—spacious on desktop (up to 768px), perfectly fitted on mobile.
+    - **ViewBox Responsive Design**: SVG viewBox-based scaling ensures optimal display on all screen sizes—spacious on desktop (up to 768px), perfectly fitted on mobile.
     - **Enhanced Resolution**: Increased default canvas size (600x300) for sharper molecular details.
     - **Molecule Naming & SVG Export**: Download publication-ready molecular structures with white backgrounds.
 - **Bioinformatics Visualization (Bio-Viz)**: 
     - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations.
-    - **Perfect Visual Centering**: CSS-based layout optimization (`pt-32 pb-24`) ensures structures are precisely centered between header and footer badges, with dual `autoView` calls (600ms, 1200ms) for layout stability.
+    - **Perfect Visual Centering**: CSS-based layout optimization (`pt-10 pb-16`) ensures structures are precisely centered between header and footer badges, with optimized `autoView` call (600ms) for layout stability.
     - **Mobile-Optimized Tooltips**: On mobile, residue information appears as a **fixed bottom panel** instead of cursor-following tooltips, preventing finger occlusion during touch interactions.
     - **Intelligent Tracking**: Real-time **Residue Tracking** (#number) with fixed-position Glassmorphic Tooltips on desktop. 
     - **Large Scale Support**: Optimized for massive assemblies like **Connexin Channels** (e.g., 2ZW3) with multi-chain color differentiation.
@@ -54,6 +54,7 @@
 - **Intelligent Drug Visualization (Drug-Viz) (v3.4 - Enhanced Precision)**: 
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
     - **Instant Card Display**: Removed delayed reveal animation—cards now appear immediately while images sync in the background, improving perceived performance and UX.
+    - **Full-Width Image Layout**: Image container optimized to use full card width, ensuring loading states and synced images display properly without appearing small or misaligned.
     - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
     - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.
     - **Efficacy Icon Overhaul**: Utilizes **100% Guaranteed Free FontAwesome 6** icons with a robust hybrid mapping system (Keyword > AI > Fallback).
@@ -71,14 +72,13 @@
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 Mobile & UX Enhancements
-- **Streamlined Mobile Sidebar (NEW)**: Removed intrusive close button (X) from mobile sidebar. Users can now close the sidebar naturally by tapping the backdrop, matching modern mobile app patterns (e.g., ChatGPT).
+- **Streamlined Mobile Sidebar**: Removed intrusive close button (X) from mobile sidebar. Users can now close the sidebar naturally by tapping the backdrop, matching modern mobile app patterns (e.g., ChatGPT).
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
 - **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.
     - **AI Standards**: System-level directives ensure **Code Integrity** (single-block generation), modern syntax (ES6+, Python Type Hints), and proper language labeling.
     - **Advanced Typography**: Premium support for **H3 headings, Blockquotes, Keyboard keys (<kbd>), Strong/Emphasis**, and responsive Tables.
 - **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
-- **Improved Bio-Viz Alignment**: Enhanced **Vertical Centering** (`pt-10 pb-16`) and **Mobile Sequence Map** layout for balanced, professional presentation.
 - **Collapsible Sidebar (Desktop)**: A Gemini-inspired, collapsible sidebar that maximizes workspace on large screens. Features a responsive "New Chat" button reconfiguration (Pill -> Icon).
 
 ---
@@ -120,7 +120,7 @@ flowchart TB
         subgraph Logic ["Business Logic"]
             ChatPipe["/api/chat<br/><small>Prompt Engineering</small>"]
             TTS["/api/speech<br/><small>Audio Stream</small>"]
-            Sync["/api/sync-image<br/><small>Secure Cache</small>"]
+            Sync["/api/sync-drug-image<br/><small>Drug Image Cache</small>"]
         end
     end
     
@@ -225,6 +225,7 @@ flowchart TD
 │   ├── fetch-url.ts      # Real-time Web/Arxiv scraping
 │   ├── fetch-transcript.ts # YouTube subtitle fetching
 │   ├── summarize-title.ts # Intelligent titling via Gemma
+│   ├── sync-drug-image.ts # ConnectDI image caching & parsing
 │   └── lib/
 │       └── supabase.ts   # Server-side Supabase client config
 ├── components/            # UI Components (Localized)
@@ -237,7 +238,7 @@ flowchart TD
 │   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
 │   ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
 │   ├── ConstellationRenderer.tsx # Star map & Milky Way (Canvas)
-│   ├── DrugRenderer.tsx  # Detailed medication cards (New!)
+│   ├── DrugRenderer.tsx  # Drug identification cards with ConnectDI integration (v3.4)
 │   ├── Dialog.tsx        # Premium custom modals
 │   ├── Header.tsx        # User profile & global settings
 │   ├── Toast.tsx         # Notification feedback system
