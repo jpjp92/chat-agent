@@ -22,7 +22,6 @@ interface DrugData {
     image_url?: string;
     pill_visual?: PillVisual;
     efficacy?: Efficacy[];
-    smiles?: string;
 }
 
 interface DrugRendererProps {

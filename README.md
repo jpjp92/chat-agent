@@ -51,7 +51,7 @@
     - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
     - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
     - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
-- **Intelligent Drug Visualization (Drug-Viz) (v3.3 - Server-Side Accuracy)**: 
+- **Intelligent Drug Visualization (Drug-Viz) (v3.4 - Enhanced Precision)**: 
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
     - **Instant Card Display**: Removed delayed reveal animation—cards now appear immediately while images sync in the background, improving perceived performance and UX.
     - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
@@ -60,9 +60,9 @@
     - **Expanded Efficacy Mapping**: Visual tags for **Metabolism, Weight Loss, Respiratory, and Eye/Vision** categories.
     - **Dosage Consistency Enforcement**: AI-powered verification ensures all data (name, ingredient, imprint, image) belongs to the **exact same dosage version** (e.g., 120mg vs 180mg), preventing mismatched identification information.
     - **2-Stage Image Verification System**: Server-side HTML parsing of ConnectDI search results with **imprint-based matching** (front/back validation) ensures the displayed image matches the exact product. Accuracy improved from ~70% to **95%+** by eliminating wrong-product image selection.
-    - **Server-Side Identification Extraction (NEW)**: Backend directly parses ConnectDI HTML to extract pill visual data (shape, color, imprint), eliminating AI extraction errors. Accuracy improved from ~60% to **98%+**.
-    - **Auto Detail Page Navigation (NEW)**: Automatically detects ConnectDI search result pages and navigates to the detail page for accurate identification table parsing.
-    - **Smart Imprint Field Selection (NEW)**: Prioritizes "마크내용" (actual marking) over "표시" (description) when extracting imprints. Correctly handles cases where "표시" contains generic text like "마크" instead of the actual marking.
+    - **Server-Side Identification Extraction**: Backend directly parses ConnectDI HTML to extract pill visual data (shape, color, imprint), eliminating AI extraction errors. Accuracy improved from ~60% to **98%+**.
+    - **Auto Detail Page Navigation**: Automatically detects ConnectDI search result pages and navigates to the detail page for accurate identification table parsing, ensuring data is extracted from the authoritative source.
+    - **Smart Imprint Field Selection**: Implements intelligent field prioritization—when "표시" (display) contains generic placeholders like "마크" or "각인", the system automatically falls back to "마크내용" (marking content) to extract the actual imprint text, preventing empty or misleading identification data.
     - **Multi-Line Imprint Handling**: AI correctly processes pills with multiple lines on one side (e.g., "QTPN" and "100" both on front), preventing incorrect front/back splitting.
     - **Front/Back Imprint Separation**: Pill markings are now displayed as separate **Front** and **Back** badges for accurate real-world identification. Displays "없음" (None) when no marking exists.
     - **Optimized Identification Badges**: Removed redundant size information (already visible in image ruler). Streamlined 4-badge layout: **Shape, Color, Front, Back**.
