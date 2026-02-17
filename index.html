@@ -7,27 +7,27 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Chat with Gemini — Intelligent Conversation</title>
 
-  <!-- Critical CSS (Tailwind) - Load immediately for FCP -->
+  <!-- Critical CSS - Immediate load -->
   <link rel="stylesheet" href="./index.css">
 
-  <!-- Predictive fetching for external assets -->
+  <!-- Preconnect and DNS Prefetch (Handshake stage) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://axpvmgndefueicehdetu.supabase.co">
 
-  <!-- Preload fonts to avoid invisible text (FOIT) -->
+  <!-- Optimized Google Fonts - Selected weights for bandwidth efficiency -->
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"
     media="all">
 
-  <!-- Font Awesome - Non-blocking high-performance load -->
+  <!-- Non-blocking CDNs for better FCP -->
   <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print"
     onload="this.media='all'" crossorigin="anonymous">
 
-  <!-- KaTeX - Non-blocking high-performance load -->
   <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
     crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" media="print"

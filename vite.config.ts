@@ -16,21 +16,20 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
-    sourcemap: false,
-
-    // Chunk size optimization (minimized for lazy loading)
+    target: 'esnext',
+    cssCodeSplit: true,
+    cssMinify: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Only separate React core (always needed)
-          'react-vendor': ['react', 'react-dom'],
-          // Let dynamic imports handle the rest
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('framer-motion')) return 'motion-vendor';
+            if (id.includes('react')) return 'react-vendor';
+            if (id.includes('@supabase')) return 'supabase-vendor';
+          }
         }
       }
     },
-
-    // Use esbuild for faster minification (instead of terser)
     minify: 'esbuild',
 
     // Chunk size warning limit
