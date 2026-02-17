@@ -9,6 +9,7 @@
 - ✅ **스마트 각인 필드 선택**: "표시" 필드가 "마크", "각인" 등 일반 텍스트일 경우 "마크내용" 필드를 우선 사용하여 실제 각인 텍스트 추출.
 - ✅ **다중 라인 각인 처리**: 한 면에 여러 줄 각인이 있는 경우 정확히 처리 (예: "QTPN"과 "100" 모두 앞면).
 - ✅ **각인 정규화 로직**: 공백 제거 및 대소문자 통일로 매칭 정확도 향상.
+- ✅ **로직 검증**: 타이레놀 500mg 등 실제 사례를 통한 이미지-각인 데이터 정합성 검토 완료 (2026-02-17).
 - ✅ **불필요한 필드 제거**: `smiles` 필드 제거 (의약품 시각화에서는 SMILES 화학 구조가 불필요).
 - ✅ **이미지 컨테이너 레이아웃 수정**: 전체 너비(`w-full`) 사용으로 로딩 상태와 이미지가 작게 나타나는 문제 해결.
 
@@ -74,17 +75,26 @@
 - TBT: 531ms → **250-400ms** (50% 개선)
 
 
-#### ⚠️ Phase 3: High Priority - 대기
+#### ⚡ Phase 3: Resource & Image Optimization - 완료 ✅
+- ✅ **리소스 힌트(Resource Hints) 강화**: Supabase, esm.sh preconnect/dns-prefetch 추가
+  - `index.html`에 추가하여 연결 지연 시간 단축
+- ✅ **이미지 최적화**: 모든 주요 이미지에 지연 로딩 및 비동기 디코딩 적용
+  - `loading="lazy"`, `decoding="async"` 속성 적용
+- ✅ **UI/UX 정밀 튜닝 (의약품 시각화)**: 모바일 텍스트 잘림 현상 해결
+  - `DrugRenderer.tsx`에서 긴 각인 텍스트 자동 줄바꿈 및 레이아웃 개선
+
+**최종 배포 결과 (Vercel Production)**:
+- **Performance Score**: **67/100** 🎉 (44점 대비 +23점 상승)
+- **Best Practices**: **100/100** 🏆
+- **SEO**: **91/100** ✅
+- **FCP**: 0.8s - 1.2s (프로덕션 환경 기준)
+
+#### ⚠️ Phase 4: High Priority - 대기
 - [ ] **Font Awesome 최적화**: React FontAwesome 도입
   - 현재: 19.3 KiB CDN 전체 로드
   - 목표: ~2-5 KiB, 필요한 아이콘만 포함
-- [ ] **리소스 힌트 강화**: Supabase, API 서버 preconnect 추가
-  - 작업: `index.html`에 추가 `preconnect` 태그
-
-#### 🟡 Phase 4: Medium Priority (선택)
-- [ ] **이미지 최적화**: `loading="lazy"`, `decoding="async"` 속성 추가
-- [ ] **Service Worker (PWA)**: 캐시 전략 개선, 오프라인 지원
 - [ ] **KaTeX 동적 로딩**: 수식이 있을 때만 KaTeX CSS 로드
+- [ ] **Service Worker (PWA)**: 캐시 전략 개선, 오프라인 지원
 
 
 
