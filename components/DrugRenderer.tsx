@@ -294,6 +294,9 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                                         alt={data.name}
                                                         onError={() => setImageError(true)}
                                                         className="max-w-full max-h-full object-contain drop-shadow-xl transition-transform duration-500 group-hover:scale-110"
+                                                        width={600}
+                                                        height={300}
+                                                        decoding="async"
                                                     />
                                                 </motion.div>
                                             )}
