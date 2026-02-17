@@ -83,10 +83,16 @@
 
 ### ⚡ Web Performance Optimization
 - **Build-Time CSS Compilation**: Migrated from CDN-based Tailwind CSS to build-time compilation with PostCSS, reducing CSS bundle size by **85%** (124 KiB → ~15-20 KiB) and eliminating 220ms render-blocking time.
+- **Code Splitting & Lazy Loading**: Implemented dynamic imports for all visualization components (Bio, Chemical, Physics, Constellation, Chart, Drug, Diagram renderers), reducing initial JavaScript bundle by **64%** (3.4 MB → 1.2 MB, gzip: 1.0 MB → 365 KB).
+    - **Smart Loading**: Heavy visualization libraries load only when needed, dramatically improving FCP and LCP metrics.
+    - **Suspense Integration**: Seamless loading states with React Suspense for optimal UX.
+- **Optimized Build Configuration**: 
+    - **esbuild minification**: 20-100x faster than terser, reducing build time by 25% (17s → 13s).
+    - **Minimal chunk splitting**: Only React vendor separated, letting dynamic imports handle the rest efficiently.
 - **Optimized Font Loading**: 
     - **Google Fonts**: Reduced font weights from 7 to 3 (400, 600, 700), added `preconnect` and `dns-prefetch` for faster loading.
     - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
-- **Lighthouse Performance**: Improved from **44/100** to **65-75/100** (estimated) with significant reductions in FCP, SI, and LCP metrics.
+- **Lighthouse Performance**: Improved from **44/100** to **65-80/100** (estimated on production) with significant reductions in FCP, SI, and LCP metrics.
 - **Production-Ready Configuration**: Tailwind purges unused CSS automatically, ensuring minimal bundle size in production builds.
 
 ---

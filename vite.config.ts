@@ -17,6 +17,33 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+
+    // Chunk size optimization (minimized for lazy loading)
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Only separate React core (always needed)
+          'react-vendor': ['react', 'react-dom'],
+          // Let dynamic imports handle the rest
+        }
+      }
+    },
+
+    // Use esbuild for faster minification (instead of terser)
+    minify: 'esbuild',
+
+    // Chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+  },
+
+  // Dependency optimization
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@supabase/supabase-js',
+      'framer-motion'
+    ]
   }
 });

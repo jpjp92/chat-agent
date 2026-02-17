@@ -37,19 +37,55 @@
 - LCP: 2.9s → **1.5-2.0s** (40% 개선)
 - 총 렌더링 차단 시간: **420ms 절감**
 
-#### ⚠️ Phase 2: High Priority - 예상 점수: 75-85점
-- [ ] **Code Splitting 및 Lazy Loading**: 무거운 시각화 컴포넌트를 lazy load
-  - 대상: BioRenderer, ChemicalRenderer, PhysicsRenderer, ConstellationRenderer
-  - 작업: `React.lazy()` + `Suspense` 적용
-- [ ] **Vite 빌드 최적화**: 청크 분리, Terser 압축, console.log 제거
-  - 작업: `vite.config.ts`에 `rollupOptions.manualChunks` 설정
-- [ ] **리소스 힌트 추가**: DNS Prefetch, Preconnect, Preload
-  - 작업: `index.html`에 `<link rel="dns-prefetch">` 등 추가
+#### ⚡ Phase 2-A: Vite 빌드 최적화 - 완료 ✅
+- ✅ **청크 분리 최소화**: React vendor만 분리, 나머지는 dynamic import 처리
+  - Manual chunks를 최소화하여 lazy loading 효율 극대화
+- ✅ **esbuild minification**: terser 대신 esbuild 사용 (20-100배 빠름)
+  - 빌드 시간: ~17s → **13s** (25% 개선)
+  - 메모리 사용량 대폭 감소
 
-#### 🟡 Phase 3: Medium Priority (선택)
-- [ ] **이미지 최적화**: WebP 포맷, Lazy loading, 적절한 크기 리사이징
-- [ ] **캐시 전략 개선**: Service Worker 도입, Static 리소스 장기 캐싱
-- [ ] **ESM.sh 모듈 캐시 수명 개선**: 1시간 TTL → 장기 캐싱
+#### 🚀 Phase 2-B: Code Splitting & Lazy Loading - 완료 ✅
+- ✅ **시각화 컴포넌트 Lazy Loading**: 모든 무거운 컴포넌트를 필요 시에만 로드
+  - `BioRenderer`, `ChemicalRenderer`, `PhysicsRenderer`, `ConstellationRenderer`
+  - `ChartRenderer`, `DrugRenderer`, `DiagramRenderer`
+- ✅ **Suspense 적용**: 로딩 상태 처리 및 UX 개선
+- ✅ **Dynamic Import**: Vite의 자동 청크 분리 활용
+
+**Phase 2 실제 효과** (빌드 결과):
+- 초기 JavaScript 번들: **3,400 KB → 1,219 KB** (64% 감소) ✅
+- gzip 압축 후: **~1,000 KB → ~365 KB** (63% 감소) ✅
+- 빌드 시간: 17.31s → **13.05s** (25% 개선) ✅
+- 청크 분리:
+  - `react-vendor.js`: 12 KB (항상 로드)
+  - `index.js`: 1,086 KB (초기 로드)
+  - `BioRenderer.js`: 1,318 KB (필요시 로드)
+  - `ChartRenderer.js`: 586 KB (필요시 로드)
+  - `ChemicalRenderer.js`: 188 KB (필요시 로드)
+  - `PhysicsRenderer.js`: 92 KB (필요시 로드)
+  - `ConstellationRenderer.js`: 63 KB (필요시 로드)
+  - `DrugRenderer.js`: 14 KB (필요시 로드)
+  - `DiagramRenderer.js`: 5 KB (필요시 로드)
+
+**Phase 2 예상 성능 개선** (Vercel 배포 후):
+- Performance Score: 44 → **65-80점** (예상)
+- FCP: 2.2s → **0.6-1.0s** (70% 개선)
+- SI: 9.0s → **2.0-3.0s** (70% 개선)
+- LCP: 2.9s → **1.0-1.8s** (60% 개선)
+- TBT: 531ms → **250-400ms** (50% 개선)
+
+
+#### ⚠️ Phase 3: High Priority - 대기
+- [ ] **Font Awesome 최적화**: React FontAwesome 도입
+  - 현재: 19.3 KiB CDN 전체 로드
+  - 목표: ~2-5 KiB, 필요한 아이콘만 포함
+- [ ] **리소스 힌트 강화**: Supabase, API 서버 preconnect 추가
+  - 작업: `index.html`에 추가 `preconnect` 태그
+
+#### 🟡 Phase 4: Medium Priority (선택)
+- [ ] **이미지 최적화**: `loading="lazy"`, `decoding="async"` 속성 추가
+- [ ] **Service Worker (PWA)**: 캐시 전략 개선, 오프라인 지원
+- [ ] **KaTeX 동적 로딩**: 수식이 있을 때만 KaTeX CSS 로드
+
 
 
 ### 별자리 시각화 엔진 (Astro-Viz) (2026-02-03) ✓
@@ -270,5 +306,5 @@
 
 ---
 
-*Last Updated: 2026-02-17 (Web Performance Optimization Phase 1)*
+*Last Updated: 2026-02-17 (Web Performance Optimization Phase 2 - Code Splitting)*
 

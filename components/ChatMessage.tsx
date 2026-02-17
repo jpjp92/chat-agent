@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import ReactMarkdown from 'https://esm.sh/react-markdown@9';
 import remarkGfm from 'https://esm.sh/remark-gfm@4';
 import remarkMath from 'https://esm.sh/remark-math@6';
@@ -8,13 +8,15 @@ import { Prism as SyntaxHighlighter } from 'https://esm.sh/react-syntax-highligh
 import { vscDarkPlus } from 'https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
-import ChartRenderer from './ChartRenderer';
-import ChemicalRenderer from './ChemicalRenderer';
-import BioRenderer from './BioRenderer';
-import PhysicsRenderer from './PhysicsRenderer';
-import { DiagramRenderer } from './DiagramRenderer';
-import ConstellationRenderer from './ConstellationRenderer';
-import { DrugRenderer } from './DrugRenderer';
+
+// Lazy load visualization components for better performance
+const ChartRenderer = lazy(() => import('./ChartRenderer'));
+const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
+const BioRenderer = lazy(() => import('./BioRenderer'));
+const PhysicsRenderer = lazy(() => import('./PhysicsRenderer'));
+const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
+const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
+const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -317,26 +319,64 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     return (
       <>
         {parts.map((part, idx) => {
+          // Loading fallback for lazy components
+          const LoadingFallback = () => (
+            <div className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
+              <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-slate-400">
+                <i className="fa-solid fa-spinner fa-spin text-2xl"></i>
+                <span className="text-sm font-medium">Loading...</span>
+              </div>
+            </div>
+          );
+
           if (part.type === 'chart') {
-            return <ChartRenderer key={idx} chartData={part.data} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <ChartRenderer chartData={part.data} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'chemical') {
-            return <ChemicalRenderer key={idx} smiles={part.data.smiles} name={part.data.name || part.data.text} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <ChemicalRenderer smiles={part.data.smiles} name={part.data.name || part.data.text} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'bio') {
-            return <BioRenderer key={idx} bioData={part.data} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <BioRenderer bioData={part.data} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'physics') {
-            return <PhysicsRenderer key={idx} physicsData={part.data} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <PhysicsRenderer physicsData={part.data} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'constellation') {
-            return <ConstellationRenderer key={idx} data={part.data} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <ConstellationRenderer data={part.data} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'diagram') {
-            return <DiagramRenderer key={idx} data={part.data} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <DiagramRenderer data={part.data} />
+              </Suspense>
+            );
           }
           if (part.type === 'drug') {
-            return <DrugRenderer key={idx} data={part.data} language={language} />;
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <DrugRenderer data={part.data} language={language} />
+              </Suspense>
+            );
           }
           if (part.type === 'chart_loading') {
             return (
