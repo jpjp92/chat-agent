@@ -201,13 +201,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     if (isImage) {
       return (
         <div className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${isUser ? 'origin-right' : 'origin-left'}`}>
-          <img
-            src={attachment.data}
-            alt="Attachment"
-            className="max-w-[280px] sm:max-w-[400px] h-auto object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+          <img src={attachment.data} alt="Attachment" className="max-w-[280px] sm:max-w-[400px] h-auto object-cover" />
         </div>
       );
     }
