@@ -5,8 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
-    host: '0.0.0.0', // Allow external access (useful for mobile testing)
-    open: true,      // Automatically open browser on start
+    host: '0.0.0.0',
     proxy: {
       '/api': {
         target: 'https://chat-gem.vercel.app',
@@ -17,32 +16,17 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    outDir: 'dist',
+    sourcemap: false,
     cssCodeSplit: true,
-    cssMinify: true,
     rollupOptions: {
       output: {
-        manualChunks: (id) => {
-          if (id.includes('node_modules')) {
-            if (id.includes('framer-motion')) return 'motion-vendor';
-            if (id.includes('react')) return 'react-vendor';
-            if (id.includes('@supabase')) return 'supabase-vendor';
-          }
+        manualChunks: {
+          'vendor': ['react', 'react-dom']
         }
       }
     },
     minify: 'esbuild',
-
-    // Chunk size warning limit
     chunkSizeWarningLimit: 1000,
-  },
-
-  // Dependency optimization
-  optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      '@supabase/supabase-js',
-      'framer-motion'
-    ]
   }
 });
