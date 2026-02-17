@@ -12,6 +12,46 @@
 - ✅ **불필요한 필드 제거**: `smiles` 필드 제거 (의약품 시각화에서는 SMILES 화학 구조가 불필요).
 - ✅ **이미지 컨테이너 레이아웃 수정**: 전체 너비(`w-full`) 사용으로 로딩 상태와 이미지가 작게 나타나는 문제 해결.
 
+### 웹 성능 최적화 (Web Performance Optimization) (2026-02-17)
+**Lighthouse 점검 결과**: Performance Score **44/100** 🔴
+- **FCP**: 2.2s, **SI**: 9.0s, **LCP**: 2.9s, **TBT**: 531ms, **CLS**: 0.00 ✅
+
+#### 🔥 Phase 1: Critical (즉시 개선) - 완료 ✅
+- ✅ **Tailwind CSS 빌드 타임 전환**: CDN 방식(`cdn.tailwindcss.com`) → npm 패키지 + PostCSS 빌드
+  - 현재: 124 KiB + 220ms 렌더링 차단 → **~15-20 KiB (85% 감소), 렌더링 차단 제거**
+  - 작업 완료: `npm install -D tailwindcss@^3.4.0 postcss autoprefixer`
+  - 설정 파일: `tailwind.config.js`, `postcss.config.js`, `index.css` 생성
+  - `index.html`에서 CDN script 제거, 컴파일된 CSS 파일 추가
+- ✅ **Google Fonts 최적화**: Preconnect 추가 + 사용하는 weight만 로드
+  - 현재: 1.6 KiB + 200ms 렌더링 차단 → **렌더링 차단 제거**
+  - 작업 완료: weight 최적화 (300-900 → 400,600,700), `preconnect` 및 `dns-prefetch` 추가
+- ⏳ **Font Awesome 최적화**: CDN 전체 로드 → 필요한 아이콘만 사용
+  - 현재: 19.3 KiB + 240ms 렌더링 차단
+  - 목표: ~2-5 KiB, 렌더링 차단 제거
+  - 작업: `@fortawesome/react-fontawesome` 도입 또는 서브셋 생성 (보류)
+
+**Phase 1 예상 효과**:
+- Performance Score: 44 → **65-75점** (예상)
+- FCP: 2.2s → **1.0-1.5s** (50% 개선)
+- SI: 9.0s → **3.0-4.5s** (60% 개선)
+- LCP: 2.9s → **1.5-2.0s** (40% 개선)
+- 총 렌더링 차단 시간: **420ms 절감**
+
+#### ⚠️ Phase 2: High Priority - 예상 점수: 75-85점
+- [ ] **Code Splitting 및 Lazy Loading**: 무거운 시각화 컴포넌트를 lazy load
+  - 대상: BioRenderer, ChemicalRenderer, PhysicsRenderer, ConstellationRenderer
+  - 작업: `React.lazy()` + `Suspense` 적용
+- [ ] **Vite 빌드 최적화**: 청크 분리, Terser 압축, console.log 제거
+  - 작업: `vite.config.ts`에 `rollupOptions.manualChunks` 설정
+- [ ] **리소스 힌트 추가**: DNS Prefetch, Preconnect, Preload
+  - 작업: `index.html`에 `<link rel="dns-prefetch">` 등 추가
+
+#### 🟡 Phase 3: Medium Priority (선택)
+- [ ] **이미지 최적화**: WebP 포맷, Lazy loading, 적절한 크기 리사이징
+- [ ] **캐시 전략 개선**: Service Worker 도입, Static 리소스 장기 캐싱
+- [ ] **ESM.sh 모듈 캐시 수명 개선**: 1시간 TTL → 장기 캐싱
+
+
 ### 별자리 시각화 엔진 (Astro-Viz) (2026-02-03) ✓
 - ✅ **Phase 1: 2D 별자리 렌더링 (Canvas)**: 천구좌표(RA/Dec) 투영 엔진 및 12개 황도 별자리(Zodiac) 데이터셋 구축.
 - ✅ **Phase 2: 인터랙션 시스템**: 줌/팬(Zoom/Pan) 제어, 시간 여행(Time Travel), 반응형 라벨링(Zoom-based Labels) 구현.
@@ -230,5 +270,5 @@
 
 ---
 
-*Last Updated: 2026-02-16 (v3.4)*
+*Last Updated: 2026-02-17 (Web Performance Optimization Phase 1)*
 

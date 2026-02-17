@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Styles */
+body {
+  font-family: 'Inter', sans-serif;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #373738;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+.glass-effect {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.prose p {
+  margin-bottom: 1.25em;
+  line-height: 1.8;
+}
+
+.prose strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+/* 모바일 자동 확대 방지를 위해 모든 입력 요소 폰트를 16px 이상으로 강제 */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+  letter-spacing: normal !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* iOS Safari에서 포커스 시 줌 방지를 위한 추가 처리 */
+@media screen and (max-width: 768px) {
+  input:focus,
+  textarea:focus {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile Viewport Fix */
+.h-dvh {
+  height: 100vh; /* Fallback */
+  height: 100dvh; /* Dynamic Viewport Height */
+}
+
+/* KaTeX / Math Optimization */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1.25em 1em;
+  margin: 1.5em 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  text-align: center; /* 기본 중앙 정렬 유지 */
+  background: rgba(241, 245, 249, 0.5); /* Very subtle slate tint */
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s ease;
+}
+
+.dark .katex-display {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.katex-display:hover {
+  border-color: rgba(139, 92, 246, 0.2); /* Keep a tiny bit of primary on hover */
+}
+
+.katex-display::-webkit-scrollbar {
+  display: none; /* Chrome/Safari: 스크롤바 숨기되 스크롤은 작동 */
+}
+
+/* 인라인 수식 최적화 */
+.katex {
+  font-size: 1.05em;
+  padding: 0 0.1em;
+  color: inherit; /* 기본 텍스트 색상 상속 */
+}
+
+.dark .katex {
+  color: #f1f5f9; /* 조금 더 밝은 톤 */
+}
