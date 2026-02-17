@@ -294,6 +294,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                                         alt={data.name}
                                                         onError={() => setImageError(true)}
                                                         className="max-w-full max-h-full object-contain drop-shadow-xl transition-transform duration-500 group-hover:scale-110"
+                                                        loading="lazy"
+                                                        decoding="async"
                                                     />
                                                 </motion.div>
                                             )}
@@ -336,19 +338,23 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 </div>
                             </div>
                             {/* Front Imprint Badge */}
-                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
-                                <i className="fa-solid fa-font text-[10px] text-blue-500"></i>
-                                <div className="flex flex-col">
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-start gap-2 min-w-0">
+                                <i className="fa-solid fa-font text-[10px] text-blue-500 mt-1 flex-shrink-0"></i>
+                                <div className="flex flex-col min-w-0">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '앞면' : 'Front'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{serverPillVisual?.imprint_front || data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
+                                        {serverPillVisual?.imprint_front || data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}
+                                    </span>
                                 </div>
                             </div>
                             {/* Back Imprint Badge */}
-                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
-                                <i className="fa-solid fa-font text-[10px] text-teal-500"></i>
-                                <div className="flex flex-col">
+                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-start gap-2 min-w-0">
+                                <i className="fa-solid fa-font text-[10px] text-teal-500 mt-1 flex-shrink-0"></i>
+                                <div className="flex flex-col min-w-0">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '뒷면' : 'Back'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis">{serverPillVisual?.imprint_back || data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}</span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
+                                        {serverPillVisual?.imprint_back || data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}
+                                    </span>
                                 </div>
                             </div>
                         </div>
