@@ -7,38 +7,57 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Chat with Gemini — Intelligent Conversation</title>
 
-  <!-- Inline Critical CSS for faster FCP -->
-  <style>
-    body {
-      background-color: #131314;
-      color: #e3e3e3;
-    }
-
-    .dark body {
-      background-color: #131314;
-    }
-  </style>
-
-  <!-- Preconnect to speed up handshake -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
-  <!-- Optimized Google Fonts with display=swap -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"
-    media="all">
+  <link rel="preload" as="font" type="font/woff2"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2"
+    crossorigin="anonymous">
+  <link rel="preload" as="font" type="font/woff2"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-regular-400.woff2"
+    crossorigin="anonymous">
 
-  <!-- Font Awesome - Async Load -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print"
     onload="this.media='all'" crossorigin="anonymous">
 
-  <!-- KaTeX - Async Load -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" media="print"
     onload="this.media='all'" crossorigin="anonymous">
 
-  <!-- Main CSS -->
-  <link rel="stylesheet" href="./index.css">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      background-color: #131314;
+      color: #e3e3e3;
+      -webkit-font-smoothing: antialiased;
+      touch-action: manipulation;
+    }
+
+    .dark body {
+      background-color: #131314;
+    }
+
+    #root {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .glass-effect {
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  </style>
 
   <script>
     window.process = { env: {} };

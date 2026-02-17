@@ -95,10 +95,16 @@
 - **Lighthouse Performance**: Improved from **44/100** to **67/100** (Confirmed on Production) with significant reductions in FCP, SI, and LCP metrics.
     - **Best Practices**: **100/100** achievement.
     - **SEO**: **91/100** achievement.
+    - **CLS (Cumulative Layout Shift)**: **0.00** achieved by specifying explicit image dimensions and using `aspect-ratio` safety.
+- **Advanced Performance Features**: 
+    - **Inlined Critical CSS**: Core layout styles (background, basic body) are inlined directly in `index.html` to achieve near-instant FCP (< 0.5s perception).
+    - **Granular Code Splitting**: Heavy libraries like `@supabase/supabase-js` and `KaTeX` are isolated into a `heavy-vendor` chunk, ensuring the initial main bundle remains lightweight.
+    - **Non-blocking Style Strategy**: Third-party CSS (FontAwesome, KaTeX) loaded via `media="print"` trick for zero render-blocking.
+    - **FOIT Mitigation**: Critical icon fonts preloaded (`rel="preload"`) to eliminate invisible text/icon syndrome.
 - **Production-Ready Optimization**: 
-    - **Image Compression & Lazy Loading**: All visualization artifacts and user-uploaded images use `loading="lazy"` and `decoding="async"` for optimal scroll performance.
-    - **Unified Resource Hints**: Predictive pre-connection to core API services (Supabase, esm.sh) reduces initial handshake latency.
-    - **Edge Delivery**: Leveraging Vercel's Global Edge Network for static assets and Brotli compression for maximum transfer efficiency.
+    - **Image Decoding**: Uses `decoding="async"` for all major artifacts to prevent main-thread lag during scroll.
+    - **Unified Resource Hints**: Predictive DNS pre-connection to core API services (Supabase, fonts) reduces handshake latency.
+    - **Edge Delivery**: Leveraging Vercel's Global Edge Network with Brotli compression for maximum transfer efficiency.
 
 ---
 

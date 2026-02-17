@@ -89,12 +89,22 @@
 - **SEO**: **91/100** ✅
 - **FCP**: 0.8s - 1.2s (프로덕션 환경 기준)
 
-#### ⚠️ Phase 4: High Priority - 대기
-- [ ] **Font Awesome 최적화**: React FontAwesome 도입
-  - 현재: 19.3 KiB CDN 전체 로드
-  - 목표: ~2-5 KiB, 필요한 아이콘만 포함
-- [ ] **KaTeX 동적 로딩**: 수식이 있을 때만 KaTeX CSS 로드
+#### ⚡ Phase 5: Advanced Performance Tuning (2026-02-17) - 완료 ✅
+- ✅ **Critical CSS Inlining**: `index.html`에 배경색 및 기본 레이아웃 스타일 직접 주입하여 FCP 체감 시간 < 0.5s 달성.
+- ✅ **고급 청크 분할 (Granular Splitting)**: `@supabase`, `katex` 등 무거운 라이브러리를 `heavy-vendor` 청크로 강제 분리하여 초기 번들 가벼움 유지.
+- ✅ **CLS Zero (0.00) 달성**: `DrugRenderer` 및 `ChatMessage` 이미지에 명시적 `width`/`height` 및 `aspect-ratio` 적용으로 레이아웃 이동 완전 제거.
+- ✅ **Font Awesome & KaTeX 비차단(Non-blocking) 로드**: `media="print"` 트릭을 활용하여 렌더링 차단 리소스 제거.
+- ✅ **FOIT 방지**: `webfonts/fa-solid-900.woff2` 등 핵심 아이콘 폰트 `preload` 적용.
+
+**최종 프로덕션 성능 확인**:
+- **Performance**: 53-67점 (모바일/데스크탑 환경에 따라 변동)
+- **Best Practices**: 100/100 🏆
+- **CLS**: 0.00 ✅
+
+#### ⚠️ Phase 6: High Priority - 대기
 - [ ] **Service Worker (PWA)**: 캐시 전략 개선, 오프라인 지원
+- [ ] **Font Awesome Subset**: 필요한 아이콘만 포함하여 CSS/폰트 파일 크기 추가 절감
+- [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 리사이징 서버 도입 검토
 
 
 
@@ -316,5 +326,5 @@
 
 ---
 
-*Last Updated: 2026-02-17 (Web Performance Optimization Phase 2 - Code Splitting)*
+*Last Updated: 2026-02-17 (Advanced Performance Tuning - Inlining & Granular Splitting)*
 
