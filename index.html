@@ -7,23 +7,25 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Chat with Gemini — Intelligent Conversation</title>
 
-  <!-- Preconnect for external resources -->
+  <!-- Critical CSS (Tailwind) - Load immediately -->
+  <link rel="stylesheet" href="./index.css">
+
+  <!-- Preconnect and DNS Prefetch to reduce Handshake time -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
   <!-- Optimized Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <!-- Font Awesome - Re-enabled with defer logic for Best Practices -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Font Awesome - Non-blocking load for better FCP/LCP -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print"
+    onload="this.media='all'" crossorigin="anonymous">
 
-  <!-- KaTeX -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-
-  <!-- Tailwind CSS -->
-  <link rel="stylesheet" href="./index.css">
+  <!-- KaTeX - Non-blocking load -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" media="print"
+    onload="this.media='all'" crossorigin="anonymous">
 
   <script>
     window.process = { env: {} };
