@@ -199,7 +199,7 @@ flowchart TD
     In([User Query / File Upload]) --> AI{AI Intent Analysis}
     
     AI -- "General Inquiry" --> Text([Markdown Chat Response])
-    AI -- "Scientific/Data Topic" --> Pattern{Pattern Match?}
+    AI -- "Scientific/Data Topic" --> Pattern{Pattern Match}
     
     Pattern -- "SMILES/Molecules" --> Chem((🧪 Chem-Viz))
     Pattern -- "PDB ID/Protein" --> Bio((🧬 Bio-Viz))
