@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ext = lastDotIndex !== -1 ? fileName.substring(lastDotIndex + 1) : '';
 
         // [DEBUG] 원본 정보 로그
-        console.log(`[Upload API] Original: ${fileName}, base: ${baseName}, ext: ${ext}`);
+        console.log(`[Upload API] Original: ${fileName}, base: ${baseName}, ext: ${ext}, bucket: ${bucket}`);
 
         // 영문, 숫자만 남기고 나머지는 하이픈으로 대체 (연속된 하이픈 방지)
         const safeBaseName = baseName.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'file';
@@ -40,25 +40,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // [DEBUG] 생성된 경로 로그
         console.log(`[Upload API] Generated Key: ${filePath}`);
-        // 3. Supabase Storage에 업로드 (service_role 키를 사용하므로 정책과 상관없이 업로드 가능)
-        const { data, error: uploadError } = await supabase.storage
+
+        // 3. Supabase Storage에 업로드 (service_role 키가 있다면 사용하여 정책 우회)
+        // Check if admin client is available
+        const supabaseClient = (await import('./lib/supabase.js')).supabaseAdmin || (await import('./lib/supabase.js')).supabase;
+
+        if (!supabaseClient) {
+            throw new Error("Supabase client not initialized");
+        }
+
+        const { data, error: uploadError } = await supabaseClient.storage
             .from(bucket)
             .upload(filePath, buffer, {
                 contentType: mimeType,
                 upsert: true
             });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+            console.error('[Upload API] Upload Error Detail:', JSON.stringify(uploadError, null, 2));
+            throw uploadError;
+        }
 
         // 4. 공개 URL 생성
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = supabaseClient.storage
             .from(bucket)
             .getPublicUrl(filePath);
 
         return res.status(200).json({ url: publicUrl, filePath: data.path });
 
     } catch (error: any) {
-        console.error('[Upload API] Error:', error.message);
-        return res.status(500).json({ error: error.message });
+        console.error('[Upload API] Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal Server Error', details: error });
     }
 }

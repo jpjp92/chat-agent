@@ -530,7 +530,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-dvh bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
       <ChatSidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
@@ -547,7 +547,7 @@ const App: React.FC = () => {
         showConfirmDialog={showConfirmDialog}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
         <Header
           userProfile={userProfile}
           onUpdateProfile={handleUpdateProfile}
@@ -558,9 +558,9 @@ const App: React.FC = () => {
         />
 
 
-        <main className="flex-1 overflow-y-auto px-3 sm:px-10 lg:px-20 custom-scrollbar pt-3 sm:pt-4 pb-2">
-          <div className="max-w-3xl mx-auto flex flex-col h-full">
-            {currentSession?.messages.length === 0 && (
+        <main className="flex-1 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar h-full flex flex-col">
+          <div className="flex-1 max-w-3xl w-full mx-auto flex flex-col">
+            {(!currentSession || currentSession.messages.length === 0) && (
               <WelcomeMessage language={language} />
             )}
 
@@ -574,9 +574,9 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <footer className="p-2 sm:p-4 pt-0">
+        <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
           <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} />
-          <div className="mt-1 text-center">
+          <div className="mt-2 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
               {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
                 language === 'es' ? 'Gemini puede cometer errores. (Análisis de URL y soporte PDF)' :

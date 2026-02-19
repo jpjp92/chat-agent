@@ -141,9 +141,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       };
 
       return (
-        <div className="group relative my-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-xl bg-[#0d1117]">
+        <div className="group relative my-8 rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5 shadow-lg bg-[#0d1117]">
           {/* Code Header */}
-          <div className="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-white/5">
+          <div className="flex items-center justify-between px-4 py-2 bg-[#161b22]/50 border-b border-white/5 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-code text-[10px] text-slate-500"></i>
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language}</span>
@@ -182,14 +182,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       );
     },
     table: ({ children }: any) => (
-      <div className="my-6 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="my-8 overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm">
         <table className="w-full text-left border-collapse">{children}</table>
       </div>
     ),
-    thead: ({ children }: any) => <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-slate-800">{children}</thead>,
-    th: ({ children }: any) => <th className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 last:border-r-0 text-[12px] uppercase tracking-wider bg-slate-50 dark:bg-white/5">{children}</th>,
-    td: ({ children }: any) => <td className="px-4 py-3 text-slate-600 dark:text-slate-300 border-b border-r border-slate-200 dark:border-slate-800 last:border-r-0 group-last:border-b-0 text-[13px] min-w-[120px] leading-relaxed align-top">{children}</td>,
-    tr: ({ children }: any) => <tr className="group border-b border-slate-100 dark:border-slate-800 last:border-b-0 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">{children}</tr>,
+    thead: ({ children }: any) => <thead className="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-200/50 dark:border-white/5">{children}</thead>,
+    th: ({ children }: any) => <th className="px-5 py-4 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02]">{children}</th>,
+    td: ({ children }: any) => <td className="px-5 py-4 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[14px] min-w-[140px] leading-relaxed align-top tabular-nums">{children}</td>,
+    tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
 
   const renderAttachment = () => {
@@ -204,9 +204,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           <img
             src={attachment.data}
             alt="Attachment"
-            className="max-w-[280px] sm:max-w-[400px] h-auto object-cover"
-            width={400}
-            height={300}
+            className="w-full h-auto object-cover max-w-full sm:max-w-[480px]"
             decoding="async"
           />
         </div>
@@ -444,12 +442,21 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             </div>
 
             {!isUser && message.content && (
-              <div className="flex items-center gap-6 mt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={handlePlayVoice} className={`text-slate-400 hover:text-primary-500 transition-colors flex items-center gap-2 text-[12px] font-medium ${isPlaying || isGenerating ? 'text-primary-500' : ''}`}>
-                  <i className={`fa-solid ${isGenerating ? 'fa-spinner fa-spin' : isPlaying ? 'fa-circle-stop' : 'fa-volume-high'}`}></i>
+              <div className="flex items-center gap-4 mt-3 ml-1 select-none">
+                <button
+                  onClick={handlePlayVoice}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${isPlaying || isGenerating ? 'text-primary-500 bg-primary-50 dark:bg-primary-900/10 ring-1 ring-primary-200 dark:ring-primary-800' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                  title="Read Aloud"
+                >
+                  <i className={`fa-solid ${isGenerating ? 'fa-spinner fa-spin' : isPlaying ? 'fa-stop' : 'fa-volume-high'} text-[13px]`}></i>
                 </button>
-                <button onClick={handleCopy} className={`text-slate-400 hover:text-primary-500 transition-colors flex items-center gap-2 text-[12px] font-medium ${isCopied ? 'text-green-500' : ''}`}>
-                  <i className={`fa-solid ${isCopied ? 'fa-check' : 'fa-copy'}`}></i>
+
+                <button
+                  onClick={handleCopy}
+                  className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${isCopied ? 'text-green-500 bg-green-50 dark:bg-green-900/10 ring-1 ring-green-200 dark:ring-green-800' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                  title="Copy Text"
+                >
+                  <i className={`fa-solid ${isCopied ? 'fa-check' : 'fa-copy'} text-[13px]`}></i>
                 </button>
               </div>
             )}

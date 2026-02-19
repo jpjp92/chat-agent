@@ -71,15 +71,20 @@
     - **Deep Localization**: Fully supports **KO, EN, ES, FR** with localized footer actions and headers.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
-### 🎨 Mobile & UX Enhancements
-- **Streamlined Mobile Sidebar**: Removed intrusive close button (X) from mobile sidebar. Users can now close the sidebar naturally by tapping the backdrop, matching modern mobile app patterns (e.g., ChatGPT).
+### 🎨 UI/UX & Mobile Strategy
+- **Minimalist Mobile Sidebar**: Eliminated the redundant "X" close button and "Menu" title. Implemented a natural **Backdrop Touch** gesture for closing the sidebar, mirroring industry standards (GPT, Gemini).
+- **Refined Header Aesthetics**:
+    - Simplified user profile area (Removed dividers and redundant "Settings" text).
+    - Introduced intuitive **Chevron Icon** for menu affordance.
+    - Updated mobile hamburger menu to a balanced **Regular Bar** style.
+- **Enhanced Message Visibility**:
+    - **Always-on Utility Buttons**: TTS and Copy buttons are now permanently visible on mobile for better accessibility.
+    - **Expanded Image Viewer**: Increased max-width of attached images (up to 480px on desktop, full-width on mobile) for clearer visual analysis.
+- **Seamless Sidebar Integration**: Removed hard borders from the language selector area, creating a fluid, open layout.
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
-- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction (via Mammoth & JSZip), bypassing API MIME restrictions.
-- **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**, neutral professional aesthetics, and distinct inline/block styling.
-    - **AI Standards**: System-level directives ensure **Code Integrity** (single-block generation), modern syntax (ES6+, Python Type Hints), and proper language labeling.
-    - **Advanced Typography**: Premium support for **H3 headings, Blockquotes, Keyboard keys (<kbd>), Strong/Emphasis**, and responsive Tables.
-- **Mobile-First Design**: Optimized for mobile browsers with **Dynamic Viewport Height (100dvh)** and horizontal scroll support for all visualization types.
-- **Collapsible Sidebar (Desktop)**: A Gemini-inspired, collapsible sidebar that maximizes workspace on large screens. Features a responsive "New Chat" button reconfiguration (Pill -> Icon).
+- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction.
+- **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**.
+- **Collapsible Sidebar (Desktop)**: A Gemini-inspired, collapsible sidebar that maximizes workspace on large screens.
 
 ### ⚡ Web Performance Optimization
 - **Build-Time CSS Compilation**: Migrated from CDN-based Tailwind CSS to build-time compilation with PostCSS, reducing CSS bundle size by **85%** (124 KiB → ~15-20 KiB) and eliminating 220ms render-blocking time.

@@ -157,8 +157,8 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     };
 
     return (
-        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
-            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-xl shadow-slate-200/40 dark:shadow-none relative overflow-hidden flex flex-col group">
+        <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
+            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
                 {(name || error) && (

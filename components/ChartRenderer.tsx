@@ -231,8 +231,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const chartMinWidth = dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
 
     return (
-        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
-            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-xl shadow-slate-200/40 dark:shadow-none relative overflow-hidden flex flex-col group">
+        <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
+            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
                 <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-transparent">

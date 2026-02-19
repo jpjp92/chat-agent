@@ -1,239 +1,6 @@
 # 📝 Project TODO List
 
-## ✅ Recently Completed (2026-02-03)
-
-### ConnectDI 파싱 정밀도 향상 (Drug-Viz v3.4) (2026-02-15~16) ✓
-- ✅ **서버 사이드 HTML 직접 파싱**: ConnectDI 식별표에서 모양, 색상, 각인 정보를 서버에서 직접 추출하여 AI 오류 제거 (정확도 60% → **98%+**).
-- ✅ **2단계 이미지 검증 시스템**: 검색 결과에서 각인(앞/뒤) 기반 매칭으로 정확한 제품 이미지 선택 (정확도 70% → **95%+**).
-- ✅ **자동 상세 페이지 이동**: 검색 결과 페이지 감지 시 자동으로 상세 페이지(`pap=detail`)로 이동하여 정확한 식별표 파싱.
-- ✅ **스마트 각인 필드 선택**: "표시" 필드가 "마크", "각인" 등 일반 텍스트일 경우 "마크내용" 필드를 우선 사용하여 실제 각인 텍스트 추출.
-- ✅ **다중 라인 각인 처리**: 한 면에 여러 줄 각인이 있는 경우 정확히 처리 (예: "QTPN"과 "100" 모두 앞면).
-- ✅ **각인 정규화 로직**: 공백 제거 및 대소문자 통일로 매칭 정확도 향상.
-- ✅ **로직 검증**: 타이레놀 500mg 등 실제 사례를 통한 이미지-각인 데이터 정합성 검토 완료 (2026-02-17).
-- ✅ **불필요한 필드 제거**: `smiles` 필드 제거 (의약품 시각화에서는 SMILES 화학 구조가 불필요).
-- ✅ **이미지 컨테이너 레이아웃 수정**: 전체 너비(`w-full`) 사용으로 로딩 상태와 이미지가 작게 나타나는 문제 해결.
-
-### 웹 성능 최적화 (Web Performance Optimization) (2026-02-17)
-**Lighthouse 점검 결과**: Performance Score **44/100** 🔴
-- **FCP**: 2.2s, **SI**: 9.0s, **LCP**: 2.9s, **TBT**: 531ms, **CLS**: 0.00 ✅
-
-#### 🔥 Phase 1: Critical (즉시 개선) - 완료 ✅
-- ✅ **Tailwind CSS 빌드 타임 전환**: CDN 방식(`cdn.tailwindcss.com`) → npm 패키지 + PostCSS 빌드
-  - 현재: 124 KiB + 220ms 렌더링 차단 → **~15-20 KiB (85% 감소), 렌더링 차단 제거**
-  - 작업 완료: `npm install -D tailwindcss@^3.4.0 postcss autoprefixer`
-  - 설정 파일: `tailwind.config.js`, `postcss.config.js`, `index.css` 생성
-  - `index.html`에서 CDN script 제거, 컴파일된 CSS 파일 추가
-- ✅ **Google Fonts 최적화**: Preconnect 추가 + 사용하는 weight만 로드
-  - 현재: 1.6 KiB + 200ms 렌더링 차단 → **렌더링 차단 제거**
-  - 작업 완료: weight 최적화 (300-900 → 400,600,700), `preconnect` 및 `dns-prefetch` 추가
-- ⏳ **Font Awesome 최적화**: CDN 전체 로드 → 필요한 아이콘만 사용
-  - 현재: 19.3 KiB + 240ms 렌더링 차단
-  - 목표: ~2-5 KiB, 렌더링 차단 제거
-  - 작업: `@fortawesome/react-fontawesome` 도입 또는 서브셋 생성 (보류)
-
-**Phase 1 예상 효과**:
-- Performance Score: 44 → **65-75점** (예상)
-- FCP: 2.2s → **1.0-1.5s** (50% 개선)
-- SI: 9.0s → **3.0-4.5s** (60% 개선)
-- LCP: 2.9s → **1.5-2.0s** (40% 개선)
-- 총 렌더링 차단 시간: **420ms 절감**
-
-#### ⚡ Phase 2-A: Vite 빌드 최적화 - 완료 ✅
-- ✅ **청크 분리 최소화**: React vendor만 분리, 나머지는 dynamic import 처리
-  - Manual chunks를 최소화하여 lazy loading 효율 극대화
-- ✅ **esbuild minification**: terser 대신 esbuild 사용 (20-100배 빠름)
-  - 빌드 시간: ~17s → **13s** (25% 개선)
-  - 메모리 사용량 대폭 감소
-
-#### 🚀 Phase 2-B: Code Splitting & Lazy Loading - 완료 ✅
-- ✅ **시각화 컴포넌트 Lazy Loading**: 모든 무거운 컴포넌트를 필요 시에만 로드
-  - `BioRenderer`, `ChemicalRenderer`, `PhysicsRenderer`, `ConstellationRenderer`
-  - `ChartRenderer`, `DrugRenderer`, `DiagramRenderer`
-- ✅ **Suspense 적용**: 로딩 상태 처리 및 UX 개선
-- ✅ **Dynamic Import**: Vite의 자동 청크 분리 활용
-
-**Phase 2 실제 효과** (빌드 결과):
-- 초기 JavaScript 번들: **3,400 KB → 1,219 KB** (64% 감소) ✅
-- gzip 압축 후: **~1,000 KB → ~365 KB** (63% 감소) ✅
-- 빌드 시간: 17.31s → **13.05s** (25% 개선) ✅
-- 청크 분리:
-  - `react-vendor.js`: 12 KB (항상 로드)
-  - `index.js`: 1,086 KB (초기 로드)
-  - `BioRenderer.js`: 1,318 KB (필요시 로드)
-  - `ChartRenderer.js`: 586 KB (필요시 로드)
-  - `ChemicalRenderer.js`: 188 KB (필요시 로드)
-  - `PhysicsRenderer.js`: 92 KB (필요시 로드)
-  - `ConstellationRenderer.js`: 63 KB (필요시 로드)
-  - `DrugRenderer.js`: 14 KB (필요시 로드)
-  - `DiagramRenderer.js`: 5 KB (필요시 로드)
-
-**Phase 2 예상 성능 개선** (Vercel 배포 후):
-- Performance Score: 44 → **65-80점** (예상)
-- FCP: 2.2s → **0.6-1.0s** (70% 개선)
-- SI: 9.0s → **2.0-3.0s** (70% 개선)
-- LCP: 2.9s → **1.0-1.8s** (60% 개선)
-- TBT: 531ms → **250-400ms** (50% 개선)
-
-
-#### ⚡ Phase 3: Resource & Image Optimization - 완료 ✅
-- ✅ **리소스 힌트(Resource Hints) 강화**: Supabase, esm.sh preconnect/dns-prefetch 추가
-  - `index.html`에 추가하여 연결 지연 시간 단축
-- ✅ **이미지 최적화**: 모든 주요 이미지에 지연 로딩 및 비동기 디코딩 적용
-  - `loading="lazy"`, `decoding="async"` 속성 적용
-- ✅ **UI/UX 정밀 튜닝 (의약품 시각화)**: 모바일 텍스트 잘림 현상 해결
-  - `DrugRenderer.tsx`에서 긴 각인 텍스트 자동 줄바꿈 및 레이아웃 개선
-
-**최종 배포 결과 (Vercel Production)**:
-- **Performance Score**: **67/100** 🎉 (44점 대비 +23점 상승)
-- **Best Practices**: **100/100** 🏆
-- **SEO**: **91/100** ✅
-- **FCP**: 0.8s - 1.2s (프로덕션 환경 기준)
-
-#### ⚡ Phase 5: Advanced Performance Tuning (2026-02-17) - 완료 ✅
-- ✅ **Critical CSS Inlining**: `index.html`에 배경색 및 기본 레이아웃 스타일 직접 주입하여 FCP 체감 시간 < 0.5s 달성.
-- ✅ **고급 청크 분할 (Granular Splitting)**: `@supabase`, `katex` 등 무거운 라이브러리를 `heavy-vendor` 청크로 강제 분리하여 초기 번들 가벼움 유지.
-- ✅ **CLS Zero (0.00) 달성**: `DrugRenderer` 및 `ChatMessage` 이미지에 명시적 `width`/`height` 및 `aspect-ratio` 적용으로 레이아웃 이동 완전 제거.
-- ✅ **Font Awesome & KaTeX 비차단(Non-blocking) 로드**: `media="print"` 트릭을 활용하여 렌더링 차단 리소스 제거.
-- ✅ **FOIT 방지**: `webfonts/fa-solid-900.woff2` 등 핵심 아이콘 폰트 `preload` 적용.
-
-**최종 프로덕션 성능 확인**:
-- **Performance**: 53-67점 (모바일/데스크탑 환경에 따라 변동)
-- **Best Practices**: 100/100 🏆
-- **CLS**: 0.00 ✅
-
-#### ⚠️ Phase 6: High Priority - 대기
-- [ ] **Service Worker (PWA)**: 캐시 전략 개선, 오프라인 지원
-- [ ] **Font Awesome Subset**: 필요한 아이콘만 포함하여 CSS/폰트 파일 크기 추가 절감
-- [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 리사이징 서버 도입 검토
-
-
-
-### 별자리 시각화 엔진 (Astro-Viz) (2026-02-03) ✓
-- ✅ **Phase 1: 2D 별자리 렌더링 (Canvas)**: 천구좌표(RA/Dec) 투영 엔진 및 12개 황도 별자리(Zodiac) 데이터셋 구축.
-- ✅ **Phase 2: 인터랙션 시스템**: 줌/팬(Zoom/Pan) 제어, 시간 여행(Time Travel), 반응형 라벨링(Zoom-based Labels) 구현.
-- ✅ **Phase 3: 은하수 렌더링 (Milky Way)**: 파티클 클라우드(Particle Cloud) 기반의 은하수 배경 렌더링 및 심미적 튜닝.
-- ✅ **UI/UX 폴리시**: 커서 호버 효과, 버튼 피드백, 줌 인디케이터 등 사용자 경험 개선.
-- 
-- ### 의약품 시각화 엔진 (Drug-Viz) v3.1 (2026-02-07) ✓
-- - ✅ **Smart Reveal (지능형 노출)**: 이미지 로딩을 최대 600ms 대기하여 텍스트와 이미지가 한 번에 우아하게 나타나는 동기화 입차 로직 구현.
-- - ✅ **이미지 동기화 UI (Syncing UX)**: 인디고 틴트, 글로우(Glow) 효과, 프로그레스 바가 포함된 프리미엄 로딩 스켈레톤 적용.
-- - ✅ **UI/UX 전면 개편**: 히어로 섹션, 성분/용법 통합 박스, 배지형 식별 정보 등 프리미엄 카드 UI 고도화.
-
-### 사이드바 및 UI 고도화 (2026-02-08) ✓
-- ✅ **사이드바 접기(Collapse) 구현**: 데스크탑 환경에서 사이드바를 미니멀하게 접어 공간을 확보하는 기능 추가 (Gemini Style).
-- ✅ **반응형 동작**: 접힌 상태에서는 아이콘 중심의 네비게이션 제공 및 호버 시 툴팁/배경 효과 적용.
-- ✅ **새 채팅 버튼 리디자인**: 기존 'Plus' 버튼에서 모던한 'Pen' 아이콘 및 회색 필(Pill) 스타일로 변경하여 Gemini UI와 톤앤매너 통일.
-- ✅ **상태 동기화**: `App.tsx`에서 접힘 상태를 전역 관리하여 모바일/데스크탑 간 자연스러운 전환 지원.
-- - ✅ **무료 아이콘 체계 (Icon Overhaul)**: 유료 아이콘 문제를 해결하기 위해 **100% Free FontAwesome 6** 아이콘 매핑으로 전면 교체.
-- - ✅ **인코딩 안정화**: 숫자 범위(`~`) 변환 로직이 시각화 JSON 블록을 침범하지 않도록 텍스트 파트 한정한 정밀 처리.
-- - ✅ **다국어 확장 (KO/EN/ES/FR)**: 4개 국어에 대한 시각화 레이블 및 UI 텍스트 완벽 대응.
-- - ✅ **이미지 동기화 엔진**: Referer 우회를 위한 Supabase Storage 자동 캐싱 시스템 `/api/sync-drug-image` 최적화.
-- 
-- ### 인프라 및 설정 최적화 (2026-02-05) ✓
-- - ✅ **Vite 설정 개선**: `host: 0.0.0.0` 설정으로 모바일 기기 테스트 환경 구축 및 불필요한 주석 정리.
-- - ✅ **API 프록시**: 배포 환경(`chat-gem.vercel.app`)과의 통신을 위한 로컬 서버 프록시 설정 최적화.
-
-### API & UI Resilience Improvements (2026-01-31) ✓
-- ✅ **API Fallback Strategy**: `gemini-2.5-flash` 모델 쿼터 초과 시 `gemini-2.5-flash-lite`로 자동 전환되는 다중 모델 폴백 로직 구현.
-- ✅ **출력 위생 처리 (Sanitization)**: Google Search Grounding 오작동으로 인한 무한 공백 생성(Hallucination) 방지 필터 구현.
-- ✅ **표(Table) UI 고도화**: 긴 표에 대한 세로 스크롤(`max-h-500px`) 및 `<br>` 태그 자동 줄바꿈 처리로 가독성 개선.
-- ✅ **프롬프트 최적화**: 표 헤더 간소화 및 응답 완결성 지침 추가로 답변 품질 및 안정성 강화.
-
-### UI/UX & AI 응답 고도화 (2026-02-01) ✓
-- ✅ **프리미엄 코드 블록 구현**: `react-syntax-highlighter` 연동으로 에디터급 문법 강조(Syntax Highlighting) 지원 및 미니멀한 헤더(언어 표시, 복사 버튼) 적용.
-- ✅ **코드 생성 표준(Standards) 수립**: 시스템 프롬프트에 현대적 문법(ES6+, Type Hints), 클린 구조, 주석 최적화 지침을 추가하여 AI 응답 질 개선.
-- ✅ **BioRenderer 수직 정렬 최적화**: CSS 패딩 기반 레이아웃(`pt-10 pb-16`)으로 단백질 구조가 상하 배지 사이의 시각적 중앙에 정확히 배치되도록 개선.
-- ✅ **시퀀스 뷰 모바일 최적화**: 모바일 중앙 정렬(`justify-center`)과 수직 밸런스(`min-h-[300px]`) 확보로 터치 환경 가독성 향상.
-
-### BioRenderer 3D 구조 시각화 UI/UX 개선 (2026-02-01) ✓
-- ✅ **수직 정렬 최적화**: CSS 패딩 기반 레이아웃(`pt-32 pb-24`)으로 단백질 구조가 상하 배지 사이의 시각적 중앙에 정확히 배치되도록 개선.
-- ✅ **초기 로딩 정렬 안정화**: 지연 실행(600ms, 1200ms) 이중 `autoView` 호출로 레이아웃 확정 후 정렬하여 초기 점프 현상 제거.
-- ✅ **모바일 툴팁 UX**: 모바일 환경에서 잔기 정보 툴팁을 하단 고정 패널로 전환하여 터치 인터랙션 시 가독성 대폭 향상.
-- ✅ **반응형 레이아웃**: 모바일(`min-h-[300px]`)과 데스크탑(`min-h-[350px]`) 각각 최적화된 최소 높이 적용.
-- ✅ **카메라 조작 제거**: 복잡한 수동 `translate`/`zoom` 로직 제거하고 NGL 기본 `autoView`와 CSS만으로 안정적 정렬 구현.
-
-### 물리학 시뮬레이션 엔진 도입 (Phy-Viz) (2026-02-01) ✓
-- ✅ **Matter.js 기반 2D 물리 엔진**: 고전 역학, 충돌 시뮬레이션 지원을 위한 `PhysicsRenderer` 구현.
-- ✅ **교육용 다이어그램(Illustrated Explainer) 모드**: 물체별 **텍스트 라벨** 및 **벡터 화살표(힘, 속도)** 실시간 렌더링 기능 추가.
-- ✅ **시각적 정교화**: 화살표를 물체 테두리(Side)로 오프셋하여 시인성 확보 및 교육용 **슬로우 모션 중력** 가이드 도입.
-- ✅ **테스트 가이드 구축**: 고전역학 시나리오별 테스트용 프롬프트를 정리한 `physcripts.md` 생성.
-- ✅ **연결 고리(Constraints/Joints) 지원**: 물체 간 연결 시스템 구축 (안정성을 위해 현재는 프롬프트에서 선택적 활용).
-- ✅ **반응형 캔버스 아키텍처**: 웹(16:9) 및 모바일(4:3) 최적화 비율 자동 전환 로직 탑재.
-- ✅ **가상 좌표계(Virtual Scale) 최적화**: 모든 디바이스에서 동일한 물리 체감 제공.
-- ✅ **프리미엄 UI/UX**: 투명 경계면, 하단 여백, 오버레이 헤더 디자인 적용.
-
-
-### 시각화 모듈 다국어화 (Deep Localization) ✓
-- ✅ **전역 다국어 연동**: Bio, Chemical, Chart 렌더러가 전역 언어 설정(KO, EN, ES, FR)에 맞춰 내부 라벨('Chain', 'Atomic', 'Structure' 등)을 자동 전환.
-- ✅ **AI 응답 강제 고정**: 사용자가 다른 언어로 질문하더라도 설정된 언어로만 답변하도록 시스템 지침(System Instruction) 최적화 및 Gemini API 호출 구조 고도화.
-- ✅ **로딩 상태 로컬라이제이션**: '분석 중...' 등 시각화 장치 로딩 문구를 다국어 대응.
-
-### 멀티모달 영상 분석 (Video-to-Text) 도입 (2026-02-02) ✓
-- ✅ **직접 영상 분석**: MP4, MOV 등 영상 파일을 Gemini 2.5 Flash로 직접 분석하는 기능 구현.
-- ✅ **Video-to-Text 전환**: 최초 분석 시 영상 내용을 상세 텍스트로 추출하여 세션 컨텍스트(`lastActiveDoc`)로 자동 저장.
-- ✅ **대용량 처리 최적화**: Supabase Storage(`chat-videos`) 연동 및 Vercel API 크기 제한(30MB) 상향 조정.
-- ✅ **UI/UX 개선**: 영상 파일 전용 프리뷰 아이콘, 크기 제한(20MB) 안내 및 단계별 로딩 상태(분석 중, 시청 중) 구현.
-
-### 코드 렌더링 및 마크다운 고도화 (2026-02-02) ✓
-- ✅ **코드 블록 무결성(Integrity)**: 긴 코드가 여러 블록으로 쪼개지거나 박스 밖으로 튀어나오는 현상을 방지하기 위해 단일 블록 생성(Single-block generation) 및 강제 개행 지침 수립.
-- ✅ **프리미엄 타이포그래피**: `H3`, `Strong`, `EM`, `Blockquote`, `KBD` 등 마크다운 태그별 전용 스타일 설계로 AI 응답 가독성 극대화.
-- ✅ **인라인 코드 스타일 개선**: 대비와 가시성을 높인 전용 컬러팩 및 모서리 곡률(`rounded-md`) 조정.
-- ✅ **인라인 언어 태그 방지**: 인라인 백틱 내부에 `python:` 등의 불필요한 언어 접두사가 포함되지 않도록 시스템 프롬프트 정교화.
-
-### App.tsx 컴포넌트 분리 (Refactoring) ✓
-- ✅ **LoadingScreen 컴포넌트화**: `isAuthLoading` 상태일 때 보여주는 로딩 UI를 독립 컴포넌트(`LoadingScreen.tsx`)로 분리.
-- ✅ **WelcomeMessage 컴포넌트화**: 채팅 시작 전 웰컴 메시지 UI를 독립 컴포넌트(`WelcomeMessage.tsx`)로 분리하여 다국어 지원 강화.
-- ✅ **ChatArea 컴포넌트화**: 실제 메시지가 렌더링되는 메인 영역을 독립 컴포넌트(`ChatArea.tsx`)로 분리하여 `App.tsx`의 복잡도 감소 및 유지보수성 향상.
-
-### API 보안 및 관리 효율화 (2026-01-31) ✓
-- ✅ **동적 API Key 로드**: `API_KEY*` 패턴의 모든 환경 변수를 자동으로 감지하고 로테이션하는 중앙 설정(`api/lib/config.ts`) 구현.
-- ✅ **프론트엔드 보안 강화**: `vite.config.ts`에서 클라이언트로의 API Key 주입 제거 및 백엔드 전용 관리 체계 확립.
-- ✅ **중복 코드 제거**: 여러 API 엔드포인트(`chat`, `speech`, `title`)에서 개별적으로 관리하던 키 로직을 하나로 통합.
-
-### Bio-Viz 및 시각화 로직 안정화 ✓
-- ✅ **WebGL 자원 관리**: NGL Stage 소멸 시 `.dispose()` 명시적 호출로 메모리 누수 방지 및 WebGL 컨텍스트 최적화.
-- ✅ **PDB 뷰어 UI 정제**: 헤더의 불필요한 중복 라벨을 제거하고 툴팁 좌표 계산 방식을 개선하여 클리핑 현상 해결.
-- ✅ **스냅샷 기능 개선**: 투명 배경 대신 화이트 배경 처리를 보강하여 외부 리포트 호환성 증대.
-
-## ✅ Recently Completed (2026-01-30)
-
-### 화학 및 생물 구조 시각화 고도화 ✓
-- ✅ **화학 구조 모바일 뷰 최적화**: 긴 선형 분자가 모바일에서 너무 작게 보이는 문제를 해결하기 위해 최소 너비(`min-w`) 설정 및 가로 스크롤 지원.
-- ✅ **버튼 레이블 단순화**: 모바일 가독성을 위해 'SMILES NOTATION' -> 'SMILES', 'COPY SMILES' -> 'COPY'로 텍스트 간소화.
-- ✅ **몰입형 3D 레이아웃 (Bio-Viz)**: 테두리를 제거하고 플로팅 배지와 투명 헤더를 적용하여 현대적인 3D 뷰어 경험 제공.
-- ✅ **프리미엄 커스텀 툴팁 (Bio-Viz)**: NGL 기본 툴팁 대신 글래스모피즘 디자인의 상호작용형 툴팁 구현.
-- ✅ **데스크탑 렌더링 안정화**: `ResizeObserver`를 통한 화면 미출력 버그 해결.
-- ✅ **호버 감지 및 잔기 정보 노출 정밀화**: `PickingProxy`와 `fixed` 포지셔닝 툴팁을 결합하여 가닥 위의 잔기 번호(#)를 실시간으로 정확히 추적.
-- ✅ **거대 구조물 시각화 검증**: 코넥신(Connexin, 2ZW3) 등 12개 이상의 체인을 가진 거대 채널 단백질에 대한 안정적인 렌더링 및 분석 확인.
-
-### 데이터 시각화 및 문서 렌더링 ✓
-- ✅ **README 최신화**: Mermaid 아키텍처 다이어그램 및 신규 컴포넌트 구조 반영.
-- ✅ **LaTeX 렌더링 최적화**: KaTeX CSS 연동, 모바일 가로 스크롤 지원, 인라인/블록 수식 스타일링 차별화.
-
-### 한글 HWPX 문서 분석 지원 ✓
-- ✅ `JSZip` 라이브러리를 활용하여 `.hwpx` 파일(ZIP 패키지) 압축 해제
-- ✅ `Contents/section*.xml` 파일에서 `<hp:t>` 태그 내 텍스트 추출
-- ✅ HTML 엔티티 디코딩 및 Gemini API 컨텍스트 전달
-- ✅ 드래그 앤 드롭 및 파일 선택 UI 지원
-
-### Markdown 렌더링 개선 ✓
-- ✅ 숫자 범위 표기(`1~10`) 시 취소선 오류 수정
-- ✅ 정규식으로 `~` 기호를 HTML 엔티티(`&#126;`)로 치환하여 해결
-
-### 문서화 개선 ✓
-- ✅ README에 Mermaid 시스템 아키텍처 다이어그램 추가
-- ✅ 프로젝트 구조 문서 업데이트 (JSZip 반영)
-- ✅ 기능 설명에 HWPX 지원 명시
-
-### 파워포인트(PPTX) 문서 분석 지원 ✓
-- ✅ `JSZip`을 활용한 직접 XML 파싱 (`ppt/slides/slide*.xml`)
-- ✅ `<a:t>` 태그에서 텍스트 추출 및 슬라이드별 구조화
-- ✅ 텍스트 없는 PPTX 파일에 대한 예외 처리 (슬라이드 개수 + 안내 메시지)
-- ✅ 드래그 앤 드롭 및 파일 선택 UI 지원 (주황색 PowerPoint 아이콘)
-
----
-
-## 🚀 Priority Tasks (Future Roadmap)
+##  Priority Tasks (Future Roadmap)
 
 ### 🔥 High Priority (Core UX Improvements)
 
@@ -253,13 +20,20 @@
     - 로딩 상태 및 스트리밍 처리.
 - [ ] **예상 효과**: 사용자 만족도 향상, 재질문 횟수 감소.
 
-#### 3. 다중 이미지 분석 (Multi-image Analysis)
-- [ ] **목표**: 한 번의 요청에 **최대 3장**의 이미지를 동시 분석 가능하도록 확장.
-- [ ] **구현**:
-    - `ChatInput`에 선택된 이미지 미리보기 갤러리 구현.
-    - 이미지 개수 제한 가드 로직 (최대 3장).
-    - 병렬 업로드 및 Gemini 멀티모달 프롬프트 구조 최적화.
-- [ ] **예상 효과**: 비교 분석, 다각도 이미지 분석 등 고급 사용 사례 지원.
+#### 3. 다중 이미지 분석 (Multi-image Analysis) - [Detailed Plan]
+- [ ] **Phase 1: Frontend (UI/UX)**
+    - `ChatInput` 상태 관리 변경: `selectedAttachment` (단일) -> `selectedAttachments` (배열).
+    - 입력창 상단에 미니 갤러리/그리드 뷰 구현 (이미지별 삭제 버튼 포함).
+    - 파일 업로드 핸들러 수정: 드래그 앤 드롭/붙여넣기 시 기존 목록에 **Append** (최대 3장 제한).
+- [ ] **Phase 2: Backend & AI Logic**
+    - `api/chat.ts`: `req.body`에서 `attachments` 배열 수신 로직 추가.
+    - Gemini 프롬프트 구성: 다중 이미지(`inlineData` or `fileData`)를 `userParts`에 순차적으로 삽입.
+    - 멀티모달 프롬프트 최적화 (예: "첫 번째 사진과 두 번째 사진 비교해줘").
+- [ ] **Phase 3: Persistence & History (DB)**
+    - Supabase `chat_messages` 테이블 구조 검토:
+        - 방안 A: `attachment_url` 컬럼에 쉼표(`,`) 구분자 사용.
+        - 방안 B: `attachments` JSONB 컬럼 신규 추가 (권장).
+    - `ChatMessage.tsx`: 히스토리 로드 시 다중 이미지 그리드(2x2 등) 렌더링 지원.
 
 ### ⚙️ Medium Priority (Data & Intelligence)
 
@@ -278,7 +52,6 @@
 ### 🎨 Low Priority (Advanced Visualizations)
 
 #### 6. 화학 구조 시각화 반응형 고도화 (Chemical-Viz)
-- [x] **뷰박스(ViewBox) 기반 반응형 구현**: 고정 너비를 제거하고 `viewBox`를 적용하여 데스크탑에서는 시원하게, 모바일에서는 딱 맞게 자동 스케일링.
 - [ ] **동적 본드 길이(Bond Length) 조절**: SMILES 문자열 길이에 따라 결합선 길이를 반비례 조절하여 긴 분자의 디테일 보존.
 - [ ] **가로 스크롤 레이아웃 보강**: 초거대 분자 대응을 위한 터치 기반 가로 탐색 UI 강화.
 
@@ -300,25 +73,41 @@
     - **유체 역학(Fluid Dynamics)**: 입자 시스템(SPH)을 활용한 물/액체 시뮬레이션.
     - 복잡한 3D 구조물 및 강체 상호작용 실험.
 
+### ⚡ 성능 안정화 및 기능 추가
+- [ ] **Self-host Font Awesome**: 
+    - CDN 대신 `@fortawesome/react-fontawesome` 적용 또는 CSS/webfonts 자체 호스팅.
+    - **목표**: 외부 CDN 의존도 제거 및 렌더링 차단 해소.
+- [ ] **Self-host KaTeX/Fonts**: `jsdelivr` 및 `googleapis` 의존성 제거.
+- [ ] **Service Worker (PWA)**: 정적 자산 캐싱을 통한 일관된 성능 보장.
+- [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 최적화.
 
 ---
 
 ## 🛠️ Minor Improvements
 
-- [x] 지원하지 않는 파일 형식 업로드 시 사용자 친화적인 안내 강화 (Toast 메시지).
-- [x] 코드 블록 및 시각화 결과물 내보내기 버튼 추가.
-- [ ] 다크모드/라이트모드 UI 일관성 폴리싱 (Borderless 전략 상시 적용).
+- [x] 다크모드/라이트모드 UI 일관성 폴리싱 (Borderless 전략 상시 적용) ✅
+    - 전역 스크롤바 및 KaTeX 블록 스타일 최적화.
+    - 사이드바 새 채팅 버튼 및 선택 상태 디자인 고도화.
+    - 데이터 시각화(Chart/Chem/Drug) 카드 디자인 (2rem 라운딩, 그림자 고도화) 반영.
+- [x] 사이드바 UI 전면 개편 (GPT/Gemini 스타일 반영) ✅
+    - **Header & Sidebar**:
+        - 모바일 사이드바 닫기(X) 버튼 제거 및 백드롭 터치 UX 최적화.
+        - 사이드바 상단 'Menu' 텍스트 제거 및 미니멀 디자인 적용.
+        - 모바일 햄버거 메뉴 아이콘 스타일 변경 (Staggered -> Regular).
+        - 우측 상단 사용자 프로필 영역 간소화 (Divider 제거, 텍스트 축소, Chevron 아이콘 추가).
+    - **General UI**:
+        - 하단 언어 선택 영역 보더 라인 제거로 개방감 확보.
+        - 메시지 하단 유틸리티 버튼(듣기, 복사) 모바일 가시성 개선 (Always visible).
+        - 이미지 뷰어 최대 너비 확장 (400px -> 480px/Full width).
+    - 실시간 대화 검색 기능 도입.
+    - '새 채팅' 및 세션 리스트 디자인 프리미엄 리터칭.
 - [ ] 메시지 편집 기능 추가 (Edit message).
-- [ ] 음성 입력 기능 (Speech-to-Text).
+- [ ] 음성 인터랙션 고도화 (Voice Mode Strategy): 단순 마이크 입력을 넘어선 실시간 연속 대화 및 리얼타임 보이스 모드 구현.
 
 ---
 
 ## 🧹 Code Quality & Refactoring
 
-- [x] **API Key 관리 및 보안 강화**
-    - [x] `vite.config.ts`에서 하드코딩된 `API_KEY` 주입 제거 (프론트엔드 노출 방지).
-    - [x] 백엔드(`api/*.ts`)에서 `process.env`를 이용한 동적 API Key 로드 및 로테이션 구현.
-    - [x] Vercel 환경 변수 추가 시 코드 수정 없이 자동 반영되도록 개선.
 - [ ] 불필요한 파일 정리 (`test-supabase.ts`, `metadata.json`).
 - [ ] `reference/` 폴더 삭제 고려 (HWPX 구현 완료).
 - [ ] ESLint/Prettier 설정 추가.
@@ -326,5 +115,5 @@
 
 ---
 
-*Last Updated: 2026-02-17 (Advanced Performance Tuning - Inlining & Granular Splitting)*
+*Last Updated: 2026-02-19 (UI Polishing and Strategy Refinement)*
 

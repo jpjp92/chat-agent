@@ -118,9 +118,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onMenuClick}
-            className="md:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+            className="md:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95"
           >
-            <i className="fa-solid fa-bars-staggered text-sm sm:text-base"></i>
+            <i className="fa-solid fa-bars text-lg"></i>
           </button>
 
           <div className="flex items-center group cursor-pointer">
@@ -136,28 +136,26 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={toggleDarkMode}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700 active:scale-90"
+            className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 transition-all active:scale-95"
           >
-            <i className={`fa-solid ${isDarkMode ? 'fa-sun' : 'fa-moon'} text-base sm:text-lg`}></i>
+            <i className={`fa-solid ${isDarkMode ? 'fa-sun' : 'fa-moon'} text-lg`}></i>
           </button>
-
-          <div className="hidden xs:block w-px h-5 sm:h-6 bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
           <div
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-2 sm:space-x-3 cursor-pointer pl-1 sm:pl-2 pr-1 py-1 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all group border border-transparent active:scale-95"
+            className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
           >
-            <div className="hidden lg:block text-right">
-              <p className="text-sm font-bold leading-none text-slate-900 dark:text-slate-100 tabular-nums tracking-normal">{userProfile.name}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.settings}</p>
+            <div className="hidden lg:flex items-center gap-2 mr-1">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{userProfile.name}</span>
+              <i className="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
             </div>
             <img
               src={userProfile.avatarUrl}
               alt="Profile"
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white dark:border-slate-800 shadow-sm object-cover"
+              className="w-9 h-9 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-800"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userProfile.name);
               }}

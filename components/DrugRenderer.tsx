@@ -212,8 +212,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
 
     return (
-        <div className="w-full my-6">
-            <div className="max-w-2xl mx-auto rounded-[1.5rem] border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-lg overflow-hidden">
+        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
+            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Hero Section: Integrated Title & Image */}
                 <div className="relative bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 dark:from-transparent dark:to-transparent border-b border-slate-100 dark:border-white/5">
