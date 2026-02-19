@@ -9,8 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        console.log(`[Proxy] original url: ${url}`);
-
         // 1. URL Auto-Repair (Hallucination Fix)
         let repairedUrl = url;
 
@@ -18,7 +16,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const secondHttpsIndex = url.indexOf('https://', 8);
         if (secondHttpsIndex > -1) {
             repairedUrl = url.substring(secondHttpsIndex);
-            console.log(`[Proxy] Repaired double-HTTPS hybrid URL: ${repairedUrl}`);
         }
         // CASE B: https://health.kr/images/dthumb-phinf.pstatic.net/... (Nested domain without second protocol)
         else if (url.includes('pstatic.net')) {
@@ -29,15 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const originalUrlObj = new URL(url);
                     if (!originalUrlObj.hostname.includes('pstatic.net')) {
                         repairedUrl = candidate;
-                        console.log(`[Proxy] Repaired nested-domain hybrid URL: ${repairedUrl}`);
                     }
                 } catch (e) {
                     repairedUrl = candidate; // If original is too mangled to parse as URL
                 }
             }
         }
-
-        console.log(`[Proxy] Final target URL: ${repairedUrl}`);
 
         // 2. Naver dthumb-phinf 처리 (중첩된 src 추출)
         let finalUrl = repairedUrl;
@@ -48,10 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (srcParam) {
                     const cleanedSrc = srcParam.replace(/^"|"$/g, '');
                     finalUrl = decodeURIComponent(cleanedSrc);
-                    console.log(`[Proxy] Extracted nested Naver image URL: ${finalUrl}`);
                 }
             } catch (pErr) {
-                console.warn(`[Proxy] Failed to parse nested Naver URL, using original:`, pErr);
+                // Failed to parse nested Naver URL, using original
             }
         }
 

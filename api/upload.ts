@@ -31,15 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const baseName = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
         const ext = lastDotIndex !== -1 ? fileName.substring(lastDotIndex + 1) : '';
 
-        // [DEBUG] 원본 정보 로그
-        console.log(`[Upload API] Original: ${fileName}, base: ${baseName}, ext: ${ext}, bucket: ${bucket}`);
-
         // 영문, 숫자만 남기고 나머지는 하이픈으로 대체 (연속된 하이픈 방지)
         const safeBaseName = baseName.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'file';
         const filePath = `${timestamp}_${safeBaseName}${ext ? '.' + ext : ''}`;
-
-        // [DEBUG] 생성된 경로 로그
-        console.log(`[Upload API] Generated Key: ${filePath}`);
 
         // 3. Supabase Storage에 업로드 (service_role 키가 있다면 사용하여 정책 우회)
         // Check if admin client is available
