@@ -20,20 +20,10 @@
     - 로딩 상태 및 스트리밍 처리.
 - [ ] **예상 효과**: 사용자 만족도 향상, 재질문 횟수 감소.
 
-#### 3. 다중 이미지 분석 (Multi-image Analysis) - [Detailed Plan]
-- [ ] **Phase 1: Frontend (UI/UX)**
-    - `ChatInput` 상태 관리 변경: `selectedAttachment` (단일) -> `selectedAttachments` (배열).
-    - 입력창 상단에 미니 갤러리/그리드 뷰 구현 (이미지별 삭제 버튼 포함).
-    - 파일 업로드 핸들러 수정: 드래그 앤 드롭/붙여넣기 시 기존 목록에 **Append** (최대 3장 제한).
-- [ ] **Phase 2: Backend & AI Logic**
-    - `api/chat.ts`: `req.body`에서 `attachments` 배열 수신 로직 추가.
-    - Gemini 프롬프트 구성: 다중 이미지(`inlineData` or `fileData`)를 `userParts`에 순차적으로 삽입.
-    - 멀티모달 프롬프트 최적화 (예: "첫 번째 사진과 두 번째 사진 비교해줘").
-- [ ] **Phase 3: Persistence & History (DB)**
-    - Supabase `chat_messages` 테이블 구조 검토:
-        - 방안 A: `attachment_url` 컬럼에 쉼표(`,`) 구분자 사용.
-        - 방안 B: `attachments` JSONB 컬럼 신규 추가 (권장).
-    - `ChatMessage.tsx`: 히스토리 로드 시 다중 이미지 그리드(2x2 등) 렌더링 지원.
+#### 3. 다중 이미지 및 문서 분석 (Multi-modal Collection Analysis) ✅
+- [x] **Phase 1: Frontend (UI/UX)**: `ChatInput` 갤러리 구현 및 최대 3개 파일 Append 로직 적용.
+- [x] **Phase 2: Backend & AI Logic**: `api/chat.ts` 다중 파트(inlineData/fileData) 처리 및 외부 URL Base64 프록싱 구현.
+- [x] **Phase 3: Persistence (UI Layer)**: `ChatMessage.tsx` 다중 이미지 그리드 렌더링 및 가로/세로 동적 배열 최적화.
 
 ### ⚙️ Medium Priority (Data & Intelligence)
 
@@ -42,12 +32,9 @@
 - [ ] **컬럼 타입 자동 감지**: 숫자, 날짜, 텍스트 등 자동 인식 및 최적화된 시각화 제안.
 - [ ] **다중 시트 지원**: Excel 파일의 여러 시트를 선택하여 분석.
 
-#### 5. 다중 문서 업로드 및 교차 분석
-- [ ] **목표**: 여러 개의 문서 파일(PDF, DOCX 등)을 동시에 업로드하고 교차 분석 지원.
-- [ ] **구현**: 
-    - 드래그 앤 드롭으로 다중 파일 선택.
-    - 각 문서를 세션 컨텍스트에 추가하여 AI가 참조 가능하도록 구성.
-- [ ] **예상 효과**: 논문 비교, 계약서 대조 등 고급 문서 분석 시나리오 지원.
+#### 5. 다중 문서 업로드 및 교차 분석 ✅
+- [x] **목표**: 여러 개의 문서 파일(PDF, DOCX 등)을 동시에 업로드하고 교차 분석 지원.
+- [x] **구현**: 모든 업로드된 문서의 텍스트를 `webContext`에 결합하여 AI에게 제공.
 
 ### 🎨 Low Priority (Advanced Visualizations)
 
@@ -86,23 +73,12 @@
 ## 🛠️ Minor Improvements
 
 - [x] 다크모드/라이트모드 UI 일관성 폴리싱 (Borderless 전략 상시 적용) ✅
-    - 전역 스크롤바 및 KaTeX 블록 스타일 최적화.
-    - 사이드바 새 채팅 버튼 및 선택 상태 디자인 고도화.
-    - 데이터 시각화(Chart/Chem/Drug) 카드 디자인 (2rem 라운딩, 그림자 고도화) 반영.
 - [x] 사이드바 UI 전면 개편 (GPT/Gemini 스타일 반영) ✅
-    - **Header & Sidebar**:
-        - 모바일 사이드바 닫기(X) 버튼 제거 및 백드롭 터치 UX 최적화.
-        - 사이드바 상단 'Menu' 텍스트 제거 및 미니멀 디자인 적용.
-        - 모바일 햄버거 메뉴 아이콘 스타일 변경 (Staggered -> Regular).
-        - 우측 상단 사용자 프로필 영역 간소화 (Divider 제거, 텍스트 축소, Chevron 아이콘 추가).
-    - **General UI**:
-        - 하단 언어 선택 영역 보더 라인 제거로 개방감 확보.
-        - 메시지 하단 유틸리티 버튼(듣기, 복사) 모바일 가시성 개선 (Always visible).
-        - 이미지 뷰어 최대 너비 확장 (400px -> 480px/Full width).
-    - 실시간 대화 검색 기능 도입.
-    - '새 채팅' 및 세션 리스트 디자인 프리미엄 리터칭.
+- [x] **v3.5 모바일 컴팩트 UI 최적화** ✅
+    - 헤더 및 입력창 수직 패딩 최소화로 채팅 공간 극대화.
+    - 사용자 메시지 말풍선 너비 최적화 (`w-fit`) - 긴 이미지가 있어도 텍스트가 늘어지지 않음.
 - [ ] 메시지 편집 기능 추가 (Edit message).
-- [ ] 음성 인터랙션 고도화 (Voice Mode Strategy): 단순 마이크 입력을 넘어선 실시간 연속 대화 및 리얼타임 보이스 모드 구현.
+- [ ] 음성 인터랙션 고도화 (Voice Mode Strategy).
 
 ---
 
@@ -115,5 +91,5 @@
 
 ---
 
-*Last Updated: 2026-02-19 (UI Polishing and Strategy Refinement)*
+*Last Updated: 2026-02-21 (Multi-Modal Analysis and Mobile UI Polish)*
 

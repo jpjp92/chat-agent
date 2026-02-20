@@ -192,17 +192,18 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
 
-  const renderAttachment = () => {
-    if (!attachment) return null;
+  const renderSingleAttachment = (att: any, index?: number) => {
+    if (!att) return null;
 
-    const isImage = attachment.mimeType.startsWith('image/');
-    const isPDF = attachment.mimeType === 'application/pdf';
+    const isImage = att.mimeType.startsWith('image/');
+    const isPDF = att.mimeType === 'application/pdf';
+    const isVideo = att.mimeType.startsWith('video/');
 
     if (isImage) {
       return (
-        <div className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${isUser ? 'origin-right' : 'origin-left'}`}>
+        <div key={index} className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${isUser ? 'origin-right' : 'origin-left'}`}>
           <img
-            src={attachment.data}
+            src={att.data}
             alt="Attachment"
             className="w-full h-auto object-cover max-w-full sm:max-w-[480px]"
             decoding="async"
@@ -211,15 +212,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       );
     }
 
+    if (isVideo) {
+      return (
+        <div key={index} className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm aspect-video sm:max-w-[480px] bg-black flex items-center justify-center relative`}>
+          <video src={att.data} controls className="w-full h-full" />
+        </div>
+      );
+    }
+
     if (isPDF) {
       return (
-        <div className={`mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div key={index} className={`mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
           <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0">
             <i className="fa-solid fa-file-pdf text-xl"></i>
           </div>
           <div className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
-              {attachment.fileName || 'document.pdf'}
+              {att.fileName || 'document.pdf'}
             </span>
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.pdf}</span>
           </div>
@@ -228,11 +237,44 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     }
 
     return (
-      <div className="mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-        <i className="fa-solid fa-file text-slate-400 flex-shrink-0"></i>
-        <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{attachment.fileName || t.attachment}</span>
+      <div key={index} className="mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+        <i className={`fa-solid ${att.mimeType.includes('word') || att.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
+          att.mimeType.includes('sheet') || att.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
+            att.mimeType.includes('presentationml') || att.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
+              att.mimeType.includes('csv') || att.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
+                att.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
+                  'fa-file'
+          } text-slate-400 flex-shrink-0`}></i>
+        <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{att.fileName || t.attachment}</span>
       </div>
     );
+  };
+
+  const renderAttachments = () => {
+    if (message.attachments && message.attachments.length > 0) {
+      // Multiple attachments
+      const images = message.attachments.filter(a => a.mimeType.startsWith('image/'));
+      const others = message.attachments.filter(a => !a.mimeType.startsWith('image/'));
+
+      return (
+        <div className="flex flex-col w-full">
+          {images.length > 0 && (
+            <div className={`grid ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 mb-2`}>
+              {images.map((img, i) => (
+                <div key={i} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:opacity-95 transition-opacity">
+                  <img src={img.data} alt="Attachment" className="w-full h-32 sm:h-48 object-cover" onClick={() => window.open(img.data, '_blank')} />
+                </div>
+              ))}
+            </div>
+          )}
+          {others.map((att, i) => renderSingleAttachment(att, i))}
+        </div>
+      );
+    }
+
+    // Fallback to legacy single attachment
+    const single = message.attachment || message.image;
+    return renderSingleAttachment(single);
   };
 
   const renderContent = (content: string) => {
@@ -423,11 +465,11 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
         <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1 overflow-hidden`}>
 
-          {renderAttachment()}
+          {renderAttachments()}
 
-          <div className={`relative transition-all duration-300 w-full overflow-hidden ${isUser
-            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm'
-            : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3]'
+          <div className={`relative transition-all duration-300 overflow-hidden ${isUser
+            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
+            : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
             }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
             <div className="font-normal leading-relaxed w-full">
               {message.content ? (

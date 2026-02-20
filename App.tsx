@@ -297,61 +297,68 @@ const App: React.FC = () => {
 
   const currentSession = sessions.find(s => s.id === currentSessionId);
 
-  const handleSendMessage = async (content: string, attachment?: MessageAttachment) => {
-    if (!currentSessionId || (!content.trim() && !attachment)) return;
+  const handleSendMessage = async (content: string, _old_attachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
+    if (!currentSessionId || (!content.trim() && attachments.length === 0)) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: Role.USER,
-      content,
-      timestamp: Date.now(),
-      attachment
-    };
+    // 0. 첨부파일들이 있는 경우 Supabase Storage에 순차적으로 업로드
+    let finalAttachments: MessageAttachment[] = [];
 
-    // 0. 첨부파일이 있는 경우 Supabase Storage에 먼저 업로드
-    let finalAttachment = attachment;
-    if (attachment && attachment.data) {
+    if (attachments.length > 0) {
       try {
-        const isImage = attachment.mimeType.startsWith('image/');
-        const isVideo = attachment.mimeType.startsWith('video/');
-        const isPDF = attachment.mimeType === 'application/pdf';
+        for (const attachment of attachments) {
+          const isImage = attachment.mimeType.startsWith('image/');
+          const isVideo = attachment.mimeType.startsWith('video/');
+          const isPDF = attachment.mimeType === 'application/pdf';
 
-        // 자연스러운 로딩 문구 설정
-        setLoadingStatus(isVideo ? t.analyzingVideo : isImage ? t.analyzingImage : isPDF ? t.analyzingDoc : t.analyzingFile);
+          // 자연스러운 로딩 문구 설정 (여러 개일 경우 개별 파일명 포함)
+          setLoadingStatus(`${attachment.fileName || '파일'} 업로드 중...`);
 
-        const bucket = isVideo ? 'chat-videos' : isImage ? 'chat-imgs' : 'chat-docs';
-        const uploadResult = await uploadToStorage({
-          fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : isVideo ? 'video.mp4' : 'image.png'),
-          data: attachment.data,
-          mimeType: attachment.mimeType
-        }, bucket);
+          const bucket = isVideo ? 'chat-videos' : isImage ? 'chat-imgs' : 'chat-docs';
+          const uploadResult = await uploadToStorage({
+            fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : isVideo ? 'video.mp4' : 'image.png'),
+            data: attachment.data,
+            mimeType: attachment.mimeType
+          }, bucket);
 
-        if (uploadResult.error) throw new Error(uploadResult.error);
+          if (uploadResult.error) throw new Error(uploadResult.error);
 
-        // 업로드된 실제 URL로 교체
-        finalAttachment = { ...attachment, data: uploadResult.url };
+          // 업로드된 실제 URL로 교체된 새 객체 추가
+          finalAttachments.push({ ...attachment, data: uploadResult.url });
+        }
       } catch (e: any) {
         showToast(t.uploadFailed, "error");
         console.error("Upload error:", e);
+        setLoadingStatus(null);
         return;
       } finally {
         setLoadingStatus(null);
       }
     }
 
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: Role.USER,
+      content,
+      timestamp: Date.now(),
+      attachments: finalAttachments,
+      // 하위 호환성 위해 첫 번째 파일 유지
+      attachment: finalAttachments.length > 0 ? finalAttachments[0] : undefined
+    };
+
     let latestHistory: Message[] = [];
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
-        // UI에는 즉시 표시 (원본 base64 또는 URL 둘 다 ChatMessage에서 지원됨)
-        latestHistory = [...s.messages, { ...userMessage, attachment: finalAttachment }];
+        latestHistory = [...s.messages, userMessage];
 
-        // 문서인 경우 세션의 마지막 활성 문서로 저장
-        const isDocument = finalAttachment?.extractedText || finalAttachment?.mimeType === 'application/pdf';
+        // 여러 문서가 업로드된 경우, 마지막 문서를 컨텍스트로 우선 저장 (향후 다중 컨텍스트 병합 고려 가능)
+        const docs = finalAttachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
+        const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
 
         return {
           ...s,
           messages: latestHistory,
-          lastActiveDoc: isDocument ? finalAttachment : s.lastActiveDoc
+          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc,
+          lastActiveAttachments: finalAttachments.length > 0 ? finalAttachments : s.lastActiveAttachments
         };
       }
       return s;
@@ -361,27 +368,30 @@ const App: React.FC = () => {
     let modelResponse = '';
     const modelMessageId = (Date.now() + 1).toString();
 
-    // URL 감지 및 지능형 텍스트 추출
-    // 현재 세션의 마지막 문서 컨텍스트가 있다면 기본으로 탑재
+    // 지능형 컨텍스트 추출
     const currentSession = sessions.find(s => s.id === currentSessionId);
     let webContext = "";
 
-    // 1. 현재 첨부된 문서가 있다면 우선 적용
-    if (attachment?.extractedText) {
-      webContext = `[EXTRACTED_DOCUMENT_CONTENT: ${attachment.fileName}]\n${attachment.extractedText}`;
+    // 1. 현재 첨부된 모든 문서들의 텍스트를 컨텍스트에 포함
+    if (finalAttachments.length > 0) {
+      finalAttachments.forEach(att => {
+        if (att.extractedText) {
+          webContext += `\n[EXTRACTED_CONTENT: ${att.fileName}]\n${att.extractedText}\n`;
+        }
+      });
     }
+
     // 2. 현재 첨부된 문서가 없지만, 세션에 저장된 이전 문서 컨텍스트가 있다면 보조 적용
-    else if (currentSession?.lastActiveDoc?.extractedText) {
+    if (webContext === "" && currentSession?.lastActiveDoc?.extractedText) {
       const isVideoContext = currentSession.lastActiveDoc.mimeType?.startsWith('video/');
       const tag = isVideoContext ? "[VIDEO_ANALYSIS_SUMMARY]" : "[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT]";
       webContext = `${tag}: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
     }
 
-    // 더 정교한 URL 정규식 (괄호나 문장부호 포함 가능성 고려)
+    // URL 감지 로직
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;
     const urls = content.match(urlRegex);
     if (urls && urls.length > 0) {
-      // 끝에 붙은 문장부호 제거 (., ), ], ,, !, ?)
       let url = urls[0].replace(/[.\)\]\!,?]+$/, '');
       const isArxiv = url.includes('arxiv.org');
       const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
@@ -393,15 +403,12 @@ const App: React.FC = () => {
       } else if (isYoutube) {
         setLoadingStatus(t.checkingYoutube);
         const metadata = await fetchUrlContent(url);
-
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
         const match = regExp.exec(url);
         const videoId = (match && match[7].length === 11) ? match[7] : null;
 
         let transcript = null;
-        if (videoId) {
-          transcript = await fetchYoutubeTranscript(videoId);
-        }
+        if (videoId) transcript = await fetchYoutubeTranscript(videoId);
 
         if (transcript) {
           setLoadingStatus(t.analyzingTranscript);
@@ -441,7 +448,7 @@ const App: React.FC = () => {
           }));
         },
         language,
-        (attachment?.mimeType?.startsWith('image/') || attachment?.mimeType?.startsWith('video/') || attachment?.mimeType === 'application/pdf') ? attachment : undefined,
+        undefined, // single attachment is deprecated in favor of webContext and internal multi-image handling
         webContext,
         'text',
         (sources) => {
@@ -455,18 +462,20 @@ const App: React.FC = () => {
             return s;
           }));
         },
-        currentSessionId
+        currentSessionId,
+        finalAttachments // New: Pass multiple attachments to service
       );
 
       // 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
-      if (finalAttachment?.mimeType?.startsWith('video/') && modelResponse) {
+      const videoAttachment = finalAttachments.find(a => a.mimeType?.startsWith('video/'));
+      if (videoAttachment && modelResponse) {
         setSessions(prev => prev.map(s => {
           if (s.id === currentSessionId) {
             return {
               ...s,
               lastActiveDoc: {
-                ...finalAttachment!,
-                extractedText: modelResponse // AI가 뽑아준 요약 내용을 텍스트 컨텍스트로 활용
+                ...videoAttachment,
+                extractedText: modelResponse
               }
             };
           }
@@ -478,8 +487,6 @@ const App: React.FC = () => {
       if (latestHistory.length <= 2) {
         const newTitle = await summarizeConversation([...latestHistory, { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() }], language);
         setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, title: newTitle } : s));
-
-        // Supabase DB에도 반영
         try {
           await updateSessionTitle(currentSessionId, newTitle);
         } catch (e) {
@@ -576,7 +583,7 @@ const App: React.FC = () => {
 
         <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
           <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} />
-          <div className="mt-2 text-center">
+          <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
               {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
                 language === 'es' ? 'Gemini puede cometer errores. (Análisis de URL y soporte PDF)' :

@@ -114,7 +114,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       {/* Background with Glass Effect */}
       <div className="absolute inset-0 bg-white/80 dark:bg-[#131314]/80 glass-effect border-none -z-10"></div>
 
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2 sm:py-4">
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onMenuClick}

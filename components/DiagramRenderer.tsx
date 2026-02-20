@@ -71,12 +71,16 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const boxCenterX = boxBaseX - perpOffset * Math.sin(angleRad);
         const boxCenterY = boxBaseY - perpOffset * Math.cos(angleRad);
 
+        const isDark = document.documentElement.classList.contains('dark');
+        const textColor = isDark ? '#e2e8f0' : '#1a1a2e';
+        const strokeColor = isDark ? '#475569' : '#000000';
+
         // Draw baseline (horizontal reference)
         if (data.showBaseline !== false) {
             ctx.beginPath();
             ctx.moveTo(50, baselineY);
             ctx.lineTo(width - 50, baselineY);
-            ctx.strokeStyle = '#000000';
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 1.5;
             ctx.stroke();
         }
@@ -108,14 +112,14 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             const arcRadius = 80;
             ctx.beginPath();
             ctx.arc(planeLeftX, baselineY, arcRadius, -angleRad, 0);
-            ctx.strokeStyle = '#1a1a2e';
+            ctx.strokeStyle = textColor;
             ctx.lineWidth = 2;
             ctx.stroke();
 
             // Angle label (θ)
             const labelAngle = angleRad / 2;
             ctx.font = 'bold 24px Arial';
-            ctx.fillStyle = '#1a1a2e';
+            ctx.fillStyle = textColor;
             ctx.textAlign = 'center';
             ctx.fillText('θ', planeLeftX + arcRadius * 1.3 * Math.cos(labelAngle), baselineY - arcRadius * 0.7 * Math.sin(labelAngle) - 2);
         }
@@ -130,11 +134,11 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.fillRect(-boxSize / 2 + 3, -boxSize / 2 + 3, boxSize, boxSize);
 
         // Box fill
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = isDark ? '#334155' : '#ffffff';
         ctx.fillRect(-boxSize / 2, -boxSize / 2, boxSize, boxSize);
 
         // Box outline
-        ctx.strokeStyle = '#1a1a2e';
+        ctx.strokeStyle = textColor;
         ctx.lineWidth = 2.5;
         ctx.strokeRect(-boxSize / 2, -boxSize / 2, boxSize, boxSize);
 
@@ -142,14 +146,14 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
 
         // Box label
         ctx.font = 'bold 18px Arial';
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = textColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('상자', boxCenterX + boxSize * 0.7, boxCenterY - boxSize * 0.3);
 
         // Plane label
         ctx.font = 'bold 20px Arial';
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = textColor;
         ctx.textAlign = 'center';
         ctx.fillText('경사면', planeRightX - 60, planeTopY - 30);
 

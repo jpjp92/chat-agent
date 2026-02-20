@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
 
 interface ChatInputProps {
-  onSend: (message: string, attachment?: MessageAttachment) => void;
+  onSend: (message: string, attachment?: MessageAttachment, attachments?: MessageAttachment[]) => void;
   disabled?: boolean;
   language?: Language;
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
@@ -13,10 +13,11 @@ interface ChatInputProps {
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 20 * 1024 * 1024;
+const MAX_ATTACHMENTS = 3;
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast }) => {
   const [input, setInput] = useState('');
-  const [selectedAttachment, setSelectedAttachment] = useState<MessageAttachment | null>(null);
+  const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isSTTSupported, setIsSTTSupported] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -26,10 +27,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const finalTranscriptRef = useRef('');
 
   const i18n = {
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat" },
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (일반 4MB, 영상 20MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기" },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB, Video 20MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB, Video 20MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat" }
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Maximum 3 fichiers." },
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (일반 4MB, 영상 20MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개의 파일까지만 첨부 가능합니다." },
+    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB, Video 20MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Maximum 3 files allowed." },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB, Video 20MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máximo 3 archivos." }
   };
 
   const t = i18n[language] || i18n.ko;
@@ -88,11 +89,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if ((input.trim() || selectedAttachment) && !disabled) {
+    if ((input.trim() || selectedAttachments.length > 0) && !disabled) {
       if (isListening) recognitionRef.current.stop();
-      onSend(input, selectedAttachment || undefined);
+      // onSend handles multiple attachments: passing first for compat, but we'll change App.tsx later
+      // Actually, let's update ChatInputProps first or handle it here
+      (onSend as any)(input, selectedAttachments.length > 0 ? selectedAttachments[0] : undefined, selectedAttachments);
       setInput('');
-      setSelectedAttachment(null);
+      setSelectedAttachments([]);
       finalTranscriptRef.current = '';
       if (textareaRef.current) textareaRef.current.style.height = window.innerWidth < 640 ? '36px' : '40px';
     }
@@ -106,6 +109,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   };
 
   const processFile = useCallback(async (file: File) => {
+    if (selectedAttachments.length >= MAX_ATTACHMENTS) {
+      showToast(t.limitError, "error");
+      return;
+    }
+
     const isVideo = file.type.startsWith('video/');
     const limit = isVideo ? MAX_VIDEO_SIZE : MAX_FILE_SIZE;
 
@@ -124,7 +132,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       } else if (file.name.endsWith(".xlsx") || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer);
-        // 첫 번째 시트 데이터만 추출
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
@@ -144,22 +151,18 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
         const arrayBuffer = await file.arrayBuffer();
 
-        // 1. 인코딩 시도 (UTF-8 -> EUC-KR)
         try {
           const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
           extractedText = utf8Decoder.decode(arrayBuffer);
         } catch (e) {
-          // UTF-8 실패 시 한국어 인코딩(EUC-KR)으로 재시도
           const eucKrDecoder = new TextDecoder('euc-kr');
           extractedText = eucKrDecoder.decode(arrayBuffer);
         }
 
-        // 2. CSV 파일의 경우 마크다운 테이블로 변환 (AI 인식률 향상)
         if (file.name.endsWith(".csv")) {
           const lines = extractedText.split(/\r?\n/).filter(line => line.trim() !== "");
           if (lines.length > 0) {
             const tableData = lines.map(line => {
-              // 단순 콤마 분리보다 안전한 정규식 (따옴표 내 콤마 무시 등은 고려하지 않은 기본형)
               return line.split(',').map(cell => cell.trim().replace(/^["']|["']$/g, ''));
             });
 
@@ -185,7 +188,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         let fullText = "";
         for (const sectionPath of sectionFiles) {
           const xmlContent = await zip.file(sectionPath)!.async("string");
-          // <hp:t>태그 안의 텍스트만 추출
           const textMatches = xmlContent.match(/<hp:t[^>]*>(.*?)<\/hp:t>/g);
           if (textMatches) {
             const sectionText = textMatches
@@ -211,7 +213,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         for (let i = 0; i < slideFiles.length; i++) {
           const slidePath = slideFiles[i];
           const xmlContent = await zip.file(slidePath)!.async("string");
-          // <a:t> 태그 안의 텍스트만 추출 (PowerPoint 텍스트 태그)
           const textMatches = xmlContent.match(/<a:t[^>]*>(.*?)<\/a:t>/g);
           if (textMatches) {
             const slideText = textMatches
@@ -222,7 +223,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           }
         }
 
-        // 텍스트가 거의 없는 경우 안내 메시지 제공
         if (fullText.trim().length < 10) {
           extractedText = `[PPTX 파일: 총 ${slideFiles.length}개 슬라이드]\n⚠️ 텍스트를 찾을 수 없습니다. 이미지 위주의 슬라이드인 경우 개별 이미지를 캡처하여 업로드해주세요.`;
         } else {
@@ -235,23 +235,27 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      setSelectedAttachment({
+      const newAttachment: MessageAttachment = {
         data: reader.result as string,
         mimeType: file.type || (file.name.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'),
         fileName: file.name,
         extractedText: extractedText || undefined
-      });
+      };
+      setSelectedAttachments(prev => [...prev, newAttachment]);
     };
     reader.readAsDataURL(file);
-  }, [t.sizeError, showToast]);
+  }, [selectedAttachments, t.limitError, t.sizeError, showToast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => processFile(file));
     }
-    // Reset file input
     e.target.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setSelectedAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -264,7 +268,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         if (file) {
           e.preventDefault();
           processFile(file);
-          return;
         }
       }
     }
@@ -285,7 +288,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
       const allowedMimeTypes = [
         'application/pdf',
         'text/plain',
@@ -295,47 +297,52 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       ];
-      if (file.type.startsWith('image/') || file.type.startsWith('video/') || allowedMimeTypes.includes(file.type) ||
-        file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')) {
-        processFile(file);
-      } else {
-        showToast(t.typeError, "error");
-      }
+
+      Array.from(e.dataTransfer.files).forEach(file => {
+        if (file.type.startsWith('image/') || file.type.startsWith('video/') || allowedMimeTypes.includes(file.type) ||
+          file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')) {
+          processFile(file);
+        } else {
+          showToast(t.typeError, "error");
+        }
+      });
     }
   };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 relative">
-      {selectedAttachment && (
-        <div className="absolute bottom-full left-4 sm:left-6 mb-3 animate-in slide-in-from-bottom-2 duration-300">
-          <div className="relative group">
-            <div className="overflow-hidden rounded-2xl border-2 border-white dark:border-[#2f2f2f] shadow-2xl bg-white dark:bg-[#1e1e1f]">
-              {selectedAttachment.mimeType.startsWith('image/') ? (
-                <img src={selectedAttachment.data} alt="Upload" className="h-16 w-16 sm:h-20 sm:w-20 object-cover" />
-              ) : selectedAttachment.mimeType.startsWith('video/') ? (
-                <div className="h-16 w-16 sm:h-20 sm:w-20 flex flex-col items-center justify-center bg-slate-900 border-none relative overflow-hidden">
-                  <video src={selectedAttachment.data} className="absolute inset-0 w-full h-full object-cover opacity-50" />
-                  <i className="fa-solid fa-circle-play text-white text-2xl z-10 drop-shadow-md"></i>
-                  <span className="absolute bottom-1 right-1 text-[8px] text-white bg-black/50 px-1 rounded z-10 font-bold uppercase overflow-hidden max-w-[90%] truncate">{(selectedAttachment.fileName || 'video').split('.').pop()}</span>
-                </div>
-              ) : (
-                <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
-                  <i className={`fa-solid ${selectedAttachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
-                    selectedAttachment.mimeType.includes('word') || selectedAttachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
-                      selectedAttachment.mimeType.includes('sheet') || selectedAttachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
-                        selectedAttachment.mimeType.includes('presentationml') || selectedAttachment.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
-                          selectedAttachment.mimeType.includes('csv') || selectedAttachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
-                            selectedAttachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
-                              'fa-file-lines text-slate-500'
-                    } text-xl`}></i>
-                  <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{selectedAttachment.fileName}</span>
-                </div>
-              )}
+      {selectedAttachments.length > 0 && (
+        <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-3 animate-in slide-in-from-bottom-2 duration-300">
+          {selectedAttachments.map((attachment, index) => (
+            <div key={index} className="relative group">
+              <div className="overflow-hidden rounded-2xl border-2 border-white dark:border-[#2f2f2f] shadow-2xl bg-white dark:bg-[#1e1e1f]">
+                {attachment.mimeType.startsWith('image/') ? (
+                  <img src={attachment.data} alt="Upload" className="h-16 w-16 sm:h-20 sm:w-20 object-cover" />
+                ) : attachment.mimeType.startsWith('video/') ? (
+                  <div className="h-16 w-16 sm:h-20 sm:w-20 flex flex-col items-center justify-center bg-slate-900 border-none relative overflow-hidden">
+                    <video src={attachment.data} className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                    <i className="fa-solid fa-circle-play text-white text-2xl z-10 drop-shadow-md"></i>
+                    <span className="absolute bottom-1 right-1 text-[8px] text-white bg-black/50 px-1 rounded z-10 font-bold uppercase overflow-hidden max-w-[90%] truncate">{(attachment.fileName || 'video').split('.').pop()}</span>
+                  </div>
+                ) : (
+                  <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
+                    <i className={`fa-solid ${attachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
+                      attachment.mimeType.includes('word') || attachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
+                        attachment.mimeType.includes('sheet') || attachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
+                          attachment.mimeType.includes('presentationml') || attachment.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
+                            attachment.mimeType.includes('csv') || attachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
+                              attachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
+                                'fa-file-lines text-slate-500'
+                      } text-xl`}></i>
+                    <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{attachment.fileName}</span>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => removeAttachment(index)} className="absolute -top-2.5 -right-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-10 border border-white/20">
+                <i className="fa-solid fa-xmark text-[10px]"></i>
+              </button>
             </div>
-            <button onClick={() => setSelectedAttachment(null)} className="absolute -top-2.5 -right-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-10">
-              <i className="fa-solid fa-xmark text-[10px]"></i>
-            </button>
-          </div>
+          ))}
         </div>
       )}
 
@@ -344,7 +351,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-[#f0f4f9] dark:bg-[#1e1e1f] p-1 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:bg-white dark:focus-within:bg-[#1e1e1f] border border-transparent dark:border-white/5 shadow-sm min-h-[44px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-[#f0f4f9] dark:bg-[#1e1e1f] p-0.5 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:bg-white dark:focus-within:bg-[#1e1e1f] border border-transparent dark:border-white/5 shadow-sm min-h-[40px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
@@ -356,10 +363,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           ref={fileInputRef}
           onChange={handleFileChange}
           accept="image/*,video/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx,.pptx"
+          multiple
           className="hidden"
         />
 
-        <div className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 mb-0.5 ml-1">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 mb-0.5 ml-0.5">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -383,11 +391,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
               overflowWrap: 'anywhere',
               wordBreak: 'break-all'
             }}
-            className="w-full bg-transparent px-2 sm:px-3 py-1.5 sm:py-2 outline-none resize-none text-slate-800 dark:text-[#e3e3e3] placeholder-slate-500 dark:placeholder-slate-400 min-h-[36px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
+            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-slate-800 dark:text-[#e3e3e3] placeholder-slate-500 dark:placeholder-slate-400 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
           />
         </div>
 
-        <div className="flex items-center space-x-0.5 pr-1 mb-1">
+        <div className="flex items-center space-x-0.5 pr-0.5 mb-0.5">
           {isSTTSupported && (
             <button
               type="button"
@@ -401,8 +409,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
           <button
             type="submit"
-            disabled={(!input.trim() && !selectedAttachment) || disabled}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${(!input.trim() && !selectedAttachment) || disabled ? 'text-slate-300 dark:text-slate-700' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
+            disabled={(!input.trim() && selectedAttachments.length === 0) || disabled}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-slate-700' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
               }`}
           >
             <i className="fa-solid fa-arrow-up text-base"></i>

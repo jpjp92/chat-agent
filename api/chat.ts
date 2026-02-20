@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { prompt, history, language, attachment, webContent, session_id } = req.body;
+  const { prompt, history, language, attachment, attachments, webContent, session_id } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -307,29 +307,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     userParts.push({ fileData: { fileUri: normalizedYtUrl, mimeType: 'video/mp4' } });
   }
 
-  if (attachment && attachment.data && attachment.mimeType) {
-    const isPublicUrl = attachment.data.startsWith('http');
-    const isVideo = attachment.mimeType.startsWith('video/');
+  // Handle attachments (multi-attachment support)
+  const allAttachments = attachments && Array.isArray(attachments) ? attachments : (attachment ? [attachment] : []);
 
-    if (isPublicUrl && isVideo) {
-      // Supabase Storage URL for video
-      userParts.push({ fileData: { fileUri: attachment.data, mimeType: attachment.mimeType } });
-    } else {
-      const base64Data = attachment.data.includes(',') ? attachment.data.split(',')[1] : attachment.data;
-      userParts.push({ inlineData: { data: base64Data, mimeType: attachment.mimeType } });
+  for (const att of allAttachments) {
+    if (att && att.data && att.mimeType) {
+      const isPublicUrl = att.data.startsWith('http');
+      const isVideo = att.mimeType.startsWith('video/');
+
+      if (isPublicUrl && isVideo) {
+        // Supabase Storage URL for video - Gemini handles via fileUri (if supported/proxied)
+        userParts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
+      } else if (isPublicUrl) {
+        // 이미지나 문서는 외부 URL을 직접 지원하지 않으므로 백엔드에서 fetch하여 base64로 전달
+        try {
+          const fetchRes = await fetch(att.data);
+          if (fetchRes.ok) {
+            const arrayBuffer = await fetchRes.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            userParts.push({ inlineData: { data: base64, mimeType: att.mimeType } });
+          }
+        } catch (e) {
+          console.error('[Chat API] Failed to fetch external attachment:', att.data, e);
+        }
+      } else {
+        const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+        userParts.push({ inlineData: { data: base64Data, mimeType: att.mimeType } });
+      }
     }
   }
+
   contents.push({ role: 'user', parts: userParts });
 
   const isYoutubeRequest = !!ytMatch;
 
   // Supabase: User 메시지 즉시 저장 (비동기)
   if (session_id) {
+    const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;
     supabase.from('chat_messages').insert({
       session_id,
       role: 'user',
       content: prompt,
-      attachment_url: attachment?.data && attachment.data.startsWith('http') ? attachment.data : (attachment?.mimeType || null)
+      attachment_url: mainAttachment?.data && mainAttachment.data.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null)
     }).then(({ error }) => {
       if (error) console.error('[Chat API] User message save error:', error);
     });

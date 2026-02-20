@@ -16,7 +16,7 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ language }) => {
     const currentWelcome = (welcomeMessages as any)[language] || welcomeMessages.ko;
 
     return (
-        <div className="flex flex-col items-center justify-center flex-1 py-8 sm:py-20">
+        <div className="flex flex-col items-center justify-center flex-1 py-4 sm:py-20">
             <div className="text-center">
                 <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
                     {currentWelcome.title}

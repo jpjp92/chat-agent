@@ -21,6 +21,9 @@
 - **Strict Response Enforcement**: Optimized system prompts ensure Gemini adheres to the selected language regardless of input language.
 
 ### 🔍 Intelligence & Multimodality
+- **Multi-File Multimodal Input (New!)**: Upload up to **3 files at once** (images, videos, or documents). Gemini analyzes the entire collection as a single unified context, perfect for comparing documents or multi-image reasoning.
+- **Base64 URL Proxying (Robustness Architecture)**: Implements a server-side proxy system that automatically fetches and converts public document/image URLs (e.g., from Supabase) into Base64 `inlineData`. This bypasses strict Gemini API restrictions on external HTTP URLs for non-video content, ensuring 100% analysis reliability.
+- **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to bypass serverless timeout issues and payload limits.
 - **PDF, Image & Video Analysis**: Upload documents (PDF), images, or native video files (MP4, MOV). Gemini can summarize, extract data, or describe visual/auditory content. Features a **Video-to-Text conversion strategy** that stores AI-generated summaries as session context to optimize subsequent queries.
 - **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
@@ -69,9 +72,20 @@
     - **Optimized Identification Badges**: Removed redundant size information (already visible in image ruler). Streamlined 4-badge layout: **Shape, Color, Front, Back**.
     - **Smart Category Parsing**: Multi-category drugs (e.g., "비충혈제거제, 항히스타민제") are displayed as separate, clean badges without word-splitting issues.
     - **Deep Localization**: Fully supports **KO, EN, ES, FR** with localized footer actions and headers.
+- **Incline Plane Force Diagrams (Diagram-Viz)**: 
+    - **Textbook Quality**: Generates clean, publication-quality 2D force diagrams for inclined plane physics problems.
+    - **Dynamic Vector Rendering**: Automatically renders labeled arrows for Gravity (mg), Normal force (N), Friction (f), and component forces based on the input angle.
+    - **Educational Labels**: Includes mathematical notation (sinθ, cosθ) for enhanced conceptual clarity.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
 
 ### 🎨 UI/UX & Mobile Strategy
+- **Compact Mobile Architecture (v3.5)**: 
+    - **Zero-Waste Header**: Reduced mobile header height by 25% for maximum chat space.
+    - **Slim Input Bar**: Compacted the chat input form and buttons for one-handed reachability.
+    - **Tight Welcome UI**: Lowered vertical padding of the initial greeting to bring input controls into view instantly.
+- **Multi-Attachment Display Engine**:
+    - **Responsive Image Grid**: Multiple uploaded images are automatically organized into a sleek, touch-friendly grid.
+    - **Document List View**: Sequential rendering of PDF/Doc files within the chat bubble with distinct file-type iconography.
 - **Minimalist Mobile Sidebar**: Eliminated the redundant "X" close button and "Menu" title. Implemented a natural **Backdrop Touch** gesture for closing the sidebar, mirroring industry standards (GPT, Gemini).
 - **Refined Header Aesthetics**:
     - Simplified user profile area (Removed dividers and redundant "Settings" text).
@@ -204,12 +218,13 @@ flowchart TD
     Pattern -- "SMILES/Molecules" --> Chem((🧪 Chem-Viz))
     Pattern -- "PDB ID/Protein" --> Bio((🧬 Bio-Viz))
     Pattern -- "Physical Laws" --> Phy((🎾 Phy-Viz))
+    Pattern -- "Force Diagrams" --> Diagram((📐 Diagram-Viz))
     Pattern -- "Drug/Medication" --> Drug((💊 Drug-Viz))
     Pattern -- "Celestial Body" --> Astro((✨ Astro-Viz))
     Pattern -- "Tabular Data" --> Charts((📈 Data-Viz))
 
     subgraph Output ["Premium UI Delivery"]
-        Chem & Bio & Phy & Drug & Astro & Charts --> Card([Interactive Card Rendering])
+        Chem & Bio & Phy & Diagram & Drug & Astro & Charts --> Card([Interactive Card Rendering])
     end
 
     %% Logic Styling (Decision Tree Style)

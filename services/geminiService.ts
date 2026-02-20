@@ -186,13 +186,14 @@ export const streamChatResponse = async (
   webContent?: string,
   contentType: 'text' | 'web' | 'video' = 'text',
   onMetadata?: (sources: GroundingSource[]) => void,
-  sessionId?: string
+  sessionId?: string,
+  attachments?: MessageAttachment[]
 ) => {
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId })
+      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments })
     });
 
     if (!response.ok) {
