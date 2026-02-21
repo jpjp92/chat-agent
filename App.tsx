@@ -537,7 +537,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-full bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
+    <div className="flex h-screen h-dvh w-full bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
       <ChatSidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
@@ -565,7 +565,7 @@ const App: React.FC = () => {
         />
 
 
-        <main className="flex-1 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar h-full flex flex-col">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar flex flex-col">
           <div className="flex-1 max-w-3xl w-full mx-auto flex flex-col">
             {(!currentSession || currentSession.messages.length === 0) && (
               <WelcomeMessage language={language} />
