@@ -61,10 +61,15 @@
     - 복잡한 3D 구조물 및 강체 상호작용 실험.
 
 ### ⚡ 성능 안정화 및 기능 추가
+- [x] **esm.sh CDN → npm 로컬 임포트 전환** ✅
+    - `react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `react-syntax-highlighter` 모두 npm 설치 후 Vite 번들에 포함.
+    - 메인 번들에서 분리(`markdown-vendor` chunk)하여 초기 번들 gzip **679 KB → 325 KB (약 52% 감소)**.
+    - CDN 장애 시 전체 채팅창 렌더링 불가 이슈 해소.
 - [ ] **Self-host Font Awesome**: 
     - CDN 대신 `@fortawesome/react-fontawesome` 적용 또는 CSS/webfonts 자체 호스팅.
     - **목표**: 외부 CDN 의존도 제거 및 렌더링 차단 해소.
 - [ ] **Self-host KaTeX/Fonts**: `jsdelivr` 및 `googleapis` 의존성 제거.
+- [ ] **`framer-motion` 번들 제거 검토**: 실제 사용 여부 확인 후 제거 시 ~50KB(gzip) 절감 가능.
 - [ ] **Service Worker (PWA)**: 정적 자산 캐싱을 통한 일관된 성능 보장.
 - [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 최적화.
 
@@ -84,12 +89,13 @@
 
 ## 🧹 Code Quality & Refactoring
 
-- [ ] 불필요한 파일 정리 (`test-supabase.ts`, `metadata.json`).
+- [x] ~~불필요한 파일 정리 (`metadata.json`)~~ → `metadata.json` 삭제 완료 ✅
+- [ ] `test-supabase.ts` 파일 정리.
 - [ ] `reference/` 폴더 삭제 고려 (HWPX 구현 완료).
 - [ ] ESLint/Prettier 설정 추가.
 - [ ] 단위 테스트 작성 (Vitest).
 
 ---
 
-*Last Updated: 2026-02-21 (Multi-Modal Analysis and Mobile UI Polish)*
+*Last Updated: 2026-02-21 (CDN 의존성 제거 & 번들 최적화 — esm.sh → npm, metadata.json 삭제)*
 

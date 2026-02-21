@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import ReactMarkdown from 'https://esm.sh/react-markdown@9';
-import remarkGfm from 'https://esm.sh/remark-gfm@4';
-import remarkMath from 'https://esm.sh/remark-math@6';
-import rehypeKatex from 'https://esm.sh/rehype-katex@7';
-import { Prism as SyntaxHighlighter } from 'https://esm.sh/react-syntax-highlighter@15.5.0';
-import { vscDarkPlus } from 'https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 

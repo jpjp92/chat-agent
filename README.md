@@ -102,12 +102,13 @@
 
 ### ⚡ Web Performance Optimization
 - **Build-Time CSS Compilation**: Migrated from CDN-based Tailwind CSS to build-time compilation with PostCSS, reducing CSS bundle size by **85%** (124 KiB → ~15-20 KiB) and eliminating 220ms render-blocking time.
+- **Zero Runtime CDN Dependencies (New!)**: Replaced all `esm.sh` CDN imports (`react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `react-syntax-highlighter`) with local npm packages bundled into Vite. This eliminates a critical single point of failure where CDN outages would break the entire chat rendering.
 - **Code Splitting & Lazy Loading**: Implemented dynamic imports for all visualization components (Bio, Chemical, Physics, Constellation, Chart, Drug, Diagram renderers), reducing initial JavaScript bundle by **64%** (3.4 MB → 1.2 MB, gzip: 1.0 MB → 365 KB).
     - **Smart Loading**: Heavy visualization libraries load only when needed, dramatically improving FCP and LCP metrics.
     - **Suspense Integration**: Seamless loading states with React Suspense for optimal UX.
 - **Optimized Build Configuration**: 
     - **esbuild minification**: 20-100x faster than terser, reducing build time by 25% (17s → 13s).
-    - **Minimal chunk splitting**: Only React vendor separated, letting dynamic imports handle the rest efficiently.
+    - **Granular Chunk Splitting**: Markdown/syntax libraries isolated in `markdown-vendor` chunk, reducing main bundle gzip from **679 KB → 325 KB (~52% reduction)**.
 - **Optimized Font Loading**: 
     - **Google Fonts**: Reduced font weights from 7 to 3 (400, 600, 700), added `preconnect` and `dns-prefetch` for faster loading.
     - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
@@ -115,11 +116,6 @@
     - **Best Practices**: **100/100** achievement.
     - **SEO**: **91/100** achievement.
     - **CLS (Cumulative Layout Shift)**: **0.00** achieved by specifying explicit image dimensions and using `aspect-ratio` safety.
-- **Advanced Performance Features**: 
-    - **Inlined Critical CSS**: Core layout styles (background, basic body) are inlined directly in `index.html` to achieve near-instant FCP (< 0.5s perception).
-    - **Granular Code Splitting**: Heavy libraries like `@supabase/supabase-js` and `KaTeX` are isolated into a `heavy-vendor` chunk, ensuring the initial main bundle remains lightweight.
-    - **Non-blocking Style Strategy**: Third-party CSS (FontAwesome, KaTeX) loaded via `media="print"` trick for zero render-blocking.
-    - **FOIT Mitigation**: Critical icon fonts preloaded (`rel="preload"`) to eliminate invisible text/icon syndrome.
 - **Production-Ready Optimization**: 
     - **Image Decoding**: Uses `decoding="async"` for all major artifacts to prevent main-thread lag during scroll.
     - **Unified Resource Hints**: Predictive DNS pre-connection to core API services (Supabase, fonts) reduces handshake latency.

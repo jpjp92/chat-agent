@@ -22,7 +22,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor': ['react', 'react-dom']
+          'vendor': ['react', 'react-dom'],
+          'markdown-vendor': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex', 'react-syntax-highlighter'],
+          'supabase-vendor': ['@supabase/supabase-js'],
         }
       }
     },
