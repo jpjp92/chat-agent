@@ -2,6 +2,8 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 import { supabase } from './lib/supabase.js';
 import { API_KEYS, getNextApiKey } from './lib/config.js';
+import { searchPill } from './lib/pill-logic.js';
+
 
 const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 
@@ -283,7 +285,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   [LANGUAGE ENFORCEMENT]
   - THE USER HAS SELECTED ${langNames[currentLang]} AS THE PREFERRED LANGUAGE.
   - YOU MUST RESPOND IN ${langNames[currentLang]} REGARDLESS OF THE INPUT LANGUAGE.
-  - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
+  - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.
+  
+  [PILL IMAGE IDENTIFICATION — MANDATORY PROTOCOL]
+  If "PROVIDED_PILL_DATA" is present, use it as the definitive source for drug information:
+  1. match_type: 'exact' -> This is the confirmed drug. Use its data for the json:drug block.
+  2. match_type: 'imprint_only' or 'similar' -> These are candidates. List them and add a warning: "The identification is based on visual similarity and may not be exact."
+  3. match_type: 'none' -> Inform the user that the pill could not be identified in the database and provide the Pharm.or.kr link.
+  4. CRITICAL: If PROVIDED_PILL_DATA is 'none', you MUST NOT guess any drug name from your knowledge. Just say "DB에서 일치하는 정보를 찾지 못했습니다" and show what attributes you identified.
+  5. VISUAL VERIFICATION: If the candidates' color or shape in PROVIDED_PILL_DATA fundamentally contradict the user's image, reject them and prioritize safety.
+  6. NEVER hypothesize about a drug name if PROVIDED_PILL_DATA is present but has no exact match. Only provide the candidates.`;
+
+
 
   if (webContent) {
     systemInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${webContent} `;
@@ -310,8 +323,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle attachments (multi-attachment support)
   const allAttachments = attachments && Array.isArray(attachments) ? attachments : (attachment ? [attachment] : []);
 
+  // Supported Gemini Multimodal MIME types
+  const supportedMimeTypes = [
+    'image/', 'video/', 'audio/', 'application/pdf'
+  ];
+
   for (const att of allAttachments) {
     if (att && att.data && att.mimeType) {
+      // Skip unsupported types (like Excel, Word) - they are already handled via webContent/extractedText
+      const isSupported = supportedMimeTypes.some(type => att.mimeType.startsWith(type));
+      if (!isSupported) continue;
+
       const isPublicUrl = att.data.startsWith('http');
       const isVideo = att.mimeType.startsWith('video/');
 
@@ -338,6 +360,123 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   contents.push({ role: 'user', parts: userParts });
+
+  // --- [Phase 2] Pill Identification Preprocessing ---
+  const pillKeywords = ['약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야'];
+  const hasPillKeyword = pillKeywords.some(k => prompt.includes(k));
+  const hasImage = allAttachments.some(att => att.mimeType.startsWith('image/'));
+
+  if (hasPillKeyword && hasImage) {
+    let pillPreprocessingSuccess = false;
+    try {
+      console.log('[Chat API] Pill identification request detected. Starting Vision preprocessing...');
+
+      const visionPrompt = `You are a pharmaceutical pill identification expert. Carefully examine the pill in the image and extract its visual characteristics.
+
+CRITICAL INSTRUCTIONS for imprint reading:
+- Read ALL characters exactly as they appear, preserving case (uppercase/lowercase)
+- Logos made of combined letters (e.g., "dHP", "dP", "BI", "MSD") should be read as a single imprint string
+- Do NOT split letters that are physically connected or part of a logo
+- If you see a stylized logo, describe each letter you can identify in order (left-to-right, top-to-bottom)
+- Hyphens, slashes, and numbers after letters (e.g., "J 80", "M 5") should be included in the imprint field
+
+Return ONLY a JSON object in this exact format, no other text:
+{
+  "imprint_front": "exact characters visible on front face, or null if none",
+  "imprint_back": "exact characters visible on back face, or null if none",
+  "color": "one of: 하양, 노랑, 주황, 분홍, 빨강, 갈색, 연두, 초록, 청록, 파랑, 남색, 보라, 회색, 검정",
+  "shape": "one of: 원형, 타원형, 장방형, 삼각형, 사각형, 마름모형, 오각형, 육각형, 팔각형, 기타",
+  "confidence": "high|medium|low"
+}`;
+
+      const imageAtt = allAttachments.find(att => att.mimeType.startsWith('image/'));
+      if (!imageAtt) throw new Error('No image attachment found');
+
+      let visionParts: any[] = [{ text: visionPrompt }];
+      if (imageAtt.data.startsWith('http')) {
+        const fetchRes = await fetch(imageAtt.data);
+        if (fetchRes.ok) {
+          const arrayBuffer = await fetchRes.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          visionParts.push({ inlineData: { data: base64, mimeType: imageAtt.mimeType } });
+        }
+      } else {
+        const base64Data = imageAtt.data.includes(',') ? imageAtt.data.split(',')[1] : imageAtt.data;
+        visionParts.push({ inlineData: { data: base64Data, mimeType: imageAtt.mimeType } });
+      }
+
+      // 모든 키를 순환하며 Vision 전처리 시도 (단일 키 의존 제거)
+      const visionModels = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+      let visionText = '';
+      let visionSucceeded = false;
+
+      outerLoop:
+      for (const visionModel of visionModels) {
+        for (let k = 0; k < API_KEYS.length; k++) {
+          const apiKey = getNextApiKey();
+          if (!apiKey) continue;
+          try {
+            const ai = new GoogleGenAI({ apiKey });
+            const visionResult = await ai.models.generateContent({
+              model: visionModel,
+              contents: [{ role: 'user', parts: visionParts }]
+            });
+            visionText = visionResult.text || '';
+            visionSucceeded = true;
+            console.log(`[Chat API] Vision preprocessing succeeded with model: ${visionModel}`);
+            break outerLoop;
+          } catch (vErr: any) {
+            console.warn(`[Chat API] Vision attempt failed (Model=${visionModel}, Key=${k}): ${vErr?.message?.slice(0, 80)}`);
+          }
+        }
+      }
+
+      if (!visionSucceeded) throw new Error('All Vision API attempts failed');
+
+      const jsonMatch = visionText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const pillInfo = JSON.parse(jsonMatch[0]);
+        console.log('[Chat API] Extracted pill info:', pillInfo);
+
+        if (pillInfo.imprint_front || (pillInfo.color && pillInfo.shape)) {
+          const searchResult = await searchPill({
+            imprint_front: pillInfo.imprint_front,
+            imprint_back: pillInfo.imprint_back,
+            color: pillInfo.color,
+            shape: pillInfo.shape
+          });
+
+          if (searchResult && searchResult.filteredResults.length > 0) {
+            console.log(`[Chat API] Pharm.or.kr search result: ${searchResult.match_type}, count: ${searchResult.filteredResults.length}`);
+
+            let pillDataText = `\n\n[PROVIDED_PILL_DATA]\nmatch_type: ${searchResult.match_type}\nVision extracted: imprint=${pillInfo.imprint_front}, color=${pillInfo.color}, shape=${pillInfo.shape}\n`;
+            searchResult.filteredResults.forEach((r, idx) => {
+              pillDataText += `Candidate ${idx + 1}:\n`;
+              pillDataText += `- Name: ${r.product_name}\n`;
+              pillDataText += `- Company: ${r.company}\n`;
+              pillDataText += `- Imprint: ${r.front_imprint} / ${r.back_imprint}\n`;
+              pillDataText += `- Color: ${r.color}\n`;
+              pillDataText += `- Shape: ${r.shape}\n`;
+              pillDataText += `- Image: ${r.thumbnail}\n`;
+              pillDataText += `- Detail URL: ${r.detail_url}\n`;
+            });
+
+            systemInstruction += pillDataText;
+          } else {
+            systemInstruction += `\n\n[PROVIDED_PILL_DATA]\nmatch_type: none\nVision extracted: imprint=${pillInfo.imprint_front}, color=${pillInfo.color}, shape=${pillInfo.shape}\nNo matching drug found in Pharm.or.kr database.`;
+          }
+          pillPreprocessingSuccess = true;
+        }
+      }
+    } catch (e) {
+      console.error('[Chat API] Pill preprocessing failed:', e);
+    }
+
+    // 전처리 실패 시 → AI에게 명시적 경고 주입 (추측/할루시네이션 강력 차단)
+    if (!pillPreprocessingSuccess) {
+      systemInstruction += `\n\n[PILL_DB_LOOKUP_FAILED]\n약학정보원 DB 조회가 실패했습니다.\n이 경우 반드시 다음 지침을 따르세요:\n1. 어떤 약품명도 단언하거나 추측해서는 안 됩니다.\n2. 이미지에서 보이는 색상, 모양, 각인 등 시각적 특성만 설명하세요.\n3. "정확한 식별을 위해 약사 또는 의사에게 문의하거나, 약학정보원(www.pharm.or.kr)에서 직접 검색하세요"라고 안내하세요.\n4. 절대로 json:drug 블록을 생성해서는 안 됩니다.`;
+    }
+  }
 
   const isYoutubeRequest = !!ytMatch;
 

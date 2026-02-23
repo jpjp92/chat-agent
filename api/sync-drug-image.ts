@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase.js';
 import crypto from 'crypto';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    const { url, imprint_front, imprint_back } = req.body;
+    const { url, imprint_front, imprint_back, drug_name } = req.body;
 
     if (!url || typeof url !== 'string') {
         console.error('[Sync] Error: Missing or invalid URL in request body');
@@ -43,10 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`[Sync] Request received for URL (repaired): ${repairedUrl}`);
 
-        // 1. URL 해싱을 통한 중복 체크 (repairedUrl 기준)
-        const urlHash = crypto.createHash('md5').update(repairedUrl).digest('hex');
+        // 1. URL 해싱을 통한 중복 체크 (repairedUrl + drug_name 기준으로 용량별 분리)
+        const cacheKey = drug_name ? `${repairedUrl}::${drug_name}` : repairedUrl;
+        const urlHash = crypto.createHash('md5').update(cacheKey).digest('hex');
         const fileName = `drug-cache/${urlHash}.jpg`;
-        console.log(`[Sync] Generated fileName: ${fileName}`);
+        console.log(`[Sync] Cache key: ${drug_name || '(no name)'} | fileName: ${fileName}`);
 
         // 2. 이미 존재하는지 확인
         const { data: publicUrlData } = supabase.storage
@@ -167,40 +168,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isSearchResult = finalUrl.includes('search_result');
                 console.log(`[Sync] ConnectDI content detected (${isSearchResult ? 'Search Result' : 'Detail Page'})...`);
 
-                if (isSearchResult && (imprint_front || imprint_back)) {
-                    console.log(`[Sync] Searching for product with matching imprint...`);
+                if (isSearchResult) {
                     const productBlocks = html.split(/<div[^>]*class="[^"]*drug_list[^"]*"[^>]*>/i).slice(1);
 
-                    for (const block of productBlocks) {
-                        const frontMatch = block.match(/표시\s*\(앞\)[^<]*<[^>]*>([^<]+)</i);
-                        const backMatch = block.match(/표시\s*\(뒤\)[^<]*<[^>]*>([^<]+)</i);
-                        const blockFront = frontMatch ? frontMatch[1].trim() : '';
-                        const blockBack = backMatch ? backMatch[1].trim() : '';
+                    if (imprint_front || imprint_back) {
+                        console.log(`[Sync] Searching for product with matching imprint...`);
+                        for (const block of productBlocks) {
+                            const frontMatch = block.match(/표시\s*\(앞\)[^<]*<[^>]*>([^<]+)</i);
+                            const backMatch = block.match(/표시\s*\(뒤\)[^<]*<[^>]*>([^<]+)</i);
+                            const blockFront = frontMatch ? frontMatch[1].trim() : '';
+                            const blockBack = backMatch ? backMatch[1].trim() : '';
 
-                        const normalizeFront = (s: string) => s.replace(/\s+/g, '').toUpperCase();
-                        const normalizeBack = (s: string) => s.replace(/\s+/g, '').toUpperCase().replace(/없음|NONE|-/g, '');
-                        const frontMatches = !imprint_front || normalizeFront(blockFront) === normalizeFront(imprint_front);
-                        const backMatches = !imprint_back || normalizeBack(blockBack) === normalizeBack(imprint_back || '');
+                            const normalizeFront = (s: string) => s.replace(/\s+/g, '').toUpperCase();
+                            const normalizeBack = (s: string) => s.replace(/\s+/g, '').toUpperCase().replace(/없음|NONE|-/g, '');
+                            const frontMatches = !imprint_front || normalizeFront(blockFront) === normalizeFront(imprint_front);
+                            const backMatches = !imprint_back || normalizeBack(blockBack) === normalizeBack(imprint_back || '');
 
-                        console.log(`[Sync] Checking - Front: "${blockFront}" (${frontMatches}), Back: "${blockBack}" (${backMatches})`);
+                            console.log(`[Sync] Checking - Front: "${blockFront}" (${frontMatches}), Back: "${blockBack}" (${backMatches})`);
 
-                        if (frontMatches && backMatches) {
-                            const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                            if (imgMatch && imgMatch[1]) {
-                                targetScrapedUrl = 'https://www.connectdi.com' + imgMatch[1];
-                                console.log(`[Sync] ✅ Found matching product: ${targetScrapedUrl}`);
-                                break;
+                            if (frontMatches && backMatches) {
+                                const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                                if (imgMatch && imgMatch[1]) {
+                                    targetScrapedUrl = 'https://www.connectdi.com' + imgMatch[1];
+                                    console.log(`[Sync] ✅ Found matching product by imprint: ${targetScrapedUrl}`);
+                                    break;
+                                }
                             }
                         }
                     }
 
                     if (!targetScrapedUrl) {
-                        console.warn(`[Sync] ⚠️ No match for Front:"${imprint_front}" Back:"${imprint_back}"`);
-                        const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                        if (drugMatch && drugMatch[1]) {
-                            targetScrapedUrl = 'https://www.connectdi.com' + drugMatch[1];
-                            console.log(`[Sync] Using fallback (first image)`);
+                        if (imprint_front || imprint_back) {
+                            console.warn(`[Sync] ⚠️ No match for Front:"${imprint_front}" Back:"${imprint_back}"`);
                         }
+
+                        // 요량(dosage) 기반 fallback: 약품명에서 용량 추출 후 블록 텍스트(품목명)와 비교
+                        // 10mg와 5mg 등이 혼재할 때 명확히 구분하기 위함
+                        const dosageMatch = drug_name ? drug_name.match(/(\d+\.?\d*)\s*mg/i) : null;
+                        const targetDosage = dosageMatch ? dosageMatch[1] : null;
+                        let fallbackUrl: string | null = null;
+
+                        if (targetDosage) {
+                            console.log(`[Sync] Trying dosage-based fallback: ${targetDosage}mg`);
+                            for (const block of productBlocks) {
+                                // Extract the drug name from the block to avoid matching dosage inside other fields
+                                const titleMatch = block.match(/class="[^"]*drug_title[^"]*"[^>]*>\s*<strong[^>]*>([^<]+)<\/strong>/i)
+                                    || block.match(/bold">([^<]+)<\//i); // Fallback title match
+
+                                const blockText = titleMatch ? titleMatch[1] : block.replace(/<[^>]+>/g, ' ');
+
+                                const blockDosageMatch = blockText.match(new RegExp(`\\b${targetDosage}\\s*mg`, 'i'));
+                                if (blockDosageMatch) {
+                                    const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                                    if (imgMatch && imgMatch[1]) {
+                                        fallbackUrl = 'https://www.connectdi.com' + imgMatch[1];
+                                        console.log(`[Sync] ✅ Dosage-matched fallback: ${fallbackUrl}`);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 최종 fallback: 첫 번째 이미지
+                        if (!fallbackUrl) {
+                            const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
+                            if (drugMatch && drugMatch[1]) {
+                                fallbackUrl = 'https://www.connectdi.com' + drugMatch[1];
+                                console.log(`[Sync] Using first-image fallback`);
+                            }
+                        }
+
+                        targetScrapedUrl = fallbackUrl;
                     }
                 } else {
                     const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);

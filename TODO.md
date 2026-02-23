@@ -4,6 +4,117 @@
 
 ### 🔥 High Priority (Core UX Improvements)
 
+#### 0. 약품 이미지 정확도 개선 — 약학정보원 식별 검색 연동
+> **배경**: 실제 약품 사진을 찍어 질문하면 엉뚱한 약품 정보를 반환하는 문제 발생.  
+> Gemini Vision이 색상·모양·각인을 추출하더라도 Google Search 기반 추론은 오인식 위험이 높음.  
+> **해결 방향**: 약학정보원(pharm.or.kr) 식별표시 DB를 직접 조회하여 정확도를 구조적으로 개선.
+
+---
+
+**[Phase 1] 약학정보원 검색 API 엔드포인트 구축** — `api/pill-search.ts`
+
+- [x] **POST `/api/pill-search`** 신규 엔드포인트 작성
+  - **입력**: `{ imprint_front, imprint_back?, color?, shape? }`
+  - **핵심 로직**:
+    1. 약학정보원 `list.asp` 에 POST 요청 (로그인 불필요 확인 완료 ✅)
+    2. **5페이지 병렬 fetch** (`Promise.all`, 페이지당 ~1초 → 총 ~1.5~2초)
+       - `_page=1` ~ `_page=5` 동시 요청 → 최대 50개 결과 수집
+    3. **3단계 필터링 (우선순위 순)**:
+       - **완전일치**: 앞면각인 + 색상 + 모양 전부 일치 → 확정 1개 반환
+       - **각인일치**: 앞면각인만 일치 → 후보 목록 반환 (최대 5개)
+       - **폴백**: 색상 + 모양만 일치하는 것 중 **가장 많이 나온 상위 3종** 반환
+    4. 5페이지 안에 없으면 → `{ found: false, candidates: [...상위3종] }` 반환
+  - **출력 스키마**:
+    ```ts
+    {
+      found: boolean,
+      match_type: 'exact' | 'imprint_only' | 'similar' | 'none',
+      results: Array<{
+        idx: string,
+        product_name: string,
+        front_imprint: string,
+        back_imprint: string,
+        shape: string,
+        color: string,
+        company: string,
+        thumbnail: string,
+        detail_url: string
+      }>
+    }
+    ```
+  - [x] HTML 파싱 로직: `scripts/test-pill-search.js` 의 검증된 파서 재사용
+  - [x] 타임아웃 처리: 각 fetch에 `AbortController` 5초 제한 설정
+  - [x] 에러 처리: 약학정보원 접속 실패 시 graceful fallback (Google Search로 폴백)
+
+---
+
+**[Phase 2] Vision 전처리 — 이미지에서 시각적 단서 추출** — `api/chat.ts` 수정
+
+- [x] 이미지 첨부 + 약품 관련 쿼리 감지 조건 추가
+  - 감지 조건: `attachments` 에 이미지 파일 존재 + 메시지에 약품 키워드 포함
+    - 키워드 예시: `약`, `알약`, `약품`, `정`, `캡슐`, `이거 뭔 약`, `무슨 약`
+- [x] **Vision 전처리 프롬프트** (Gemini 1차 호출, 저온도 0.1):
+  ```
+  이 이미지에서 알약의 시각적 정보를 JSON으로 추출하시오.
+  반드시 아래 형식으로만 답하고 다른 텍스트는 출력하지 말 것:
+  {
+    "imprint_front": "앞면 각인 문자 (없으면 null)",
+    "imprint_back":  "뒷면 각인 문자 (없으면 null)",
+    "color":  "노랑|하양|분홍|주황|초록|파랑|빨강|갈색|기타",
+    "shape":  "원형|타원형|장방형|삼각형|사각형|마름모|기타",
+    "confidence": "high|medium|low"
+  }
+  ```
+- [x] 추출 결과를 `/api/pill-search` 에 전달
+- [x] `confidence: low` 인 경우 → 직접 검색 권고 메시지 추가
+
+---
+
+**[Phase 3] System Prompt 보강** — `api/chat.ts` systemInstruction 수정
+
+- [x] `[DRUG VISUALIZATION]` 섹션에 이미지 기반 식별 프로토콜 추가:
+  ```
+  [PILL IMAGE IDENTIFICATION — MANDATORY PROTOCOL]
+  약품 이미지가 첨부된 경우:
+  1. PROVIDED_PILL_DATA 가 존재하면 이를 최우선으로 사용하여 json:drug 블록 생성
+  2. match_type이 'exact'인 경우 → 확정 정보로 출력
+  3. match_type이 'similar'인 경우 → ⚠️ 경고 배너 포함, 후보 목록 나열
+  4. match_type이 'none'인 경우 → "식별 불가" 안내 + 약학정보원 링크 제공
+  5. 절대로 DB 조회 결과와 다른 약품명을 출력하지 말 것
+  ```
+- [x] 약학정보원 검색 결과를 `webContext` 에 `[PROVIDED_PILL_DATA]` 태그로 주입
+  ```
+  [PROVIDED_PILL_DATA]
+  match_type: exact
+  product_name: 슈다페드정
+  front_imprint: SVI
+  back_imprint: -
+  shape: 타원형
+  color: 노랑
+  company: 대화제약
+  detail_url: https://...
+  ```
+
+---
+
+**[Phase 4] 프론트엔드 UX** — `App.tsx` / `components/` 수정
+
+- [x] 이미지 첨부 + 약품 키워드 감지 시 로딩 메시지 변경:
+  - 기존: `"이미지를 분석 중입니다..."`
+  - 변경: `"약품 식별 중... (약학정보원 DB 조회)"`
+- [x] `match_type: 'similar' | 'none'` 반환 시 경고 UI 표시 (ChatMessage 내)
+  - 예: 노란색 배너 `"⚠️ 이미지에서 정확한 약품을 찾지 못했습니다. 아래는 유사 약품 후보입니다."`
+
+---
+
+**[검증 완료 사항]** ✅
+- 약학정보원 POST 검색 방식 (로그인 불필요) 확인
+- HTML 파싱 로직 (`scripts/test-pill-search.js`) 정상 동작 확인
+- 페이지당 응답속도 ~1초, 5페이지 병렬 시 ~1.5~2초 예상
+- UTF-8 인코딩 (meta + 실제 파일 모두 UTF-8) 확인
+
+---
+
 #### 1. 세션 내 문서 컨텍스트 영구 저장 (Persistence) 
 - [ ] **목표**: 현재 브라우저 메모리(React State)에만 저장되는 `lastActiveDoc` 정보를 새로고침 후에도 유지.
 - [ ] **방법**:
@@ -97,5 +208,5 @@
 
 ---
 
-*Last Updated: 2026-02-21 (CDN 의존성 제거 & 번들 최적화 — esm.sh → npm, metadata.json 삭제)*
+*Last Updated: 2026-02-24 (약품 이미지 정확도 개선 — 약학정보원 & ConnectDI 동기화 고도화 완료)*
 

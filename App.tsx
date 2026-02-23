@@ -74,7 +74,8 @@ const App: React.FC = () => {
       watchingVideo: "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)",
       analyzingVideo: "영상을 분석 중입니다...",
       fetchingUrl: "URL에서 내용을 가져오는 중...",
-      preparingSession: "세션을 준비 중입니다"
+      preparingSession: "세션을 준비 중입니다",
+      identifyingPill: "약품 식별 중... (약학정보원 DB 조회)"
     },
     en: {
       profileUpdated: "Profile updated.",
@@ -89,7 +90,8 @@ const App: React.FC = () => {
       watchingVideo: "Gemini is watching the video... (May take about 1 min)",
       analyzingVideo: "Analyzing video...",
       fetchingUrl: "Fetching content from URL...",
-      preparingSession: "Preparing session"
+      preparingSession: "Preparing session",
+      identifyingPill: "Identifying medication... (Searching database)"
     },
     es: {
       profileUpdated: "Perfil actualizado.",
@@ -104,7 +106,8 @@ const App: React.FC = () => {
       watchingVideo: "Gemini está viendo el video... (Puede tomar 1 min)",
       analyzingVideo: "Analizando video...",
       fetchingUrl: "Obteniendo contenido de URL...",
-      preparingSession: "Preparando sesión"
+      preparingSession: "Preparando sesión",
+      identifyingPill: "Identificando medicamento... (Buscando base de datos)"
     },
     fr: {
       profileUpdated: "Profil mis à jour.",
@@ -119,7 +122,8 @@ const App: React.FC = () => {
       watchingVideo: "Gemini regarde la vidéo... (Peut prendre 1 min)",
       analyzingVideo: "Analyse de la vidéo...",
       fetchingUrl: "Récupération du contenu URL...",
-      preparingSession: "Préparation de la session"
+      preparingSession: "Préparation de la session",
+      identifyingPill: "Identification du médicament... (Recherche database)"
     }
   };
 
@@ -368,6 +372,16 @@ const App: React.FC = () => {
     let modelResponse = '';
     const modelMessageId = (Date.now() + 1).toString();
 
+    // --- Pill Identification UX ---
+    const pillKeywords = ['약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야'];
+    const hasPillKeyword = pillKeywords.some(k => content.includes(k));
+    const hasImage = finalAttachments.some(att => att.mimeType.startsWith('image/'));
+    if (hasPillKeyword && hasImage) {
+      setLoadingStatus(t.identifyingPill);
+    } else if (hasImage) {
+      setLoadingStatus(t.analyzingImage);
+    }
+
     // 지능형 컨텍스트 추출
     const currentSession = sessions.find(s => s.id === currentSessionId);
     let webContext = "";
@@ -425,6 +439,7 @@ const App: React.FC = () => {
       }
     }
 
+    let hasError = false;
     try {
       await streamChatResponse(
         content,
@@ -495,10 +510,12 @@ const App: React.FC = () => {
       }
 
     } catch (error: any) {
+      hasError = true;
       setLoadingStatus(error.message);
       setTimeout(() => setLoadingStatus(null), 5000);
     } finally {
       setIsTyping(false);
+      if (!hasError) setLoadingStatus(null);
     }
   };
 

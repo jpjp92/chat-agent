@@ -180,7 +180,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         body: JSON.stringify({
                             url: data.image_url,
                             imprint_front: data.pill_visual?.imprint_front,
-                            imprint_back: data.pill_visual?.imprint_back
+                            imprint_back: data.pill_visual?.imprint_back,
+                            drug_name: data.name
                         })
                     });
 
