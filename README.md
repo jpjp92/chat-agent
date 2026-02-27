@@ -246,6 +246,7 @@ flowchart TD
 
 ### Backend & Database
 - **Vercel Serverless Functions** (API Layer)
+    - *Note: Vercel Hobby plan has a limit of 12 serverless functions. Utility files are placed in `api/_lib/` (using the `_` prefix) to prevent them from being counted towards this limit.*
 - **Supabase** (PostgreSQL / Storage / Auth)
 
 ### AI Models
@@ -269,7 +270,7 @@ flowchart TD
 │   ├── fetch-transcript.ts # YouTube subtitle fetching
 │   ├── summarize-title.ts # Intelligent titling via Gemma
 │   ├── sync-drug-image.ts # ConnectDI image caching & parsing
-│   └── lib/
+│   └── _lib/             # Utility files (Prefixed with '_' to bypass Vercel's 12-function limit on Hobby plan)
 │       └── supabase.ts   # Server-side Supabase client config
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings

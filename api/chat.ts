@@ -1,8 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
-import { supabase } from './lib/supabase.js';
-import { API_KEYS, getNextApiKey } from './lib/config.js';
-import { searchPill } from './lib/pill-logic.js';
+import { supabase } from './_lib/supabase.js';
+import { API_KEYS, getNextApiKey } from './_lib/config.js';
+import { searchPill } from './_lib/pill-logic.js';
 
 
 const CHAT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];

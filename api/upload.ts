@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from './lib/supabase.js';
+import { supabase } from './_lib/supabase.js';
 
 export const config = {
     api: {
@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 3. Supabase Storage에 업로드 (service_role 키가 있다면 사용하여 정책 우회)
         // Check if admin client is available
-        const supabaseClient = (await import('./lib/supabase.js')).supabaseAdmin || (await import('./lib/supabase.js')).supabase;
+        const supabaseClient = (await import('./_lib/supabase.js')).supabaseAdmin || (await import('./_lib/supabase.js')).supabase;
 
         if (!supabaseClient) {
             throw new Error("Supabase client not initialized");
