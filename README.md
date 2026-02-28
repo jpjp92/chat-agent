@@ -85,6 +85,10 @@
     - **Zero-Waste Header**: Reduced mobile header height by 25% for maximum chat space.
     - **Slim Input Bar**: Compacted the chat input form and buttons for one-handed reachability.
     - **Tight Welcome UI**: Lowered vertical padding of the initial greeting to bring input controls into view instantly.
+- **Flawless UI Resilience & Continuity (New!)**:
+    - **Zero-FOUC Dark Mode**: Inline head script evaluation of `localStorage` ensures instant dark mode rendering without any White Flash (Flash of Unstyled Content).
+    - **Robust Clipboard Support**: Cross-environment clipboard functionality (Copying Text/Code) with seamless textarea fallbacks for non-secure contexts (e.g., local network mobile testing).
+    - **Streaming Markdown Safety**: Hardened markdown parser that safely auto-closes dangling code blocks during real-time streaming, preventing complete UI layout breakage.
 - **Multi-Attachment Display Engine**:
     - **Responsive Image Grid**: Multiple uploaded images are automatically organized into a sleek, touch-friendly grid.
     - **Document List View**: Sequential rendering of PDF/Doc files within the chat bubble with distinct file-type iconography.

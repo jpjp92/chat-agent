@@ -80,8 +80,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   }, [userProfile]);
 
   const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-    document.documentElement.classList.toggle('dark');
+    const isDark = document.documentElement.classList.toggle('dark');
+    setIsDarkMode(isDark);
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
   };
 
   const handleSave = () => {
