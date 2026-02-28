@@ -271,7 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   [CODE GENERATION STANDARDS]
   - CODE BLOCKS(Triple Backticks): ALWAYS start with triple backticks followed immediately by the language(e.g., \`\`\`python) and a NEWLINE.
-  - INTEGRITY: Generate the entire script in ONE single code block. NEVER close and restart a block for the same file or logic.
+  - INTEGRITY: Generate the entire script in ONE single, continuous code block. NEVER prematurely close (using \`\`\`) and restart a block. DO NOT output isolated or unclosed backticks that might break the markdown parser.
   - INLINE CODE: NEVER include language names or colons (e.g., use \`print()\` instead of \`python:print()\`). Use ONLY for fragments.
   - Formatting: Ensure proper indentation (2-4 spaces) and latest stable syntax. Mandatory filename (e.g., app.tsx) as tag if applicable.
   - NO HTML: NEVER use <br> or other HTML tags inside code blocks.
@@ -522,8 +522,8 @@ Return ONLY a JSON object in this exact format, no other text:
         for await (const chunk of result) {
           const chunkText = chunk.text;
           if (chunkText) {
-            // Remove excessive spaces (likely hallucination or bad formatting)
-            const sanitizedText = chunkText.replace(/ {10,}/g, ' ');
+            // Remove excessive spaces only if extremely long (to preserve code indentation like 12-16 spaces in Python)
+            const sanitizedText = chunkText.replace(/ {50,}/g, '  ');
             fullAiResponse += sanitizedText;
             res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
           }

@@ -54,15 +54,39 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     };
   }, [isPlaying]);
 
-  const handleCopy = async () => {
-    if (!message.content) return;
-    try {
-      await navigator.clipboard.writeText(message.content);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
+  const copyTextToClipboard = async (text: string, setCopiedState: (v: boolean) => void) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopiedState(true);
+        setTimeout(() => setCopiedState(false), 2000);
+        return;
+      } catch (err) {
+        console.error('Clipboard API failed', err);
+      }
     }
+    // Fallback for non-secure environments
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      textArea.remove();
+      setCopiedState(true);
+      setTimeout(() => setCopiedState(false), 2000);
+    } catch (err) {
+      console.error('Fallback clipboard failed', err);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!message.content) return;
+    copyTextToClipboard(message.content, setIsCopied);
   };
 
   const handlePlayVoice = async () => {
@@ -130,14 +154,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         : children?.props?.children || '';
       const [copied, setCopied] = useState(false);
 
-      const copyToClipboard = async () => {
-        try {
-          await navigator.clipboard.writeText(codeContent);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-          console.error('Failed to copy code:', err);
-        }
+      const copyToClipboard = () => {
+        if (!codeContent) return;
+        copyTextToClipboard(codeContent, setCopied);
       };
 
       return (
@@ -345,7 +364,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
         if (visibleText.trim()) {
           // Process for numeric ranges (1~10 -> 1&#126;10)
-          const processedVisible = visibleText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+          let processedVisible = visibleText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+
+          // Safely close dangling code blocks during streaming
+          const backticks = processedVisible.match(/```/g);
+          if (backticks && backticks.length % 2 !== 0) {
+            processedVisible += '\n```';
+          }
+
           parts.push({
             type: 'text',
             content: processedVisible
@@ -355,7 +381,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         parts.push({ type: 'chart_loading' } as any);
       } else {
         // Process for numeric ranges (1~10 -> 1&#126;10)
-        const processedRemaining = remainingText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+        let processedRemaining = remainingText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+
+        // Safely close dangling code blocks during streaming
+        const backticks = processedRemaining.match(/```/g);
+        if (backticks && backticks.length % 2 !== 0) {
+          processedRemaining += '\n```';
+        }
+
         parts.push({
           type: 'text',
           content: processedRemaining
