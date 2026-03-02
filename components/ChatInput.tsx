@@ -25,6 +25,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const i18n = {
     fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Maximum 3 fichiers." },
@@ -62,6 +63,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       recognition.lang = langMap[language] || 'ko-KR';
 
       recognition.onstart = () => setIsListening(true);
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed') {
+          showToast(language === 'ko' ? '마이크 접근 권한이 없거나 거부되었습니다.' : 'Microphone access denied.', "error");
+        }
+        setIsListening(false);
+      };
       recognition.onresult = (event: any) => {
         let interimTranscript = '';
         let currentFinalTranscript = '';
@@ -75,14 +83,24 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       };
       recognition.onend = () => setIsListening(false);
       recognitionRef.current = recognition;
+
+      return () => {
+        recognition.stop();
+      };
     }
-  }, [language]);
+  }, [language, showToast]);
 
   const toggleListening = () => {
     if (!recognitionRef.current) return;
-    if (isListening) recognitionRef.current.stop();
-    else {
-      finalTranscriptRef.current = input;
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      let currentVal = input;
+      if (currentVal && !currentVal.endsWith(' ') && !currentVal.endsWith('\n')) {
+        currentVal += ' ';
+      }
+      finalTranscriptRef.current = currentVal;
+      setInput(currentVal);
       recognitionRef.current.start();
     }
   };
@@ -100,6 +118,29 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       if (textareaRef.current) textareaRef.current.style.height = window.innerWidth < 640 ? '36px' : '40px';
     }
   };
+
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+
+  useEffect(() => {
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+
+    if (isListening && input.trim()) {
+      submitTimeoutRef.current = setTimeout(() => {
+        handleSubmitRef.current();
+      }, 5000);
+    }
+
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, [input, isListening]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -381,7 +422,12 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (isListening) {
+                finalTranscriptRef.current = e.target.value;
+              }
+            }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={t.placeholder}

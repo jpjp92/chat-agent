@@ -284,7 +284,12 @@ export const playRawAudio = async (data: Uint8Array) => {
   const audioBuffer = await decodeAudioData(data, sharedAudioContext, 24000, 1);
   const source = sharedAudioContext.createBufferSource();
   source.buffer = audioBuffer;
-  source.connect(sharedAudioContext.destination);
+
+  const gainNode = sharedAudioContext.createGain();
+  gainNode.gain.value = 1.8;
+
+  source.connect(gainNode);
+  gainNode.connect(sharedAudioContext.destination);
   currentAudioSource = source;
   source.start();
 
