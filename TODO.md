@@ -136,6 +136,18 @@
 - [x] **Phase 2: Backend & AI Logic**: `api/chat.ts` 다중 파트(inlineData/fileData) 처리 및 외부 URL Base64 프록싱 구현.
 - [x] **Phase 3: Persistence (UI Layer)**: `ChatMessage.tsx` 다중 이미지 그리드 렌더링 및 가로/세로 동적 배열 최적화.
 
+#### 🤖 LangGraph.js 기반 Agentic 아키텍처 리팩토링
+- [ ] **목표**: `api/chat.ts`의 단일 모놀리식 파이프라인을 `@langchain/langgraph`를 활용한 Multi-Actor (Node/State/Edge) 기반 구조로 전환.
+- [ ] **State Management (`AgentState`)**: 대화 기록(`messages`), Tool 실행 결과, 추출된 시각 컨텍스트, 라우팅 정보(`next_node`)를 담는 완벽히 타이핑된(TypeScript) 상태 객체 설계.
+- [ ] **Node 분할 및 Graph 컴파일**: 
+    - **Router Node**: 사용자 의도 분석 및 분기 결정 (일반 대화 vs 이미지 처리 vs 툴 사용).
+    - **Vision Preprocessing Node**: 첨부된 이미지에 특화된 시각 정보 추출.
+    - **Tool Executor Node**: 조건부 엣지(Conditional Edge)를 통해 약품 DB 검색, 유튜브 파싱 등을 수행.
+    - **Generator Node**: 최종 컨텍스트를 융합하여 정답안 스트리밍.
+- [ ] **Function Calling 표준화**: 하드코딩된 예외 조건(`if/else`)을 제거하고, `identifyPillTool`, `extractYoutubeTitleTool` 등의 규격화된 도구를 LLM에 주입하여 자율 판단 유도.
+- [ ] **Dynamic Prompting**: 유저 의도에 맞춰 필요한 모듈화된 시각화 지침(Chem-Viz, Astro-Viz 등)만 노드 체인 도중 동적으로 주입하여 전체 프롬프트 사이즈(토큰) 최적화 및 속도 향상.
+- [ ] **Streaming 호환성 보장**: LangGraph의 `streamEvents`를 활용하여 프론트엔드와 기존 SSE 방식 통신 완벽 지원.
+
 ### ⚙️ Medium Priority (Data & Intelligence)
 
 #### 4. CSV/XLSX 파싱 고도화
