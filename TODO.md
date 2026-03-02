@@ -198,7 +198,7 @@
     - 사용자 메시지 말풍선 너비 최적화 (`w-fit`) - 긴 이미지가 있어도 텍스트가 늘어지지 않음.
 - [ ] 메시지 편집 기능 추가 (Edit message).
 - [ ] **음성 인터랙션 고도화 (Voice Mode Strategy)**
-    - [ ] **STT UX 및 안정성 개선**: 언어 변경/언마운트 시 메모리 해제(Cleanup), 예외 처리(`onerror`), 수동 타이핑 시 덮어쓰기 방지, 인식 시작 시 띄어쓰기 방어 및 **5초 무응답 시 자동 전송(Auto-Submit)** 기능 추가.
+    - [x] **STT UX 및 안정성 개선**: 언어 변경/언마운트 시 메모리 해제(Cleanup), 예외 처리(`onerror`), 수동 타이핑 시 덮어쓰기 방지, 인식 시작 시 띄어쓰기 방어 및 **5초 무응답 시 자동 전송(Auto-Submit)** 기능 추가.
     - [x] **TTS 모바일 볼륨 최적화**: Web Audio API의 `GainNode`를 활용하여 모바일 환경에서 재생되는 음성 소리 증폭(Gain 1.5x~2.0x).
 
 ---
@@ -213,4 +213,4 @@
 
 ---
 
-*Last Updated: 2026-02-28 (다크모드 유지, 마크다운 렌더링 및 클립보드 복사 폴백 로직 등 UX 개선 완료)*
+*Last Updated: 2026-03-02 (Web Speech STT UX 최적화 및 모바일 기기 AudioContext/GainNode TTS 볼륨 증폭 개선 완료)*

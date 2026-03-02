@@ -67,8 +67,20 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         console.error("Speech recognition error", event.error);
         if (event.error === 'not-allowed') {
           showToast(language === 'ko' ? '마이크 접근 권한이 없거나 거부되었습니다.' : 'Microphone access denied.', "error");
+        } else if (event.error === 'network') {
+          showToast(language === 'ko' ? '네트워크 연결 상태가 불안정합니다.' : 'Network connection error.', "error");
+        } else if (event.error === 'no-speech') {
+          // just ignore no-speech as it's fairly common when pausing
+          console.warn("Speech recognition paused (no-speech)");
+        } else {
+          showToast(language === 'ko' ? '음성 인식 도중 오류가 발생했습니다.' : 'Speech recognition error occurred.', "error");
         }
-        setIsListening(false);
+
+        // abort if UI is stuck
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          recognition.abort();
+        }
       };
       recognition.onresult = (event: any) => {
         let interimTranscript = '';
@@ -85,7 +97,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       recognitionRef.current = recognition;
 
       return () => {
-        recognition.stop();
+        recognition.abort(); // stop()대신 abort()로 변경하여 컴포넌트 언마운트 시 메모리 즉시 해제 방지
       };
     }
   }, [language, showToast]);
@@ -127,6 +139,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   useEffect(() => {
     if (submitTimeoutRef.current) {
       clearTimeout(submitTimeoutRef.current);
+      submitTimeoutRef.current = null;
     }
 
     if (isListening && input.trim()) {
@@ -138,6 +151,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     return () => {
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
+        submitTimeoutRef.current = null;
       }
     };
   }, [input, isListening]);
@@ -423,10 +437,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             ref={textareaRef}
             value={input}
             onChange={(e) => {
-              setInput(e.target.value);
-              if (isListening) {
-                finalTranscriptRef.current = e.target.value;
+              // 수동 타이핑 시 텍스트 중복 및 덮어쓰기 방어를 위해 STT 즉시 중단
+              if (isListening && recognitionRef.current) {
+                recognitionRef.current.stop();
+                setIsListening(false);
               }
+              setInput(e.target.value);
+              finalTranscriptRef.current = e.target.value;
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}

@@ -100,6 +100,10 @@
 - **Enhanced Message Visibility**:
     - **Always-on Utility Buttons**: TTS and Copy buttons are now permanently visible on mobile for better accessibility.
     - **Expanded Image Viewer**: Increased max-width of attached images (up to 480px on desktop, full-width on mobile) for clearer visual analysis.
+- **Enhanced Voice Interactions (New!)**:
+    - **Intelligent STT UX**: Graceful handling of manual typing overrides and robust error recovery (`no-speech`, `network` handling) during Web Speech API transcription.
+    - **Zero Memory Leaks**: Advanced cleanup logic utilizing `abort()` instead of `stop()` on unmount, completely eliminating React state rendering errors.
+    - **Mobile Audio Amplification**: Employs Web Audio API's `GainNode` to natively amplify hardware-constrained mobile text-to-speech volume by 1.8x.
 - **Seamless Sidebar Integration**: Removed hard borders from the language selector area, creating a fluid, open layout.
 - **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
 - **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction.
