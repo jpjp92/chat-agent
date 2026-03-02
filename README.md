@@ -242,6 +242,62 @@ flowchart TD
 
 ---
 
+### 🤖 Agentic Architecture (Planned Refactoring)
+This diagram illustrates the planned multi-actor structure using **LangGraph.js**, moving away from a single monolithic pipeline (`api/chat.ts`) to a stateful, node-based system for improved modularity and function-calling capabilities.
+
+```mermaid
+flowchart TB
+    %% Nodes Definition
+    User([👤 User Prompt])
+    
+    subgraph StateGraph ["LangGraph.js StateGraph"]
+        direction TB
+        StateNode[("AgentState<br/>- messages<br/>- extracted_entities<br/>- context_variables")]
+        
+        RouterNode{{"🧭 Router Node<br/>(Intent Analysis)"}}
+        
+        subgraph Preprocessors ["Data Extraction Nodes"]
+            direction LR
+            Vision["👁️ Vision Node<br/>(Extract Pill Info)"]
+            YouTube["▶️ YouTube Node<br/>(Extract Subtitles)"]
+        end
+        
+        ToolExecutor["🛠️ Tool Executor Node<br/>(searchPill, queryWeb, etc.)"]
+        
+        Generator["📝 Generator Node<br/>(Main Gemini LLM)"]
+    end
+    
+    Output([💬 Final Response Stream])
+
+    %% Edge Logic
+    User --> StateNode
+    StateNode --> RouterNode
+    RouterNode -- "Needs Image Ident" --> Vision
+    RouterNode -- "Needs Video Data" --> YouTube
+    RouterNode -- "Needs External Tool" --> ToolExecutor
+    RouterNode -- "General Response" --> Generator
+    
+    Vision --> StateNode
+    YouTube --> StateNode
+    ToolExecutor --> StateNode
+    
+    StateNode --> Generator
+    Generator --> Output
+
+    %% Styling
+    classDef stateNode fill:#f3e8ff,stroke:#9333ea,stroke-width:2px;
+    classDef router fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef tools fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
+    classDef gen fill:#dcfce7,stroke:#22c55e,stroke-width:2px;
+    
+    class StateNode stateNode;
+    class RouterNode router;
+    class Vision,YouTube,ToolExecutor tools;
+    class Generator gen;
+```
+
+---
+
 ### Frontend
 - **React 19** + **Vite** (TypeScript)
 - **ApexCharts** (Data Visualization)
