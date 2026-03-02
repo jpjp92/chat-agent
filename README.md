@@ -242,8 +242,8 @@ flowchart TD
 
 ---
 
-### 🤖 Agentic Architecture (Planned Refactoring)
-This diagram illustrates the planned multi-actor structure using **LangGraph.js**, moving away from a single monolithic pipeline (`api/chat.ts`) to a stateful, node-based system for improved modularity and function-calling capabilities.
+### 🤖 Agentic Architecture (Implemented with LangGraph.js)
+This diagram illustrates the implemented multi-actor structure using **LangGraph.js**, which moved away from a single monolithic pipeline (`api/chat.ts`) to a stateful, node-based system for improved modularity and function-calling capabilities.
 
 ```mermaid
 flowchart TB
