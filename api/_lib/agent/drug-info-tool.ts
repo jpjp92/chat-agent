@@ -144,6 +144,9 @@ export const searchDrugInfoTool = tool(
         try {
             console.log(`[Agent Tool] searchDrugInfoTool called for: ${drug_name}`);
 
+            // 1. Kick off Pharm.or.kr search IMMEDIATELY in the background (Parallel processing)
+            const pharmUrlPromise = getPharmOrKrDetailUrl(drug_name);
+
             // MFDS Search Helper
             const fetchMFDS = async (nameToSearch: string) => {
                 const encodedName = encodeURIComponent(nameToSearch);
@@ -221,8 +224,8 @@ export const searchDrugInfoTool = tool(
                 }));
             }
 
-            // Attempt to fetch Pharm.or.kr detail URL using the raw searched name
-            let pharmUrl = await getPharmOrKrDetailUrl(drug_name);
+            // Resolve the parallel Pharm.or.kr fetch
+            let pharmUrl = await pharmUrlPromise;
             if (!pharmUrl && items.length > 0) {
                 // Fallback to the first MFDS candidate's name, stripped of generic name part
                 const baseName = items[0].ITEM_NAME.split('(')[0].trim();
