@@ -54,9 +54,13 @@
     - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
     - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
     - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
-- **Intelligent Drug Visualization (Drug-Viz) (v3.4 - Enhanced Precision)**: 
+- **Intelligent Drug Visualization (Drug-Viz) (v3.5 - Advanced Identification Engine)**: 
+    - **Vision-powered Imprint Parsing**: Seamlessly integrates `gemini-2.5-flash` Vision API to extract text directly from official drug images in real-time when the MFDS API returns generic placeholders like "마크" (logo), ensuring precision identification.
+    - **Direct Pharmacist-level Deep Linking**: Automatically bypasses server-side blocks via stealth POST requests to `pharm.or.kr`, extracting the internal `idx` and generating a pristine, one-click deep link to authoritative drug identification cards.
+    - **Dual UI Button Options**: Cards prominently feature dual external links—a stylish Mobile-optimized [ConnectDI] integration and an expert-level [약학정보원] (Korea Pharmaceutical Info Center) direct-dive button when available.
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
     - **Instant Card Display**: Removed delayed reveal animation—cards now appear immediately while images sync in the background, improving perceived performance and UX.
+    - **Summarization Enforcement**: Prompt-engineered to force AI to output a clean, single-sentence summary after detailed JSON generation, preventing redundant UI clutter.
     - **Full-Width Image Layout**: Image container optimized to use full card width, ensuring loading states and synced images display properly without appearing small or misaligned.
     - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
     - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.

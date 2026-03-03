@@ -225,4 +225,4 @@
 
 ---
 
-*Last Updated: 2026-03-02 (Web Speech STT UX 최적화 및 모바일 기기 AudioContext/GainNode TTS 볼륨 증폭 개선 완료)*
+*Last Updated: 2026-03-03 (약학정보원 다이렉트 URL 연동 및 Gemini Vision 기반 알약 식별 각인 추출 능력 고도화 완료)*

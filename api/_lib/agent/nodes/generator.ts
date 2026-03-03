@@ -1,7 +1,8 @@
 import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey } from "../../config.js";
-import { identifyPillTool } from "../tools.js";
+import { identifyPillTool, searchWebTool } from "../tools.js";
+import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { SystemMessage } from "@langchain/core/messages";
 
 /**
@@ -35,9 +36,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             maxOutputTokens: 8192,
         });
 
-        // 1. If it's a YouTube request, Google bypasses tools for native integration
-        // 2. Otherwise bind the tools we designed (identifyPillTool)
-        const llmWithTools = isYoutubeRequest ? llm : llm.bindTools([identifyPillTool]);
+        // Bind tools to the LLM:
+        // - searchDrugInfoTool: For drug name text queries → look up MFDS official DB first
+        // - identifyPillTool: For pill image queries → search pharm.or.kr with vision-extracted attributes
+        // - searchWebTool: Optional. Use for missing drug usage (용법) and dosage info not provided by standard drug databases.
+        // - YouTube requests: No custom tools needed (Gemini handles natively via fileUri)
+        const allTools = [searchDrugInfoTool, identifyPillTool, searchWebTool];
+        const llmWithTools = isYoutubeRequest ? llm : llm.bindTools(allTools);
 
         const messages = [
             new SystemMessage(finalInstruction),

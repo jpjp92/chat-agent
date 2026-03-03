@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PillVisual {
-    shape: 'round' | 'oval' | 'capsule' | 'triangle' | 'pentagon' | 'hexagon';
+    shape: 'round' | 'oval' | 'capsule' | 'triangle' | 'pentagon' | 'hexagon' | 'diamond' | 'square' | 'octagon' | 'semicircle' | string;
     color: string;
     imprint_front?: string;
     imprint_back?: string;
@@ -20,6 +20,7 @@ interface DrugData {
     category: string;
     dosage?: string;
     image_url?: string;
+    pharm_url?: string;
     pill_visual?: PillVisual;
     efficacy?: Efficacy[];
 }
@@ -157,11 +158,31 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         }
     };
 
+    // Normalize drug name for ConnectDI URL:
+    // 1. Strip parenthetical generic name suffix: "타파진정10밀리그램(다파글리플로진...)" → "타파진정10밀리그램"
+    // 2. Convert Korean unit suffixes to English: 밀리그램 → mg
+    const normalizeDrugName = (name: string): string => {
+        return name
+            .replace(/\(.*?\)/g, '')       // strip parenthetical generic name
+            .replace(/밀리그램/g, 'mg')
+            .replace(/마이크로그램/g, 'mcg')
+            .replace(/그램/g, 'g')
+            .trim();
+    };
+
+    // Helper: Format imprint display text (MFDS uses "마크" for logo-type imprints)
+    const formatImprint = (imprint: string | undefined | null, fallback: string): string => {
+        if (!imprint) return fallback;
+        if (imprint === '마크') return '마크(로고)';
+        return imprint;
+    };
+
     const isSearchOrEntryPage =
         data.image_url?.includes('search_result') ||
         data.image_url?.includes('terms.naver.com') ||
         data.image_url?.includes('pharm.or.kr') ||
-        data.image_url?.includes('health.kr');
+        data.image_url?.includes('health.kr') ||
+        data.image_url?.includes('nedrug.mfds.go.kr');
 
     const proxiedImageUrl = syncedUrl
         ? syncedUrl
@@ -345,7 +366,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '앞면' : 'Front'}</span>
                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
-                                        {serverPillVisual?.imprint_front || data.pill_visual?.imprint_front || (language === 'ko' ? '없음' : 'None')}
+                                        {formatImprint(serverPillVisual?.imprint_front || data.pill_visual?.imprint_front, language === 'ko' ? '없음' : 'None')}
                                     </span>
                                 </div>
                             </div>
@@ -355,7 +376,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '뒷면' : 'Back'}</span>
                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
-                                        {serverPillVisual?.imprint_back || data.pill_visual?.imprint_back || (language === 'ko' ? '없음' : 'None')}
+                                        {formatImprint(serverPillVisual?.imprint_back || data.pill_visual?.imprint_back, language === 'ko' ? '없음' : 'None')}
                                     </span>
                                 </div>
                             </div>
@@ -420,14 +441,26 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase">Medicine Index</span>
                     </div>
-                    <a
-                        href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(data.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-all"
-                    >
-                        {t.details} <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                    </a>
+                    <div className="flex items-center gap-3">
+                        <a
+                            href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(normalizeDrugName(data.name))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/10 text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all border border-indigo-100 dark:border-indigo-500/20"
+                        >
+                            ConnectDI <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                        </a>
+                        {data.pharm_url && (
+                            <a
+                                href={data.pharm_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20"
+                            >
+                                약학정보원 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                            </a>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

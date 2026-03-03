@@ -3,6 +3,52 @@ import { z } from "zod";
 import { searchPill } from "../pill-logic.js";
 
 /**
+ * Tool for searching the web using DuckDuckGo Html.
+ * Useful for finding specific missing information like drug usage, dosage, or ingredients.
+ */
+export const searchWebTool = tool(
+    async ({ query }) => {
+        try {
+            console.log(`[Agent Tool] searchWebTool called with query: ${query}`);
+            const res = await fetch("https://html.duckduckgo.com/html/", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                },
+                body: `q=${encodeURIComponent(query)}`
+            });
+            const text = await res.text();
+            let results = [];
+            // Regex to parse snippet text from DDG HTML
+            let regex = /<a class="result__snippet[^>]*>(.*?)<\/a>/g;
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                let snippet = match[1].replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+                if (snippet && snippet.length > 20) {
+                    results.push(snippet);
+                }
+                if (results.length >= 4) break;
+            }
+            if (results.length === 0) {
+                return `웹 검색 결과가 없습니다. 질의: ${query}`;
+            }
+            return `[WEB_SEARCH_RESULTS for "${query}"]\n` + results.map((r, i) => `${i + 1}. ${r}`).join('\n\n');
+        } catch (e: any) {
+            console.error("[Agent Tool] searchWebTool error:", e);
+            return "웹 검색 중 오류가 발생했습니다.";
+        }
+    },
+    {
+        name: "search_web",
+        description: "Search the web for general information, especially useful for finding specific drug usage (용법), dosage (용량), or ingredient details that are not provided by visual drug databases.",
+        schema: z.object({
+            query: z.string().describe("The search query (e.g., '타파진정 10mg 주요 성분과 용법')"),
+        }),
+    }
+);
+
+/**
  * Tool for identifying pills using the pharm.or.kr database.
  * The model will use this when it visually extracts attributes from an image.
  */
