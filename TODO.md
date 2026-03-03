@@ -188,6 +188,11 @@
     - `react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `react-syntax-highlighter` 모두 npm 설치 후 Vite 번들에 포함.
     - 메인 번들에서 분리(`markdown-vendor` chunk)하여 초기 번들 gzip **679 KB → 325 KB (약 52% 감소)**.
     - CDN 장애 시 전체 채팅창 렌더링 불가 이슈 해소.
+- [ ] **Lighthouse 90+ 달성을 위한 심화 최적화 (진행 예정)**
+    - [ ] **Preconnect 속성 조정**: `fonts.gstatic.com`에 `crossorigin="anonymous"` 추가하여 사전 연결/미사용 혼선 경고 해소.
+    - [ ] **아바타 이미지 초경량화**: WebP 화질(`q=80` → `q=50`) 추가 하향 혹은 로컬 2KB 미만 SVG 아이콘 파일로 대체하여 Image Delivery 최적화 달성.
+    - [ ] **SVG 아이콘 마이그레이션**: FontAwesome CDN CSS를 걷어내고 `@fortawesome/fontawesome-svg-core` 형태로 대체하여 Font-display 지연(100ms) 및 Unused CSS(18KB) 동시 해결.
+    - [ ] **마크다운 & 서드파티 모듈 Code-Splitting**: 초기 메인 화면 로드에 불필요한 `react-markdown` 컴포넌트를 `React.lazy()`와 `Suspense`를 활용해 분할 로드하여 Unused JavaScript(247KB) 낭비 방지.
 - [ ] **Self-host Font Awesome**: 
     - CDN 대신 `@fortawesome/react-fontawesome` 적용 또는 CSS/webfonts 자체 호스팅.
     - **목표**: 외부 CDN 의존도 제거 및 렌더링 차단 해소.
