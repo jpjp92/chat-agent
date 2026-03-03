@@ -155,7 +155,7 @@ const App: React.FC = () => {
         setCurrentUser(user);
         setUserProfile({
           name: user.display_name || user.nickname,
-          avatarUrl: user.avatar_url || "https://images.unsplash.com/photo-1591160690555-5debfba289f0?w=64&h=64&fit=crop"
+          avatarUrl: user.avatar_url || "https://images.unsplash.com/photo-1591160690555-5debfba289f0?w=64&h=64&fit=crop&fm=webp&q=80"
         });
         await loadUserSessions(user.id);
       }
