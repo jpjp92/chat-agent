@@ -57,6 +57,8 @@
 - **Intelligent Drug Visualization (Drug-Viz) (v3.5 - Advanced Identification Engine)**: 
     - **Vision-powered Imprint Parsing**: Seamlessly integrates `gemini-2.5-flash` Vision API to extract text directly from official drug images in real-time when the MFDS API returns generic placeholders like "마크" (logo), ensuring precision identification.
     - **Direct Pharmacist-level Deep Linking**: Automatically bypasses server-side blocks via stealth POST requests to `pharm.or.kr`, extracting the internal `idx` and generating a pristine, one-click deep link to authoritative drug identification cards.
+    - **Multi-stage Fallback Search Strategy**: Implements a robust 3-stage search algorithm (Spaceless Original -> Korean Unit Translation -> Base Name Fallback) designed to conquer MFDS database inconsistencies (e.g., standardizing "딜라트렌정 25mg" against raw DB entries).
+    - **Parallel Processing Engine**: Skyrockets response speeds by parallelizing the pharmacist `idx` link generation with the main payload/Vision queries via background promises, completely eliminating block-induced latency.
     - **Dual UI Button Options**: Cards prominently feature dual external links—a stylish Mobile-optimized [ConnectDI] integration and an expert-level [약학정보원] (Korea Pharmaceutical Info Center) direct-dive button when available.
     - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
     - **Instant Card Display**: Removed delayed reveal animation—cards now appear immediately while images sync in the background, improving perceived performance and UX.
