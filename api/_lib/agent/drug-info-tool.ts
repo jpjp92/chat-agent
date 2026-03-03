@@ -144,34 +144,44 @@ export const searchDrugInfoTool = tool(
         try {
             console.log(`[Agent Tool] searchDrugInfoTool called for: ${drug_name}`);
 
-            // MFDS API stores names in Korean units (밀리그램, 마이크로그램, 그램)
-            // Convert English unit suffixes BEFORE searching
-            const normalizeForMFDS = (name: string): string => {
-                return name
-                    .replace(/\s/g, '')                    // remove spaces
-                    .replace(/mcg/gi, '마이크로그램')        // mcg → 마이크로그램
-                    .replace(/mg/gi, '밀리그램')             // mg → 밀리그램
-                    .replace(/(?<![가-힣])g(?!가)/gi, '그램'); // standalone g → 그램
+            // MFDS Search Helper
+            const fetchMFDS = async (nameToSearch: string) => {
+                const encodedName = encodeURIComponent(nameToSearch);
+                const url = `${MFDS_API_ENDPOINT}?serviceKey=${MFDS_API_KEY}&numOfRows=5&pageNo=1&type=json&item_name=${encodedName}`;
+                const res = await fetch(url, { headers: { 'User-Agent': 'curl/8.5.0', 'Referer': 'https://www.data.go.kr' } });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                return json?.body?.items || [];
             };
 
-            const searchName = normalizeForMFDS(drug_name);
-            console.log(`[Agent Tool] Normalized search name: ${searchName}`);
-            const encodedName = encodeURIComponent(searchName);
-            const url = `${MFDS_API_ENDPOINT}?serviceKey=${MFDS_API_KEY}&numOfRows=5&pageNo=1&type=json&item_name=${encodedName}`;
+            // Strategy 1: Spaceless original input (Works for "딜라트렌정25mg")
+            let searchName = drug_name.replace(/\s/g, '');
+            console.log(`[Agent Tool] MFDS Strategy 1 (Spaceless): ${searchName}`);
+            let items = await fetchMFDS(searchName);
 
-            const res = await fetch(url, {
-                headers: {
-                    'User-Agent': 'curl/8.5.0',
-                    'Referer': 'https://www.data.go.kr',
-                }
-            });
-
-            if (!res.ok) {
-                return `식약처 API 조회 실패: HTTP ${res.status}`;
+            if (!Array.isArray(items) || items.length === 0) {
+                // Strategy 2: Korean units translation (Works for "다파진정10밀리그램")
+                const normalizeForMFDS = (name: string): string => {
+                    return name
+                        .replace(/\s/g, '')
+                        .replace(/mcg/gi, '마이크로그램')
+                        .replace(/mg/gi, '밀리그램')
+                        .replace(/(?<![가-힣])g(?!가)/gi, '그램');
+                };
+                searchName = normalizeForMFDS(drug_name);
+                console.log(`[Agent Tool] MFDS Strategy 2 (Translated): ${searchName}`);
+                items = await fetchMFDS(searchName);
             }
 
-            const json = await res.json();
-            const items = json?.body?.items;
+            if (!Array.isArray(items) || items.length === 0) {
+                // Strategy 3: Base name only as fallback (e.g. "딜라트렌정")
+                const baseNameMatch = drug_name.match(/^([가-힣a-zA-Z]+)/);
+                if (baseNameMatch && baseNameMatch[1] && baseNameMatch[1] !== searchName) {
+                    searchName = baseNameMatch[1];
+                    console.log(`[Agent Tool] MFDS Strategy 3 (Base name): ${searchName}`);
+                    items = await fetchMFDS(searchName);
+                }
+            }
 
             if (!Array.isArray(items) || items.length === 0) {
                 return `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다.`;
