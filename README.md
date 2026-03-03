@@ -128,7 +128,7 @@
 - **Optimized Font Loading**: 
     - **Google Fonts**: Reduced font weights from 7 to 3 (400, 600, 700), added `preconnect` and `dns-prefetch` for faster loading.
     - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
-- **Lighthouse Performance (v3.5 Update)**: Improved from **44/100** to **81/100** (Confirmed on Production) with significant reductions in FCP, SI, and LCP metrics.
+- **Lighthouse Performance (v3.5 Update)**: Improved from **44/100** to **83/100** (Confirmed on Production) with significant reductions in FCP, SI, and LCP metrics.
     - **Render-Blocking Resolution**: Eliminated 160ms+ latency by converting synchronous CSS CDNs (Google Fonts, FontAwesome, KaTeX) to asynchronous `<link rel="preload">` patterns.
     - **Next-Gen Image Delivery**: Upgraded default profile assets to explicitly requested **WebP** formats with optimized dimensional querying (`?w=64&h=64&fm=webp&q=80`), reducing network payload size significantly.
     - **Resource Hint Calibration**: Removed redundant `<link rel="preconnect">` tags that were conflicting with active `preload` directives for Cloudflare and jsDelivr.
