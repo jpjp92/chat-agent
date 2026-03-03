@@ -112,15 +112,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const stream = await graph.streamEvents(initialState, { version: "v2" });
 
     let fullAiResponse = '';
+    const allSources: any[] = [];
 
     for await (const event of stream) {
       // Seamlessly map LangGraph standard stream back into legacy pure-SSE structure
       if (event.event === "on_chat_model_stream" && event.name === "ChatGoogleGenerativeAI") {
-        const chunkText = event.data?.chunk?.content;
+        const chunk = event.data?.chunk;
+        const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {
           const sanitizedText = chunkText.replace(/ {50,}/g, '  ');
           fullAiResponse += sanitizedText;
           res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
+        }
+
+        // [CITATIONS] Grounding Metadata 추출 및 전송
+        const grounding = chunk?.response_metadata?.groundingMetadata;
+        if (grounding?.groundingChunks) {
+          const sources = grounding.groundingChunks
+            .map((gc: any) => gc.web ? { title: gc.web.title, uri: gc.web.uri } : null)
+            .filter(Boolean);
+
+          if (sources.length > 0) {
+            // 중복 제거 및 누적
+            sources.forEach((s: any) => {
+              if (!allSources.some((existing: any) => existing.uri === s.uri)) {
+                allSources.push(s);
+              }
+            });
+            res.write(`data: ${JSON.stringify({ sources })}\n\n`);
+          }
         }
       }
     }
@@ -128,12 +148,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 7. Supabase DB AI Response Sync
     if (fullAiResponse && session_id) {
       try {
-        // Grounding source extraction removed from standard state for immediate simplicity
         await supabase.from('chat_messages').insert({
           session_id,
           role: 'assistant',
           content: fullAiResponse,
-          grounding_sources: null
+          grounding_sources: allSources.length > 0 ? allSources : null
         });
         await supabase.from('chat_sessions')
           .update({ updated_at: new Date().toISOString() })

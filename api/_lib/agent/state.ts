@@ -46,6 +46,12 @@ export const GraphState = Annotation.Root({
     nextNode: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => "generator", // Default fallback
+    }),
+
+    // Determines which set of tools to bind (medical vs general search)
+    intent: Annotation<string>({
+        reducer: (x, y) => y ?? x,
+        default: () => "general",
     })
 });
 

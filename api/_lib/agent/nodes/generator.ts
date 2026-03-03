@@ -36,12 +36,16 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             maxOutputTokens: 8192,
         });
 
-        // Bind tools to the LLM:
-        // - searchDrugInfoTool: For drug name text queries → look up MFDS official DB first
-        // - identifyPillTool: For pill image queries → search pharm.or.kr with vision-extracted attributes
-        // - searchWebTool: Optional. Use for missing drug usage (용법) and dosage info not provided by standard drug databases.
-        // - YouTube requests: No custom tools needed (Gemini handles natively via fileUri)
-        const allTools = [searchDrugInfoTool, identifyPillTool, searchWebTool];
+        // Bind tools to the LLM conditionally (Gemini cannot mix built-in and custom tools)
+        // - Medical intent: Bind specialized drug info and pill identification tools.
+        // - General intent: Bind native Google Search grounding for real-time data like weather.
+        let allTools: any[] = [];
+        if (state.intent === "medical") {
+            allTools = [searchDrugInfoTool, identifyPillTool, searchWebTool];
+        } else {
+            allTools = [{ googleSearch: {} }];
+        }
+
         const llmWithTools = isYoutubeRequest ? llm : llm.bindTools(allTools);
 
         const messages = [

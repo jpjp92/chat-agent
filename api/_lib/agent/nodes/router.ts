@@ -20,15 +20,22 @@ export const routerNode = async (state: AgentStateType) => {
         }
     }
 
-    const hasPillKeyword = ['약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야'].some(k => textContent.includes(k));
+    const medicalKeywords = [
+        '약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야',
+        '용법', '용량', '성분', '부작용', '주의사항', '효능', '효과', '복용'
+    ];
+    const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k));
     const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
 
     // Route 1: Pill image identification → vision preprocessing needed
-    if (hasPillKeyword && hasImage) {
+    if (hasMedicalKeyword && hasImage) {
         console.log('[LangGraph] Router decided: VISION processing required');
-        return { nextNode: "vision" };
+        return { nextNode: "vision", intent: "medical" };
     }
 
-    // All other cases → generator (drug info tool will be called automatically by LLM if needed)
-    return { nextNode: "generator" };
+    // Default: Choose intent based on keywords
+    const intent = hasMedicalKeyword ? "medical" : "general";
+    console.log(`[LangGraph] Router decided: intent=${intent}`);
+
+    return { nextNode: "generator", intent };
 };
