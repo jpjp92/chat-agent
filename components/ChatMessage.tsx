@@ -201,13 +201,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       );
     },
     table: ({ children }: any) => (
-      <div className="my-8 overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+      <div className="my-4 sm:my-8 overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm">
         <table className="w-full text-left border-collapse">{children}</table>
       </div>
     ),
     thead: ({ children }: any) => <thead className="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-200/50 dark:border-white/5">{children}</thead>,
-    th: ({ children }: any) => <th className="px-5 py-4 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02]">{children}</th>,
-    td: ({ children }: any) => <td className="px-5 py-4 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[14px] min-w-[140px] leading-relaxed align-top tabular-nums">{children}</td>,
+    th: ({ children }: any) => <th className="px-3 py-2 sm:px-5 sm:py-4 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[10px] sm:text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02] whitespace-nowrap">{children}</th>,
+    td: ({ children }: any) => <td className="px-3 py-2 sm:px-5 sm:py-4 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[12px] sm:text-[14px] leading-snug sm:leading-relaxed align-middle tabular-nums whitespace-nowrap">{children}</td>,
     tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
 

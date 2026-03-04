@@ -285,7 +285,7 @@ export const searchDrugInfoTool = tool(
         name: "search_drug_info",
         description: `Search the official Korean Ministry of Food and Drug Safety (MFDS/식약처) database to get accurate, verified drug identification information including exact pill imprint codes, official images, shape, and color. Call this tool for ANY drug information request before generating a json:drug block.`,
         schema: z.object({
-            drug_name: z.string().describe("The Korean drug product name to search for. E.g. '세비로텐정5/40mg', '타이레놀정500mg'"),
+            drug_name: z.string().describe("The official Korean drug product name to search for. CRITICAL: Evaluate the user's input for any spelling typos (e.g., '엔' vs '앤', '래' vs '레') and AUTO-CORRECT the drug name to its official registered spelling (e.g., '엔지비드서방정' -> '앤지비드서방정', '타이래놀' -> '타이레놀') BEFORE calling this tool. Do not blindly pass misspelled names."),
         }),
     }
 );
