@@ -21,8 +21,9 @@ export const routerNode = async (state: AgentStateType) => {
     }
 
     const medicalKeywords = [
-        '약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야',
-        '용법', '용량', '성분', '부작용', '주의사항', '효능', '효과', '복용'
+        '약', '알약', '약품', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야',
+        '용법', '용량', '성분', '부작용', '주의사항', '효능', '효과', '복용',
+        '정제', '필름정', 'mg정', '산제', '시럽', '의약품', '약사', '처방'
     ];
     const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k));
     const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));

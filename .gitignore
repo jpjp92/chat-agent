@@ -39,3 +39,5 @@ test-supabase.ts
 test-port.js
 scripts/test-drug-viz.js
 scripts/test-pill-search.js
+scripts/debug-grounding.ts
+scripts/debug-grounding-graph.ts

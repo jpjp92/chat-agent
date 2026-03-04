@@ -25,7 +25,7 @@
 - **Base64 URL Proxying (Robustness Architecture)**: Implements a server-side proxy system that automatically fetches and converts public document/image URLs (e.g., from Supabase) into Base64 `inlineData`. This bypasses strict Gemini API restrictions on external HTTP URLs for non-video content, ensuring 100% analysis reliability.
 - **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to bypass serverless timeout issues and payload limits.
 - **PDF, Image & Video Analysis**: Upload documents (PDF), images, or native video files (MP4, MOV). Gemini can summarize, extract data, or describe visual/auditory content. Features a **Video-to-Text conversion strategy** that stores AI-generated summaries as session context to optimize subsequent queries.
-- **Real-time Google Search**: For time-sensitive queries, the AI performs a live web search and provides accurate **Grounding Cards** with source citations.
+- **Real-time Google Search (Grounding Restored)**: For time-sensitive queries, the AI performs a live web search via `@google/genai` SDK directly (bypassing LangChain's metadata stripping) and displays accurate **Grounding Source Cards** with real URL citations beneath each response.
 - **Hybrid YouTube Analysis**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly.
 
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
@@ -367,12 +367,10 @@ flowchart TB
 ├── index.html             # Global CSS & KaTeX configs
 └── types.ts               # Global types & interfaces
 ```
-
----
-
 ## 🔐 Security & Reliability
 
-- **API Key Rotation & Model Fallback**: Utilizes **10+ API keys** in a Round-Robin fashion combined with an automatic **Model Fallback (Flash ➔ Flash-Lite)** strategy to eliminate **429/quota** errors and ensure maximum uptime.
+- **Rate-Limit-Aware API Key Rotation**: When any key returns a `429 Too Many Requests` error, it is **automatically blacklisted for 60 seconds** and the next available key is retried immediately — for both the `@google/genai` SDK path and the LangChain fallback path. Duplicate keys in `.env` are deduplicated automatically.
+- **Precise Intent Routing**: The LangGraph Router now uses context-aware keyword matching to distinguish medical queries from general ones, preventing false positives (e.g., `'정'` in words like `'정리'` or `'정보'` no longer triggers the medical pipeline).
 - **Output Sanitization**: Real-time filtering for **Whitespace Hallucinations** caused by external tool grounding issues, ensuring a clean and reliable chat experience.
 - **Row Level Security (RLS)**: Enforced via Supabase to ensure users can only access their own private conversation data.
 - **Server-side Secrecy**: All sensitive credentials and API keys are stored in environment variables and never exposed to the client-side browser.

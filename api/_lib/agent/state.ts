@@ -52,6 +52,12 @@ export const GraphState = Annotation.Root({
     intent: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => "general",
+    }),
+
+    // Grounding sources extracted from the Google Search response (populated by generator node).
+    groundingSources: Annotation<any[]>({
+        reducer: (x, y) => (y && y.length > 0 ? y : x),
+        default: () => [],
     })
 });
 

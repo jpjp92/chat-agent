@@ -115,32 +115,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const allSources: any[] = [];
 
     for await (const event of stream) {
-      // Seamlessly map LangGraph standard stream back into legacy pure-SSE structure
-      if (event.event === "on_chat_model_stream" && event.name === "ChatGoogleGenerativeAI") {
-        const chunk = event.data?.chunk;
+      console.log(`[SSE Debug] ${event.event} | ${event.name}`);
+      const data = event.data;
+
+      if (event.event === "on_chat_model_stream") {
+        const chunk = data?.chunk;
         const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {
           const sanitizedText = chunkText.replace(/ {50,}/g, '  ');
           fullAiResponse += sanitizedText;
           res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
         }
-
-        // [CITATIONS] Grounding Metadata 추출 및 전송
-        const grounding = chunk?.response_metadata?.groundingMetadata;
-        if (grounding?.groundingChunks) {
-          const sources = grounding.groundingChunks
-            .map((gc: any) => gc.web ? { title: gc.web.title, uri: gc.web.uri } : null)
-            .filter(Boolean);
-
+        // 스트림 메타데이터 탐색
+        const gm = chunk?.response_metadata?.groundingMetadata || chunk?.additional_kwargs?.groundingMetadata;
+        if (gm?.groundingChunks) {
+          const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
           if (sources.length > 0) {
-            // 중복 제거 및 누적
+            sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); console.log(`[Chat API] Found source in STREAM: ${s.title}`); } });
+            res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
+          }
+        }
+      } else if (event.event === "on_chat_model_end" && event.name === "ChatGoogleGenerativeAI") {
+        const out = data?.output;
+        const gm = out?.response_metadata?.groundingMetadata || out?.additional_kwargs?.groundingMetadata;
+        if (gm) console.log(`[Chat API] Found GroundingMetadata in Model End!`);
+      } else if (event.event === "on_chain_end" && event.name === "generator") {
+        const output = data?.output;
+        const modelMsg = output?.messages?.[0];
+
+        // SDK path: text wasn't streamed via on_chat_model_stream, send it now
+        const msgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
+        if (msgText && !fullAiResponse) {
+          fullAiResponse = msgText;
+          res.write(`data: ${JSON.stringify({ text: msgText })}\n\n`);
+          console.log('[Chat API] Sent text from SDK generator path.');
+        }
+
+        const gm = modelMsg?.response_metadata?.groundingMetadata || modelMsg?.additional_kwargs?.groundingMetadata;
+
+        if (gm?.groundingChunks) {
+          const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
+          if (sources.length > 0) {
+            let addedNew = false;
             sources.forEach((s: any) => {
-              if (!allSources.some((existing: any) => existing.uri === s.uri)) {
+              if (!allSources.some((e: any) => e.uri === s.uri)) {
                 allSources.push(s);
+                addedNew = true;
+                console.log(`[Chat API] Found source in CHAIN_END: ${s.title}`);
               }
             });
-            res.write(`data: ${JSON.stringify({ sources })}\n\n`);
+            if (addedNew) res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
           }
+        }
+
+        // Also check groundingSources stored directly in LangGraph state by generator node (@google/genai SDK path)
+        const stateSources: any[] = output?.groundingSources || [];
+        if (stateSources.length > 0) {
+          let addedNew = false;
+          stateSources.forEach((s: any) => {
+            if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) {
+              allSources.push(s);
+              addedNew = true;
+              console.log(`[Chat API] Found source via SDK state: ${s.title || s.uri}`);
+            }
+          });
+          if (addedNew) res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
+        }
+      } else if (event.event === "on_chain_end" && event.name === "LangGraph") {
+        // Final state check: pick up groundingSources from the overall graph output
+        const finalOutput = data?.output;
+        const finalSources: any[] = finalOutput?.groundingSources || [];
+        if (finalSources.length > 0) {
+          let addedNew = false;
+          finalSources.forEach((s: any) => {
+            if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) {
+              allSources.push(s);
+              addedNew = true;
+              console.log(`[Chat API] Found source in final LangGraph output: ${s.title || s.uri}`);
+            }
+          });
+          if (addedNew) res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
         }
       }
     }
