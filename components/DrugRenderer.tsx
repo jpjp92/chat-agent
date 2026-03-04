@@ -174,7 +174,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     const formatImprint = (imprint: string | undefined | null, fallback: string): string => {
         if (!imprint) return fallback;
         if (imprint === '마크') return '마크(로고)';
-        return imprint;
+        return imprint.replace(/분할선/g, ' | ');
     };
 
     const isSearchOrEntryPage =

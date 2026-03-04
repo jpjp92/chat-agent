@@ -124,14 +124,17 @@
     - **Suspense Integration**: Seamless loading states with React Suspense for optimal UX.
 - **Optimized Build Configuration**: 
     - **esbuild minification**: 20-100x faster than terser, reducing build time by 25% (17s → 13s).
-    - **Granular Chunk Splitting**: Markdown/syntax libraries isolated in `markdown-vendor` chunk, reducing main bundle gzip from **679 KB → 325 KB (~52% reduction)**.
+    - **Granular Chunk Splitting**: Markdown/syntax libraries isolated in `markdown-vendor` chunk; `framer-motion` isolated in `motion-vendor` chunk, reducing initial JS parse burden and lowering TBT.
+- **FontAwesome Subset Loading**: Replaced `all.min.css` (18.3 KiB, 98% unused) with only `fontawesome.min.css` + `solid.min.css` + `regular.min.css`, saving ~12 KiB of unused CSS.
+- **font-display: swap**: Added inline `@font-face` override to prevent FontAwesome woff2 fonts from blocking FCP (saves ~40ms).
 - **Optimized Font Loading**: 
     - **Google Fonts**: Reduced font weights from 7 to 3 (400, 600, 700), added `preconnect` and `dns-prefetch` for faster loading.
     - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
-- **Lighthouse Performance (v3.5 Update)**: Improved from **44/100** to **83/100** (Confirmed on Production) with significant reductions in FCP, SI, and LCP metrics.
-    - **Render-Blocking Resolution**: Eliminated 160ms+ latency by converting synchronous CSS CDNs (Google Fonts, FontAwesome, KaTeX) to asynchronous `<link rel="preload">` patterns.
-    - **Next-Gen Image Delivery**: Upgraded default profile assets to explicitly requested **WebP** formats with optimized dimensional querying (`?w=64&h=64&fm=webp&q=80`), reducing network payload size significantly.
-    - **Resource Hint Calibration**: Removed redundant `<link rel="preconnect">` tags that were conflicting with active `preload` directives for Cloudflare and jsDelivr.
+- **Profile Image Quality**: Reduced default Unsplash avatar quality (`q=80 → q=55`, WebP) saving ~4 KiB with zero perceptible quality loss at 36px display size.
+- **Mobile Table Optimization**: Responsive table cells use compact padding and font sizes on mobile (`px-3 py-2`, `text-[12px]`), with `whitespace-nowrap` to prevent character-level line-breaking. Scales up to full size on desktop.
+- **Lighthouse Performance**: Improved from **44/100** → **83/100** → sustained with ongoing optimizations, with significant reductions in FCP, SI, LCP, and TBT metrics.
+    - **Render-Blocking Resolution**: Eliminated 160ms+ latency by converting synchronous CSS CDNs to asynchronous `<link rel="preload">` patterns.
+    - **Next-Gen Image Delivery**: WebP profile assets with optimized dimensional querying.
     - **Best Practices**: **100/100** achievement.
     - **SEO**: **91/100** achievement.
     - **CLS (Cumulative Layout Shift)**: **0.00** achieved by specifying explicit image dimensions and using `aspect-ratio` safety.
