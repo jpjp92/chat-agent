@@ -437,25 +437,25 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 </div>
 
                 {/* Refined Footer */}
-                <div className="px-8 py-5 bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase">Medicine Index</span>
+                <div className="px-6 sm:px-8 py-4 sm:py-5 bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-col flex-shrink-0">
+                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase whitespace-nowrap">MED INDEX</span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                         <a
                             href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(normalizeDrugName(data.name))}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/10 text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all border border-indigo-100 dark:border-indigo-500/20"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/10 text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all border border-indigo-100 dark:border-indigo-500/20 whitespace-nowrap"
                         >
-                            ConnectDI <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                            {t.details} <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                         </a>
                         {data.pharm_url && (
                             <a
                                 href={data.pharm_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20 whitespace-nowrap"
                             >
                                 약학정보원 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                             </a>
