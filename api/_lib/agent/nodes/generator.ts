@@ -28,9 +28,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             finalInstruction += `\n\n${state.contextInfo}`;
         }
 
-        // For general queries with Google Search, use @google/genai SDK directly
-        // to capture groundingMetadata which is stripped by @langchain/google-genai.
-        if (!isYoutubeRequest && state.intent !== "medical") {
+        // SDK path: handles general, YouTube, and multimodal (image/PDF) requests.
+        // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
+        // Google Search is enabled for general queries but disabled for YouTube/multimodal to avoid conflicts.
+        if (state.intent !== "medical") {
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = apiKey; // start with the key already chosen above
             let sdkAttempt = 0;
@@ -41,13 +42,50 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
 
                     // Build contents from state messages
+                    // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
                     const sdkContents: any[] = [];
+                    let hasMultimodalContent = false; // track if any non-text parts exist
+
                     for (const msg of state.messages) {
                         if (msg._getType() === 'human') {
                             const contentVal = msg.content;
                             if (Array.isArray(contentVal)) {
-                                const textPart = contentVal.find((p: any) => p.type === 'text');
-                                sdkContents.push({ role: 'user', parts: [{ text: textPart?.text || '' }] });
+                                const parts: any[] = [];
+                                for (const part of contentVal as any[]) {
+                                    if (part.type === 'text') {
+                                        parts.push({ text: part.text || '' });
+                                    } else if (part.type === 'image_url' && part.image_url?.url) {
+                                        const url: string = part.image_url.url;
+                                        if (url.startsWith('data:')) {
+                                            // base64 inline data URI (e.g. data:image/jpeg;base64,...)
+                                            const [header, b64data] = url.split(',');
+                                            const mimeType = header.split(':')[1].split(';')[0];
+                                            parts.push({ inlineData: { mimeType, data: b64data } });
+                                            hasMultimodalContent = true;
+                                        } else if (url.startsWith('http')) {
+                                            // Public URL: fetch and convert to inline base64
+                                            try {
+                                                const fetchRes = await fetch(url);
+                                                if (fetchRes.ok) {
+                                                    const contentType = fetchRes.headers.get('content-type') || 'image/jpeg';
+                                                    const mimeType = contentType.split(';')[0];
+                                                    const arrayBuffer = await fetchRes.arrayBuffer();
+                                                    const b64 = Buffer.from(arrayBuffer).toString('base64');
+                                                    parts.push({ inlineData: { mimeType, data: b64 } });
+                                                    hasMultimodalContent = true;
+                                                }
+                                            } catch (fetchErr) {
+                                                console.warn('[LangGraph] Failed to fetch image URL for SDK:', fetchErr);
+                                            }
+                                        }
+                                    } else if (part.fileData?.fileUri) {
+                                        // Native fileData (YouTube video URI) - supported natively by SDK
+                                        parts.push({ fileData: { fileUri: part.fileData.fileUri, mimeType: part.fileData.mimeType } });
+                                        hasMultimodalContent = true;
+                                    }
+                                }
+                                if (parts.length === 0) parts.push({ text: '' });
+                                sdkContents.push({ role: 'user', parts });
                             } else {
                                 sdkContents.push({ role: 'user', parts: [{ text: String(contentVal) }] });
                             }
@@ -56,12 +94,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     }
 
+                    // Google Search is incompatible with multimodal content (images, video, PDF)
+                    const useGoogleSearch = !hasMultimodalContent;
+                    if (hasMultimodalContent) {
+                        console.log('[LangGraph] Multimodal content detected — Google Search disabled for this request');
+                    }
+
                     const sdkResponse = await genai.models.generateContent({
                         model: "gemini-2.5-flash",
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
-                            tools: [{ googleSearch: {} }],
+                            tools: useGoogleSearch ? [{ googleSearch: {} }] : undefined,
                             temperature: 0.2,
                             topP: 0.8,
                             topK: 40,
@@ -107,7 +151,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             }
         }
 
-        // Fallback path: LangChain (for medical intent, YouTube, or SDK failure)
+        // Fallback path: LangChain (for medical intent or SDK failure)
+        // Note: YouTube and general multimodal requests are handled exclusively in the SDK path above.
         let lcApiKey = apiKey;
         let lcAttempt = 0;
 
@@ -127,11 +172,25 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     allTools = [searchDrugInfoTool, identifyPillTool, searchWebTool];
                 }
 
-                const llmWithTools = (isYoutubeRequest || allTools.length === 0) ? llm : llm.bindTools(allTools);
+                const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
+
+                // LangChain does not support fileData content parts — strip them for compatibility.
+                // Medical intent images are pre-processed by the vision node (text extracted),
+                // so filtering fileData here is safe.
+                const safeMessages = state.messages.map((msg: any) => {
+                    if (msg._getType() === 'human' && Array.isArray(msg.content)) {
+                        const safeParts = (msg.content as any[]).filter((p: any) =>
+                            p.type === 'text' || p.type === 'image_url'
+                        );
+                        if (safeParts.length === msg.content.length) return msg;
+                        return new HumanMessage({ content: safeParts.length > 0 ? safeParts : [{ type: 'text', text: '' }] });
+                    }
+                    return msg;
+                });
 
                 const messages = [
                     new SystemMessage(finalInstruction),
-                    ...state.messages,
+                    ...safeMessages,
                 ];
 
                 const response = await llmWithTools.invoke(messages);
