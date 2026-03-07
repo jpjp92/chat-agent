@@ -131,6 +131,7 @@
 - **Optimized Build Configuration**:
   - **esbuild minification**: 20-100x faster than terser, reducing build time by 25% (17s → 13s).
   - **Granular Chunk Splitting**: Markdown/syntax libraries isolated in `markdown-vendor` chunk; `framer-motion` isolated in `motion-vendor` chunk, reducing initial JS parse burden and lowering TBT.
+- **Forced Reflow Elimination (ChatInput)**: Resolved a critical layout thrashing bug in `ChatInput.tsx` where `textarea.style.height = 'auto'` (DOM mutation) was immediately followed by a `scrollHeight` read (geometry query), forcing the browser to synchronously recalculate layout on every keystroke. Wrapped the resize logic in `requestAnimationFrame` with `cancelAnimationFrame` debouncing to defer the measurement to the next browser paint cycle, eliminating back-to-back forced reflows. Also deduplicated `window.innerWidth` from 2 reads to 1 per call. **Expected TBT improvement: ~75ms.**
 - **FontAwesome Subset Loading**: Replaced `all.min.css` (18.3 KiB, 98% unused) with only `fontawesome.min.css` + `solid.min.css` + `regular.min.css`, saving ~12 KiB of unused CSS.
 - **font-display: swap**: Added inline `@font-face` override to prevent FontAwesome woff2 fonts from blocking FCP (saves ~40ms).
 - **Optimized Font Loading**:
@@ -333,7 +334,7 @@ flowchart TB
 ### Backend & Database
 
 - **Vercel Serverless Functions** (API Layer)
-  - _Note: Vercel Hobby plan has a limit of 12 serverless functions. Utility files are placed in `api/_lib/` (using the `_` prefix) to prevent them from being counted towards this limit._
+  - _Note: Vercel Hobby plan has a limit of 12 serverless functions. Utility files are placed in `api/_lib/` (using the `_` prefix) to prevent them from being counted towards this limit.\_
 - **Supabase** (PostgreSQL / Storage / Auth)
 
 ### AI Models

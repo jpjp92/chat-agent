@@ -26,6 +26,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const i18n = {
     fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Maximum 3 fichiers." },
@@ -37,16 +38,30 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const t = i18n[language] || i18n.ko;
 
   const adjustHeight = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
+    // 이전에 예약된 rAF가 있으면 취소 (빠른 연속 타이핑 시 누적 방지)
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    // rAF로 지연: style 변경 후 즉시 scrollHeight를 읽는 Forced Reflow 패턴 해소
+    rafRef.current = requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return; // 언마운트 후 실행 방지
+      const isMobile = window.innerWidth < 640; // 한 번만 쿼리
+      const minHeight = isMobile ? 36 : 40;
+      const maxHeight = isMobile ? 140 : 180;
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
-      const minHeight = window.innerWidth < 640 ? 36 : 40;
-      const maxHeight = window.innerWidth < 640 ? 140 : 180;
-      const targetHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-      textarea.style.height = `${targetHeight}px`;
-    }
+      textarea.style.height = `${Math.min(Math.max(scrollHeight, minHeight), maxHeight)}px`;
+      rafRef.current = null;
+    });
   };
+
+  // 컴포넌트 언마운트 시 미처리 rAF 정리
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     adjustHeight();
