@@ -62,9 +62,9 @@ const App: React.FC = () => {
 
   const i18n = {
     ko: {
-      profileUpdated: "프로필이 업데이트되었습니다.",
-      uploadFailed: "파일 업로드에 실패했습니다.",
-      renameFailed: "채팅방 이름 변경에 실패했습니다.",
+      profileUpdated: "프로필 변경 완료",
+      uploadFailed: "업로드 실패",
+      renameFailed: "이름 변경 실패",
       analyzingImage: "이미지를 분석 중입니다...",
       analyzingDoc: "문서를 분석 중입니다...",
       analyzingFile: "파일을 분석 중입니다...",
@@ -78,9 +78,9 @@ const App: React.FC = () => {
       identifyingPill: "약품 식별 중... (약학정보원 DB 조회)"
     },
     en: {
-      profileUpdated: "Profile updated.",
-      uploadFailed: "File upload failed.",
-      renameFailed: "Failed to rename chat.",
+      profileUpdated: "Profile updated",
+      uploadFailed: "Upload failed",
+      renameFailed: "Rename failed",
       analyzingImage: "Analyzing image...",
       analyzingDoc: "Analyzing document...",
       analyzingFile: "Analyzing file...",
@@ -94,9 +94,9 @@ const App: React.FC = () => {
       identifyingPill: "Identifying medication... (Searching database)"
     },
     es: {
-      profileUpdated: "Perfil actualizado.",
-      uploadFailed: "Error al subir archivo.",
-      renameFailed: "Error al cambiar nombre del chat.",
+      profileUpdated: "Perfil actualizado",
+      uploadFailed: "Error de subida",
+      renameFailed: "Error al renombrar",
       analyzingImage: "Analizando imagen...",
       analyzingDoc: "Analizando documento...",
       analyzingFile: "Analizando archivo...",
@@ -110,9 +110,9 @@ const App: React.FC = () => {
       identifyingPill: "Identificando medicamento... (Buscando base de datos)"
     },
     fr: {
-      profileUpdated: "Profil mis à jour.",
-      uploadFailed: "Échec du téléchargement.",
-      renameFailed: "Échec du renommage du chat.",
+      profileUpdated: "Profil à jour",
+      uploadFailed: "Échec d'envoi",
+      renameFailed: "Échec du renommage",
       analyzingImage: "Analyse de l'image...",
       analyzingDoc: "Analyse du document...",
       analyzingFile: "Analyse du fichier...",

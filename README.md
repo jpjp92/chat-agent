@@ -139,6 +139,9 @@
   - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
 - **Profile Image Quality**: Reduced default Unsplash avatar quality (`q=80 → q=55`, WebP) saving ~4 KiB with zero perceptible quality loss at 36px display size.
 - **Mobile Table Optimization**: Responsive table cells use compact padding and font sizes on mobile (`px-3 py-2`, `text-[12px]`), with `whitespace-nowrap` to prevent character-level line-breaking. Scales up to full size on desktop.
+- **UI/UX Polishing**:
+  - **Header Simplification**: Moved the global Dark/Light mode toggle from the main header into the User Profile Settings modal, providing a cleaner navigation bar and a more intuitive toggle switch interface.
+  - **Toast Notifications**: Streamlined and compacted all multilingual error/success toast messages (e.g., "Profile updated", "Upload failed", "Too large"). Ensures alerts fit cleanly on a single line even on small mobile screens without truncation.
 - **Lighthouse Performance**: Improved from **44/100** → **83/100** → sustained with ongoing optimizations, with significant reductions in FCP, SI, LCP, and TBT metrics.
   - **Render-Blocking Resolution**: Eliminated 160ms+ latency by converting synchronous CSS CDNs to asynchronous `<link rel="preload">` patterns.
   - **Next-Gen Image Delivery**: WebP profile assets with optimized dimensional querying.

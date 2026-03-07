@@ -29,10 +29,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const rafRef = useRef<number | null>(null);
 
   const i18n = {
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Le fichier est trop volumineux. (Max 4Mo, Vidéo 20Mo)", typeError: "Format de fichier non supporté.", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Maximum 3 fichiers." },
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "파일 용량이 너무 큽니다. (일반 4MB, 영상 20MB)", typeError: "지원하지 않는 파일 형식입니다.", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개의 파일까지만 첨부 가능합니다." },
-    en: { placeholder: "Ask anything", sizeError: "File size is too large. (Max 4MB, Video 20MB)", typeError: "File format not supported.", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Maximum 3 files allowed." },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "El archivo es demasiado grande. (Máx 4MB, Video 20MB)", typeError: "Formato de archivo no soportado.", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máximo 3 archivos." }
+    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Trop lourd (Max 4Mo/Vidéo 20Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers" },
+    ko: { placeholder: "무엇이든 물어보세요", sizeError: "용량 초과 (일반4MB/영상20MB)", typeError: "지원하지 않는 파일", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개 파일만 첨부 가능" },
+    en: { placeholder: "Ask anything", sizeError: "Too large (Max 4MB/Video 20MB)", typeError: "Unsupported file", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Max 3 files" },
+    es: { placeholder: "Pregunta lo que quieras", sizeError: "Muy grande (Máx 4MB/Video 20MB)", typeError: "Archivo no soportado", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máx 3 archivos" }
   };
 
   const t = i18n[language] || i18n.ko;

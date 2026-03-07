@@ -26,8 +26,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "정사각형 이미지, 최대 2MB",
       placeholder: "이름을 입력하세요",
       settings: "설정",
-      sizeError: "이미지 용량은 2MB 이하여야 합니다.",
-      updated: "프로필이 업데이트되었습니다."
+      sizeError: "이미지 용량 초과 (최대 2MB)",
+      updated: "프로필 수정 완료"
     },
     en: {
       displayName: "Display Name",
@@ -38,8 +38,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Square image, max 2MB",
       placeholder: "Enter your name",
       settings: "Settings",
-      sizeError: "Image size must be under 2MB.",
-      updated: "Profile updated."
+      sizeError: "Max 2MB exceeded",
+      updated: "Profile updated"
     },
     es: {
       displayName: "Nombre",
@@ -50,8 +50,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Imagen cuadrada, máx 2MB",
       placeholder: "Introduce tu nombre",
       settings: "Ajustes",
-      sizeError: "La imagen debe ser de menos de 2MB.",
-      updated: "Perfil actualizado."
+      sizeError: "Máx 2MB excedido",
+      updated: "Perfil actualizado"
     },
     fr: {
       displayName: "Nom",
@@ -62,8 +62,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Image carrée, max 2Mo",
       placeholder: "Entrez votre nom",
       settings: "Paramètres",
-      sizeError: "L'image doit faire moins de 2Mo.",
-      updated: "Profil mis à jour."
+      sizeError: "Max 2Mo dépassé",
+      updated: "Profil à jour"
     }
   };
 
@@ -138,13 +138,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={toggleDarkMode}
-            className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 transition-all active:scale-95"
-          >
-            <i className={`fa-solid ${isDarkMode ? 'fa-sun' : 'fa-moon'} text-lg`}></i>
-          </button>
-
           <div
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
@@ -191,7 +184,18 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                       onClick={toggleDarkMode}>
+                    <div className="flex items-center gap-3 text-slate-700 dark:text-slate-200 font-bold text-sm">
+                      <i className={`fa-solid ${isDarkMode ? 'fa-moon text-indigo-400' : 'fa-sun text-amber-500'} text-lg w-5 text-center`}></i>
+                      {language === 'ko' ? (isDarkMode ? '다크 모드' : '라이트 모드') : (isDarkMode ? 'Dark Mode' : 'Light Mode')}
+                    </div>
+                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDarkMode ? 'bg-primary-500' : 'bg-slate-300'}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.displayName}</label>
                     <input
                       type="text"

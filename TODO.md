@@ -221,6 +221,8 @@
 
 - [x] 다크모드/라이트모드 UI 일관성 폴리싱 (Borderless 전략 상시 적용) ✅
 - [x] 다크/라이트 모드 사용자 설정 유지 (localStorage 연동 및 HTML Head 스크립트로 FOUC 방지) ✅
+- [x] **다크/라이트 모드 토글 UI 개편**: 상단 헤더 외부 버튼을 제거하고, 사용자 프로필 설정 모달 내부의 직관적인 스위치 형태(Toggle Switch)로 이동시켜 더 깔끔한 헤더 구성. ✅
+- [x] **토스트 알림 문구 가독성 최적화**: 모바일 등 좁은 화면에서 텍스트가 잘리는 현상을 방지하기 위해 다국어 토스트 메시지들을 극단적으로 간결하고 명료하게 단축 (예: "프로필이 업데이트되었습니다." -> "프로필 수정 완료"). ✅
 - [x] 마크다운 코드 블록 렌더링 오류 수정 (스트리밍 중이거나 특정 모델 응답에서 코드 블록 포맷이 깨져 일반 텍스트로 렌더링되는 UI 버그 해결 및 프롬프트 개선) ✅
 - [x] 클립보드 복사 기능 비보안/모바일 환경 호환성 개선 (Fallback textarea 로직 추가) ✅
 - [x] 사이드바 UI 전면 개편 (GPT/Gemini 스타일 반영) ✅
@@ -244,4 +246,4 @@
 
 ---
 
-_Last Updated: 2026-03-08 (Lighthouse TBT 최적화 — ChatInput Forced Reflow 제거, requestAnimationFrame + cancelAnimationFrame 적용)_
+_Last Updated: 2026-03-08 (Lighthouse TBT 최적화 및 UI/UX 폴리싱 — 헤더 정리, 토스트 메시지 간소화)_
