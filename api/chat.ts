@@ -113,6 +113,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let fullAiResponse = '';
     const allSources: any[] = [];
+    if (isYoutubeRequest) {
+      const normalizedYtUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+      allSources.push({ title: 'YouTube Video', uri: normalizedYtUrl });
+      res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
+    }
 
     for await (const event of stream) {
       console.log(`[SSE Debug] ${event.event} | ${event.name}`);

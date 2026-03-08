@@ -12,8 +12,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         const transcript = await fetchTranscript(videoId);
 
-        // Combine into a single text block
-        const fullText = transcript.map(t => t.text).join(' ');
+        // Combine into a single text block with chunked timestamps (e.g. every 1 minute)
+        let fullText = '';
+        let currentChunkIndex = -1;
+        const chunkSizeInSeconds = 60; // 1-minute chunks
+
+        for (const t of transcript) {
+            const chunkIndex = Math.floor(t.offset / chunkSizeInSeconds);
+            if (chunkIndex > currentChunkIndex) {
+                currentChunkIndex = chunkIndex;
+                const minutes = Math.floor(t.offset / 60);
+                const seconds = Math.floor(t.offset % 60);
+                const timeString = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
+                fullText += `\n\n${timeString}\n`;
+            }
+            fullText += t.text + ' ';
+        }
+
+        fullText = fullText.trim();
 
         return res.status(200).json({ transcript: fullText });
     } catch (error: any) {
