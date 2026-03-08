@@ -8,9 +8,11 @@ interface HeaderProps {
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
   onReset?: () => void;
   language: Language;
+  selectedModel: 'gemini-2.5-flash' | 'gemini-2.5-flash-lite';
+  onModelChange: (model: 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language, selectedModel, onModelChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfile>(userProfile);
@@ -27,7 +29,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       placeholder: "이름을 입력하세요",
       settings: "설정",
       sizeError: "이미지 용량 초과 (최대 2MB)",
-      updated: "프로필 수정 완료"
+      updated: "프로필 수정 완료",
+      modelFlashDesc: "훌륭한 성능과 속도의 밸런스",
+      modelLiteDesc: "가장 빠르고 효율적인 처리"
     },
     en: {
       displayName: "Display Name",
@@ -39,7 +43,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       placeholder: "Enter your name",
       settings: "Settings",
       sizeError: "Max 2MB exceeded",
-      updated: "Profile updated"
+      updated: "Profile updated",
+      modelFlashDesc: "Great balance of speed & quality",
+      modelLiteDesc: "Fastest processing speed"
     },
     es: {
       displayName: "Nombre",
@@ -51,7 +57,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       placeholder: "Introduce tu nombre",
       settings: "Ajustes",
       sizeError: "Máx 2MB excedido",
-      updated: "Perfil actualizado"
+      updated: "Perfil actualizado",
+      modelFlashDesc: "Equilibrio entre coste y velocidad",
+      modelLiteDesc: "Procesamiento ultrarrápido"
     },
     fr: {
       displayName: "Nom",
@@ -63,7 +71,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       placeholder: "Entrez votre nom",
       settings: "Paramètres",
       sizeError: "Max 2Mo dépassé",
-      updated: "Profil à jour"
+      updated: "Profil à jour",
+      modelFlashDesc: "Équilibre vitesse et qualité",
+      modelLiteDesc: "Traitement ultra-rapide"
     }
   };
 
@@ -124,15 +134,32 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
             <i className="fa-solid fa-bars text-lg"></i>
           </button>
 
-          <div className="flex items-center group cursor-pointer">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-violet-500 via-primary-500 to-indigo-600 rounded-xl flex items-center justify-center mr-2 sm:mr-3 shadow-lg shadow-primary-500/20 group-hover:rotate-12 transition-all duration-500">
-              <i className="fa-solid fa-wand-magic-sparkles text-white text-sm sm:text-lg"></i>
-            </div>
-            <div className="flex flex-col">
-              <h1 className="font-black text-base sm:text-xl tracking-tighter leading-none bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent whitespace-nowrap">
-                Chat with Gemini
-              </h1>
-              <p className="hidden sm:block text-[9px] font-black text-primary-500 tracking-[0.2em] uppercase mt-0.5">Next-Gen Intelligence</p>
+          <div className="flex items-center group relative z-50">
+            <button className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200">
+              <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-800 dark:text-white/90">
+                {selectedModel === 'gemini-2.5-flash' ? 'Gemini 2.5 Flash' : 'Gemini 2.5 Flash-Lite'}
+              </span>
+              <i className="fa-solid fa-chevron-down text-xs sm:text-sm text-slate-400 dark:text-white/50 group-hover:text-slate-600 dark:group-hover:text-white transition"></i>
+            </button>
+            
+            {/* Hover Dropdown Menu */}
+            <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-[#2f2f2f] rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden hidden group-hover:block transition-all opacity-0 group-hover:opacity-100 transform origin-top-left">
+                <div className="flex flex-col py-1">
+                    <div onClick={() => onModelChange('gemini-2.5-flash')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
+                        <div>
+                            <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash</div>
+                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.modelFlashDesc}</div>
+                        </div>
+                        {selectedModel === 'gemini-2.5-flash' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                    </div>
+                    <div onClick={() => onModelChange('gemini-2.5-flash-lite')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
+                        <div>
+                            <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash-Lite</div>
+                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.modelLiteDesc}</div>
+                        </div>
+                        {selectedModel === 'gemini-2.5-flash-lite' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                    </div>
+                </div>
             </div>
           </div>
         </div>

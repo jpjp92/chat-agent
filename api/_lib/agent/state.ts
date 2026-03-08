@@ -48,6 +48,18 @@ export const GraphState = Annotation.Root({
         default: () => "generator", // Default fallback
     }),
 
+    // The selected language model to be used by the generator node
+    model: Annotation<string>({
+        reducer: (x, y) => y ?? x,
+        default: () => "gemini-2.5-flash",
+    }),
+
+    // The client's local timezone to display the correct time.
+    timeZone: Annotation<string>({
+        reducer: (x, y) => y ?? x,
+        default: () => "Asia/Seoul",
+    }),
+
     // Determines which set of tools to bind (medical vs general search)
     intent: Annotation<string>({
         reducer: (x, y) => y ?? x,

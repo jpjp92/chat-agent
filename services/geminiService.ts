@@ -187,13 +187,15 @@ export const streamChatResponse = async (
   contentType: 'text' | 'web' | 'video' = 'text',
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
-  attachments?: MessageAttachment[]
+  attachments?: MessageAttachment[],
+  model: string = 'gemini-2.5-flash'
 ) => {
   try {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments })
+      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone })
     });
 
     if (!response.ok) {

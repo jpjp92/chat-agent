@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [loginNickname, setLoginNickname] = useState('');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
 
   // Dialog & Toast State
   const [dialogConfig, setDialogConfig] = useState<{
@@ -304,7 +305,39 @@ const App: React.FC = () => {
   const handleSendMessage = async (content: string, _old_attachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
     if (!currentSessionId || (!content.trim() && attachments.length === 0)) return;
 
-    // 0. 첨부파일들이 있는 경우 Supabase Storage에 순차적으로 업로드
+    // 1. UI 즉각 반응을 위해 업로드 대기 없이 로컬 이미지(Base64)로 사용자 메시지 먼저 추가
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: Role.USER,
+      content,
+      timestamp: Date.now(),
+      attachments: attachments, // 로컬 프리뷰 표시를 위한 임시 배열
+      // 하위 호환성 위해 첫 번째 파일 유지
+      attachment: attachments.length > 0 ? attachments[0] : undefined
+    };
+
+    let latestHistory: Message[] = [];
+    setSessions(prev => prev.map(s => {
+      if (s.id === currentSessionId) {
+        latestHistory = [...s.messages, userMessage];
+
+        // 여러 문서가 업로드된 경우, 마지막 문서를 컨텍스트로 우선 저장 (향후 다중 컨텍스트 병합 고려 가능)
+        const docs = attachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
+        const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
+
+        return {
+          ...s,
+          messages: latestHistory,
+          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc,
+          lastActiveAttachments: attachments.length > 0 ? attachments : s.lastActiveAttachments
+        };
+      }
+      return s;
+    }));
+
+    setIsTyping(true);
+
+    // 2. 백그라운드에서 첨부파일들이 있는 경우 Supabase Storage에 순차적으로 업로드
     let finalAttachments: MessageAttachment[] = [];
 
     if (attachments.length > 0) {
@@ -333,42 +366,26 @@ const App: React.FC = () => {
         showToast(t.uploadFailed, "error");
         console.error("Upload error:", e);
         setLoadingStatus(null);
+        setIsTyping(false);
+        // 업로드 실패 시 로컬 메시지 롤백 처리도 가능하지만, 일단 에러 반환
         return;
       } finally {
         setLoadingStatus(null);
       }
     }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: Role.USER,
-      content,
-      timestamp: Date.now(),
-      attachments: finalAttachments,
-      // 하위 호환성 위해 첫 번째 파일 유지
-      attachment: finalAttachments.length > 0 ? finalAttachments[0] : undefined
-    };
-
-    let latestHistory: Message[] = [];
-    setSessions(prev => prev.map(s => {
-      if (s.id === currentSessionId) {
-        latestHistory = [...s.messages, userMessage];
-
-        // 여러 문서가 업로드된 경우, 마지막 문서를 컨텍스트로 우선 저장 (향후 다중 컨텍스트 병합 고려 가능)
-        const docs = finalAttachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
-        const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
-
+    // 3. API Payload 효율을 위해 히스토리의 로컬 Base64를 최종 Remote URL로 교체
+    latestHistory = latestHistory.map((msg, index) => {
+      if (index === latestHistory.length - 1) {
         return {
-          ...s,
-          messages: latestHistory,
-          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc,
-          lastActiveAttachments: finalAttachments.length > 0 ? finalAttachments : s.lastActiveAttachments
+          ...msg,
+          attachments: finalAttachments,
+          attachment: finalAttachments.length > 0 ? finalAttachments[0] : undefined
         };
       }
-      return s;
-    }));
+      return msg;
+    });
 
-    setIsTyping(true);
     let modelResponse = '';
     const modelMessageId = (Date.now() + 1).toString();
 
@@ -405,6 +422,16 @@ const App: React.FC = () => {
     // URL 감지 로직
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;
     const urls = content.match(urlRegex);
+    
+    // 명시적 Grounding Source 생성 (UI 표시용)
+    const manualGroundingSources = (urls || []).map(u => {
+      const cleanUrl = u.replace(/[.\)\]\!,?]+$/, '');
+      return {
+        title: cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') ? 'YouTube Video' : 'Web Link',
+        uri: cleanUrl
+      };
+    });
+
     if (urls && urls.length > 0) {
       let url = urls[0].replace(/[.\)\]\!,?]+$/, '');
       const isArxiv = url.includes('arxiv.org');
@@ -417,9 +444,9 @@ const App: React.FC = () => {
       } else if (isYoutube) {
         setLoadingStatus(t.checkingYoutube);
         const metadata = await fetchUrlContent(url);
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
         const match = regExp.exec(url);
-        const videoId = (match && match[7].length === 11) ? match[7] : null;
+        const videoId = (match && match[8].length === 11) ? match[8] : null;
 
         let transcript = null;
         if (videoId) transcript = await fetchYoutubeTranscript(videoId);
@@ -455,7 +482,14 @@ const App: React.FC = () => {
                 updatedMessages[existingMsgIndex] = { ...updatedMessages[existingMsgIndex], content: modelResponse };
                 return { ...s, messages: updatedMessages };
               } else {
-                const newModelMsg: Message = { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() };
+                const newModelMsg: Message = { 
+                  id: modelMessageId, 
+                  role: Role.MODEL, 
+                  content: modelResponse, 
+                  timestamp: Date.now(),
+                  // 수동으로 감지된 URL 소스를 초기값으로 주입
+                  groundingSources: manualGroundingSources.length > 0 ? manualGroundingSources : undefined 
+                };
                 return { ...s, messages: [...s.messages, newModelMsg] };
               }
             }
@@ -471,14 +505,23 @@ const App: React.FC = () => {
             if (s.id === currentSessionId) {
               return {
                 ...s,
-                messages: s.messages.map(m => m.id === modelMessageId ? { ...m, groundingSources: sources } : m)
+                messages: s.messages.map(m => {
+                  if (m.id === modelMessageId) {
+                    // 수동 소스와 AI 응답 소스를 병합 (중복 제거)
+                    const allSources = [...(manualGroundingSources || []), ...(sources || [])];
+                    const uniqueSources = Array.from(new Map(allSources.map(item => [item.uri, item])).values());
+                    return { ...m, groundingSources: uniqueSources.length > 0 ? uniqueSources : undefined };
+                  }
+                  return m;
+                })
               };
             }
             return s;
           }));
         },
         currentSessionId,
-        finalAttachments // New: Pass multiple attachments to service
+        finalAttachments, // New: Pass multiple attachments to service
+        selectedModel
       );
 
       // 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
@@ -579,6 +622,8 @@ const App: React.FC = () => {
           showToast={showToast}
           onReset={handleReset}
           language={language}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
         />
 
 

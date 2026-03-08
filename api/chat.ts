@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { prompt, history, language, attachment, attachments, webContent, session_id } = req.body;
+  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -103,6 +103,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     contextInfo: "",
     pillData: null,
     sessionId: session_id || "",
+    model: model || "gemini-2.5-flash",
+    timeZone: timeZone || "Asia/Seoul",
     nextNode: "router"
   };
 

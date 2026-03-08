@@ -20,6 +20,15 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
         let finalInstruction = systemInstructionBase;
 
+        // Inject Current Date/Time to prevent hallucination
+        const now = new Date();
+        const tz = state.timeZone || 'Asia/Seoul';
+        const currentDateStr = new Intl.DateTimeFormat('ko-KR', {
+            year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+            hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'short'
+        }).format(now);
+        finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n\n` + finalInstruction;
+
         // Inject Dynamic Contexts
         if (state.webContent) {
             finalInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${state.webContent}`;
@@ -101,7 +110,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     const sdkResponse = await genai.models.generateContent({
-                        model: "gemini-2.5-flash",
+                        model: state.model || "gemini-2.5-flash",
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
@@ -159,7 +168,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         while (lcAttempt < API_KEYS.length) {
             try {
                 const llm = new ChatGoogleGenerativeAI({
-                    model: "gemini-2.5-flash",
+                    model: state.model || "gemini-2.5-flash",
                     apiKey: lcApiKey,
                     temperature: 0.2,
                     topP: 0.8,

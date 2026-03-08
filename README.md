@@ -1,6 +1,6 @@
 # 🚀 Chat with Gemini - Next-Gen AI Persistent Messenger
 
-**Chat with Gemini** is an intelligent AI messenger that combines the power of Google's **Gemini 2.5 Flash** engine with **Supabase** persistent storage. It offers a seamless **Login-less** experience while maintaining **Persistent History** across devices.
+**Chat with Gemini** is an intelligent AI messenger that combines the power of Google's **Gemini 2.5 Flash** and **Flash-Lite** engines with **Supabase** persistent storage. It offers a seamless **Login-less** experience while maintaining **Persistent History** across devices.
 
 ---
 
@@ -22,6 +22,8 @@
 - **Visualizer Localization**: All visualization modules (Bio, Chemical, Charts) automatically localize their UI labels (e.g., "Chain", "Molecular Structure", "Analyzing...") based on the global setting.
 - **Strict Response Enforcement**: Optimized system prompts ensure Gemini adheres to the selected language regardless of input language.
 
+- **Browser-Native Timezone Injection**: Automatically detects the user's local timezone (e.g., `Europe/Paris`, `Asia/Seoul`) and injects it directly into the backend System Prompt, completely eliminating time-based hallucinations and ensuring real-time queries (weather, news) are perfectly localized to the user's physical location.
+
 ### 🔍 Intelligence & Multimodality
 
 - **Multi-File Multimodal Input (New!)**: Upload up to **3 files at once** (images, videos, or documents). Gemini analyzes the entire collection as a single unified context, perfect for comparing documents or multi-image reasoning.
@@ -29,9 +31,9 @@
 - **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to bypass serverless timeout issues and payload limits.
 - **PDF, Image & Video Analysis (Fixed!)**: Upload documents (PDF), images, or native video files (MP4, MOV). Gemini can summarize, extract data, or describe visual/auditory content. All attachments (images, PDFs, video) are stored in **Supabase Storage** (`chat-imgs` / `chat-docs` / `chat-videos` buckets) and correctly converted to `inlineData` before being sent to Gemini, ensuring reliable multimodal analysis. Features a **Video-to-Text conversion strategy** that stores AI-generated summaries as session context to optimize subsequent queries.
 - **Real-time Google Search (Grounding Restored)**: For time-sensitive queries, the AI performs a live web search via `@google/genai` SDK directly (bypassing LangChain's metadata stripping) and displays accurate **Grounding Source Cards** with real URL citations beneath each response. Google Search is automatically **disabled** when multimodal content (image, PDF, video) is present to prevent API conflicts.
-- **Hybrid YouTube Analysis (Optimized!)**: Paste a YouTube URL to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly via native `fileData` support.
-  - **Timestamp Chunking & Milestone Constraint**: To ensure lightning-fast generation without sacrificing context, transcripts are grouped by 1-minute intervals. The AI is strictly constrained to output a concise overview followed by exactly 3-5 timestamped milestones.
-  - **Original UI Grounding**: Processed YouTube videos automatically inject their original URL into the response's `groundingSources`, rendering a clickable "YouTube Video" source tag at the bottom of the chat bubble, identical to Google Search UI behavior.
+  - **YouTube Shorts & Native Transcription (Optimized!)**: Paste any YouTube URL (including `shorts/`) to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly via native `fileData` support.
+  - **Timestamp Chunking & Shorts Optimization**: To ensure lightning-fast generation, transcripts for long videos are grouped by 1-minute intervals with exactly 3-5 timestamped milestones. For videos under 1 minute (like Shorts), the AI automatically switches to a cohesive, single-paragraph summary for maximum readability.
+  - **Persistent Manual Grounding**: Processed URLs automatically inject their original link into the response's `groundingSources`, rendering a clickable "YouTube Video" or "Web Link" source tag at the bottom of the chat bubble, perfectly preserving the UI component's aesthetics.
 
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 
@@ -94,6 +96,8 @@
 
 ### 🎨 UI/UX & Mobile Strategy
 
+- **Dynamic Model Selector**: A sleek, ChatGPT-style dropdown header allows users to switch between **Gemini 2.5 Flash** and **Gemini 2.5 Flash-Lite** on the fly, with visually integrated checkmarks and localized descriptions.
+- **Optimistic UI for File Uploads**: Instantly renders the user's chat bubble with a local Base64 image preview while silently uploading full-resolution files to Supabase in the background, achieving **zero perceived delay** during media sharing.
 - **Compact Mobile Architecture (v3.5)**:
   - **Zero-Waste Header**: Reduced mobile header height by 25% for maximum chat space.
   - **Slim Input Bar**: Compacted the chat input form and buttons for one-handed reachability.
