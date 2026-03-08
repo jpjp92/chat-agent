@@ -21,11 +21,13 @@ export const routerNode = async (state: AgentStateType) => {
     }
 
     const medicalKeywords = [
-        '약', '알약', '약품', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야',
+        '알약', '약품', '캡슐', '명칭', '식별', '무슨 약',
         '용법', '용량', '성분', '부작용', '주의사항', '효능', '효과', '복용',
         '정제', '필름정', 'mg정', '산제', '시럽', '의약품', '약사', '처방'
     ];
-    const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k));
+    // Check for specific keywords, or the standalone word '약' (e.g., "약 찾아줘", "이 약")
+    // '요약' (summary) will not match because '약' requires a word boundary/space before it.
+    const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent);
     const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
 
     // Route 1: Pill image identification → vision preprocessing needed

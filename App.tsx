@@ -390,8 +390,8 @@ const App: React.FC = () => {
     const modelMessageId = (Date.now() + 1).toString();
 
     // --- Pill Identification UX ---
-    const pillKeywords = ['약', '알약', '약품', '정', '캡슐', '명칭', '식별', '이거 뭔', '무슨 약', '이게 뭐야'];
-    const hasPillKeyword = pillKeywords.some(k => content.includes(k));
+    const pillKeywords = ['알약', '약품', '정', '캡슐', '명칭', '식별', '무슨 약'];
+    const hasPillKeyword = pillKeywords.some(k => content.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(content);
     const hasImage = finalAttachments.some(att => att.mimeType.startsWith('image/'));
     if (hasPillKeyword && hasImage) {
       setLoadingStatus(t.identifyingPill);
