@@ -93,6 +93,10 @@
   - **Dynamic Vector Rendering**: Automatically renders labeled arrows for Gravity (mg), Normal force (N), Friction (f), and component forces based on the input angle.
   - **Educational Labels**: Includes mathematical notation (sinθ, cosθ) for enhanced conceptual clarity.
 - **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
+- **Intelligent Semantic Router (New!)**:
+  - **LLM-Based Intent Classification**: Replaced legacy, rigid keyword heuristics with a sub-second, intelligent **Semantic Router** powered by `gemini-2.5-flash-lite`.
+  - **Context-Aware Routing**: Accurately distinguishes between general queries (e.g., "요약해줘", "이게 뭐야?") and domain-specific intents (e.g., "타이레놀 부작용", "이 알약 식별좀") based on full sentence context, virtually eliminating false-positive pipeline triggers.
+  - **Zero-Latency Fallback**: Enforces strict JSON output (`{"intent": "general|medical"}`) for near-instant classification, backed by a robust regex/keyword fallback loop to guarantee 100% uptime even during API exhaustion.
 
 ### 🎨 UI/UX & Mobile Strategy
 
@@ -283,9 +287,9 @@ flowchart TB
 
     subgraph StateGraph ["LangGraph.js StateGraph"]
         direction TB
-        StateNode[("AgentState<br/>- messages<br/>- extracted_entities<br/>- context_variables")]
+        StateNode[("AgentState<br/>- messages<br/>- attachments<br/>- contextInfo")]
 
-        RouterNode{{"🧭 Router Node<br/>(Intent Analysis)"}}
+        RouterNode{{"🧭 Semantic Router Node<br/>(LLM-based Intent Analysis)"}}
 
         subgraph Preprocessors ["Data Extraction Nodes"]
             direction LR
@@ -370,6 +374,9 @@ flowchart TB
 │   ├── sync-drug-image.ts # ConnectDI image caching & parsing
 │   └── _lib/             # Utility files (Prefixed with '_' to bypass Vercel's 12-function limit on Hobby plan)
 │       └── supabase.ts   # Server-side Supabase client config
+├── docs/                  # Project Documentation
+│   ├── physcripts.md      # Physics formulas & logic reference
+│   └── TODO.md            # Roadmap & feature planning
 ├── components/            # UI Components (Localized)
 │   ├── ChatSidebar.tsx   # Session list & Language settings
 │   ├── ChatInput.tsx     # Multimodal input & text extraction

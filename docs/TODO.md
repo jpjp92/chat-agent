@@ -215,6 +215,14 @@
 - [ ] **Service Worker (PWA)**: 정적 자산 캐싱을 통한 일관된 성능 보장.
 - [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 최적화.
 
+#### 10. PDF Link Base64 Proxying (PDF 링크 기반 문서 분석 지원)
+
+- [ ] **목표**: `https://cdn.sanity.io/.../file.pdf` 와 같은 웹 PDF 링크를 Gemini가 네이티브 문서로 완벽히 읽을 수 있도록 지원.
+- [ ] **구현 방안**:
+  - `api/fetch-url.ts` 에서 타겟 URL 확장자(`.pdf`)를 감지하여 텍스트 파싱 대신 `arrayBuffer()` 다운로드 후 Base64 문자열로 인코딩하여 반환.
+  - 프론트엔드(`App.tsx` & `geminiService.ts`)에서 이 응답을 가로채어, 일반 웹 컨텍스트가 아닌 **순수 첨부파일(Attachment)** 배열로 삽입 (`mimeType: 'application/pdf'`).
+- [ ] **예상 효과**: URL만 던져주더라도 PDF 뷰어와 백엔드 통신을 거쳐 최고품질의 논문/문서 분석 결과를 추출.
+
 ---
 
 ## 🛠️ Minor Improvements
