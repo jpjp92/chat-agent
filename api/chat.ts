@@ -62,8 +62,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       processedAttachments.push(att); // Push to graph state for vision processing
 
       if (isPublicUrl && isVideo) {
+        // Public YouTube URLs: use fileData for native SDK content parts
         humanMessageParts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
+      } else if (isPublicUrl && att.mimeType === 'application/pdf') {
+        // Public PDF URLs: pass the URL directly (Generator Node will fetch natively for efficiency)
+        humanMessageParts.push({ type: "image_url", image_url: { url: att.data } });
       } else if (isPublicUrl) {
+        // Other public URLs (e.g. cloud images from legacy path): fetch and convert to base64
         try {
           const fetchRes = await fetch(att.data);
           if (fetchRes.ok) {
@@ -129,7 +134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const chunk = data?.chunk;
         const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {
-          const sanitizedText = chunkText.replace(/ {50,}/g, '  ');
+          // Sanitization: Collapse 50+ repeated characters (hallucination or formatting bug)
+          const sanitizedText = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
           fullAiResponse += sanitizedText;
           res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
         }
@@ -151,7 +157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const modelMsg = output?.messages?.[0];
 
         // SDK path: text wasn't streamed via on_chat_model_stream, send it now
-        const msgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
+        const rawMsgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
+        const msgText = rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1');
         if (msgText && !fullAiResponse) {
           fullAiResponse = msgText;
           res.write(`data: ${JSON.stringify({ text: msgText })}\n\n`);

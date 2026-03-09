@@ -9,7 +9,7 @@ import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import WelcomeMessage from './components/WelcomeMessage';
 import ChatArea from './components/ChatArea';
-import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
+import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchUrlData, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
 import { Role, Message, ChatSession, UserProfile, Language, GroundingSource, MessageAttachment } from './types';
 import 'katex/dist/katex.min.css';
 
@@ -32,7 +32,9 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [loginNickname, setLoginNickname] = useState('');
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>(
+    (localStorage.getItem('preferred_model') as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') || 'gemini-2.5-flash'
+  );
 
   // Dialog & Toast State
   const [dialogConfig, setDialogConfig] = useState<{
@@ -389,14 +391,20 @@ const App: React.FC = () => {
     let modelResponse = '';
     const modelMessageId = (Date.now() + 1).toString();
 
-    // --- Pill Identification UX ---
+    // --- Enhanced Loading Feedback for Large Files ---
+    const hasLargeFile = finalAttachments.some(att => att.mimeType === 'application/pdf');
     const pillKeywords = ['알약', '약품', '정', '캡슐', '명칭', '식별', '무슨 약'];
     const hasPillKeyword = pillKeywords.some(k => content.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(content);
     const hasImage = finalAttachments.some(att => att.mimeType.startsWith('image/'));
+
     if (hasPillKeyword && hasImage) {
       setLoadingStatus(t.identifyingPill);
+    } else if (hasLargeFile) {
+      setLoadingStatus("Gemini가 대용량 문서를 정교하게 분석 중입니다 (10~20초 소요 가능)...");
     } else if (hasImage) {
       setLoadingStatus(t.analyzingImage);
+    } else if (finalAttachments.length > 0) {
+      setLoadingStatus("첨부파일 분석 중...");
     }
 
     // 지능형 컨텍스트 추출
@@ -439,7 +447,9 @@ const App: React.FC = () => {
 
       if (isArxiv) {
         setLoadingStatus(t.analyzingPaper);
-        webContext += `\n\n[ARXIV_CONTENT: ${url}]\n` + await fetchUrlContent(url);
+        // Arxiv URLs are always PDFs. Pass the raw URL for backend-side downloading.
+        finalAttachments.push({ fileName: 'arxiv.pdf', mimeType: 'application/pdf', data: url });
+        webContext += `\n[ARXIV_PDF_LINK_QUEUED]`;
         setLoadingStatus(null);
       } else if (isYoutube) {
         setLoadingStatus(t.checkingYoutube);
@@ -460,9 +470,17 @@ const App: React.FC = () => {
         }
         setTimeout(() => setLoadingStatus(null), 3000);
       } else {
-        setLoadingStatus(t.fetchingUrl);
-        webContext += `\n\n[URL_CONTENT: ${url}]\n` + await fetchUrlContent(url);
-        setLoadingStatus(null);
+        const isPdf = url.toLowerCase().endsWith('.pdf');
+        if (isPdf) {
+          // Optimized: Pass raw URL to backend generator for direct processing
+          finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
+          webContext += `\n[URL_PDF_LINK_QUEUED]`;
+        } else {
+          setLoadingStatus(t.fetchingUrl);
+          const pageContent = await fetchUrlContent(url);
+          webContext += `\n\n[URL_CONTENT: ${url}]\n` + pageContent;
+          setLoadingStatus(null);
+        }
       }
     }
 

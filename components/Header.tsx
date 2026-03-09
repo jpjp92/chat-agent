@@ -27,11 +27,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "이미지 변경",
       photoDesc: "정사각형 이미지, 최대 2MB",
       placeholder: "이름을 입력하세요",
-      settings: "설정",
-      sizeError: "이미지 용량 초과 (최대 2MB)",
-      updated: "프로필 수정 완료",
-      modelFlashDesc: "훌륭한 성능과 속도의 밸런스",
-      modelLiteDesc: "가장 빠르고 효율적인 처리"
+      model25Flash: "Gemini 2.5 Flash",
+      model25FlashLite: "Gemini 2.5 Flash Lite",
+      model25FlashDesc: "빠르고 균형 잡힌 응답",
+      model25LiteDesc: "가볍고 빠른 한국어 최적화",
     },
     en: {
       displayName: "Display Name",
@@ -41,11 +40,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Change Photo",
       photoDesc: "Square image, max 2MB",
       placeholder: "Enter your name",
-      settings: "Settings",
-      sizeError: "Max 2MB exceeded",
-      updated: "Profile updated",
-      modelFlashDesc: "Great balance of speed & quality",
-      modelLiteDesc: "Fastest processing speed"
+      model25Flash: "Gemini 2.5 Flash",
+      model25FlashLite: "Gemini 2.5 Flash Lite",
+      model25FlashDesc: "Fast and balanced responses",
+      model25LiteDesc: "Light and efficient for daily tasks",
     },
     es: {
       displayName: "Nombre",
@@ -55,11 +53,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Cambiar foto",
       photoDesc: "Imagen cuadrada, máx 2MB",
       placeholder: "Introduce tu nombre",
-      settings: "Ajustes",
-      sizeError: "Máx 2MB excedido",
-      updated: "Perfil actualizado",
-      modelFlashDesc: "Equilibrio entre coste y velocidad",
-      modelLiteDesc: "Procesamiento ultrarrápido"
+      model25Flash: "Gemini 2.5 Flash",
+      model25FlashLite: "Gemini 2.5 Flash Lite",
+      model25FlashDesc: "Respuestas rápidas y equilibradas",
+      model25LiteDesc: "Ligero y eficiente para tareas diarias",
     },
     fr: {
       displayName: "Nom",
@@ -69,11 +66,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Changer la photo",
       photoDesc: "Image carrée, max 2Mo",
       placeholder: "Entrez votre nom",
-      settings: "Paramètres",
-      sizeError: "Max 2Mo dépassé",
-      updated: "Profil à jour",
-      modelFlashDesc: "Équilibre vitesse et qualité",
-      modelLiteDesc: "Traitement ultra-rapide"
+      model25Flash: "Gemini 2.5 Flash",
+      model25FlashLite: "Gemini 2.5 Flash Lite",
+      model25FlashDesc: "Réponses rapides et équilibrées",
+      model25LiteDesc: "Léger et efficace au quotidien",
     }
   };
 
@@ -137,7 +133,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
           <div className="flex items-center group relative z-50">
             <button className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200">
               <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-800 dark:text-white/90">
-                {selectedModel === 'gemini-2.5-flash' ? 'Gemini 2.5 Flash' : 'Gemini 2.5 Flash-Lite'}
+                {selectedModel === 'gemini-2.5-flash' ? t.model25Flash : t.model25FlashLite}
               </span>
               <i className="fa-solid fa-chevron-down text-xs sm:text-sm text-slate-400 dark:text-white/50 group-hover:text-slate-600 dark:group-hover:text-white transition"></i>
             </button>
@@ -148,14 +144,14 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                     <div onClick={() => onModelChange('gemini-2.5-flash')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
                         <div>
                             <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash</div>
-                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.modelFlashDesc}</div>
+                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25FlashDesc}</div>
                         </div>
                         {selectedModel === 'gemini-2.5-flash' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
                     </div>
                     <div onClick={() => onModelChange('gemini-2.5-flash-lite')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
                         <div>
                             <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash-Lite</div>
-                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.modelLiteDesc}</div>
+                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25LiteDesc}</div>
                         </div>
                         {selectedModel === 'gemini-2.5-flash-lite' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
                     </div>

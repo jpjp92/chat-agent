@@ -67,8 +67,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                         const url: string = part.image_url.url;
                                         if (url.startsWith('data:')) {
                                             // base64 inline data URI (e.g. data:image/jpeg;base64,...)
-                                            const [header, b64data] = url.split(',');
-                                            const mimeType = header.split(':')[1].split(';')[0];
+                                            let b64data = url;
+                                            let mimeType = 'application/octet-stream';
+                                            if (url.includes('base64,')) {
+                                                const partsArray = url.split('base64,');
+                                                b64data = partsArray[1];
+                                                mimeType = url.split(':')[1].split(';')[0];
+                                            }
                                             parts.push({ inlineData: { mimeType, data: b64data } });
                                             hasMultimodalContent = true;
                                         } else if (url.startsWith('http')) {

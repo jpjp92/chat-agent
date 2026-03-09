@@ -22,6 +22,7 @@ export const loginUser = async (nickname: string) => {
   return response.json();
 };
 
+
 export const updateRemoteUserProfile = async (userId: number, profile: { display_name?: string; avatar_url?: string }) => {
   const response = await fetch('/api/auth', {
     method: 'PATCH',
@@ -32,28 +33,48 @@ export const updateRemoteUserProfile = async (userId: number, profile: { display
 };
 
 export const uploadToStorage = async (file: { fileName: string; data: string; mimeType: string }, bucket: string) => {
-  const response = await fetch('/api/upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fileName: file.fileName,
-      fileData: file.data,
-      mimeType: file.mimeType,
-      bucket
-    })
-  });
+  try {
+    // 1. Get Signed Upload URL from backend
+    const signRes = await fetch('/api/create-signed-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.fileName,
+        bucket: bucket,
+        mimeType: file.mimeType
+      })
+    });
 
-  if (!response.ok) {
-    if (response.status === 413) throw new Error("파일 용량이 너무 큼 (Vercel 제한 4.5MB)");
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      throw new Error(`Upload failed: ${response.status}`);
+    if (!signRes.ok) {
+      const errorData = await signRes.json();
+      throw new Error(errorData.error || 'Failed to generate signed URL');
     }
-  }
 
-  return response.json();
+    const { signedUrl, publicUrl, filePath } = await signRes.json();
+
+    // 2. Upload binary data directly to the signed URL using PUT
+    const buffer = decodeBase64(file.data);
+    const uploadRes = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.mimeType,
+        'x-upsert': 'true' // Supabase specific header if needed, but createsigneduploadurl usually handles it
+      },
+      body: buffer as any
+    });
+
+    if (!uploadRes.ok) {
+      const errorText = await uploadRes.text();
+      console.error('[Frontend Upload] PUT failed:', errorText);
+      throw new Error('Direct upload to signed URL failed');
+    }
+
+    return { url: publicUrl, filePath: filePath };
+
+  } catch (error: any) {
+    console.error('[Frontend Upload] Error:', error);
+    throw new Error(error.message || 'Upload failed');
+  }
 };
 /**
  * 세션 관리
@@ -96,9 +117,9 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
 };
 
 /**
- * URL에서 직접 텍스트를 추출 (백엔드 프록시 이용)
+ * URL에서 직접 텍스트 또는 파일을 추출 (백엔드 프록시 이용)
  */
-export const fetchUrlContent = async (url: string): Promise<string> => {
+export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
   try {
     const response = await fetch('/api/fetch-url', {
       method: 'POST',
@@ -106,11 +127,16 @@ export const fetchUrlContent = async (url: string): Promise<string> => {
       body: JSON.stringify({ url })
     });
     const data = await response.json();
-    return data.content || "";
+    return { isPdf: data.isPdf, content: data.content || "" };
   } catch (error) {
     console.warn("Direct scraping failed", error);
-    return "";
+    return { isPdf: false, content: "" };
   }
+};
+
+export const fetchUrlContent = async (url: string): Promise<string> => {
+   const data = await fetchUrlData(url);
+   return data.content;
 };
 
 /**
@@ -136,11 +162,12 @@ function decodeBase64(base64: string): Uint8Array {
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+        bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
   } catch (e) {
-    return new Uint8Array(0);
+    console.error("Base64 decoding failed:", e);
+    return new Uint8Array();
   }
 }
 

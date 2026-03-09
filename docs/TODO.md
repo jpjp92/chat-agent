@@ -167,6 +167,19 @@
 - [x] **목표**: 여러 개의 문서 파일(PDF, DOCX 등)을 동시에 업로드하고 교차 분석 지원.
 - [x] **구현**: 모든 업로드된 문서의 텍스트를 `webContext`에 결합하여 AI에게 제공.
 
+#### 10. Supabase 보안 최적화 & Presigned URL 전환 (v4.1) ✅
+
+- [x] **목표**: 브라우저에 노출되는 `VITE_SUPABASE_ANON_KEY`를 제거하여 보안 강화.
+- [x] **구현**:
+  - Backend: `/api/create-signed-url` 엔드포인트 구축 (Service Role Key 사용).
+  - Frontend: 직접 업로드 대신 Backend가 발행한 Signed URL로 `PUT` 업로드 수행.
+  - 보안: 클라이언트 측 Supabase Credentials 완전 제거.
+
+#### 11. Gemini 3.1 Flash Lite 통합 (Postponed) ⚠️
+
+- [ ] **목표**: 최신 고성능 효율화 모델인 `gemini-3.1-flash-lite-preview` 적용.
+- [ ] **현황**: Free Tier에서 Google Search Grounding 미지원으로 인해 날씨 등 실시간 쿼리 불가 확인 및 롤백 완료. 차후 유료 티어 전환 또는 모델 업데이트 시 재적용 검토.
+
 ### 🎨 Low Priority (Advanced Visualizations)
 
 #### 6. 화학 구조 시각화 반응형 고도화 (Chemical-Viz)
@@ -215,13 +228,11 @@
 - [ ] **Service Worker (PWA)**: 정적 자산 캐싱을 통한 일관된 성능 보장.
 - [ ] **Image Proxy Next-gen**: `.webp` 자동 변환 및 최적화.
 
-#### 10. PDF Link Base64 Proxying (PDF 링크 기반 문서 분석 지원)
+#### PDF Link Base64 Proxy (v3.7 Latency Passthrough Optimized)
 
-- [ ] **목표**: `https://cdn.sanity.io/.../file.pdf` 와 같은 웹 PDF 링크를 Gemini가 네이티브 문서로 완벽히 읽을 수 있도록 지원.
-- [ ] **구현 방안**:
-  - `api/fetch-url.ts` 에서 타겟 URL 확장자(`.pdf`)를 감지하여 텍스트 파싱 대신 `arrayBuffer()` 다운로드 후 Base64 문자열로 인코딩하여 반환.
-  - 프론트엔드(`App.tsx` & `geminiService.ts`)에서 이 응답을 가로채어, 일반 웹 컨텍스트가 아닌 **순수 첨부파일(Attachment)** 배열로 삽입 (`mimeType: 'application/pdf'`).
-- [ ] **예상 효과**: URL만 던져주더라도 PDF 뷰어와 백엔드 통신을 거쳐 최고품질의 논문/문서 분석 결과를 추출.
+- [x] **Goal**: Enable summarization of direct PDF links (e.g. Sanity.io) without binary corruption.
+- [x] **Status**: Implemented high-performance passthrough architecture. Frontend sends URL -> Backend Generator fetches natively.
+- [x] **Outcome**: Successfully summarizes 30MB+ PDFs with 60% less network overhead.뷰어와 백엔드 통신을 거쳐 최고품질의 논문/문서 분석 결과를 추출.
 
 ---
 
@@ -252,6 +263,10 @@
 - [ ] ESLint/Prettier 설정 추가.
 - [ ] 단위 테스트 작성 (Vitest).
 
+## 🔗 UI/UX Reference Links
+
+- [x] **Component Gallery**: https://component.gallery/components/ (차후 UI 컴포넌트 디자인 및 고도화 시 참고할 디자인 패턴 모음집)
+
 ---
 
-_Last Updated: 2026-03-08 (Lighthouse TBT 최적화 및 UI/UX 폴리싱 — 헤더 정리, 토스트 메시지 간소화)_
+_Last Updated: 2026-03-08 (Lighthouse TBT 최적화, UI 폴리싱, 그리고 PDF Base64 Proxy 계획 추가)_

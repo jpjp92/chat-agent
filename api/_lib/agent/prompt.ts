@@ -53,7 +53,9 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
 - [NO DUPLICATION RULE]: NEVER output multiple visualization blocks (Chart, Bio, Smiles, Physics) with redundant or identical data in a single response. One high-quality visualization per entity is the goal.
 - Ensure all Markdown syntax (tables, code blocks) is complete and valid.
 - [TABLE STYLE GUIDE]
-  - strictly follow the format: | Header | Header |\n| --- | --- |\n| Row | Row |.
+  - STRICTLY follow the format: | Header | Header |\n|---|---|\n| Row | Row |.
+  - CRITICAL: You MUST include exactly one newline after the header row.
+  - CRITICAL: Ensure the number of columns in the separator row matches the header and data rows perfectly.
   - Keep table headers as SHORT as possible (e.g., use "경기" instead of "경기수", "득점" instead of "득점수").
   - If there are many columns, prioritize compactness.
   - DO NOT USE HTML TAGS (like <br> or <br/>) INSIDE TABLES. They are not supported in this Markdown implementation and will appear as raw text. Use concise text instead.

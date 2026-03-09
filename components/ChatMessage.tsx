@@ -122,7 +122,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 mt-2 text-slate-900 dark:text-white" {...props} />,
     h2: ({ ...props }) => <h2 className="text-lg font-bold mb-3 mt-4 text-slate-800 dark:text-slate-100" {...props} />,
     h3: ({ ...props }) => <h3 className="text-base font-bold mb-2 mt-4 text-slate-800 dark:text-slate-200" {...props} />,
-    p: ({ ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-[15px] sm:text-[16px] break-all" style={{ overflowWrap: 'anywhere' }} {...props} />,
+    p: ({ ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-[15px] sm:text-[16px]" style={{ overflowWrap: 'anywhere' }} {...props} />,
     ul: ({ ...props }) => <ul className="list-disc ml-5 mb-4 space-y-2" {...props} />,
     ol: ({ ...props }) => <ol className="list-decimal ml-5 mb-4 space-y-2" {...props} />,
     li: ({ ...props }) => <li className="pl-1 text-slate-700 dark:text-slate-300 break-all" style={{ overflowWrap: 'anywhere' }} {...props} />,

@@ -1,6 +1,6 @@
-# 🚀 Chat with Gemini - Next-Gen AI Persistent Messenger
+# 🚀 Chat Agent with Gemini - Next-Gen AI Persistent Messenger
 
-**Chat with Gemini** is an intelligent AI messenger that combines the power of Google's **Gemini 2.5 Flash** and **Flash-Lite** engines with **Supabase** persistent storage. It offers a seamless **Login-less** experience while maintaining **Persistent History** across devices.
+**Chat Agent with Gemini** is an intelligent AI messenger that combines the power of Google's **Gemini 2.5 Flash** and **Flash-Lite** engines with **Supabase** persistent storage. It offers a seamless **Login-less** experience while maintaining **Persistent History** across devices.
 
 ---
 
@@ -26,10 +26,10 @@
 
 ### 🔍 Intelligence & Multimodality
 
-- **Multi-File Multimodal Input (New!)**: Upload up to **3 files at once** (images, videos, or documents). Gemini analyzes the entire collection as a single unified context, perfect for comparing documents or multi-image reasoning.
-- **Base64 URL Proxying (Robustness Architecture)**: Implements a server-side proxy system that automatically fetches and converts public document/image URLs (e.g., from Supabase) into Base64 `inlineData`. This bypasses strict Gemini API restrictions on external HTTP URLs for non-video content, ensuring 100% analysis reliability.
-- **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to bypass serverless timeout issues and payload limits.
-- **PDF, Image & Video Analysis (Fixed!)**: Upload documents (PDF), images, or native video files (MP4, MOV). Gemini can summarize, extract data, or describe visual/auditory content. All attachments (images, PDFs, video) are stored in **Supabase Storage** (`chat-imgs` / `chat-docs` / `chat-videos` buckets) and correctly converted to `inlineData` before being sent to Gemini, ensuring reliable multimodal analysis. Features a **Video-to-Text conversion strategy** that stores AI-generated summaries as session context to optimize subsequent queries.
+- **100MB Direct Supabase Upload (v4.0)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents (PDF, XLSX, PPTX, etc.) up to **100MB** per file.
+- **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine. While standard files are proxied, large PDF links are passed as raw URLs directly to the LangGraph **Generator Node**, which fetches them natively in a single backend roundtrip. This eliminates 60MB+ of redundant browser-to-server data transfers for 30MB PDFs, achieving near-instant analysis.
+- **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to ensure reliability and providing granular UI feedback during large file processing.
+- **Improved UI Feedback**: Added intelligent loading states ("Gemini가 대용량 문서를 분석 중입니다 (10~20초 소요)...") to manage user expectations for 20MB+ file analysis.
 - **Real-time Google Search (Grounding Restored)**: For time-sensitive queries, the AI performs a live web search via `@google/genai` SDK directly (bypassing LangChain's metadata stripping) and displays accurate **Grounding Source Cards** with real URL citations beneath each response. Google Search is automatically **disabled** when multimodal content (image, PDF, video) is present to prevent API conflicts.
   - **YouTube Shorts & Native Transcription (Optimized!)**: Paste any YouTube URL (including `shorts/`) to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly via native `fileData` support.
   - **Timestamp Chunking & Shorts Optimization**: To ensure lightning-fast generation, transcripts for long videos are grouped by 1-minute intervals with exactly 3-5 timestamped milestones. For videos under 1 minute (like Shorts), the AI automatically switches to a cohesive, single-paragraph summary for maximum readability.
@@ -404,11 +404,15 @@ flowchart TB
 
 - **Rate-Limit-Aware API Key Rotation**: When any key returns a `429 Too Many Requests` error, it is **automatically blacklisted for 60 seconds** and the next available key is retried immediately — for both the `@google/genai` SDK path and the LangChain fallback path. Duplicate keys in `.env` are deduplicated automatically.
 - **Precise Intent Routing**: The LangGraph Router now uses context-aware keyword matching to distinguish medical queries from general ones, preventing false positives (e.g., `'정'` in words like `'정리'` or `'정보'` no longer triggers the medical pipeline).
-- **Multimodal Routing Fix (v3.6)**: All general, image, PDF, and YouTube requests are now exclusively routed through the `@google/genai` SDK path which natively supports `inlineData` and `fileData` content types. The LangChain fallback path is reserved solely for medical/tool-calling intent, with automatic `fileData` part filtering for safety. This resolves a critical bug where image and PDF attachments were silently dropped (text-only extraction) and YouTube URLs caused a crash (`Unknown content fileData`) in the LangChain path.
+- **Multimodal Routing v3.7 (Native & Passthrough)**: All general, image, PDF, and YouTube requests are now exclusively routed through the `@google/genai` SDK path. Implements a "Just-in-Time" fetching strategy for PDF URLs directly within the LangGraph state, ensuring massive documents (up to 30MB+) are analyzed without browser-side latency. The LangChain fallback path is strictly reserved for medical/tool-calling intent, with automatic `fileData` filtering for safety.
 - **Output Sanitization**: Real-time filtering for **Whitespace Hallucinations** caused by external tool grounding issues, ensuring a clean and reliable chat experience.
+- **100MB Direct Supabase Upload (v4.0/v4.1)**: Fully bypasses Vercel's 4.5MB request body limit. Since v4.1, this uses a **High-Security Presigned URL Architecture**, meaning zero Supabase credentials (Anon Key/URL) are exposed to the browser.
 - **Row Level Security (RLS)**: Enforced via Supabase to ensure users can only access their own private conversation data.
-- **Server-side Secrecy**: All sensitive credentials and API keys are stored in environment variables and never exposed to the client-side browser.
-- **Payload Optimization**: Includes intelligent handling for Vercel's payload limits. Native video support (up to 20MB) uses **Supabase Storage** as an intermediate buffer to bypass serverless size restrictions (30MB API limit).
+
+### 🛡️ Security Features (v4.1 Completed)
+
+- **High-Security Presigned URL Architecture**: Transitioned from public `ANON_KEY` usage to backend-generated 일회용 (One-time) signed URLs.
+- **Zero Frontend Credentials**: All Supabase connection details are now strictly internal to the backend.
 
 ---
 
