@@ -71,6 +71,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // 3. Current Request Multimodal Payload
   let humanMessageParts: any[] = [{ type: "text", text: prompt }];
+
+  // v4.10 Hybrid YouTube Logic:
+  // If no transcript was found (webContent is empty or error), restore direct video analysis (fileData)
+  // This allows Gemini to "watch" the video even when text extraction fails.
+  const hasTranscript = webContent && webContent.includes('[YOUTUBE_VIDEO_INFO]') && !webContent.includes('[FETCH_ERROR');
+  if (isYoutubeRequest && !hasTranscript) {
+    const videoUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+    // Using fileData bridges the gap when transcripts are missing.
+    humanMessageParts.push({ fileData: { fileUri: videoUrl, mimeType: 'video/mp4' } });
+    console.log('[Chat API] No transcript found. Falling back to Native Video Analysis (fileData).');
+  }
+
   const allAttachments = attachments && Array.isArray(attachments) ? attachments : (attachment ? [attachment] : []);
   const processedAttachments = [];
 
@@ -110,9 +122,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // 5. Build Graph Initial State
+  const videoUrl = isYoutubeRequest ? `https://www.youtube.com/watch?v=${ytMatch[1]}` : "";
+  const enrichedWebContent = isYoutubeRequest ? `URL: ${videoUrl}\n${webContent || ""}` : (webContent || "");
+
   const initialState = {
     messages: contents,
-    webContent: webContent || "",
+    webContent: enrichedWebContent,
     attachments: processedAttachments,
     contextInfo: "",
     pillData: null,

@@ -109,9 +109,12 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     // Google Search is incompatible with multimodal content (images, video, PDF)
-                    // Optimization: For YouTube, only use Grounding if [TRANSCRIPT] is missing to prevent noise.
-                    const hasTranscript = state.webContent.includes('[TRANSCRIPT]');
-                    const useGoogleSearch = !hasMultimodalContent || (isYoutubeRequest && !hasTranscript);
+                    // Optimization: For YouTube, only use Grounding if both [TRANSCRIPT] and fileData are missing.
+                    const hasTranscript = state.webContent.includes('[YOUTUBE_VIDEO_INFO]');
+                    const hasVideoData = state.messages.some((m: any) => 
+                        Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
+                    );
+                    const useGoogleSearch = !hasMultimodalContent || (isYoutubeRequest && !hasTranscript && !hasVideoData);
                     
                     if (hasMultimodalContent && !isYoutubeRequest) {
                         console.log('[LangGraph] Multimodal content detected — Google Search disabled');
