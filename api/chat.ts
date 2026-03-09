@@ -75,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // v4.10 Hybrid YouTube Logic:
   // If no [TRANSCRIPT] was found in webContent, restore direct video analysis (fileData)
   // This allows Gemini to "watch" the video even when text extraction fails.
-  const hasTranscript = webContent && webContent.includes('[TRANSCRIPT]');
+  const hasTranscript = webContent && webContent.includes('[YOUTUBE_VIDEO_INFO]');
   if (isYoutubeRequest && !hasTranscript) {
     const videoUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
     // Using fileData bridges the gap when transcripts are missing.
@@ -132,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     contextInfo: "",
     pillData: null,
     sessionId: session_id || "",
-    model: model || "gemini-2.5-flash",
+    model: model || "gemini-2.0-flash",
     timeZone: timeZone || "Asia/Seoul",
     nextNode: "router"
   };
@@ -158,10 +158,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const chunk = data?.chunk;
         const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {
-          // Sanitization: Collapse 50+ repeated characters (hallucination or formatting bug)
-          const sanitizedText = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
-          fullAiResponse += sanitizedText;
-          res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
+          // Sanitization: Collapse whitespace hallucinations & Strip leaked tool calls (even if wrapped in markdown)
+          let sanitizedText = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
+          
+          // Pattern: Matches both raw JSON and JSON inside ```json ... ``` code blocks
+          const toolCallPattern = /(?:```json\s*)?\{\s*"tool_code":\s*".*?"\s*\}(?:\s*```)?/gs;
+          sanitizedText = sanitizedText.replace(toolCallPattern, '');
+          
+          if (sanitizedText.trim()) {
+            fullAiResponse += sanitizedText;
+            res.write(`data: ${JSON.stringify({ text: sanitizedText })}\n\n`);
+          }
         }
         // 스트림 메타데이터 탐색
         const gm = chunk?.response_metadata?.groundingMetadata || chunk?.additional_kwargs?.groundingMetadata;

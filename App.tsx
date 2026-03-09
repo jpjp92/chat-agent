@@ -475,10 +475,10 @@ const App: React.FC = () => {
 
         if (transcript) {
           setLoadingStatus(t.analyzingTranscript);
-          webContext += `\n\n[YOUTUBE_CONTENT: ${url}]\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
+          webContext += `\n\n[YOUTUBE_VIDEO_INFO: ${url}]\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
         } else {
           setLoadingStatus(t.watchingVideo);
-          webContext += `\n\n[YOUTUBE_METADATA: ${url}]\n${metadata}`;
+          webContext += `\n\n[YOUTUBE_VIDEO_INFO: ${url}]\n${metadata}`;
         }
         setTimeout(() => setLoadingStatus(null), 3000);
       } else {

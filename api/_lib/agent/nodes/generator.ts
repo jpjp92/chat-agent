@@ -109,19 +109,23 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     // Google Search is incompatible with multimodal content (images, video, PDF)
-                    // Optimization: For YouTube, only use Grounding if both [TRANSCRIPT] and fileData are missing.
+                    // Optimization: Disable Google Search for YouTube summaries when transcript OR video data is present
                     const hasTranscript = state.webContent.includes('[YOUTUBE_VIDEO_INFO]');
                     const hasVideoData = state.messages.some((m: any) => 
                         Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
                     );
-                    const useGoogleSearch = !hasMultimodalContent || (isYoutubeRequest && !hasTranscript && !hasVideoData);
+                    
+                    let useGoogleSearch = !hasMultimodalContent;
+                    if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
+                        useGoogleSearch = false;
+                    }
                     
                     if (hasMultimodalContent && !isYoutubeRequest) {
                         console.log('[LangGraph] Multimodal content detected — Google Search disabled');
                     }
 
                     const sdkResponse = await genai.models.generateContent({
-                        model: state.model || "gemini-2.5-flash",
+                        model: state.model || "gemini-2.0-flash",
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
@@ -179,7 +183,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         while (lcAttempt < API_KEYS.length) {
             try {
                 const llm = new ChatGoogleGenerativeAI({
-                    model: state.model || "gemini-2.5-flash",
+                    model: state.model || "gemini-2.0-flash",
                     apiKey: lcApiKey,
                     temperature: 0.2,
                     topP: 0.8,
