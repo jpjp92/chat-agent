@@ -151,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     for await (const event of stream) {
-      console.log(`[SSE Debug] ${event.event} | ${event.name}`);
+      // console.log(`[SSE Debug] ${event.event} | ${event.name}`);
       const data = event.data;
 
       if (event.event === "on_chat_model_stream") {
@@ -168,14 +168,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (gm?.groundingChunks) {
           const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
           if (sources.length > 0) {
-            sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); console.log(`[Chat API] Found source in STREAM: ${s.title}`); } });
+            sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); /* console.log(`[Chat API] Found source in STREAM: ${s.title}`); */ } });
             res.write(`data: ${JSON.stringify({ sources: allSources })}\n\n`);
           }
         }
       } else if (event.event === "on_chat_model_end" && event.name === "ChatGoogleGenerativeAI") {
         const out = data?.output;
         const gm = out?.response_metadata?.groundingMetadata || out?.additional_kwargs?.groundingMetadata;
-        if (gm) console.log(`[Chat API] Found GroundingMetadata in Model End!`);
+        // if (gm) console.log(`[Chat API] Found GroundingMetadata in Model End!`);
       } else if (event.event === "on_chain_end" && event.name === "generator") {
         const output = data?.output;
         const modelMsg = output?.messages?.[0];
@@ -186,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (msgText && !fullAiResponse) {
           fullAiResponse = msgText;
           res.write(`data: ${JSON.stringify({ text: msgText })}\n\n`);
-          console.log('[Chat API] Sent text from SDK generator path.');
+          // console.log('[Chat API] Sent text from SDK generator path.');
         }
 
         const gm = modelMsg?.response_metadata?.groundingMetadata || modelMsg?.additional_kwargs?.groundingMetadata;

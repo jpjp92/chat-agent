@@ -291,7 +291,7 @@ const App: React.FC = () => {
 
       // 3. UI 프로필 상태 업데이트
       setUserProfile(profile);
-      showToast(t.profileUpdated, "success");
+      // showToast(t.profileUpdated, "success");
     } catch (e: any) {
       showToast(e.message, "error");
     }
@@ -356,7 +356,7 @@ const App: React.FC = () => {
           const estimatedSize = isBase64 ? (base64Data.length * 0.75) : 0;
 
           if (!isVideo && estimatedSize < (3 * 1024 * 1024) && isBase64) {
-            console.log(`[v4.7] Direct path optimized (Size: ${Math.round(estimatedSize / 1024)}KB)`);
+            // console.log(`[v4.7] Direct path optimized (Size: ${Math.round(estimatedSize / 1024)}KB)`);
             finalAttachments.push(attachment);
             continue;
           }
@@ -598,7 +598,7 @@ const App: React.FC = () => {
       setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
     } catch (e) {
       console.error("Failed to rename session", e);
-      showToast(t.renameFailed, "error");
+      // showToast(t.renameFailed, "error");
     }
   };
 

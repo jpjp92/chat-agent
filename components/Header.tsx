@@ -93,7 +93,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
   const handleSave = () => {
     onUpdateProfile(tempProfile);
-    showToast(t.updated, "success");
+    // showToast(t.updated, "success");
     setIsModalOpen(false);
   };
 

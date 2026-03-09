@@ -17,6 +17,7 @@ const PhysicsRenderer = lazy(() => import('./PhysicsRenderer'));
 const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
 const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
 const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
+const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
@@ -499,6 +500,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1 overflow-hidden`}>
 
           {renderAttachments()}
+
+          {/* YouTube Embed Logic */}
+          {!isUser && message.groundingSources && message.groundingSources.length > 0 && (
+            (() => {
+              const youtubeSource = message.groundingSources.find(s => 
+                s.uri.includes('youtube.com') || s.uri.includes('youtu.be')
+              );
+              if (youtubeSource) {
+                return (
+                  <Suspense fallback={<div className="w-full aspect-video bg-slate-100 dark:bg-white/5 animate-pulse rounded-2xl mb-4" />}>
+                    <YoutubeEmbed url={youtubeSource.uri} />
+                  </Suspense>
+                );
+              }
+              return null;
+            })()
+          )}
 
           <div className={`relative transition-all duration-300 overflow-hidden ${isUser
             ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
