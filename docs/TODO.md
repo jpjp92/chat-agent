@@ -4,10 +4,10 @@
 
 ### 🔥 High Priority (Core UX & Latency)
 
-#### 0. [Plan/v4.7] PDF 분석 속도 최적화 — Hybrid Upload Path
+#### 0. [Done/v4.7, v4.10] PDF 분석 속도 최적화 & 하이브리드 유튜브 분석
 
-- **목표**: 5MB 이하의 파일은 Supabase를 거치지 않고 Direct Base64로 전달하여 5~8초 이상의 지연 시간 단축.
-- **상태**: 계획 수립 완료. [pdf_optimization_plan.md](file:///home/jpjp92/.gemini/antigravity/brain/5c779384-c676-4e95-9a5d-e3d37d0a70c0/pdf_optimization_plan.md) 참고.
+- [x] **v4.7: Hybrid Upload Path**: 3MB 이하 파일은 Supabase를 거치지 않고 Direct Base64로 전달하여 5~8초 지연 시간 단축 성공.
+- [x] **v4.10: YouTube Hybrid**: 자막 없을 시 Gemini의 Native Video Analysis(fileData)로 자동 폴백.
 
 #### 0-1. [Done/v4.5, v4.6] 멀티턴 대화 및 유튜브 분석 안정화
 

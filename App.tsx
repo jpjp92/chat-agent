@@ -349,6 +349,18 @@ const App: React.FC = () => {
           const isVideo = attachment.mimeType.startsWith('video/');
           const isPDF = attachment.mimeType === 'application/pdf';
 
+          // v4.7 PDF Velocity Optimization: 3MB 이하 파일은 Supabase 업로드를 건너뛰고 바로 전송
+          // (Vercel의 4.5MB 페이로드 제한을 고려하여 3MB로 설정)
+          const isBase64 = !attachment.data.startsWith('http');
+          const base64Data = attachment.data.includes(',') ? attachment.data.split(',')[1] : attachment.data;
+          const estimatedSize = isBase64 ? (base64Data.length * 0.75) : 0;
+
+          if (!isVideo && estimatedSize < (3 * 1024 * 1024) && isBase64) {
+            console.log(`[v4.7] Direct path optimized (Size: ${Math.round(estimatedSize / 1024)}KB)`);
+            finalAttachments.push(attachment);
+            continue;
+          }
+
           // 자연스러운 로딩 문구 설정 (여러 개일 경우 개별 파일명 포함)
           setLoadingStatus(`${attachment.fileName || '파일'} 업로드 중...`);
 

@@ -27,12 +27,12 @@
 ### 🔍 Intelligence & Multimodality (Optimized v4.5, v4.6)
 
 - **100MB Direct Supabase Upload (v4.0/v4.1)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents up to **100MB**.
-- **Hybrid Upload Path (v4.7 Planned)**: Implements an intelligent threshold-based routing. Files under **~4-5MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
+- **Hybrid Upload Path (v4.7 Optimized)**: Implements an intelligent threshold-based routing. Files under **3MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
 - **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine for large PDF links.
 - **Flawless Multi-turn Continuity (v4.5)**: Reconstructs full multimodal history (images, PDFs) for previous turns, ensuring AI maintains perfect context during long, complex conversations.
-- **Real-time Google Search (Grounding Restored)**: Displays accurate **Grounding Source Cards** with real URL citations.
-  - **YouTube Deep Analysis (v4.6 Enhancements)**: Paste any YouTube URL to extract summaries. Now including **Video Description** parsing for much richer context even when transcripts are unavailable.
-  - **Timestamp Chunking & Shorts Optimization**: Grouped milestones for long videos; single-paragraph summaries for Shorts.
+- **Real-time Google Search (Grounding Fixed)**: Displays accurate **Grounding Source Cards** with real URL citations.
+  - **YouTube Hybrid Analysis (v4.10)**: Smart fallback engine. Prioritizes fast transcripts for speed; automatically restores **Direct Video Analysis** (`fileData`) when transcripts are missing, allowing Gemini to "watch" the video.
+  - **Timestamp Chunking & Premium Links (v4.9)**: Clickable `[[MM:SS](URL&t=S)]` links lead directly to video moments with structured table-style summaries.
 
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 
