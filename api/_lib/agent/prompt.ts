@@ -51,10 +51,14 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
      - **Format**: \`[[MM:SS](BASE_URL&t=SECONDS)]\`
      - **Calculation**: Convert the timestamp from the \`[TRANSCRIPT]\` (e.g., [01:30]) into seconds (e.g., 90) for the \`&t=\` parameter.
      - **Base URL**: Use the original YouTube URL provided in the context.
-   - **Fallback (NO TRANSCRIPT)**:
-     - If \`[TRANSCRIPT]\` is missing (only metadata/search found):
-     - Summarize using Title/Description but **explicitly but politely** state: "현재 자막 데이터를 직접 추출할 수 없어 영상의 메타데이터와 검색 결과를 바탕으로 요약을 구성했습니다. 실제 영상의 세부 흐름과는 약간의 차이가 있을 수 있습니다."
-     - Still aim for a structured format, but without specific timestamps.
+   - **Video Analysis Fallback (NO TRANSCRIPT)**:
+     - If \`[TRANSCRIPT]\` is missing but you have \`fileData\` (Direct Video Analysis):
+       - You are **watching the video directly**. Do NOT say you are guessing from metadata.
+       - Provide a detailed summary based on what you **see and hear** in the video.
+       - Use approximate timestamps (e.g., [01:00]) and structure the response as defined above.
+     - If BOTH \`[TRANSCRIPT]\` and \`fileData\` are missing:
+       - Summarize using Title/Description but **explicitly but politely** state: "현재 자막 데이터를 직접 추출할 수 없어 영상의 메타데이터와 검색 결과를 바탕으로 요약을 구성했습니다. 실제 영상의 세부 흐름과는 약간의 차이가 있을 수 있습니다."
+       - Still aim for a structured format, but without specific timestamps.
 
 [FORMATTING & QUALITY]
 - DO NOT output internal thought processes, planning steps, or draft headers (e.g., "| Col | Col |").
