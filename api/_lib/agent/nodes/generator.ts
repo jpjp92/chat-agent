@@ -109,9 +109,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     // Google Search is incompatible with multimodal content (images, video, PDF)
-                    const useGoogleSearch = !hasMultimodalContent;
-                    if (hasMultimodalContent) {
-                        console.log('[LangGraph] Multimodal content detected — Google Search disabled for this request');
+                    // Optimization: For YouTube, we rely on webContent (transcripts) or Grounding.
+                    const useGoogleSearch = !hasMultimodalContent || isYoutubeRequest;
+                    if (hasMultimodalContent && !isYoutubeRequest) {
+                        console.log('[LangGraph] Multimodal content detected — Google Search disabled');
                     }
 
                     const sdkResponse = await genai.models.generateContent({

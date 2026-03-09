@@ -2,9 +2,21 @@
 
 ## Priority Tasks (Future Roadmap)
 
-### 🔥 High Priority (Core UX Improvements)
+### 🔥 High Priority (Core UX & Latency)
 
-#### 0. 약품 이미지 정확도 개선 — 약학정보원 식별 검색 연동
+#### 0. [Plan/v4.7] PDF 분석 속도 최적화 — Hybrid Upload Path
+
+- **목표**: 5MB 이하의 파일은 Supabase를 거치지 않고 Direct Base64로 전달하여 5~8초 이상의 지연 시간 단축.
+- **상태**: 계획 수립 완료. [pdf_optimization_plan.md](file:///home/jpjp92/.gemini/antigravity/brain/5c779384-c676-4e95-9a5d-e3d37d0a70c0/pdf_optimization_plan.md) 참고.
+
+#### 0-1. [Done/v4.5, v4.6] 멀티턴 대화 및 유튜브 분석 안정화
+
+- [x] **v4.5: 멀티모달 히스토리 복구**: 이전 대화의 첨부파일(이미지, PDF) 정보를 히스토리에 포함하여 대화 연속성 보장.
+- [x] **v4.5: 히스토리 최적화**: Vercel 타임아웃 방지를 위해 최근 3턴의 멀티모달 바이너리만 유지.
+- [x] **v4.6: 유튜브 메타데이터 강화**: 영상 제목 외에 **설명(Description)**까지 추출하여 분석 정밀도 향상.
+- [x] **v4.6: PDF MIME 타입 처리 교정**: 백엔드 전달 시 PDF 형식이 누락되는 버그 수정.
+
+#### 1. 약품 이미지 정확도 개선 — 약학정보원 식별 검색 연동
 
 > **배경**: 실제 약품 사진을 찍어 질문하면 엉뚱한 약품 정보를 반환하는 문제 발생.  
 > Gemini Vision이 색상·모양·각인을 추출하더라도 Google Search 기반 추론은 오인식 위험이 높음.  

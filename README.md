@@ -24,16 +24,15 @@
 
 - **Browser-Native Timezone Injection**: Automatically detects the user's local timezone (e.g., `Europe/Paris`, `Asia/Seoul`) and injects it directly into the backend System Prompt, completely eliminating time-based hallucinations and ensuring real-time queries (weather, news) are perfectly localized to the user's physical location.
 
-### 🔍 Intelligence & Multimodality
+### 🔍 Intelligence & Multimodality (Optimized v4.5, v4.6)
 
-- **100MB Direct Supabase Upload (v4.0)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents (PDF, XLSX, PPTX, etc.) up to **100MB** per file.
-- **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine. While standard files are proxied, large PDF links are passed as raw URLs directly to the LangGraph **Generator Node**, which fetches them natively in a single backend roundtrip. This eliminates 60MB+ of redundant browser-to-server data transfers for 30MB PDFs, achieving near-instant analysis.
-- **Sequential Async Uploading**: Implements a robust sequential upload strategy for multiple files to ensure reliability and providing granular UI feedback during large file processing.
-- **Improved UI Feedback**: Added intelligent loading states ("Gemini가 대용량 문서를 분석 중입니다 (10~20초 소요)...") to manage user expectations for 20MB+ file analysis.
-- **Real-time Google Search (Grounding Restored)**: For time-sensitive queries, the AI performs a live web search via `@google/genai` SDK directly (bypassing LangChain's metadata stripping) and displays accurate **Grounding Source Cards** with real URL citations beneath each response. Google Search is automatically **disabled** when multimodal content (image, PDF, video) is present to prevent API conflicts.
-  - **YouTube Shorts & Native Transcription (Optimized!)**: Paste any YouTube URL (including `shorts/`) to extract summaries. If captions are missing, Gemini can "watch" and analyze the video content directly via native `fileData` support.
-  - **Timestamp Chunking & Shorts Optimization**: To ensure lightning-fast generation, transcripts for long videos are grouped by 1-minute intervals with exactly 3-5 timestamped milestones. For videos under 1 minute (like Shorts), the AI automatically switches to a cohesive, single-paragraph summary for maximum readability.
-  - **Persistent Manual Grounding**: Processed URLs automatically inject their original link into the response's `groundingSources`, rendering a clickable "YouTube Video" or "Web Link" source tag at the bottom of the chat bubble, perfectly preserving the UI component's aesthetics.
+- **100MB Direct Supabase Upload (v4.0/v4.1)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents up to **100MB**.
+- **Hybrid Upload Path (v4.7 Planned)**: Implements an intelligent threshold-based routing. Files under **~4-5MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
+- **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine for large PDF links.
+- **Flawless Multi-turn Continuity (v4.5)**: Reconstructs full multimodal history (images, PDFs) for previous turns, ensuring AI maintains perfect context during long, complex conversations.
+- **Real-time Google Search (Grounding Restored)**: Displays accurate **Grounding Source Cards** with real URL citations.
+  - **YouTube Deep Analysis (v4.6 Enhancements)**: Paste any YouTube URL to extract summaries. Now including **Video Description** parsing for much richer context even when transcripts are unavailable.
+  - **Timestamp Chunking & Shorts Optimization**: Grouped milestones for long videos; single-paragraph summaries for Shorts.
 
 ### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
 

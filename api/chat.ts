@@ -27,29 +27,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const systemInstruction = getSystemInstruction(langName);
+  const supportedMimeTypes = ['image/', 'video/', 'audio/', 'application/pdf'];
 
-  // 1. Convert primitive History to LangChain Core Messages
+  // 1. Convert primitive History to LangChain Core Messages with Multimodal Support
+  // Optimization: Only include multimodal binaries for the LAST 3 turns to prevent payload bloating and Vercel timeouts.
   const contents = history
-    .filter((msg: any) => msg.content && msg.content.trim() !== "" && msg.role !== 'system')
+    .filter((msg: any) => msg.content && (msg.content.trim() !== "" || (msg.attachments && msg.attachments.length > 0)) && msg.role !== 'system')
     .slice(-10)
-    .map((msg: any) => msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content));
+    .map((msg: any, index: number, array: any[]) => {
+      if (msg.role === 'assistant') return new AIMessage(msg.content);
+      
+      const isRecent = index >= array.length - 3;
+      const parts: any[] = [{ type: "text", text: msg.content || "" }];
+      const msgAttachments = msg.attachments || (msg.attachment ? [msg.attachment] : []);
+      
+      for (const att of msgAttachments) {
+        if (att.data && att.mimeType) {
+          const isSupported = supportedMimeTypes.some(type => att.mimeType.startsWith(type));
+          if (!isSupported) continue;
 
-  // 2. YouTube Logic (if ytMatch, pass fileUri to Google natively)
+          // For older history turns, just provide a text indicator to save bandwidth/time
+          if (!isRecent) {
+             parts[0].text += `\n[Attached File: ${att.fileName || att.mimeType}]`;
+             continue;
+          }
+
+          const isPublicUrl = att.data.startsWith('http');
+          if (isPublicUrl) {
+            parts.push({ type: "image_url", image_url: { url: att.data } });
+          } else {
+            const base64Content = att.data.includes(',') ? att.data.split(',')[1] : att.data;
+            parts.push({ type: "image_url", image_url: { url: `data:${att.mimeType};base64,${base64Content}` } });
+          }
+        }
+      }
+      return new HumanMessage({ content: parts });
+    });
+
+  // 2. YouTube Logic (Detection only, rely on webContent for summary)
   const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-  const ytMatch = prompt.match(ytRegex) || (webContent && webContent.match(ytRegex));
+  const ytMatch = prompt.match(ytRegex) || (webContent && webContent.match(ytRegex)) || (history.some((m: any) => m.role === 'user' && m.content.match(ytRegex)));
   const isYoutubeRequest = !!ytMatch;
 
-  // 3. Multimodal Payload Construction for Current Request
+  // 3. Current Request Multimodal Payload
   let humanMessageParts: any[] = [{ type: "text", text: prompt }];
-
-  if (isYoutubeRequest) {
-    const normalizedYtUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
-    // In @langchain/google-genai, fileData seamlessly bridges native Gemini functions
-    humanMessageParts.push({ fileData: { fileUri: normalizedYtUrl, mimeType: 'video/mp4' } });
-  }
-
   const allAttachments = attachments && Array.isArray(attachments) ? attachments : (attachment ? [attachment] : []);
-  const supportedMimeTypes = ['image/', 'video/', 'audio/', 'application/pdf'];
   const processedAttachments = [];
 
   for (const att of allAttachments) {
@@ -58,25 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!isSupported) continue;
 
       const isPublicUrl = att.data.startsWith('http');
-      const isVideo = att.mimeType.startsWith('video/');
       processedAttachments.push(att); // Push to graph state for vision processing
 
-      if (isPublicUrl && isVideo) {
-        // Public YouTube URLs: use fileData for native SDK content parts
-        humanMessageParts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
-      } else if (isPublicUrl && att.mimeType === 'application/pdf') {
-        // Public PDF URLs: pass the URL directly (Generator Node will fetch natively for efficiency)
+      if (isPublicUrl) {
+        // Pass URL; Generator Node will handle fetching/rendering based on mimeType
         humanMessageParts.push({ type: "image_url", image_url: { url: att.data } });
-      } else if (isPublicUrl) {
-        // Other public URLs (e.g. cloud images from legacy path): fetch and convert to base64
-        try {
-          const fetchRes = await fetch(att.data);
-          if (fetchRes.ok) {
-            const arrayBuffer = await fetchRes.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
-            humanMessageParts.push({ type: "image_url", image_url: { url: `data:${att.mimeType};base64,${base64}` } });
-          }
-        } catch (e) { }
       } else {
         const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
         humanMessageParts.push({ type: "image_url", image_url: { url: `data:${att.mimeType};base64,${base64Data}` } });
@@ -84,7 +92,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Push User's latest constructed message
+  // Final validation of parts to avoid empty content errors
+  if (humanMessageParts.length === 0) humanMessageParts.push({ type: "text", text: prompt });
   contents.push(new HumanMessage({ content: humanMessageParts }));
 
   // 4. Supabase DB Save (Async Background)

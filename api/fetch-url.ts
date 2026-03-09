@@ -24,20 +24,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
-        // Generic Scrape or YouTube oEmbed Fallback
-        const fetchUrl = isYoutube
-            ? `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-            : targetUrl;
-
-        const response = await fetch(fetchUrl);
-        if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
-
         if (isYoutube) {
-            const oembed: any = await response.json();
+            // First try to get OEmbed for basic info
+            const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+            let oData: any = {};
+            if (oRes.ok) oData = await oRes.json();
+
+            // Next, try to get the page description from raw HTML
+            const pageRes = await fetch(targetUrl);
+            let description = "";
+            if (pageRes.ok) {
+                const text = await pageRes.text();
+                const descMatch = text.match(/<meta\s+name="description"\s+content="([^"]+)"/i);
+                if (descMatch) description = descMatch[1];
+            }
+
             return res.status(200).json({
-                content: `[YOUTUBE_VIDEO_INFO]\nURL: ${url}\nTitle: ${oembed.title || ""}\nAuthor: ${oembed.author_name || ""}`
+                content: `[YOUTUBE_VIDEO_INFO]\nURL: ${url}\nTitle: ${oData.title || "Unknown Title"}\nChannel: ${oData.author_name || "Unknown Channel"}\nDescription: ${description || "No description available."}`
             });
         }
+
+        const response = await fetch(targetUrl);
+        if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
 
         const html = await response.text();
         // Since we are in a serverless function, we don't have DOMParser.

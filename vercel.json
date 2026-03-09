@@ -1,8 +1,6 @@
 {
-  "version": 2,
-  "framework": "vite",
   "functions": {
-    "api/**/*.ts": {
+    "api/*.ts": {
       "maxDuration": 60
     }
   }
