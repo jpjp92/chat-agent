@@ -24,8 +24,12 @@
 
 - **Browser-Native Timezone Injection**: Automatically detects the user's local timezone (e.g., `Europe/Paris`, `Asia/Seoul`) and injects it directly into the backend System Prompt, completely eliminating time-based hallucinations and ensuring real-time queries (weather, news) are perfectly localized to the user's physical location.
 
-### 🔍 Intelligence & Multimodality (Optimized v4.5, v4.6)
+### 🔍 Intelligence & Multimodality (Gemini 2.5 Optimized)
 
+- **Gemini 2.5 Flash Migration (Standard)**: Upgraded the primary engine to `gemini-2.5-flash` for significantly higher intelligence, more accurate reasoning, and better context handling.
+- **Dynamic Model Switching**: Automatically toggles between `gemini-2.5-flash` (Standard) for complex tasks and `gemini-2.5-flash-lite` for high-throughput tasks like video frame analysis when transcripts are missing.
+- **YouTube "Fast-Scan" Strategy**: New system prompts prioritize analyzing the beginning, middle, and end of long videos for rapid, accurate summaries.
+- **Robust URL Parameter Handling (v4.12)**: Uses the native `URL` API to clean tracking parameters (like `fbclid`, `utm_*`) and detects PDF documents via `pathname` extension, ensuring even complex social media referral links work perfectly with document analysis.
 - **100MB Direct Supabase Upload (v4.0/v4.1)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents up to **100MB**.
 - **Hybrid Upload Path (v4.7 Optimized)**: Implements an intelligent threshold-based routing. Files under **3MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
 - **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine for large PDF links.
@@ -101,6 +105,7 @@
 
 ### 🎨 UI/UX & Mobile Strategy
 
+- **Long-Press Context Menu (v4.12)**: Implemented a premium, glassmorphism-style floating menu for chat messages. Users can now long-press any bubble to **Copy Text** or **Edit** their sent messages.
 - **Dynamic Model Selector**: A sleek, ChatGPT-style dropdown header allows users to switch between **Gemini 2.5 Flash** and **Gemini 2.5 Flash-Lite** on the fly, with visually integrated checkmarks and localized descriptions.
 - **Optimistic UI for File Uploads**: Instantly renders the user's chat bubble with a local Base64 image preview while silently uploading full-resolution files to Supabase in the background, achieving **zero perceived delay** during media sharing.
 - **Compact Mobile Architecture (v3.5)**:
@@ -167,6 +172,17 @@
 ---
 
 ## 🗺️ System Architecture & Intelligence
+
+---
+
+## 🔮 Roadmap: ARC (Agent RAG Cache Mechanism)
+
+Inspired by the "Cache Mechanism for Agent RAG Systems" paper, we are developing:
+
+- **Semantic Chunking**: Intelligent fragmentation of documents for high-precision retrieval.
+- **DRF Scoring**: Dynamic cache prioritization based on Distance-Rank Frequency.
+- **Hubness Cache**: Constant access to core domain summaries.
+- **Global Knowledge Sharing**: Cross-session caching for frequently requested URLs/documents.
 
 ### 🏗️ Global Architecture
 

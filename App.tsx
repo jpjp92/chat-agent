@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>(
     (localStorage.getItem('preferred_model') as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') || 'gemini-2.5-flash'
   );
+  const [editingMessageContent, setEditingMessageContent] = useState<string | undefined>(undefined);
 
   // Dialog & Toast State
   const [dialogConfig, setDialogConfig] = useState<{
@@ -371,8 +372,6 @@ const App: React.FC = () => {
             mimeType: attachment.mimeType
           }, bucket);
 
-          if (uploadResult.error) throw new Error(uploadResult.error);
-
           // 업로드된 실제 URL로 교체된 새 객체 추가
           finalAttachments.push({ ...attachment, data: uploadResult.url });
         }
@@ -453,13 +452,41 @@ const App: React.FC = () => {
     });
 
     if (urls && urls.length > 0) {
-      let url = urls[0].replace(/[.\)\]\!,?]+$/, '');
-      const isArxiv = url.includes('arxiv.org');
-      const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+      let rawUrl = urls[0].replace(/[.\)\]\!,?]+$/, '');
+      let url = rawUrl;
+      let isArxiv = false;
+      let isPdf = false;
+      let isYoutube = false;
+
+      try {
+        const parsedUrl = new URL(rawUrl);
+
+        // Clean tracking parameters (fbclid, utm_*) for safer link analysis
+        const paramsToStrip = ['fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+        let hasStripped = false;
+        paramsToStrip.forEach(p => {
+          if (parsedUrl.searchParams.has(p)) {
+            parsedUrl.searchParams.delete(p);
+            hasStripped = true;
+          }
+        });
+
+        if (hasStripped) {
+          url = parsedUrl.toString();
+        }
+
+        isArxiv = parsedUrl.hostname.includes('arxiv.org');
+        isYoutube = parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be');
+        isPdf = parsedUrl.pathname.toLowerCase().endsWith('.pdf');
+      } catch (e) {
+        // Fallback if URL parsing fails
+        isArxiv = url.includes('arxiv.org');
+        isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+        isPdf = url.toLowerCase().endsWith('.pdf');
+      }
 
       if (isArxiv) {
         setLoadingStatus(t.analyzingPaper);
-        // Arxiv URLs are always PDFs. Pass the raw URL for backend-side downloading.
         finalAttachments.push({ fileName: 'arxiv.pdf', mimeType: 'application/pdf', data: url });
         webContext += `\n[ARXIV_PDF_LINK_QUEUED]`;
         setLoadingStatus(null);
@@ -481,18 +508,14 @@ const App: React.FC = () => {
           webContext += `\n\n${metadata}`;
         }
         setTimeout(() => setLoadingStatus(null), 3000);
+      } else if (isPdf) {
+        finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
+        webContext += `\n[URL_PDF_LINK_QUEUED]`;
       } else {
-        const isPdf = url.toLowerCase().endsWith('.pdf');
-        if (isPdf) {
-          // Optimized: Pass raw URL to backend generator for direct processing
-          finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
-          webContext += `\n[URL_PDF_LINK_QUEUED]`;
-        } else {
-          setLoadingStatus(t.fetchingUrl);
-          const pageContent = await fetchUrlContent(url);
-          webContext += `\n\n[URL_CONTENT: ${url}]\n` + pageContent;
-          setLoadingStatus(null);
-        }
+        setLoadingStatus(t.fetchingUrl);
+        const pageContent = await fetchUrlContent(url);
+        webContext += `\n\n[URL_CONTENT: ${url}]\n` + pageContent;
+        setLoadingStatus(null);
       }
     }
 
@@ -589,6 +612,7 @@ const App: React.FC = () => {
     } finally {
       setIsTyping(false);
       if (!hasError) setLoadingStatus(null);
+      setEditingMessageContent(undefined); // Clear edit state after send
     }
   };
 
@@ -600,6 +624,10 @@ const App: React.FC = () => {
       console.error("Failed to rename session", e);
       // showToast(t.renameFailed, "error");
     }
+  };
+
+  const handleEditMessage = (content: string) => {
+    setEditingMessageContent(content);
   };
 
   const showConfirmDialog = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' = 'info') => {
@@ -669,12 +697,13 @@ const App: React.FC = () => {
               language={language}
               isTyping={isTyping}
               loadingStatus={loadingStatus}
+              onEdit={handleEditMessage}
             />
           </div>
         </main>
 
         <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
-          <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} />
+          <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} editValue={editingMessageContent} />
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
               {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :

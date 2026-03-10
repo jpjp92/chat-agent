@@ -28,13 +28,25 @@ interface ChatMessageProps {
 interface ChatMessageFullProps extends ChatMessageProps {
   userProfile?: UserProfile;
   language?: Language;
+  onEdit?: (content: string) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko' }) => {
+const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko', onEdit }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, visible: boolean }>({ x: 0, y: 0, visible: false });
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const i18n_menu = {
+    ko: { copy: '복사', edit: '수정' },
+    en: { copy: 'Copy Text', edit: 'Edit' },
+    es: { copy: 'Copiar texto', edit: 'Editar' },
+    fr: { copy: 'Copier le texte', edit: 'Modifier' }
+  };
+
+  const mt = i18n_menu[language] || i18n_menu.ko;
 
   const i18n = {
     ko: { pdf: 'PDF 문서', attachment: '첨부파일', analyzing: '분석 중...' },
@@ -118,6 +130,45 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       setIsPlaying(false);
     }
   };
+
+  const handleLongPress = (e: React.MouseEvent | React.TouchEvent, x: number, y: number) => {
+    // Prevent default context menu
+    if (e.type === 'contextmenu') e.preventDefault();
+
+    setContextMenu({ x, y, visible: true });
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const timer = setTimeout(() => {
+      handleLongPress(e, touch.clientX, touch.clientY);
+    }, 500); // 500ms for long press
+    setLongPressTimer(timer);
+  };
+
+  const onTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleLongPress(e, e.clientX, e.clientY);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(prev => ({ ...prev, visible: false }));
+    if (contextMenu.visible) {
+      window.addEventListener('click', handleClickOutside);
+      window.addEventListener('scroll', handleClickOutside, true);
+    }
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleClickOutside, true);
+    };
+  }, [contextMenu.visible]);
 
   const MarkdownComponents = {
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 mt-2 text-slate-900 dark:text-white" {...props} />,
@@ -518,8 +569,12 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             })()
           )}
 
-          <div className={`relative transition-all duration-300 overflow-hidden ${isUser
-            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
+          <div 
+            onContextMenu={onContextMenu}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+            className={`relative transition-all duration-300 overflow-hidden cursor-pointer select-none ${isUser
+            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto active:scale-[0.98]'
             : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
             }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
             <div className="font-normal leading-relaxed w-full">
@@ -577,6 +632,52 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           )}
         </div>
       </div>
+      
+      {/* Premium Custom Context Menu */}
+      {contextMenu.visible && (
+        <div 
+          className="fixed z-[9999] min-w-[140px] overflow-hidden rounded-2xl bg-white/80 dark:bg-[#262626]/90 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 shadow-2xl animate-in zoom-in-95 duration-200"
+          style={{ 
+            left: `${Math.min(contextMenu.x, window.innerWidth - 150)}px`, 
+            top: `${Math.min(contextMenu.y, window.innerHeight - 100)}px` 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col p-1.5">
+            <button
+              onClick={() => {
+                handleCopy();
+                setContextMenu(prev => ({ ...prev, visible: false }));
+              }}
+              className="group flex items-center justify-between w-full px-3 py-2.5 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-all active:scale-95"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-primary-500/10 group-hover:text-primary-500 transition-colors">
+                  <i className="fa-solid fa-copy text-[14px]"></i>
+                </div>
+                <span>{mt.copy}</span>
+              </div>
+            </button>
+            
+            {isUser && onEdit && (
+              <button
+                onClick={() => {
+                  if (message.content) onEdit(message.content);
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                }}
+                className="group flex items-center justify-between w-full px-3 py-2.5 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-all active:scale-95"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center group-hover:bg-primary-500/10 group-hover:text-primary-500 transition-colors">
+                    <i className="fa-solid fa-pen text-[14px]"></i>
+                  </div>
+                  <span>{mt.edit}</span>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -9,13 +9,14 @@ interface ChatInputProps {
   disabled?: boolean;
   language?: Language;
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
+  editValue?: string;
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_ATTACHMENTS = 3;
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast, editValue }) => {
   const [input, setInput] = useState('');
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
   const [isListening, setIsListening] = useState(false);
@@ -66,6 +67,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   useEffect(() => {
     adjustHeight();
   }, [input]);
+
+  useEffect(() => {
+    if (editValue) {
+      setInput(editValue);
+      finalTranscriptRef.current = editValue;
+      textareaRef.current?.focus();
+      // 높이 조절 트리거를 위해 약간의 지연 후 실행
+      setTimeout(adjustHeight, 10);
+    }
+  }, [editValue]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

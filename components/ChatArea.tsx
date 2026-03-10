@@ -8,6 +8,7 @@ interface ChatAreaProps {
     language: Language;
     isTyping: boolean;
     loadingStatus: string | null;
+    onEdit: (content: string) => void;
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
@@ -15,7 +16,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     userProfile,
     language,
     isTyping,
-    loadingStatus
+    loadingStatus,
+    onEdit
 }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -26,7 +28,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return (
         <div className="flex flex-col space-y-2">
             {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} />
+                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} onEdit={onEdit} />
             ))}
 
             {((isTyping && messages.length > 0 && messages[messages.length - 1].role === Role.USER) || loadingStatus) && (
