@@ -30,12 +30,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let oData: any = {};
             if (oRes.ok) oData = await oRes.json();
 
-            // Next, try to get the page description from raw HTML
+            // Next, try to get the page description from raw HTML with more robust regex
             const pageRes = await fetch(targetUrl);
             let description = "";
             if (pageRes.ok) {
                 const text = await pageRes.text();
-                const descMatch = text.match(/<meta\s+name="description"\s+content="([^"]+)"/i);
+                // Match both name="description" and property="og:description"
+                const descMatch = text.match(/<meta\s+(?:name|property)="[^"]*?description"\s+content="([^"]+)"/i) ||
+                                 text.match(/<meta\s+content="([^"]+)"\s+(?:name|property)="[^"]*?description"/i);
                 if (descMatch) description = descMatch[1];
             }
 

@@ -75,7 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // v4.10 Hybrid YouTube Logic:
   // If no [TRANSCRIPT] was found in webContent, restore direct video analysis (fileData)
   // This allows Gemini to "watch" the video even when text extraction fails.
-  const hasTranscript = webContent && webContent.includes('[YOUTUBE_VIDEO_INFO]');
+  // Note: [YOUTUBE_VIDEO_INFO] only contains metadata (Title/Desc), not the actual content.
+  const hasTranscript = webContent && webContent.includes('[TRANSCRIPT]');
   if (isYoutubeRequest && !hasTranscript) {
     const videoUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
     // Using fileData bridges the gap when transcripts are missing.
