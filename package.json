@@ -38,7 +38,7 @@
     "remark-math": "^6.0.0",
     "smiles-drawer": "^2.1.7",
     "xlsx": "^0.18.5",
-    "youtube-transcript-plus": "^1.1.2"
+    "youtube-transcript": "^1.2.1"
   },
   "devDependencies": {
     "@types/jszip": "^3.4.0",

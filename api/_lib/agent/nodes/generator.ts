@@ -125,7 +125,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     const sdkResponse = await genai.models.generateContent({
-                        model: state.model || "gemini-2.0-flash",
+                        model: state.model || "gemini-2.5-flash",
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
