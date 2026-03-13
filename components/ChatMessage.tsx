@@ -139,11 +139,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
+    if (!isUser) return; // Restrict long-press to user prompts only
+    
+    // Clear existing timer to prevent leaks/accidental triggers
+    if (longPressTimer) clearTimeout(longPressTimer);
+    
     const touch = e.touches[0];
     const timer = setTimeout(() => {
       handleLongPress(e, touch.clientX, touch.clientY);
     }, 500); // 500ms for long press
     setLongPressTimer(timer);
+  };
+
+  const onTouchMove = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
   };
 
   const onTouchEnd = () => {
@@ -154,6 +166,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const onContextMenu = (e: React.MouseEvent) => {
+    if (!isUser) return; // Restrict custom menu to user prompts
     e.preventDefault();
     handleLongPress(e, e.clientX, e.clientY);
   };
@@ -572,11 +585,12 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           <div 
             onContextMenu={onContextMenu}
             onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
-            className={`relative transition-all duration-300 overflow-hidden cursor-pointer select-none ${isUser
-            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto active:scale-[0.98]'
+            className={`relative transition-all duration-300 cursor-default ${isUser
+            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
             : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
-            }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
+            }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all', touchAction: 'pan-y', WebkitTouchCallout: 'none' }}>
             <div className="font-normal leading-relaxed w-full">
               {message.content ? (
                 renderContent(message.content)
