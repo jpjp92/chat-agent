@@ -78,8 +78,24 @@ export default async function handler(req: Request) {
 
       // 2. YouTube Logic (Detection only, rely on webContent for summary)
       const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-      const ytMatch = prompt.match(ytRegex) || (webContent && webContent.match(ytRegex)) || (history.some((m: any) => m.role === 'user' && m.content.match(ytRegex)));
-      const isYoutubeRequest = !!ytMatch;
+      const urlRegex = /(https?:\/\/[^\s\)]+)/g;
+
+      const promptUrls = prompt.match(urlRegex) || [];
+      const promptYtMatch = prompt.match(ytRegex);
+
+      let isYoutubeRequest = false;
+      let ytMatch = null;
+
+      if (promptUrls.length > 0) {
+        // If there are URLs in the current prompt, only consider it a YouTube request if it's a YouTube URL.
+        ytMatch = promptYtMatch;
+        isYoutubeRequest = !!ytMatch;
+      } else {
+        // No URL in prompt, check previous context (webContent or history)
+        ytMatch = (webContent && webContent.match(ytRegex)) || 
+                  (history.findLast((m: any) => m.role === 'user' && m.content.match(ytRegex))?.content?.match(ytRegex));
+        isYoutubeRequest = !!ytMatch;
+      }
 
       // 3. Current Request Multimodal Payload
       let humanMessageParts: any[] = [{ type: "text", text: prompt }];

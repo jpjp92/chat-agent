@@ -30,6 +30,7 @@
 - **Dynamic Model Switching**: Automatically toggles between `gemini-2.5-flash` (Standard) for complex tasks and `gemini-2.5-flash-lite` for high-throughput tasks like video frame analysis when transcripts are missing.
 - **YouTube "Fast-Scan" Strategy**: New system prompts prioritize analyzing the beginning, middle, and end of long videos for rapid, accurate summaries.
 - **Robust URL Parameter Handling (v4.12)**: Uses the native `URL` API to clean tracking parameters (like `fbclid`, `utm_*`) and detects PDF documents via `pathname` extension, ensuring even complex social media referral links work perfectly with document analysis.
+- **Context-Aware YouTube Detection (v4.13)**: Refined the `isYoutubeRequest` logic to prioritize URLs within the current prompt. This eliminates false-positive video analysis triggers for non-video documents (e.g., ArXiv PDFs) that contain YouTube references or links previously discussed in the session history.
 - **100MB Direct Supabase Upload (v4.0/v4.1)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents up to **100MB**.
 - **Hybrid Upload Path (v4.7 Optimized)**: Implements an intelligent threshold-based routing. Files under **3MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
 - **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine for large PDF links.
