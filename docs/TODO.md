@@ -188,7 +188,33 @@
   - Frontend: 직접 업로드 대신 Backend가 발행한 Signed URL로 `PUT` 업로드 수행.
   - 보안: 클라이언트 측 Supabase Credentials 완전 제거.
 
-#### 11. Gemini 3.1 Flash Lite 통합 (Postponed) ⚠️
+#### 11. [Planned/v4.14] ARC (Agent RAG Cache) & Prompt Optimization
+
+> **배경**: 반복적인 프롬프트 처리와 외부 API(유튜브, 웹 검색 등) 호출로 인한 지연 시간 및 비용 발생.
+> Gemini의 프롬프트 캐싱 능력을 극대화하고, 자주 묻는 질문에 대한 하이브리드 지식 캐시(ARC)를 구축하여 초고속 응답 실현.
+
+---
+
+**[Step 1] 프롬프트 최적화 및 구조 재배치 (Prefix Matching 극대화)**
+- [ ] **메시지 순서 고정**: `[System Prompt]` -> `[Viz Schemas]` -> `[History]` -> `[User Prompt]` 순으로 정렬하여 Gemini 자동 캐싱 유도.
+- [ ] **실시간 데이터 하단 이동**: 매분 변하는 `CURRENT_SYSTEM_TIME` 등을 지침 최하단으로 옮겨 접두사 캐시 깨짐 방지.
+- [ ] **대용량 파일 캐싱**: 100MB 이상 PDF 등은 Gemini `Context Caching API`를 통해 턴 간 유지.
+
+**[Step 2] Supabase 기반 ARC 인프라 구축**
+- [ ] **`arc_cache` 테이블 생성**: 벡터 검색(`pgvector`)을 지원하는 캐시 데이터베이스 구축.
+- [ ] **스키마 구성**: `query_embedding`, `document_summary`, `drf_score`(빈도), `hubness_score`(중심성).
+
+**[Step 3] LangGraph ARC 라우팅 노드 개발**
+- [ ] **`ARC Cache Node` 신설**: Router와 Executor 사이에 위치하여 캐시 적중 시 외부 툴 호출 생략.
+- [ ] **분기 로직**: 코사인 유사도 검색을 통해 '허브 답변' 존재 시 즉시 응답 생성 노드로 이동.
+
+**[Step 4] 비동기 백그라운드 캐시 업데이트 (Stability)**
+- [ ] **Vercel `waitUntil` 활용**: 사용자 응답 스트리밍 종료 후 백그라운드에서 임베딩 생성 및 캐시 업데이트 수행.
+- [ ] **자동 지식 확장**: 고품질 응답을 실시간으로 캐시에 반영하여 시스템 지능 지속 성장을 유도.
+
+---
+
+#### 12. Gemini 3.1 Flash Lite 통합 (Postponed) ⚠️
 
 - [ ] **목표**: 최신 고성능 효율화 모델인 `gemini-3.1-flash-lite-preview` 적용.
 - [ ] **현황**: Free Tier에서 Google Search Grounding 미지원으로 인해 날씨 등 실시간 쿼리 불가 확인 및 롤백 완료. 차후 유료 티어 전환 또는 모델 업데이트 시 재적용 검토.

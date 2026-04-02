@@ -182,7 +182,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         data.image_url?.includes('terms.naver.com') ||
         data.image_url?.includes('pharm.or.kr') ||
         data.image_url?.includes('health.kr') ||
-        data.image_url?.includes('nedrug.mfds.go.kr');
+        (data.image_url?.includes('nedrug.mfds.go.kr') && !data.image_url?.includes('itemImageDownload'));
 
     const proxiedImageUrl = syncedUrl
         ? syncedUrl
@@ -270,7 +270,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     {/* Digital Specimen Slide Look: Unified dark background */}
                                     <div className="w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500">
                                         <AnimatePresence mode="wait">
-                                            {syncing && !syncedUrl ? (
+                                            {syncing && !proxiedImageUrl ? (
                                                 <motion.div
                                                     key="shimmer"
                                                     initial={{ opacity: 1 }}

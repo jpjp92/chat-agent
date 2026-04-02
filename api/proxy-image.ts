@@ -56,6 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             referer = 'https://terms.naver.com/';
         } else if (targetUrl.hostname.includes('connectdi.com')) {
             referer = 'https://www.connectdi.com/';
+        } else if (targetUrl.hostname.includes('nedrug.mfds.go.kr')) {
+            referer = 'https://nedrug.mfds.go.kr/';
         }
 
         // 3. 외부 이미지 요청 (차단 우회)
