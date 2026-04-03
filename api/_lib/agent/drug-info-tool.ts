@@ -67,71 +67,149 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
 
 /**
  * Perform a background fetch to pharm.or.kr to resolve the idx for the given exact drug name.
+ * Uses a multi-strategy search for robustness.
  */
 async function getPharmOrKrDetailUrl(drugName: string): Promise<string | null> {
-    const body = new URLSearchParams({
-        s_anal: '',
-        s_anal_flag: '0',
-        _page: '1',
-        s_drug_name: drugName,
-        s_upso_name: '',
-        s_upso_name2: '',
-        s_mark_code: '',
-        s_drug_form_etc: '',
-        s_drug_shape_etc: '',
-        new_sb_name1: '',
-        new_sb_name2: '',
-    });
+    // Normalizes for comparison only (Korean units → English, strip spaces/parens)
+    // Handles both modern (밀리그램) and old (밀리그람) Korean unit spellings used by pharm.or.kr
+    const normalizeForCompare = (name: string): string => {
+        return name
+            .replace(/\s+/g, '')
+            .replace(/밀리그[램람]/g, 'mg')
+            .replace(/마이크로그[램람]/g, 'mcg')
+            .replace(/그[램람]/g, 'g')
+            .replace(/\(.*?\)/g, '')
+            .trim();
+    };
 
-    try {
-        const res = await fetch('https://www.pharm.or.kr/search/drugidfy/list.asp', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Referer': 'https://www.pharm.or.kr/search/drugidfy/search.asp',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-            body: body.toString()
+    // Kept for backward compat alias
+    const normalizeSearchName = normalizeForCompare;
+
+    // Extract dosage numbers (e.g. ["500"] from "타이레놀정500밀리그램")
+    const extractDosageNums = (name: string): string[] => {
+        return (name.replace(/밀리그램|마이크로그램|그램/g, '').match(/[\d.]+/g) || []);
+    };
+
+    // Extract base brand name: strip numeric dosage + unit suffix
+    // e.g. "타이레놀정500밀리그램" → "타이레놀정", "아스피린프로텍트장용정100mg" → "아스피린프로텍트장용정"
+    const extractBaseName = (name: string): string => {
+        return name
+            .replace(/[\d.]+\s*(밀리그램|마이크로그램|그램|mg|mcg|g)\b/gi, '')
+            .replace(/\s+/g, '')
+            .trim();
+    };
+
+    const spacelessOriginal = drugName.replace(/\s+/g, '');  // Korean units preserved
+    const normalizedName = normalizeForCompare(drugName);     // English units, no spaces
+    const baseName = extractBaseName(drugName);               // Brand+form only, no dosage
+    // pharm.or.kr uses old Korean spelling "밀리그람" (not standard "밀리그램")
+    const oldSpelling = spacelessOriginal.replace(/밀리그램/g, '밀리그람').replace(/마이크로그램/g, '마이크로그람');
+
+    const strategies = [
+        spacelessOriginal,  // 1. Spaceless original (밀리그램 표준어)
+        oldSpelling,        // 2. Old spelling variant (밀리그람 — actual pharm.or.kr DB spelling)
+        normalizedName,     // 3. English-unit normalized (500mg style)
+        baseName,           // 4. Brand name only — broad fallback, matched with dosage scoring
+    ];
+
+    // Remove duplicates and too-short strings
+    const uniqueStrategies = [...new Set(strategies)].filter(s => s.length > 2);
+
+    const targetNormalized = normalizeForCompare(drugName);
+    const targetDosageNums = extractDosageNums(drugName);
+
+    for (const searchStr of uniqueStrategies) {
+        console.log(`[Pharm.or.kr] Trying search strategy: "${searchStr}" (target dosage: [${targetDosageNums.join(',')}])`);
+        const body = new URLSearchParams({
+            s_anal: '',
+            s_anal_flag: '0',
+            _page: '1',
+            s_drug_name: searchStr,
+            s_upso_name: '',
+            s_upso_name2: '',
+            s_mark_code: '',
+            s_drug_form_etc: '',
+            s_drug_shape_etc: '',
+            new_sb_name1: '',
+            new_sb_name2: '',
         });
 
-        if (!res.ok) return null;
+        try {
+            const res = await fetch('https://www.pharm.or.kr/search/drugidfy/list.asp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Referer': 'https://www.pharm.or.kr/search/drugidfy/search.asp',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+                body: body.toString()
+            });
 
-        const html = await res.text();
-        if (html.includes('검색결과가 없') || !html.includes('change_bgcolor')) return null;
+            if (!res.ok) continue;
 
-        // Extract rows
-        const rowBlocks = html.split(/<tr\s+onmouseover="change_bgcolor/i).slice(1);
-        if (rowBlocks.length === 0) return null;
+            const html = await res.text();
+            if (html.includes('검색결과가 없') || !html.includes('change_bgcolor')) continue;
 
-        // Try to find the exact match (or contains match) to avoid selecting "다파진정5mg" when "다파진정10mg" is requested
-        let matchIdx = null;
-        for (const block of rowBlocks) {
-            const rowHtml = '<tr onmouseover="change_bgcolor' + block;
-            const nameMatch = rowHtml.match(/<!--품목명[\s\S]*?-->([\s\S]*?)<!--신청사/i);
-            const verifiedName = nameMatch ? nameMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').replace(/\s+/g, ' ').trim() : '';
+            // Extract rows
+            const rowBlocks = html.split(/<tr\s+onmouseover="change_bgcolor/i).slice(1);
+            if (rowBlocks.length === 0) continue;
 
-            if (verifiedName === drugName || verifiedName.includes(drugName)) {
-                const m = rowHtml.match(/show\.asp\?idx=(\d+)/);
-                if (m) {
-                    matchIdx = m[1];
-                    break;
+            // Match best index among results
+            let bestIdx = null;
+            let highestMatchScore = -1;
+
+            for (const block of rowBlocks) {
+                const rowHtml = '<tr onmouseover="change_bgcolor' + block;
+                const nameMatch = rowHtml.match(/<!--품목명[\s\S]*?-->([\s\S]*?)<!--신청사/i);
+                if (!nameMatch) continue;
+
+                const rawVerifiedName = nameMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').replace(/\s+/g, ' ').trim();
+                const verifiedNameNormalized = normalizeForCompare(rawVerifiedName);
+
+                // Scoring:
+                // 100 — exact normalized match
+                //  80 — contains match AND dosage numbers all match
+                //  50 — contains match (no dosage confirmation)
+                //  20+ — dosage number overlap (score 10 tiebreaker)
+                //  10  — no relation found
+
+                let score = 0;
+                if (verifiedNameNormalized === targetNormalized) {
+                    score = 100;
+                } else if (verifiedNameNormalized.includes(targetNormalized) || targetNormalized.includes(verifiedNameNormalized)) {
+                    const rowDosages = extractDosageNums(rawVerifiedName);
+                    const allDosagesMatch = targetDosageNums.length > 0 &&
+                        targetDosageNums.every(d => rowDosages.includes(d));
+                    score = allDosagesMatch ? 80 : 50;
+                } else {
+                    // Dosage-aware tiebreaker: prevents wrong-strength results when base name matches
+                    const rowDosages = extractDosageNums(rawVerifiedName);
+                    const matchedDosages = targetDosageNums.filter(d => rowDosages.includes(d)).length;
+                    score = matchedDosages > 0 ? 10 + matchedDosages * 5 : 10;
                 }
+
+                if (score > highestMatchScore) {
+                    const m = rowHtml.match(/show\.asp\?idx=(\d+)/);
+                    if (m) {
+                        bestIdx = m[1];
+                        highestMatchScore = score;
+                    }
+                }
+
+                if (highestMatchScore === 100) break; // Perfect match found
             }
-        }
 
-        // if not found by exact string, fallback to the very first result found
-        if (!matchIdx) {
-            const match = rowBlocks[0].match(/show\.asp\?idx=(\d+)/);
-            if (match && match[1]) matchIdx = match[1];
-        }
+            if (bestIdx) {
+                console.log(`[Pharm.or.kr] Best match found (Score ${highestMatchScore}): idx=${bestIdx}`);
+                return `https://www.pharm.or.kr/search/drugidfy/show.asp?idx=${bestIdx}`;
+            }
 
-        if (matchIdx) {
-            return `https://www.pharm.or.kr/search/drugidfy/show.asp?idx=${matchIdx}`;
+        } catch (e) {
+            console.warn(`[Pharm.or.kr] Fetch error for strategy "${searchStr}":`, e);
         }
-        return null;
-    } catch {
-        return null;
     }
+
+    return null;
 }
 
 /**
@@ -271,7 +349,7 @@ export const searchDrugInfoTool = tool(
 9. "pill_visual.shape": EXACT Korean value from "모양". DO NOT translate to English. (e.g. "마름모형", "원형", "타원형" as-is)
 10. "pill_visual.color": EXACT Korean value from "색상1" (DO NOT translate to English). Append "색상2" with '/' if not null. (e.g. "주황", "하양", "노랑" as-is)
 11. "image_url": the EXACT "공식 이미지URL" string. Do NOT modify it.
-12. "pharm_url": use the EXACT value from "Pharm_URL" if provided in MFDS_DRUG_DATA.
+12. "pharm_url": use the EXACT value from "Pharm_URL" if provided in MFDS_DRUG_DATA. If "Pharm_URL" is NOT present in the data above, set pharm_url to null. NEVER fabricate or guess a pharm.or.kr URL.
 13. If multiple candidates exist, choose the one whose "약품명(KO)" EXACTLY matches the user's query (including dosage numbers like 5/20 vs 5/40).`;
 
             return result;

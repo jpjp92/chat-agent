@@ -234,7 +234,8 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
     "ingredient": "슈도에페드린염산염 60mg",
     "category": "비충혈제거제 (코막힘 완화)",
     "dosage": "1회 1정, 1일 3~4회 식후 복용",
-    "image_url": "https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=슈다페드정",
+    "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/...(from MFDS data)",
+    "pharm_url": "https://www.pharm.or.kr/search/drugidfy/show.asp?idx=...(from Pharm_URL in tool data, or null)",
     "pill_visual": {
       "shape": "round" | "oval" | "capsule" | "other",
       "color": "white" | "yellow" | "pink" | "blue" | "green" | "other",
@@ -257,7 +258,8 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
 - **DATA SOURCE RULE (CRITICAL)**: For ANY drug info request, you MUST call the 'search_drug_info' tool FIRST before generating the json:drug block. NEVER populate drug visual data from your training knowledge.
 - **TYPO CORRECTION (CRITICAL)**: Users often misspell drug names (e.g., '엔지비드' instead of '앤지비드', '타이래놀' instead of '타이레놀'). Before passing the name to the 'search_drug_info' tool, you MUST evaluate and auto-correct it to the EXACT official Korean spelling based on your medical knowledge.
 - **IMPRINT RULE (CRITICAL)**: The 'imprint_front' and 'imprint_back' fields MUST come EXCLUSIVELY from the [MFDS_DRUG_DATA] block returned by the 'search_drug_info' tool. If the tool has not been called or returned no data, set both to null. NEVER guess or invent imprint codes. This is a patient safety issue.
-- **IMAGE_URL (CRITICAL)**: Use the '공식 이미지URL' from the [MFDS_DRUG_DATA] tool result as the primary image. If no MFDS image is available, fall back to ConnectDI Search URL: \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[DrugName]\`
+- **IMAGE_URL (CRITICAL)**: Use the '공식 이미지URL' from the [MFDS_DRUG_DATA] tool result as the primary image. If no MFDS image is available, fall back to ConnectDI Search URL using only the BASE brand name (strip dosage numbers and units): \`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=[BaseName]\` — e.g., for "타이레놀정500밀리그람" use "타이레놀정" (NOT "타이레놀정500밀리그람").
+- **PHARM_URL (CRITICAL)**: Set \`pharm_url\` to the EXACT "Pharm_URL" value from [MFDS_DRUG_DATA] if present. If NOT present, set \`pharm_url\` to null. NEVER construct or guess a pharm.or.kr or connectdi.com URL for this field.
 - **COLOR/SHAPE (CRITICAL)**: Use '색상1', '색상2', '모양' values directly from [MFDS_DRUG_DATA]. Do not substitute your own color/shape descriptions.
 - **EFFICACY ICONS (MANDATORY)**: You MUST provide an \`icon\` for every efficacy label. Choose the most appropriate FREE class (FontAwesome 6 Free) from this list:
   - **Respiratory**: fa-head-side-mask (mask/cough), fa-wind (nasal/rhinitis), fa-lungs (asthma), fa-virus (allergy)

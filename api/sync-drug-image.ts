@@ -2,6 +2,9 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from './_lib/supabase.js';
 import crypto from 'crypto';
 
+// In-flight deduplication: prevents duplicate concurrent downloads for the same fileName
+const inflightRequests = new Map<string, Promise<{ publicUrl: string; pillVisual: any } | null>>();
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { url, imprint_front, imprint_back, drug_name } = req.body;
 
@@ -49,7 +52,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fileName = `drug-cache/${urlHash}.jpg`;
         console.log(`[Sync] Cache key: ${drug_name || '(no name)'} | fileName: ${fileName}`);
 
-        // 2. 이미 존재하는지 확인
+        // 2a. In-flight deduplication: wait for an already-running request for the same file
+        if (inflightRequests.has(fileName)) {
+            console.log(`[Sync] Coalescing duplicate request for: ${fileName}`);
+            const result = await inflightRequests.get(fileName)!;
+            if (result) return res.status(200).json(result);
+            console.log(`[Sync] Previous inflight failed, retrying independently...`);
+        }
+
+        // Register promise immediately so concurrent requests coalesce into this one
+        let resolveInflight!: (v: { publicUrl: string; pillVisual: any } | null) => void;
+        inflightRequests.set(fileName, new Promise(r => { resolveInflight = r; }));
+
+        // 2b. 이미 존재하는지 확인
         const { data: publicUrlData } = supabase.storage
             .from('chat-imgs')
             .getPublicUrl(fileName);
@@ -58,8 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[Sync] Checking if file already exists at: ${publicUrlData.publicUrl}`);
             try {
                 const headCheck = await fetch(publicUrlData.publicUrl, { method: 'HEAD' });
-                if (headCheck.ok) {
-                    console.log(`[Sync] File exists. Returning cached URL.`);
+                // Validate it's actually an image, not a previously-cached HTML error page
+                const cachedType = headCheck.headers.get('content-type') || '';
+                if (headCheck.ok && (cachedType.includes('image/') || cachedType.includes('application/octet-stream'))) {
+                    console.log(`[Sync] File exists (${cachedType}). Returning cached URL.`);
 
                     // Even if cached, extract pill visual from ConnectDI if applicable
                     let pillVisual = null;
@@ -108,15 +125,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             referer = 'https://terms.naver.com/';
         }
 
-        const externalResponse = await fetch(finalUrl, {
-            headers: {
-                'Referer': referer,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        // Retry once on ECONNRESET (nedrug.mfds.go.kr occasionally resets connections)
+        const fetchHeaders = {
+            'Referer': referer,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+        const fetchWithRetry = async (retries = 1): Promise<Response> => {
+            try {
+                return await fetch(finalUrl, { headers: fetchHeaders });
+            } catch (e: any) {
+                if (retries > 0 && (e.code === 'ECONNRESET' || e.message?.includes('fetch failed'))) {
+                    console.warn(`[Sync] Fetch failed (${e.code || e.message}), retrying in 800ms...`);
+                    await new Promise(r => setTimeout(r, 800));
+                    return fetchWithRetry(retries - 1);
+                }
+                throw e;
             }
-        });
+        };
+        const externalResponse = await fetchWithRetry();
 
         if (!externalResponse.ok) {
             console.warn(`[Sync] External image fetch failed for ${finalUrl}: ${externalResponse.status}`);
+            resolveInflight(null);
+            inflightRequests.delete(fileName);
             return res.status(externalResponse.status).json({
                 error: 'External image not found',
                 message: `The provided image URL returned a ${externalResponse.status}`
@@ -202,9 +233,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn(`[Sync] ⚠️ No match for Front:"${imprint_front}" Back:"${imprint_back}"`);
                         }
 
-                        // 요량(dosage) 기반 fallback: 약품명에서 용량 추출 후 블록 텍스트(품목명)와 비교
-                        // 10mg와 5mg 등이 혼재할 때 명확히 구분하기 위함
-                        const dosageMatch = drug_name ? drug_name.match(/(\d+\.?\d*)\s*mg/i) : null;
+                        // Dosage-based fallback (supports Korean units: 밀리그[람램])
+                        const dosageMatch = drug_name
+                            ? (drug_name.match(/(\d+\.?\d*)\s*(?:mg|밀리그[람램])/i) || drug_name.match(/(\d+\.?\d*)/))
+                            : null;
                         const targetDosage = dosageMatch ? dosageMatch[1] : null;
                         let fallbackUrl: string | null = null;
 
@@ -271,12 +303,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
-                    return res.status(200).json({ ...result, pillVisual });
+                    const scrapedPayload = { ...result, pillVisual };
+                    resolveInflight(scrapedPayload);
+                    inflightRequests.delete(fileName);
+                    return res.status(200).json(scrapedPayload);
                 }
             }
 
             console.warn(`[Sync] No valid pill photo found on ${isNaverEntry ? 'Naver' : 'ConnectDI'} page.`);
+            resolveInflight(null);
+            inflightRequests.delete(fileName);
             return res.status(404).json({ error: 'No image found on page' });
+        }
+
+        // Direct image download (e.g. nedrug.mfds.go.kr)
+        // Reject non-image responses to prevent caching HTML error pages
+        if (!contentType.includes('image/') && !contentType.includes('application/octet-stream')) {
+            console.warn(`[Sync] Rejected non-image content-type: ${contentType}`);
+            resolveInflight(null);
+            inflightRequests.delete(fileName);
+            return res.status(422).json({ error: 'URL did not return an image', contentType });
         }
 
         const buffer = Buffer.from(await externalResponse.arrayBuffer());
@@ -293,10 +339,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        return res.status(200).json({ ...result, pillVisual });
+        const directPayload = { ...result, pillVisual };
+        resolveInflight(directPayload);
+        inflightRequests.delete(fileName);
+        return res.status(200).json(directPayload);
 
     } catch (error: any) {
         console.error(`[Sync] Fatal error during sync:`, error);
+        try { resolveInflight?.(null); } catch {}
+        try { inflightRequests.delete(fileName); } catch {}
         return res.status(500).json({
             error: 'Internal Server Error during image sync',
             message: error.message,
