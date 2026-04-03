@@ -68,8 +68,9 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
 /**
  * Perform a background fetch to pharm.or.kr to resolve the idx for the given exact drug name.
  * Uses a multi-strategy search for robustness.
+ * If imprint is provided, validates search results against the imprint for accuracy.
  */
-async function getPharmOrKrDetailUrl(drugName: string): Promise<string | null> {
+async function getPharmOrKrDetailUrl(drugName: string, imprint?: string): Promise<string | null> {
     // Normalizes for comparison only (Korean units → English, strip spaces/parens)
     // Handles both modern (밀리그램) and old (밀리그람) Korean unit spellings used by pharm.or.kr
     const normalizeForCompare = (name: string): string => {
@@ -117,6 +118,14 @@ async function getPharmOrKrDetailUrl(drugName: string): Promise<string | null> {
 
     const targetNormalized = normalizeForCompare(drugName);
     const targetDosageNums = extractDosageNums(drugName);
+    
+    // Normalize imprint for comparison if provided
+    const normalizedImprint = imprint ? 
+        imprint.trim().replace(/[-\s]/g, '').toUpperCase() : 
+        null;
+    if (imprint) {
+        console.log(`[Pharm.or.kr] Imprint validation enabled: "${imprint}" (normalized: "${normalizedImprint}")`);
+    }
 
     for (const searchStr of uniqueStrategies) {
         console.log(`[Pharm.or.kr] Trying search strategy: "${searchStr}" (target dosage: [${targetDosageNums.join(',')}])`);
@@ -157,6 +166,18 @@ async function getPharmOrKrDetailUrl(drugName: string): Promise<string | null> {
             // Match best index among results
             let bestIdx = null;
             let highestMatchScore = -1;
+            
+            // Helper: normalize imprint from HTML for comparison
+            const extractImprintFromHtml = (html: string): string[] => {
+                // Try to extract imprint code/info if visible in the result row
+                const imprintMatch = html.match(/\[([^\]]+)\]|각인[:\s]*([^<\n]+)|마크[:\s]*([^<\n]+)/i);
+                if (imprintMatch) {
+                    const extracted = (imprintMatch[1] || imprintMatch[2] || imprintMatch[3] || '');
+                    const normalized = extracted.trim().replace(/[-\s]/g, '').toUpperCase();
+                    return normalized ? [normalized] : [];
+                }
+                return [];
+            };
 
             for (const block of rowBlocks) {
                 const rowHtml = '<tr onmouseover="change_bgcolor' + block;
@@ -188,11 +209,23 @@ async function getPharmOrKrDetailUrl(drugName: string): Promise<string | null> {
                     score = matchedDosages > 0 ? 10 + matchedDosages * 5 : 10;
                 }
 
-                if (score > highestMatchScore) {
+                // If imprint validation is enabled, check imprint match
+                let imprintMatch = true;
+                if (normalizedImprint) {
+                    const rowImprints = extractImprintFromHtml(rowHtml);
+                    imprintMatch = rowImprints.length === 0 || 
+                        rowImprints.some(ri => normalizedImprint.includes(ri) || ri.includes(normalizedImprint));
+                    if (!imprintMatch) {
+                        console.log(`[Pharm.or.kr] Imprint mismatch: expected "${normalizedImprint}", found ${rowImprints.join(',')}`);
+                    }
+                }
+
+                if (imprintMatch && score > highestMatchScore) {
                     const m = rowHtml.match(/show\.asp\?idx=(\d+)/);
                     if (m) {
                         bestIdx = m[1];
                         highestMatchScore = score;
+                        console.log(`[Pharm.or.kr] Imprint validation passed for idx=${m[1]} (score: ${score})`);
                     }
                 }
 
@@ -305,9 +338,11 @@ export const searchDrugInfoTool = tool(
             // Resolve the parallel Pharm.or.kr fetch
             let pharmUrl = await pharmUrlPromise;
             if (!pharmUrl && items.length > 0) {
-                // Fallback to the first MFDS candidate's name, stripped of generic name part
+                // Fallback to the first MFDS candidate's name with imprint validation
                 const baseName = items[0].ITEM_NAME.split('(')[0].trim();
-                pharmUrl = await getPharmOrKrDetailUrl(baseName);
+                const imprintForValidation = items[0].PRINT_FRONT || items[0].PRINT_BACK;
+                console.log(`[Agent Tool] Fallback Pharm.or.kr search with imprint validation: baseName="${baseName}", imprint="${imprintForValidation}"`);
+                pharmUrl = await getPharmOrKrDetailUrl(baseName, imprintForValidation);
             }
             if (pharmUrl) {
                 console.log(`[Agent Tool] Found Pharm URL: ${pharmUrl}`);
@@ -334,6 +369,9 @@ export const searchDrugInfoTool = tool(
                 if (pharmUrl) {
                     result += `Pharm_URL: ${pharmUrl}\n`;
                 }
+                // ConnectDI reference URL (약품명만으로 검색 - 사용자가 여러 옵션 중 선택 가능)
+                const connectdiUrl = `https://www.connectdi.co.kr/?search=${encodeURIComponent(item.ITEM_NAME.split('(')[0].trim())}`;
+                result += `ConnectDI_URL: ${connectdiUrl}\n`;
                 result += `\n`;
             });
 
@@ -350,7 +388,8 @@ export const searchDrugInfoTool = tool(
 10. "pill_visual.color": EXACT Korean value from "색상1" (DO NOT translate to English). Append "색상2" with '/' if not null. (e.g. "주황", "하양", "노랑" as-is)
 11. "image_url": the EXACT "공식 이미지URL" string. Do NOT modify it.
 12. "pharm_url": use the EXACT value from "Pharm_URL" if provided in MFDS_DRUG_DATA. If "Pharm_URL" is NOT present in the data above, set pharm_url to null. NEVER fabricate or guess a pharm.or.kr URL.
-13. If multiple candidates exist, choose the one whose "약품명(KO)" EXACTLY matches the user's query (including dosage numbers like 5/20 vs 5/40).`;
+13. "connectdi_url": use the EXACT value from "ConnectDI_URL" if provided in MFDS_DRUG_DATA. This is a reference URL for users to explore multiple options.
+14. If multiple candidates exist, choose the one whose "약품명(KO)" EXACTLY matches the user's query (including dosage numbers like 5/20 vs 5/40).`;
 
             return result;
 
