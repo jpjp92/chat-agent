@@ -195,13 +195,23 @@ async function getPharmOrKrDetailUrl(drugName: string, imprint?: string): Promis
                 //  10  — no relation found
 
                 let score = 0;
+                const targetBaseName = extractBaseName(targetNormalized);
+                const verifiedBaseName = extractBaseName(verifiedNameNormalized);
+
                 if (verifiedNameNormalized === targetNormalized) {
                     score = 100;
-                } else if (verifiedNameNormalized.includes(targetNormalized) || targetNormalized.includes(verifiedNameNormalized)) {
+                } else if (verifiedBaseName === targetBaseName) {
+                    // Base name exact match (e.g. "타이레놀정" vs "타이레놀정500mg") — higher than generic contains
                     const rowDosages = extractDosageNums(rawVerifiedName);
                     const allDosagesMatch = targetDosageNums.length > 0 &&
                         targetDosageNums.every(d => rowDosages.includes(d));
-                    score = allDosagesMatch ? 80 : 50;
+                    score = allDosagesMatch ? 80 : 70;
+                } else if (verifiedNameNormalized.includes(targetNormalized) || targetNormalized.includes(verifiedNameNormalized)) {
+                    // Substring match — "우먼스타이레놀정" contains "타이레놀정" but base names differ
+                    const rowDosages = extractDosageNums(rawVerifiedName);
+                    const allDosagesMatch = targetDosageNums.length > 0 &&
+                        targetDosageNums.every(d => rowDosages.includes(d));
+                    score = allDosagesMatch ? 60 : 50;
                 } else {
                     // Dosage-aware tiebreaker: prevents wrong-strength results when base name matches
                     const rowDosages = extractDosageNums(rawVerifiedName);

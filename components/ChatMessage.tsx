@@ -624,26 +624,65 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             )}
           </div>
 
-          {!isUser && message.groundingSources && message.groundingSources.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
-              {message.groundingSources.map((source, idx) => (
-                <a
-                  key={idx}
-                  href={source.uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-800 hover:border-primary-500 transition-all group"
-                >
-                  <img
-                    src={`https://www.google.com/s2/favicons?domain=${new URL(source.uri).hostname}&sz=32`}
-                    alt="fav"
-                    className="w-3.5 h-3.5 mr-2"
-                  />
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{source.title}</span>
-                </a>
-              ))}
-            </div>
-          )}
+          {!isUser && (() => {
+            // Extract drug chips from content
+            const drugChips: { name: string; pharmUrl?: string }[] = [];
+            if (message.content) {
+              const drugRegex = /```json\s*:\s*drug\s*\n([\s\S]*?)\n```/gi;
+              let m;
+              while ((m = drugRegex.exec(message.content)) !== null) {
+                try {
+                  const d = JSON.parse(m[1]);
+                  if (d.name) drugChips.push({ name: d.name, pharmUrl: d.pharm_url });
+                } catch {}
+              }
+            }
+            const hasGrounding = message.groundingSources && message.groundingSources.length > 0;
+            if (!hasGrounding && drugChips.length === 0) return null;
+            return (
+              <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
+                {hasGrounding && message.groundingSources!.map((source, idx) => (
+                  <a
+                    key={idx}
+                    href={source.uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-800 hover:border-primary-500 transition-all group"
+                  >
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${new URL(source.uri).hostname}&sz=32`}
+                      alt="fav"
+                      className="w-3.5 h-3.5 mr-2"
+                    />
+                    <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{source.title}</span>
+                  </a>
+                ))}
+                {drugChips.map((chip, idx) => {
+                  const normName = chip.name
+                    .replace(/\(.*?\)/g, '')
+                    .replace(/\s*\d+(\.\d+)?\s*(밀리그램|마이크로그램|그램|mg|mcg|g|%|IU|ml|mL)/gi, '')
+                    .trim();
+                  const href = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(normName)}`;
+                  return (
+                    <a
+                      key={`drug-${idx}`}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-800 hover:border-primary-500 transition-all group"
+                    >
+                      <img
+                        src="https://www.google.com/s2/favicons?domain=connectdi.com&sz=32"
+                        alt="fav"
+                        className="w-3.5 h-3.5 mr-2"
+                      />
+                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">connectdi.com</span>
+                    </a>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
       

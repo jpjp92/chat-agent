@@ -191,45 +191,52 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             : null;
 
     useEffect(() => {
-        const syncImage = async () => {
-            if (isValidUrl(data.image_url) && !syncedUrl) {
-                setSyncing(true);
-                try {
-                    const response = await fetch('/api/sync-drug-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            url: data.image_url,
-                            imprint_front: data.pill_visual?.imprint_front,
-                            imprint_back: data.pill_visual?.imprint_back,
-                            drug_name: data.name
-                        })
-                    });
+        // Reset state whenever the drug changes
+        setSyncedUrl(null);
+        setImageError(false);
+        setServerPillVisual(null);
 
-                    if (response.ok) {
-                        const { publicUrl, pillVisual } = await response.json();
-                        setSyncedUrl(publicUrl);
-                        if (pillVisual) {
-                            console.log('[DrugRenderer] Server extracted pill visual:', pillVisual);
-                            setServerPillVisual(pillVisual);
-                        }
-                        setImageError(false);
-                    } else {
-                        setImageError(true);
+        if (!isValidUrl(data.image_url)) {
+            setSyncing(false);
+            return;
+        }
+
+        setSyncing(true);
+
+        const syncImage = async () => {
+            try {
+                const response = await fetch('/api/sync-drug-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: data.image_url,
+                        imprint_front: data.pill_visual?.imprint_front,
+                        imprint_back: data.pill_visual?.imprint_back,
+                        drug_name: data.name
+                    })
+                });
+
+                if (response.ok) {
+                    const { publicUrl, pillVisual } = await response.json();
+                    setSyncedUrl(publicUrl);
+                    if (pillVisual) {
+                        console.log('[DrugRenderer] Server extracted pill visual:', pillVisual);
+                        setServerPillVisual(pillVisual);
                     }
-                } catch (error) {
-                    console.error('[DrugRenderer] Image sync error:', error);
+                    setImageError(false);
+                } else {
                     setImageError(true);
-                } finally {
-                    setSyncing(false);
                 }
-            } else {
+            } catch (error) {
+                console.error('[DrugRenderer] Image sync error:', error);
+                setImageError(true);
+            } finally {
                 setSyncing(false);
             }
         };
 
         syncImage();
-    }, [data.image_url, syncedUrl]);
+    }, [data.image_url]);
 
 
 
@@ -442,7 +449,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase whitespace-nowrap">MED INDEX</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        {data.pharm_url ? (
+                        {data.pharm_url && (
                             <a
                                 href={data.pharm_url}
                                 target="_blank"
@@ -450,15 +457,6 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20 whitespace-nowrap"
                             >
                                 자세히 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-                            </a>
-                        ) : (
-                            <a
-                                href={`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(normalizeDrugName(data.name))}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-500/10 text-[11px] font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all border border-indigo-100 dark:border-indigo-500/20 whitespace-nowrap"
-                            >
-                                {t.details} <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                             </a>
                         )}
                     </div>
