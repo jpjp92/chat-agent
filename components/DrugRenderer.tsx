@@ -449,7 +449,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20 whitespace-nowrap"
                             >
-                                약학정보원 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                                자세히 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                             </a>
                         ) : (
                             <a
