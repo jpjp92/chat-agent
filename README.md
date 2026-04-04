@@ -1,78 +1,79 @@
-# 🚀 Chat Agent with Gemini
+# Chat Agent with Gemini
 
-**Gemini 2.5 Flash** 기반 인텔리전트 AI 메신저. **Supabase** 영구 저장소 + **LangGraph.js** 에이전틱 파이프라인 + 7종 인터랙티브 시각화 렌더러를 탑재한 차세대 채팅 에이전트.
-
----
-
-## ✨ 핵심 기능
-
-### 💬 대화 & 인증
-- **Login-less 경험**: 즉시 시작, 랜덤 닉네임 + 아바타 자동 발급
-- **영구 히스토리**: Supabase(PostgreSQL) 기반 세션/메시지 지속 저장
-- **AI 자동 제목**: 대화 내용 기반 세션 제목 자동 생성 (Gemma 3)
-- **다국어 지원**: KO / EN / ES / FR 완전 로컬라이제이션
-
-### 🧠 AI Intelligence
-- **Gemini 2.5 Flash** (메인) + **Flash-Lite** (자동 전환)
-- **Google Search Grounding**: 실시간 검색 + 소스 칩 반환
-- **YouTube 분석**: 트랜스크립트 우선 / 없으면 직접 영상 분석 폴백. 타임스탬프 링크 포함 구조화 요약
-- **멀티모달**: 이미지, PDF(30MB+), 영상, DOCX/HWPX/PPTX/XLSX 지원
-- **LangGraph 에이전트**: Semantic Router → Vision/Generator 노드 기반 의도별 최적 경로 처리
-
-### 📊 시각화 렌더러 (7종)
-| 렌더러 | 트리거 | 기술 |
-|--------|--------|------|
-| **Drug-Viz** 💊 | 약품명 질의 | MFDS API + pharm.or.kr 딥링크 |
-| **Chem-Viz** 🧪 | 분자/화학구조 질의 | SMILES Drawer |
-| **Bio-Viz** 🧬 | 단백질/DNA 질의 | NGL Viewer (3D PDB) |
-| **Physics-Viz** 🎾 | 역학/시뮬레이션 질의 | Matter.js |
-| **Diagram-Viz** 📐 | 경사면/힘 다이어그램 | Canvas 2D |
-| **Constellation-Viz** ✨ | 별자리/천체 질의 | HTML5 Canvas |
-| **Chart-Viz** 📈 | 데이터/통계 질의 | ApexCharts |
-
-### 💊 Drug-Viz 상세 (약품 식별 엔진)
-- **Vision 각인 추출**: MFDS "마크" 반환 시 Gemini Vision으로 실제 각인 텍스트 추출
-- **pharm.or.kr 딥링크**: 서버사이드 POST로 내부 `idx` 추출, 원클릭 식별 카드 링크
-- **2단계 이미지 검증**: ConnectDI HTML 파싱 + 각인 매칭. 정확도 70% → 95%+
-- **병렬 처리**: MFDS 조회 + pharm.or.kr 조회 동시 실행
-- **DDG 폴백**: MFDS 미등록 약품 시 DuckDuckGo 검색으로 자동 폴백 + 소스 칩 반환
-
-### ⚡ 성능
-- **Lighthouse 83/100** (초기 44 → 개선)
-- **JS Bundle 365KB** gzip (초기 1.0MB → Code Splitting + Lazy Loading)
-- **CSS Bundle ~15KB** (초기 124KB → Build-time Tailwind)
-- **CLS 0.00** / **Best Practices 100/100**
-
-### 🔐 보안
-- **Presigned URL 아키텍처**: 프론트엔드에 Supabase 자격증명 미노출
-- **RLS 적용**: Supabase Row Level Security로 사용자 데이터 격리
-- **API Key Rotation**: 429 발생 시 자동 키 순환 (60초 블랙리스트)
+An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, and 7 interactive visualization renderers.
 
 ---
 
-## 🏗️ 아키텍처
+## Features
 
-### 전체 구조
+### Conversation & Auth
+- **Login-less**: Start instantly with an auto-assigned random nickname and avatar
+- **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
+- **Auto-title**: Session titles generated automatically from conversation content (Gemma 3)
+- **Localization**: Full support for KO / EN / ES / FR
+
+### AI Intelligence
+- **Gemini 2.5 Flash** (primary) with **Flash-Lite** for routing and lightweight tasks
+- **Google Search Grounding**: Real-time web search with source chip rendering
+- **YouTube analysis**: Transcript-first with direct video analysis fallback; structured summary with timestamp links
+- **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
+- **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
+
+### Visualization Renderers (7)
+
+| Renderer | Trigger | Library |
+|----------|---------|---------|
+| Drug-Viz | Drug name query | MFDS API + pharm.or.kr deep link |
+| Chem-Viz | Molecule / chemical structure | smiles-drawer |
+| Bio-Viz | Protein / DNA query | NGL Viewer (3D PDB) |
+| Physics-Viz | Dynamics / simulation | Matter.js |
+| Diagram-Viz | Force diagram / inclined plane | Canvas 2D |
+| Constellation-Viz | Star / celestial query | HTML5 Canvas |
+| Chart-Viz | Data / statistics | ApexCharts |
+
+### Drug-Viz — Pill Identification Engine
+- **Vision imprint extraction**: When MFDS returns a logo mark, Gemini Vision extracts the actual imprint text
+- **pharm.or.kr deep link**: Server-side POST extracts internal `idx` for a one-click identification card link
+- **2-stage image verification**: ConnectDI HTML parsing + imprint matching; accuracy 70% → 95%+
+- **Parallel processing**: MFDS lookup and pharm.or.kr lookup run concurrently
+- **DDG fallback**: Drugs not in MFDS fall back to DuckDuckGo search with source chips
+
+### Performance
+- Lighthouse **83 / 100** (up from 44)
+- JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
+- CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
+- CLS **0.00** / Best Practices **100 / 100**
+
+### Security
+- **Presigned URL architecture**: Supabase credentials never exposed to the frontend
+- **Row Level Security**: Supabase RLS enforces per-user data isolation
+- **API key rotation**: Automatic key cycling on 429 errors (60 s blacklist)
+
+---
+
+## Architecture
+
+### System Overview
 
 ```mermaid
 flowchart TB
-    User([👤 User])
+    User([User])
 
-    subgraph Frontend ["🎨 Frontend (React 19 + Vite)"]
+    subgraph Frontend ["Frontend (React 19 + Vite)"]
         UI[Main UI & App State]
-        subgraph Visualizers ["📊 Visualization Modules"]
-            Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
-            Phy["🎾 Phy-Viz"] & Drug["💊 Drug-Viz"] & Charts["📈 Data-Viz"]
+        subgraph Visualizers ["Visualization Modules"]
+            Astro["Astro-Viz"] & Bio["Bio-Viz"] & Chem["Chem-Viz"]
+            Phy["Physics-Viz"] & Drug["Drug-Viz"] & Charts["Chart-Viz"]
         end
     end
 
-    subgraph Backend ["⚙️ Vercel Serverless"]
+    subgraph Backend ["Vercel Serverless"]
         ChatPipe["/api/chat"] & TTS["/api/speech"] & Sync["/api/sync-drug-image"]
     end
 
-    subgraph Providers ["🌐 External Services"]
-        Gemini[["🤖 Google Gemini AI"]]
-        Supabase[("💾 Supabase")]
+    subgraph Providers ["External Services"]
+        Gemini[["Google Gemini AI"]]
+        Supabase[("Supabase")]
     end
 
     User <--> UI
@@ -82,21 +83,21 @@ flowchart TB
     Backend <--> Supabase
 ```
 
-### LangGraph 에이전트 플로우
+### LangGraph Agent Flow
 
 ```mermaid
 flowchart TB
-    User([👤 User Prompt])
+    User([User Prompt])
 
     subgraph StateGraph ["LangGraph.js StateGraph"]
         StateNode[("AgentState")]
-        RouterNode{{"🧭 Semantic Router\n(Intent: medical | general)"}}
-        Vision["👁️ Vision Node\n(알약 이미지 분석)"]
-        ToolExecutor["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
-        Generator["📝 Generator Node\n(Gemini LLM)"]
+        RouterNode{{"Semantic Router\n(Intent: medical | general)"}}
+        Vision["Vision Node\n(Pill image analysis)"]
+        ToolExecutor["Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
+        Generator["Generator Node\n(Gemini LLM)"]
     end
 
-    Output([💬 Streaming Response])
+    Output([Streaming Response])
 
     User --> StateNode --> RouterNode
     RouterNode -- "pill image" --> Vision --> StateNode
@@ -106,70 +107,71 @@ flowchart TB
 
 ---
 
-## 🛠️ 기술 스택
+## Tech Stack
 
-| 레이어 | 기술 |
-|--------|------|
-| **Frontend** | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion |
-| **Visualization** | ApexCharts, smiles-drawer, NGL, matter-js, HTML5 Canvas |
-| **Backend** | Vercel Serverless Functions, LangGraph.js |
-| **AI** | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
-| **Database** | Supabase (PostgreSQL, Storage, Auth) |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion |
+| Visualization | ApexCharts, smiles-drawer, NGL, matter-js, HTML5 Canvas |
+| Backend | Vercel Serverless Functions, LangGraph.js |
+| AI | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
+| Database | Supabase (PostgreSQL, Storage, Auth) |
 
-### AI 모델 용도
-| 용도 | 모델 |
-|------|------|
-| 메인 채팅 | `gemini-2.5-flash` |
-| 라우터 / 경량 처리 | `gemini-2.5-flash-lite` |
+### Model Usage
+
+| Purpose | Model |
+|---------|-------|
+| Main chat | `gemini-2.5-flash` |
+| Router / lightweight | `gemini-2.5-flash-lite` |
 | TTS | `gemini-2.5-flash-preview-tts` |
-| 세션 제목 | `gemini-2.5-flash-lite` / `gemma-3-4b-it` |
+| Session title | `gemini-2.5-flash-lite` / `gemma-3-4b-it` |
 
 ---
 
-## 📁 프로젝트 구조
+## Project Structure
 
 ```
 ├── api/                        # Vercel Serverless Functions
-│   ├── chat.ts                 # 메인 Gemini 스트리밍 (LangGraph)
-│   ├── speech.ts               # TTS 서비스
-│   ├── sync-drug-image.ts      # 약품 이미지 캐싱 & 파싱
-│   ├── pill-search.ts          # 알약 식별 API
-│   ├── sessions.ts             # 세션/메시지 CRUD
-│   ├── upload.ts               # Supabase Storage 업로드 프록시
-│   ├── fetch-url.ts            # 웹/Arxiv 스크래핑
-│   ├── fetch-transcript.ts     # YouTube 자막 추출
-│   └── _lib/                   # 유틸리티 (Vercel 함수 수 카운트 제외)
-│       ├── agent/              # LangGraph 에이전트
-│       │   ├── graph.ts        # StateGraph 정의
+│   ├── chat.ts                 # Main Gemini streaming endpoint (LangGraph)
+│   ├── speech.ts               # TTS service
+│   ├── sync-drug-image.ts      # Drug image caching and parsing
+│   ├── pill-search.ts          # Pill identification API
+│   ├── sessions.ts             # Session / message CRUD
+│   ├── upload.ts               # Supabase Storage upload proxy
+│   ├── fetch-url.ts            # Web / ArXiv scraping
+│   ├── fetch-transcript.ts     # YouTube transcript extraction
+│   └── _lib/                   # Shared utilities (excluded from Vercel function count)
+│       ├── agent/              # LangGraph agent
+│       │   ├── graph.ts        # StateGraph definition
 │       │   ├── nodes/          # router / vision / generator
 │       │   ├── drug-info-tool.ts
 │       │   ├── tools.ts
 │       │   ├── prompt.ts
 │       │   └── state.ts
-│       ├── pill-logic.ts       # 약학정보원 검색 로직
+│       ├── pill-logic.ts       # pharm.or.kr search logic
 │       └── supabase.ts
-├── components/                 # UI 컴포넌트
-│   ├── ChatMessage.tsx         # 마크다운 + 시각화 블록 파싱
-│   ├── DrugRenderer.tsx        # 약품 카드
-│   ├── BioRenderer.tsx         # 3D 단백질 구조
-│   ├── ChemicalRenderer.tsx    # SMILES 분자 구조
-│   ├── PhysicsRenderer.tsx     # 물리 시뮬레이션
-│   ├── ConstellationRenderer.tsx # 별자리 맵
-│   ├── ChartRenderer.tsx       # 차트
-│   ├── DiagramRenderer.tsx     # 힘 다이어그램
+├── components/                 # UI components
+│   ├── ChatMessage.tsx         # Markdown + visualization block parser
+│   ├── DrugRenderer.tsx        # Drug card
+│   ├── BioRenderer.tsx         # 3D protein structure
+│   ├── ChemicalRenderer.tsx    # SMILES molecular structure
+│   ├── PhysicsRenderer.tsx     # Physics simulation
+│   ├── ConstellationRenderer.tsx
+│   ├── ChartRenderer.tsx
+│   ├── DiagramRenderer.tsx
 │   └── ...
-├── docs/                       # 프로젝트 문서
-│   ├── DEV_HISTORY.md          # 버전별 개발 이력
-│   ├── DEV_260404.md           # 최근 작업 로그
-│   └── TODO.md                 # 로드맵
+├── docs/
+│   ├── DEV_HISTORY.md          # Version changelog
+│   ├── DEV_260404.md           # Recent work log
+│   └── TODO.md                 # Roadmap
 └── types.ts
 ```
 
 ---
 
-## 🚀 시작하기
+## Getting Started
 
-### 환경 변수 설정 (`.env.local`)
+### Environment variables (`.env.local`)
 
 ```env
 SUPABASE_URL=your_supabase_url
@@ -180,7 +182,7 @@ MFDS_API_ENDPOINT=your_mfds_endpoint
 MFDS_API_KEY=your_mfds_key
 ```
 
-### 설치 & 실행
+### Install & run
 
 ```bash
 npm install
@@ -189,6 +191,6 @@ npm run dev
 
 ---
 
-> 상세 변경 이력: [docs/DEV_HISTORY.md](docs/DEV_HISTORY.md)  
+> Detailed changelog: [docs/DEV_HISTORY.md](docs/DEV_HISTORY.md)  
 > Developed by **jpjp92** — Powered by Google Gemini & Supabase
 
