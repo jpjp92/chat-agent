@@ -1,454 +1,186 @@
-# 🚀 Chat Agent with Gemini - Next-Gen AI Persistent Messenger
+# 🚀 Chat Agent with Gemini
 
-**Chat Agent with Gemini** is an intelligent AI messenger that combines the power of Google's **Gemini 2.5 Flash** and **Flash-Lite** engines with **Supabase** persistent storage. It offers a seamless **Login-less** experience while maintaining **Persistent History** across devices.
-
----
-
-## ✨ Key Features
-
-### ⚡ Login-less Experience (Guest-First)
-
-- **Automatic Anonymous Auth**: Start chatting immediately with a random nickname and profile. No tedious sign-up or email verification required.
-- **Profile Customization**: Easily set your custom nickname and avatar from the sidebar. All profile data is saved securely in the cloud.
-
-### 💾 Persistent Conversation History
-
-- **Supabase Integration**: All messages and sessions are stored in Supabase (PostgreSQL). Your chat history remains intact even after a page refresh or device change.
-- **Intelligent Session Management**: Create, delete, and rename chat sessions. An AI-powered titling system (using Gemma 3) automatically generates representative titles for your conversations.
-
-### 🌐 Comprehensive Deep Localization
-
-- **Multi-language Support**: Fully supports **English (EN)**, **Korean (KO)**, **Spanish (ES)**, and **French (FR)**.
-- **Visualizer Localization**: All visualization modules (Bio, Chemical, Charts) automatically localize their UI labels (e.g., "Chain", "Molecular Structure", "Analyzing...") based on the global setting.
-- **Strict Response Enforcement**: Optimized system prompts ensure Gemini adheres to the selected language regardless of input language.
-
-- **Browser-Native Timezone Injection**: Automatically detects the user's local timezone (e.g., `Europe/Paris`, `Asia/Seoul`) and injects it directly into the backend System Prompt, completely eliminating time-based hallucinations and ensuring real-time queries (weather, news) are perfectly localized to the user's physical location.
-
-### 🔍 Intelligence & Multimodality (Gemini 2.5 Optimized)
-
-- **Gemini 2.5 Flash Migration (Standard)**: Upgraded the primary engine to `gemini-2.5-flash` for significantly higher intelligence, more accurate reasoning, and better context handling.
-- **Dynamic Model Switching**: Automatically toggles between `gemini-2.5-flash` (Standard) for complex tasks and `gemini-2.5-flash-lite` for high-throughput tasks like video frame analysis when transcripts are missing.
-- **YouTube "Fast-Scan" Strategy**: New system prompts prioritize analyzing the beginning, middle, and end of long videos for rapid, accurate summaries.
-- **Robust URL Parameter Handling (v4.12)**: Uses the native `URL` API to clean tracking parameters (like `fbclid`, `utm_*`) and detects PDF documents via `pathname` extension, ensuring even complex social media referral links work perfectly with document analysis.
-- **Context-Aware YouTube Detection (v4.13)**: Refined the `isYoutubeRequest` logic to prioritize URLs within the current prompt. This eliminates false-positive video analysis triggers for non-video documents (e.g., ArXiv PDFs) that contain YouTube references or links previously discussed in the session history.
-- **100MB Direct Supabase Upload (v4.0/v4.1)**: Bypasses Vercel's 4.5MB serverless payload limit by uploading files directly from the browser to Supabase Storage. Supports images, videos, and large documents up to **100MB**.
-- **Hybrid Upload Path (v4.7 Optimized)**: Implements an intelligent threshold-based routing. Files under **3MB** bypass Supabase and are sent directly via Base64 to eliminate "Double Hop" latency, while larger files seamlessly use the persistent Supabase Storage path.
-- **Latency-Optimized URL Passthrough (v3.7)**: Features a high-performance dual-path analysis engine for large PDF links.
-- **Flawless Multi-turn Continuity (v4.5)**: Reconstructs full multimodal history (images, PDFs) for previous turns, ensuring AI maintains perfect context during long, complex conversations.
-- **Real-time Google Search (Grounding Fixed)**: Displays accurate **Grounding Source Cards** with real URL citations.
-  - **YouTube Hybrid Analysis (v4.10)**: Smart fallback engine. Prioritizes fast transcripts for speed; automatically restores **Direct Video Analysis** (`fileData`) when transcripts are missing, allowing Gemini to "watch" the video.
-  - **YouTube In-Chat Playback (v4.11)**: Integrated a premium `YoutubeEmbed` component with `React.lazy` and `Suspense` for zero-impact performance. Play videos directly within the chat bubble.
-  - **Long Video Stability (v4.11)**: Optimized tag alignment (`[YOUTUBE_VIDEO_INFO]`) and grounding logic to prevent Vercel timeouts for 30m+ videos.
-  - **Timestamp Chunking & Premium Links (v4.9)**: Clickable `[[MM:SS](URL&t=S)]` links lead directly to video moments with structured table-style summaries.
-
-### 📊 Intelligent Data, Chemical & Biological Visualization (Upgraded!)
-
-- **Advanced Dynamic Charts**: Support for 8+ visualization types: **Bar, Line, Area, Pie, Donut, Scatter, Radar, and Treemap**.
-- **Chemical Structure Rendering (Chem-Viz)**: Asking about molecules (e.g., Caffeine, Aspirin) renders precise structures with **SMILES** support.
-  - **ViewBox Responsive Design**: SVG viewBox-based scaling ensures optimal display on all screen sizes—spacious on desktop (up to 768px), perfectly fitted on mobile.
-  - **Enhanced Resolution**: Increased default canvas size (600x300) for sharper molecular details.
-  - **Molecule Naming & SVG Export**: Download publication-ready molecular structures with white backgrounds.
-- **Bioinformatics Visualization (Bio-Viz)**:
-  - **3D Protein Structure**: Immersive rendering of PDB structures using **NGL Viewer** with high-quality cartoon representations.
-  - **Perfect Visual Centering**: CSS-based layout optimization (`pt-10 pb-16`) ensures structures are precisely centered between header and footer badges, with optimized `autoView` call (600ms) for layout stability.
-  - **Mobile-Optimized Tooltips**: On mobile, residue information appears as a **fixed bottom panel** instead of cursor-following tooltips, preventing finger occlusion during touch interactions.
-  - **Intelligent Tracking**: Real-time **Residue Tracking** (#number) with fixed-position Glassmorphic Tooltips on desktop.
-  - **Large Scale Support**: Optimized for massive assemblies like **Connexin Channels** (e.g., 2ZW3) with multi-chain color differentiation.
-  - **WebGL Optimization**: Explicit context disposal (dispose) and robust event listener management.
-- **Result Export**: High-quality **Snapshot (PNG)** and **SVG Download** support with white-background compatibility for external reports.
-- **Interactive Physics Simulation (Phy-Viz)**:
-  - **Matter.js Engine**: Real-time 2D physics simulations for classical mechanics, gravity, and collisions.
-  - **Illustrated Explainer Mode**: Real-time **Vector Arrow** (Force, Velocity) and **Text Label** overlay for educational diagrams.
-  - **Rotational Dynamics**: Supports angular velocity, torque, and momentum conservation experiments.
-  - **Responsive Scaling**: Automatically adapts coordinates (800x400 Virtual Grid) for **Web (16:9)** and **Mobile (4:3)** views.
-  - **Premium Interaction**: Supports touch-based dragging, reset functionality, and localized headers with glassmorphic design.
-- **Interactive Constellation Map (Astro-Viz)**:
-  - **Real-time Sky Rendering**: Accurately renders the night sky based on current date/time and observer location with **diurnal motion** (star rotation).
-  - **Zodiac 12 Support**: Full visualization of all 12 Zodiac constellations with connecting lines and localized names (KO/EN/ES/FR).
-  - **Milky Way Engine**: Particle-cloud based **Milky Way rendering** that rotates seamlessly with the celestial sphere.
-  - **Smart Interaction**: **Zoom & Pan** controls, Time Travel (Past/Future), and dynamic star labels that appear based on zoom level.
-  - **Visual Polish**: Star magnitude resizing, atmospheric glow effects, and cursor interactivity.
-- **Intelligent Drug Visualization (Drug-Viz) (v3.5 - Advanced Identification Engine)**:
-  - **Vision-powered Imprint Parsing**: Seamlessly integrates `gemini-2.5-flash` Vision API to extract text directly from official drug images in real-time when the MFDS API returns generic placeholders like "마크" (logo), ensuring precision identification.
-  - **Direct Pharmacist-level Deep Linking**: Automatically bypasses server-side blocks via stealth POST requests to `pharm.or.kr`, extracting the internal `idx` and generating a pristine, one-click deep link to authoritative drug identification cards.
-  - **Multi-stage Fallback Search Strategy**: Implements a robust 3-stage search algorithm (Spaceless Original -> Korean Unit Translation -> Base Name Fallback) designed to conquer MFDS database inconsistencies (e.g., standardizing "딜라트렌정 25mg" against raw DB entries).
-  - **Parallel Processing Engine**: Skyrockets response speeds by parallelizing the pharmacist `idx` link generation with the main payload/Vision queries via background promises, completely eliminating block-induced latency.
-  - **Separated Link Architecture**: [약학정보원] (Korea Pharmaceutical Info Center) deep-link button remains inside the drug card when available. [ConnectDI] is now rendered as a source chip **below the chat bubble** (identical to web grounding source chips), keeping the card UI clean and providing consistent UX across all response types.
-  - **Drug-Only ConnectDI Search**: ConnectDI search queries are now stripped of dosage information (e.g., "타이레놀정500밀리그램" → "타이레놀정") to return broader, more accurate search results instead of narrowing by specific dosage.
-  - **Drug Card State Isolation Fix**: Fixed a bug where switching between drugs caused the image from the previous drug to persist. The `syncedUrl`, `imageError`, and `serverPillVisual` states now fully reset whenever `data.image_url` changes, preventing image/URL mismatch across drug cards.
-  - **Premium Medication Cards**: Redesigned **Hero Section** with integrated titles and immersive images.
-  - **Instant Card Display**: Removed delayed reveal animation—cards now appear immediately while images sync in the background, improving perceived performance and UX.
-  - **Summarization Enforcement**: Prompt-engineered to force AI to output a clean, single-sentence summary after detailed JSON generation, preventing redundant UI clutter.
-  - **Full-Width Image Layout**: Image container optimized to use full card width, ensuring loading states and synced images display properly without appearing small or misaligned.
-  - **Advanced Syncing UI**: Professional **Indigo-tinted Shimmer** and **Digital Specimen Slide** aesthetics for real-time image synchronization.
-  - **Unified Information Architecture**: Consistent styling for **Ingredients & Dosage** with professional iconography.
-  - **Efficacy Icon Overhaul**: Utilizes **100% Guaranteed Free FontAwesome 6** icons with a robust hybrid mapping system (Keyword > AI > Fallback).
-  - **Expanded Efficacy Mapping**: Visual tags for **Metabolism, Weight Loss, Respiratory, and Eye/Vision** categories.
-  - **Dosage Consistency Enforcement**: AI-powered verification ensures all data (name, ingredient, imprint, image) belongs to the **exact same dosage version** (e.g., 120mg vs 180mg), preventing mismatched identification information.
-  - **2-Stage Image Verification System**: Server-side HTML parsing of ConnectDI search results with **imprint-based matching** (front/back validation) ensures the displayed image matches the exact product. Accuracy improved from ~70% to **95%+** by eliminating wrong-product image selection.
-  - **Server-Side Identification Extraction**: Backend directly parses ConnectDI HTML to extract pill visual data (shape, color, imprint), eliminating AI extraction errors. Accuracy improved from ~60% to **98%+**.
-  - **Dosage-based Image Syncing Precision**: When searching by text, the image sync engine intelligently extracts the dosage (e.g., "5mg" vs "10mg") from the query and matches it against ConnectDI's internal HTML blocks, ensuring the displayed image perfectly matches the requested dosage even when imprint data is missing.
-  - **Parallel Multi-Query Imprint Search**: Automatically generates and executes multiple stylized variations of short imprints (e.g., converting "DP" to "DHP", "DAP") and searches them in parallel against the `pharm.or.kr` database. This drastically reduces false negatives caused by Vision API misreading heavily stylized or fused logos.
-  - **Auto Detail Page Navigation**: Automatically detects ConnectDI search result pages and navigates to the detail page for accurate identification table parsing, ensuring data is extracted from the authoritative source.
-  - **Smart Imprint Field Selection**: Implements intelligent field prioritization—when "표시" (display) contains generic placeholders like "마크" or "각인", the system automatically falls back to "마크내용" (marking content) to extract the actual imprint text, preventing empty or misleading identification data.
-  - **Multi-Line Imprint Handling**: AI correctly processes pills with multiple lines on one side (e.g., "QTPN" and "100" both on front), preventing incorrect front/back splitting.
-  - **Front/Back Imprint Separation**: Pill markings are now displayed as separate **Front** and **Back** badges for accurate real-world identification. Displays "없음" (None) when no marking exists.
-  - **Optimized Identification Badges**: Removed redundant size information (already visible in image ruler). Streamlined 4-badge layout: **Shape, Color, Front, Back**.
-  - **Smart Category Parsing**: Multi-category drugs (e.g., "비충혈제거제, 항히스타민제") are displayed as separate, clean badges without word-splitting issues.
-  - **Deep Localization**: Fully supports **KO, EN, ES, FR** with localized footer actions and headers.
-- **Incline Plane Force Diagrams (Diagram-Viz)**:
-  - **Textbook Quality**: Generates clean, publication-quality 2D force diagrams for inclined plane physics problems.
-  - **Dynamic Vector Rendering**: Automatically renders labeled arrows for Gravity (mg), Normal force (N), Friction (f), and component forces based on the input angle.
-  - **Educational Labels**: Includes mathematical notation (sinθ, cosθ) for enhanced conceptual clarity.
-- **Smart Parsing & Logic**: Real-time detection with sleek **loading skeletons**. Robustly handles inconsistent JSON and missing values (null/NaN).
-- **Intelligent Semantic Router (New!)**:
-  - **LLM-Based Intent Classification**: Replaced legacy, rigid keyword heuristics with a sub-second, intelligent **Semantic Router** powered by `gemini-2.5-flash-lite`.
-  - **Context-Aware Routing**: Accurately distinguishes between general queries (e.g., "요약해줘", "이게 뭐야?") and domain-specific intents (e.g., "타이레놀 부작용", "이 알약 식별좀") based on full sentence context, virtually eliminating false-positive pipeline triggers.
-  - **Zero-Latency Fallback**: Enforces strict JSON output (`{"intent": "general|medical"}`) for near-instant classification, backed by a robust regex/keyword fallback loop to guarantee 100% uptime even during API exhaustion.
-
-### 🎨 UI/UX & Mobile Strategy
-
-- **Long-Press Context Menu (v4.12)**: Implemented a premium, glassmorphism-style floating menu for chat messages. Users can now long-press any bubble to **Copy Text** or **Edit** their sent messages.
-- **Dynamic Model Selector**: A sleek, ChatGPT-style dropdown header allows users to switch between **Gemini 2.5 Flash** and **Gemini 2.5 Flash-Lite** on the fly, with visually integrated checkmarks and localized descriptions.
-- **Optimistic UI for File Uploads**: Instantly renders the user's chat bubble with a local Base64 image preview while silently uploading full-resolution files to Supabase in the background, achieving **zero perceived delay** during media sharing.
-- **Compact Mobile Architecture (v3.5)**:
-  - **Zero-Waste Header**: Reduced mobile header height by 25% for maximum chat space.
-  - **Slim Input Bar**: Compacted the chat input form and buttons for one-handed reachability.
-  - **Tight Welcome UI**: Lowered vertical padding of the initial greeting to bring input controls into view instantly.
-- **Flawless UI Resilience & Continuity (New!)**:
-  - **Zero-FOUC Dark Mode**: Inline head script evaluation of `localStorage` ensures instant dark mode rendering without any White Flash (Flash of Unstyled Content).
-  - **Robust Clipboard Support**: Cross-environment clipboard functionality (Copying Text/Code) with seamless textarea fallbacks for non-secure contexts (e.g., local network mobile testing).
-  - **Streaming Markdown Safety**: Hardened markdown parser that safely auto-closes dangling code blocks during real-time streaming, preventing complete UI layout breakage.
-- **Multi-Attachment Display Engine**:
-  - **Responsive Image Grid**: Multiple uploaded images are automatically organized into a sleek, touch-friendly grid.
-  - **Document List View**: Sequential rendering of PDF/Doc files within the chat bubble with distinct file-type iconography.
-- **Minimalist Mobile Sidebar**: Eliminated the redundant "X" close button and "Menu" title. Implemented a natural **Backdrop Touch** gesture for closing the sidebar, mirroring industry standards (GPT, Gemini).
-- **Refined Header Aesthetics**:
-  - Simplified user profile area (Removed dividers and redundant "Settings" text).
-  - Introduced intuitive **Chevron Icon** for menu affordance.
-  - Updated mobile hamburger menu to a balanced **Regular Bar** style.
-- **Enhanced Message Visibility**:
-  - **Always-on Utility Buttons**: TTS and Copy buttons are now permanently visible on mobile for better accessibility.
-  - **Expanded Image Viewer**: Increased max-width of attached images (up to 480px on desktop, full-width on mobile) for clearer visual analysis.
-- **Enhanced Voice Interactions (New!)**:
-  - **Intelligent STT UX**: Graceful handling of manual typing overrides and robust error recovery (`no-speech`, `network` handling) during Web Speech API transcription.
-  - **Zero Memory Leaks**: Advanced cleanup logic utilizing `abort()` instead of `stop()` on unmount, completely eliminating React state rendering errors.
-  - **Mobile Audio Amplification**: Employs Web Audio API's `GainNode` to natively amplify hardware-constrained mobile text-to-speech volume by 1.8x.
-- **Seamless Sidebar Integration**: Removed hard borders from the language selector area, creating a fluid, open layout.
-- **Drag & Drop and Paste**: Simply paste (Ctrl+V) images or drag files directly into the chat area. A sleek overlay guides your upload.
-- **Advanced Document Support**: Directly analyzes `.docx`, `.hwpx`, `.pptx`, `.xlsx`, `.txt`, `.md`, and `.csv` using client-side text extraction.
-- **Premium LaTeX Rendering**: Optimized mathematical expressions with **KaTeX**. Features **Mobile-optimized horizontal scrolling**.
-- **Collapsible Sidebar (Desktop)**: A Gemini-inspired, collapsible sidebar that maximizes workspace on large screens.
-
-### ⚡ Web Performance Optimization
-
-- **Build-Time CSS Compilation**: Migrated from CDN-based Tailwind CSS to build-time compilation with PostCSS, reducing CSS bundle size by **85%** (124 KiB → ~15-20 KiB) and eliminating 220ms render-blocking time.
-- **Zero Runtime CDN Dependencies (New!)**: Replaced all `esm.sh` CDN imports (`react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex`, `react-syntax-highlighter`) with local npm packages bundled into Vite. This eliminates a critical single point of failure where CDN outages would break the entire chat rendering.
-- **Code Splitting & Lazy Loading**: Implemented dynamic imports for all visualization components (Bio, Chemical, Physics, Constellation, Chart, Drug, Diagram renderers), reducing initial JavaScript bundle by **64%** (3.4 MB → 1.2 MB, gzip: 1.0 MB → 365 KB).
-  - **Smart Loading**: Heavy visualization libraries load only when needed, dramatically improving FCP and LCP metrics.
-  - **Suspense Integration**: Seamless loading states with React Suspense for optimal UX.
-- **Optimized Build Configuration**:
-  - **esbuild minification**: 20-100x faster than terser, reducing build time by 25% (17s → 13s).
-  - **Granular Chunk Splitting**: Markdown/syntax libraries isolated in `markdown-vendor` chunk; `framer-motion` isolated in `motion-vendor` chunk, reducing initial JS parse burden and lowering TBT.
-- **Forced Reflow Elimination (ChatInput)**: Resolved a critical layout thrashing bug in `ChatInput.tsx` where `textarea.style.height = 'auto'` (DOM mutation) was immediately followed by a `scrollHeight` read (geometry query), forcing the browser to synchronously recalculate layout on every keystroke. Wrapped the resize logic in `requestAnimationFrame` with `cancelAnimationFrame` debouncing to defer the measurement to the next browser paint cycle, eliminating back-to-back forced reflows. Also deduplicated `window.innerWidth` from 2 reads to 1 per call. **Expected TBT improvement: ~75ms.**
-- **FontAwesome Subset Loading**: Replaced `all.min.css` (18.3 KiB, 98% unused) with only `fontawesome.min.css` + `solid.min.css` + `regular.min.css`, saving ~12 KiB of unused CSS.
-- **font-display: swap**: Added inline `@font-face` override to prevent FontAwesome woff2 fonts from blocking FCP (saves ~40ms).
-- **Optimized Font Loading**:
-  - **Google Fonts**: Reduced font weights from 7 to 3 (400, 600, 700), added `preconnect` and `dns-prefetch` for faster loading.
-  - **Resource Hints**: Implemented DNS prefetch for CDN resources (Font Awesome, KaTeX) to reduce connection latency.
-- **Profile Image Quality**: Reduced default Unsplash avatar quality (`q=80 → q=55`, WebP) saving ~4 KiB with zero perceptible quality loss at 36px display size.
-- **Mobile Table Optimization**: Responsive table cells use compact padding and font sizes on mobile (`px-3 py-2`, `text-[12px]`), with `whitespace-nowrap` to prevent character-level line-breaking. Scales up to full size on desktop.
-- **UI/UX Polishing**:
-  - **Header Simplification**: Moved the global Dark/Light mode toggle from the main header into the User Profile Settings modal, providing a cleaner navigation bar and a more intuitive toggle switch interface.
-  - **Toast Notifications (v4.11 optimized)**: Streamlined all multilingual alerts. Now features **Silent Mode** for routine actions (Profile updates, renaming) to reduce UI noise, while maintaining critical error visibility.
-- **Lighthouse Performance**: Improved from **44/100** → **83/100** → sustained with ongoing optimizations, with significant reductions in FCP, SI, LCP, and TBT metrics.
-  - **Render-Blocking Resolution**: Eliminated 160ms+ latency by converting synchronous CSS CDNs to asynchronous `<link rel="preload">` patterns.
-  - **Next-Gen Image Delivery**: WebP profile assets with optimized dimensional querying.
-  - **Best Practices**: **100/100** achievement.
-  - **SEO**: **91/100** achievement.
-  - **CLS (Cumulative Layout Shift)**: **0.00** achieved by specifying explicit image dimensions and using `aspect-ratio` safety.
-- **Production-Ready Optimization**:
-  - **Image Decoding**: Uses `decoding="async"` for all major artifacts to prevent main-thread lag during scroll.
-  - **Unified Resource Hints**: Predictive DNS pre-connection to core API services (Supabase, fonts) reduces handshake latency.
-  - **Edge Delivery**: Leveraging Vercel's Global Edge Network with Brotli compression for maximum transfer efficiency.
+**Gemini 2.5 Flash** 기반 인텔리전트 AI 메신저. **Supabase** 영구 저장소 + **LangGraph.js** 에이전틱 파이프라인 + 7종 인터랙티브 시각화 렌더러를 탑재한 차세대 채팅 에이전트.
 
 ---
 
-## 🗺️ System Architecture & Intelligence
+## ✨ 핵심 기능
+
+### 💬 대화 & 인증
+- **Login-less 경험**: 즉시 시작, 랜덤 닉네임 + 아바타 자동 발급
+- **영구 히스토리**: Supabase(PostgreSQL) 기반 세션/메시지 지속 저장
+- **AI 자동 제목**: 대화 내용 기반 세션 제목 자동 생성 (Gemma 3)
+- **다국어 지원**: KO / EN / ES / FR 완전 로컬라이제이션
+
+### 🧠 AI Intelligence
+- **Gemini 2.5 Flash** (메인) + **Flash-Lite** (자동 전환)
+- **Google Search Grounding**: 실시간 검색 + 소스 칩 반환
+- **YouTube 분석**: 트랜스크립트 우선 / 없으면 직접 영상 분석 폴백. 타임스탬프 링크 포함 구조화 요약
+- **멀티모달**: 이미지, PDF(30MB+), 영상, DOCX/HWPX/PPTX/XLSX 지원
+- **LangGraph 에이전트**: Semantic Router → Vision/Generator 노드 기반 의도별 최적 경로 처리
+
+### 📊 시각화 렌더러 (7종)
+| 렌더러 | 트리거 | 기술 |
+|--------|--------|------|
+| **Drug-Viz** 💊 | 약품명 질의 | MFDS API + pharm.or.kr 딥링크 |
+| **Chem-Viz** 🧪 | 분자/화학구조 질의 | SMILES Drawer |
+| **Bio-Viz** 🧬 | 단백질/DNA 질의 | NGL Viewer (3D PDB) |
+| **Physics-Viz** 🎾 | 역학/시뮬레이션 질의 | Matter.js |
+| **Diagram-Viz** 📐 | 경사면/힘 다이어그램 | Canvas 2D |
+| **Constellation-Viz** ✨ | 별자리/천체 질의 | HTML5 Canvas |
+| **Chart-Viz** 📈 | 데이터/통계 질의 | ApexCharts |
+
+### 💊 Drug-Viz 상세 (약품 식별 엔진)
+- **Vision 각인 추출**: MFDS "마크" 반환 시 Gemini Vision으로 실제 각인 텍스트 추출
+- **pharm.or.kr 딥링크**: 서버사이드 POST로 내부 `idx` 추출, 원클릭 식별 카드 링크
+- **2단계 이미지 검증**: ConnectDI HTML 파싱 + 각인 매칭. 정확도 70% → 95%+
+- **병렬 처리**: MFDS 조회 + pharm.or.kr 조회 동시 실행
+- **DDG 폴백**: MFDS 미등록 약품 시 DuckDuckGo 검색으로 자동 폴백 + 소스 칩 반환
+
+### ⚡ 성능
+- **Lighthouse 83/100** (초기 44 → 개선)
+- **JS Bundle 365KB** gzip (초기 1.0MB → Code Splitting + Lazy Loading)
+- **CSS Bundle ~15KB** (초기 124KB → Build-time Tailwind)
+- **CLS 0.00** / **Best Practices 100/100**
+
+### 🔐 보안
+- **Presigned URL 아키텍처**: 프론트엔드에 Supabase 자격증명 미노출
+- **RLS 적용**: Supabase Row Level Security로 사용자 데이터 격리
+- **API Key Rotation**: 429 발생 시 자동 키 순환 (60초 블랙리스트)
 
 ---
 
-## 🔮 Roadmap: ARC (Agent RAG Cache Mechanism)
+## 🏗️ 아키텍처
 
-Inspired by the "Cache Mechanism for Agent RAG Systems" paper, we are developing:
-
-- **Semantic Chunking**: Intelligent fragmentation of documents for high-precision retrieval.
-- **DRF Scoring**: Dynamic cache prioritization based on Distance-Rank Frequency.
-- **Hubness Cache**: Constant access to core domain summaries.
-- **Global Knowledge Sharing**: Cross-session caching for frequently requested URLs/documents.
-
-### 🏗️ Global Architecture
-
-A high-level overview of the communication between the frontend React application, Vercel backend logic, and external powerhouse services.
+### 전체 구조
 
 ```mermaid
 flowchart TB
-    %% Nodes Definition
     User([👤 User])
 
-    subgraph Frontend ["🎨 Frontend Framework (React 19 + Vite)"]
-        direction TB
+    subgraph Frontend ["🎨 Frontend (React 19 + Vite)"]
         UI[Main UI & App State]
-
-        subgraph ClientTools ["🛠️ Processing Tools"]
-            direction LR
-            Parsers["📄 Data Parsers<br/><small>Office/HWPX/PDF</small>"]
-            LocalStore["💾 Browser Memory<br/><small>Persistence Layer</small>"]
-        end
-
         subgraph Visualizers ["📊 Visualization Modules"]
-            direction TB
-            Astro["✨ Astro-Viz<br/><small>Sky Canvas</small>"]
-            Bio["🧬 Bio-Viz<br/><small>3D PDB Rendering</small>"]
-            Chem["🧪 Chem-Viz<br/><small>SMILES Drawer</small>"]
-            Phy["🎾 Phy-Viz<br/><small>Physics Engine</small>"]
-            Drug["💊 Drug-Viz<br/><small>Medication Cards</small>"]
-            Charts["📈 Data-Viz<br/><small>ApexCharts</small>"]
+            Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
+            Phy["🎾 Phy-Viz"] & Drug["💊 Drug-Viz"] & Charts["📈 Data-Viz"]
         end
     end
 
-    subgraph Backend ["⚙️ Serverless Infrastructure (Vercel)"]
-        direction TB
-        Gateway["API Gateway / Auth"]
-        subgraph Logic ["Business Logic"]
-            ChatPipe["/api/chat<br/><small>Prompt Engineering</small>"]
-            TTS["/api/speech<br/><small>Audio Stream</small>"]
-            Sync["/api/sync-drug-image<br/><small>Drug Image Cache</small>"]
-        end
+    subgraph Backend ["⚙️ Vercel Serverless"]
+        ChatPipe["/api/chat"] & TTS["/api/speech"] & Sync["/api/sync-drug-image"]
     end
 
-    subgraph Providers ["🌐 External Ecosystem"]
-        direction TB
-        Gemini[["🤖 Google Gemini AI<br/><small>Flash 2.5 / Lite</small>"]]
-        Supabase[("💾 Supabase Storage<br/><small>PostgreSQL / RLS</small>")]
+    subgraph Providers ["🌐 External Services"]
+        Gemini[["🤖 Google Gemini AI"]]
+        Supabase[("💾 Supabase")]
     end
 
-    %% Connection Logic
-    User <-->|WebSocket/HTTP| UI
-    UI ==>|Structured Data| Astro
-    UI ==>|Structured Data| Bio
-    UI ==>|Structured Data| Chem
-    UI ==>|Structured Data| Phy
-    UI ==>|Structured Data| Drug
-    UI ==>|Structured Data| Charts
-    UI <--> Parsers
-    UI <--> LocalStore
-    UI <-->|HTTPS POST| Gateway
-    Gateway --- ChatPipe
-    Gateway --- TTS
-    Gateway --- Sync
-    ChatPipe <-->|Streaming| Gemini
-    Sync <-->|Cache| Supabase
-    ChatPipe <-->|Auth/Data| Supabase
-    TTS <-->|Auth/Data| Supabase
-
-    %% Styling
-    classDef frontend fill:#f0f9ff,stroke:#0ea5e9,stroke-width:2px,color:#0369a1;
-    classDef backend fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#15803d;
-    classDef external fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#c2410c;
-    classDef user fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#7e22ce;
-
-    class User user;
-    class Frontend,UI,ClientTools,Visualizers,Astro,Bio,Chem,Phy,Drug,Charts,Parsers,LocalStore frontend;
-    class Backend,Gateway,Logic,ChatPipe,TTS,Sync backend;
-    class Providers,Gemini,Supabase external;
+    User <--> UI
+    UI ==> Visualizers
+    UI <--> Backend
+    ChatPipe <--> Gemini
+    Backend <--> Supabase
 ```
 
-### 🧠 Intelligence Trigger Logic
-
-This decision flow illustrates how Gemini AI analyzes incoming queries to dynamically activate the most relevant visualization module.
-
-```mermaid
-flowchart TD
-    In([User Query / File Upload]) --> AI{AI Intent Analysis}
-
-    AI -- "General Inquiry" --> Text([Markdown Chat Response])
-    AI -- "Scientific/Data Topic" --> Pattern{Pattern Match}
-
-    Pattern -- "SMILES/Molecules" --> Chem((🧪 Chem-Viz))
-    Pattern -- "PDB ID/Protein" --> Bio((🧬 Bio-Viz))
-    Pattern -- "Physical Laws" --> Phy((🎾 Phy-Viz))
-    Pattern -- "Force Diagrams" --> Diagram((📐 Diagram-Viz))
-    Pattern -- "Drug/Medication" --> Drug((💊 Drug-Viz))
-    Pattern -- "Celestial Body" --> Astro((✨ Astro-Viz))
-    Pattern -- "Tabular Data" --> Charts((📈 Data-Viz))
-
-    subgraph Output ["Premium UI Delivery"]
-        Chem & Bio & Phy & Diagram & Drug & Astro & Charts --> Card([Interactive Card Rendering])
-    end
-
-    %% Logic Styling (Decision Tree Style)
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef process fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
-    class AI,Pattern decision;
-    class Chem,Bio,Phy,Drug,Astro,Charts,Text process;
-```
-
----
-
-### 🤖 Agentic Architecture (Implemented with LangGraph.js)
-
-This diagram illustrates the implemented multi-actor structure using **LangGraph.js**, which moved away from a single monolithic pipeline (`api/chat.ts`) to a stateful, node-based system for improved modularity and function-calling capabilities.
+### LangGraph 에이전트 플로우
 
 ```mermaid
 flowchart TB
-    %% Nodes Definition
     User([👤 User Prompt])
 
     subgraph StateGraph ["LangGraph.js StateGraph"]
-        direction TB
-        StateNode[("AgentState<br/>- messages<br/>- attachments<br/>- contextInfo")]
-
-        RouterNode{{"🧭 Semantic Router Node<br/>(LLM-based Intent Analysis)"}}
-
-        subgraph Preprocessors ["Data Extraction Nodes"]
-            direction LR
-            Vision["👁️ Vision Node<br/>(Extract Pill Info)"]
-            YouTube["▶️ YouTube Node<br/>(Extract Subtitles)"]
-        end
-
-        ToolExecutor["🛠️ Tool Executor Node<br/>(searchPill, queryWeb, etc.)"]
-
-        Generator["📝 Generator Node<br/>(Main Gemini LLM)"]
+        StateNode[("AgentState")]
+        RouterNode{{"🧭 Semantic Router\n(Intent: medical | general)"}}
+        Vision["👁️ Vision Node\n(알약 이미지 분석)"]
+        ToolExecutor["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
+        Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
-    Output([💬 Final Response Stream])
+    Output([💬 Streaming Response])
 
-    %% Edge Logic
-    User --> StateNode
-    StateNode --> RouterNode
-    RouterNode -- "Needs Image Ident" --> Vision
-    RouterNode -- "Needs Video Data" --> YouTube
-    RouterNode -- "Needs External Tool" --> ToolExecutor
-    RouterNode -- "General Response" --> Generator
-
-    Vision --> StateNode
-    YouTube --> StateNode
-    ToolExecutor --> StateNode
-
-    StateNode --> Generator
-    Generator --> Output
-
-    %% Styling
-    classDef stateNode fill:#f3e8ff,stroke:#9333ea,stroke-width:2px;
-    classDef router fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef tools fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
-    classDef gen fill:#dcfce7,stroke:#22c55e,stroke-width:2px;
-
-    class StateNode stateNode;
-    class RouterNode router;
-    class Vision,YouTube,ToolExecutor tools;
-    class Generator gen;
+    User --> StateNode --> RouterNode
+    RouterNode -- "pill image" --> Vision --> StateNode
+    RouterNode -- "tool needed" --> ToolExecutor --> StateNode
+    StateNode --> Generator --> Output
 ```
 
 ---
 
-### Frontend
+## 🛠️ 기술 스택
 
-- **React 19** + **Vite** (TypeScript)
-- **ApexCharts** (Data Visualization)
-- **smiles-drawer** (Chemical Structure Rendering)
-- **ngl** (3D Biological Visualization)
-- **matter-js** (2D Physics Simulation)
-- **HTML5 Canvas** (Constellation Rendering)
-- **Tailwind CSS** (Premium Responsive Design)
-- **Framer Motion** (Immersive Animations)
+| 레이어 | 기술 |
+|--------|------|
+| **Frontend** | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion |
+| **Visualization** | ApexCharts, smiles-drawer, NGL, matter-js, HTML5 Canvas |
+| **Backend** | Vercel Serverless Functions, LangGraph.js |
+| **AI** | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
+| **Database** | Supabase (PostgreSQL, Storage, Auth) |
 
-### Backend & Database
-
-- **Vercel Serverless Functions** (API Layer)
-  - _Note: Vercel Hobby plan has a limit of 12 serverless functions. Utility files are placed in `api/_lib/` (using the `_` prefix) to prevent them from being counted towards this limit.\_
-- **Supabase** (PostgreSQL / Storage / Auth)
-
-### AI Models
-
-- **Chat**: `gemini-2.5-flash` (Primary) & `gemini-2.5-flash-lite` (Automatic Fallback)
-- **Summarization**: `gemini-2.5-flash-lite` (Primary) & `gemma-3-4b-it` (Backup)
-- **Speech**: `gemini-2.5-flash-preview-tts` (Premium natural-sounding voice)
+### AI 모델 용도
+| 용도 | 모델 |
+|------|------|
+| 메인 채팅 | `gemini-2.5-flash` |
+| 라우터 / 경량 처리 | `gemini-2.5-flash-lite` |
+| TTS | `gemini-2.5-flash-preview-tts` |
+| 세션 제목 | `gemini-2.5-flash-lite` / `gemma-3-4b-it` |
 
 ---
 
-## 📁 Project Structure
+## 📁 프로젝트 구조
 
 ```
-
-├── api/                   # Vercel Serverless Functions (Backend)
-│   ├── auth.ts           # Anonymous login & Profile management
-│   ├── chat.ts           # Gemini streaming logic (w/ Key Rotation & Viz Prompts)
-│   ├── upload.ts         # Supabase Storage proxy for file uploads
-│   ├── sessions.ts       # Chat session & Message CRUD
-│   ├── speech.ts         # Text-to-Speech (TTS) service
-│   ├── fetch-url.ts      # Real-time Web/Arxiv scraping
-│   ├── fetch-transcript.ts # YouTube subtitle fetching
-│   ├── summarize-title.ts # Intelligent titling via Gemma
-│   ├── sync-drug-image.ts # ConnectDI image caching & parsing
-│   └── _lib/             # Utility files (Prefixed with '_' to bypass Vercel's 12-function limit on Hobby plan)
-│       └── supabase.ts   # Server-side Supabase client config
-├── docs/                  # Project Documentation
-│   ├── physcripts.md      # Physics formulas & logic reference
-│   └── TODO.md            # Roadmap & feature planning
-├── components/            # UI Components (Localized)
-│   ├── ChatSidebar.tsx   # Session list & Language settings
-│   ├── ChatInput.tsx     # Multimodal input & text extraction
-│   ├── ChatArea.tsx      # Main message scroll area
-│   ├── ChatMessage.tsx   # Markdown, Math & Viz block parsing
-│   ├── ChartRenderer.tsx # Multi-type ApexCharts (Exportable)
-│   ├── ChemicalRenderer.tsx # SMILES visualization (Named, Exportable)
-│   ├── BioRenderer.tsx   # 3D structure & 1D sequence viewer (NGL)
-│   ├── PhysicsRenderer.tsx # 2D physics simulation (Matter.js)
-│   ├── ConstellationRenderer.tsx # Star map & Milky Way (Canvas)
-│   ├── DrugRenderer.tsx  # Drug identification cards with ConnectDI integration (v3.4)
-│   ├── Dialog.tsx        # Premium custom modals
-│   ├── Header.tsx        # User profile & global settings
-│   ├── Toast.tsx         # Notification feedback system
-│   ├── LoadingScreen.tsx # Initial startup loading UI
-│   └── WelcomeMessage.tsx # Empty state welcome guide
-├── services/
-│   └── geminiService.ts  # Frontend API bridge & audio control
-├── App.tsx                # Central state & main layout
-├── index.html             # Global CSS & KaTeX configs
-└── types.ts               # Global types & interfaces
+├── api/                        # Vercel Serverless Functions
+│   ├── chat.ts                 # 메인 Gemini 스트리밍 (LangGraph)
+│   ├── speech.ts               # TTS 서비스
+│   ├── sync-drug-image.ts      # 약품 이미지 캐싱 & 파싱
+│   ├── pill-search.ts          # 알약 식별 API
+│   ├── sessions.ts             # 세션/메시지 CRUD
+│   ├── upload.ts               # Supabase Storage 업로드 프록시
+│   ├── fetch-url.ts            # 웹/Arxiv 스크래핑
+│   ├── fetch-transcript.ts     # YouTube 자막 추출
+│   └── _lib/                   # 유틸리티 (Vercel 함수 수 카운트 제외)
+│       ├── agent/              # LangGraph 에이전트
+│       │   ├── graph.ts        # StateGraph 정의
+│       │   ├── nodes/          # router / vision / generator
+│       │   ├── drug-info-tool.ts
+│       │   ├── tools.ts
+│       │   ├── prompt.ts
+│       │   └── state.ts
+│       ├── pill-logic.ts       # 약학정보원 검색 로직
+│       └── supabase.ts
+├── components/                 # UI 컴포넌트
+│   ├── ChatMessage.tsx         # 마크다운 + 시각화 블록 파싱
+│   ├── DrugRenderer.tsx        # 약품 카드
+│   ├── BioRenderer.tsx         # 3D 단백질 구조
+│   ├── ChemicalRenderer.tsx    # SMILES 분자 구조
+│   ├── PhysicsRenderer.tsx     # 물리 시뮬레이션
+│   ├── ConstellationRenderer.tsx # 별자리 맵
+│   ├── ChartRenderer.tsx       # 차트
+│   ├── DiagramRenderer.tsx     # 힘 다이어그램
+│   └── ...
+├── docs/                       # 프로젝트 문서
+│   ├── DEV_HISTORY.md          # 버전별 개발 이력
+│   ├── DEV_260404.md           # 최근 작업 로그
+│   └── TODO.md                 # 로드맵
+└── types.ts
 ```
-
-## 🔐 Security & Reliability
-
-- **Rate-Limit-Aware API Key Rotation**: When any key returns a `429 Too Many Requests` error, it is **automatically blacklisted for 60 seconds** and the next available key is retried immediately — for both the `@google/genai` SDK path and the LangChain fallback path. Duplicate keys in `.env` are deduplicated automatically.
-- **Precise Intent Routing**: The LangGraph Router now uses context-aware keyword matching to distinguish medical queries from general ones, preventing false positives (e.g., `'정'` in words like `'정리'` or `'정보'` no longer triggers the medical pipeline).
-- **Multimodal Routing v3.7 (Native & Passthrough)**: All general, image, PDF, and YouTube requests are now exclusively routed through the `@google/genai` SDK path. Implements a "Just-in-Time" fetching strategy for PDF URLs directly within the LangGraph state, ensuring massive documents (up to 30MB+) are analyzed without browser-side latency. The LangChain fallback path is strictly reserved for medical/tool-calling intent, with automatic `fileData` filtering for safety.
-- **Output Sanitization**: Real-time filtering for **Whitespace Hallucinations** caused by external tool grounding issues, ensuring a clean and reliable chat experience.
-- **100MB Direct Supabase Upload (v4.0/v4.1)**: Fully bypasses Vercel's 4.5MB request body limit. Since v4.1, this uses a **High-Security Presigned URL Architecture**, meaning zero Supabase credentials (Anon Key/URL) are exposed to the browser.
-- **Row Level Security (RLS)**: Enforced via Supabase to ensure users can only access their own private conversation data.
-
-### 🛡️ Security Features (v4.1 Completed)
-
-- **High-Security Presigned URL Architecture**: Transitioned from public `ANON_KEY` usage to backend-generated 일회용 (One-time) signed URLs.
-- **Zero Frontend Credentials**: All Supabase connection details are now strictly internal to the backend.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 시작하기
 
-### 1. Configure Environment Variables (.env.local)
+### 환경 변수 설정 (`.env.local`)
 
 ```env
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_service_role_key
 API_KEY=your_gemini_key_1
 API_KEY2=your_gemini_key_2
-...
+MFDS_API_ENDPOINT=your_mfds_endpoint
+MFDS_API_KEY=your_mfds_key
 ```
 
-### 2. Install & Run
+### 설치 & 실행
 
 ```bash
 npm install
@@ -457,5 +189,6 @@ npm run dev
 
 ---
 
-Developed by **jpjp92**  
-_Powered by Google Gemini & Supabase Persistent Memory Systems_
+> 상세 변경 이력: [docs/DEV_HISTORY.md](docs/DEV_HISTORY.md)  
+> Developed by **jpjp92** — Powered by Google Gemini & Supabase
+
