@@ -306,3 +306,31 @@ export const getPillWarnFallback = () => `
 2. 이미지에서 보이는 색상, 모양, 각인 등 시각적 특성만 설명하세요.
 3. "정확한 식별을 위해 약사 또는 의사에게 문의하거나, 약학정보원(www.pharm.or.kr)에서 직접 검색하세요"라고 안내하세요.
 4. 절대로 json:drug 블록을 생성해서는 안 됩니다.`;
+
+import type { IntentType } from "./state.js";
+
+/**
+ * Intent → additional prompt section hints.
+ * These are injected by the generator node on top of the base system instruction
+ * to keep the model focused on the relevant renderer without reloading the full prompt.
+ * For intents already covered by the base prompt (all renderers are present), this is
+ * a reinforcement layer — not a replacement.
+ */
+export const INTENT_FOCUS_HINTS: Partial<Record<IntentType, string>> = {
+    drug_id: `[INTENT FOCUS: DRUG IDENTIFICATION]\nThe user has submitted an image for pill/tablet identification. Your PRIMARY task is to identify the pill and generate a json:drug block. Use identifyPillTool and searchDrugInfoTool as instructed. Do NOT output any other visualization block (chart, smiles, bio, etc.) in this response.`,
+    drug_info: `[INTENT FOCUS: DRUG INFORMATION]\nThe user is asking about a specific drug or medication. Your PRIMARY task is to generate a json:drug block with accurate information from the search_drug_info tool. Do NOT output physics, chemistry, or astronomical visualizations. Short, focused drug card is the goal.`,
+    medical_qa: `[INTENT FOCUS: MEDICAL Q&A]\nThe user has a general medical or health question. Prioritize accuracy and cite sources. If a drug name is mentioned, you MAY output a json:drug block as supplementary context. Do NOT output physics, constellation, or unrelated visualizations.`,
+    biology: `[INTENT FOCUS: BIOLOGY]\nThe user is asking about a biological topic. Proactively generate json:bio blocks (PDB 3D structure preferred over sequence). If a molecular structure is relevant, also generate json:smiles. Do NOT output json:physics, json:diagram, or json:constellation.`,
+    chemistry: `[INTENT FOCUS: CHEMISTRY]\nThe user is asking about chemistry. Proactively generate json:smiles blocks for any molecule or compound mentioned. Use json:chart only if quantitative data is present. Do NOT output json:bio, json:physics, json:constellation.`,
+    physics: `[INTENT FOCUS: PHYSICS]\nThe user is asking about a physics concept. Proactively generate json:physics (simulation) or json:diagram (force diagram) blocks. Prefer simulation for dynamics; prefer diagram for statics/force analysis. Do NOT output json:smiles, json:bio, json:constellation.`,
+    astronomy: `[INTENT FOCUS: ASTRONOMY]\nThe user is asking about astronomy or celestial objects. Proactively generate json:constellation blocks for any star, planet, or constellation mentioned. Do NOT output json:physics, json:bio, json:smiles, json:drug.`,
+    data_viz: `[INTENT FOCUS: DATA VISUALIZATION]\nThe user wants a chart or data visualization. Your PRIMARY output should be a json:chart block. Choose the most appropriate chart type. Do NOT output json:bio, json:smiles, json:physics, json:constellation, json:drug.`,
+};
+
+/**
+ * Returns the intent-specific focus hint string to append to the system instruction.
+ * Returns empty string for "general" intent (no additional constraint needed).
+ */
+export const getIntentFocusHint = (intent: IntentType): string => {
+    return INTENT_FOCUS_HINTS[intent] ?? "";
+};

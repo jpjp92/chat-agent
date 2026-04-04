@@ -93,16 +93,17 @@ flowchart TB
         StateNode[("AgentState")]
         RouterNode{{"🧭 Semantic Router\n(9 Intents)"}}
         Vision["👁️ Vision Node\n(Pill image analysis)"]
-        ToolExecutor["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
+        Tools["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
         Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
     Output([Streaming Response])
 
     User --> StateNode --> RouterNode
-    RouterNode -- "drug_id (pill image)" --> Vision --> StateNode
-    RouterNode -- "drug_id / drug_info" --> ToolExecutor --> StateNode
-    StateNode --> Generator --> Output
+    RouterNode -- "drug_id (pill+image)" --> Vision --> Generator
+    RouterNode -- "all other intents" --> Generator
+    Generator -- "tool_calls (drug_id/drug_info)" --> Tools --> Generator
+    Generator --> Output
 ```
 
 ### 2-3. Intent Routing
@@ -111,12 +112,12 @@ flowchart TB
 |--------|------|-------|
 | `drug_id` | Vision → LangChain + Tools | gemini-2.5-flash |
 | `drug_info` | LangChain + Tools | gemini-2.5-flash |
-| `medical_qa` | LangChain + Tools | gemini-2.5-flash |
+| `medical_qa` | SDK + Google Search | gemini-2.5-flash |
 | `biology` | SDK + Google Search | gemini-2.5-flash |
 | `chemistry` | SDK + Google Search | gemini-2.5-flash |
 | `physics` | SDK + Google Search | gemini-2.5-flash |
 | `astronomy` | SDK + Google Search | gemini-2.5-flash |
-| `data_viz` | SDK + Google Search | gemini-2.5-flash |
+| `data_viz` | SDK + Google Search | gemini-2.5-flash-**lite** |
 | `general` | SDK + Google Search | gemini-2.5-flash |
 
 ---

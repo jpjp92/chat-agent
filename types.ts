@@ -40,7 +40,6 @@ export interface ChatSession {
   messages: Message[];
   createdAt: number;
   lastActiveDoc?: MessageAttachment; // 해당 세션에서 마지막으로 업로드된 문서 컨텍스트 유지용
-  lastActiveAttachments?: MessageAttachment[]; // New: Multiple attachments support
 }
 
 export interface UserProfile {

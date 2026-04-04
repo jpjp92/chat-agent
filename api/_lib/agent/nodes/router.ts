@@ -1,11 +1,12 @@
-import { AgentStateType } from "../state.js";
-import { HumanMessage } from "@langchain/core/messages";
+import { AgentStateType, IntentType } from "../state.js";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey } from "../../config.js";
 
 /**
  * Router Node
- * Uses a lightweight LLM (gemini-2.5-flash-lite) to classify user intent.
+ * Uses a lightweight LLM (gemini-2.5-flash-lite) to classify user intent into 9 categories.
+ * Injects last assistant message as context for follow-up intent continuity.
  * Falls back to keyword heuristics if the LLM fails.
  */
 export const routerNode = async (state: AgentStateType) => {
@@ -22,6 +23,12 @@ export const routerNode = async (state: AgentStateType) => {
         }
     }
 
+    // Inject last assistant message for follow-up intent continuity
+    const lastAssistantMsg = [...state.messages].reverse().find(m => m._getType() === 'ai') as AIMessage | undefined;
+    const prevContext = lastAssistantMsg
+        ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"`
+        : "";
+
     const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
 
     const medicalKeywords = [
@@ -30,56 +37,62 @@ export const routerNode = async (state: AgentStateType) => {
         '정제', '필름정', 'mg정', '산제', '시럽', '의약품', '약사', '처방'
     ];
 
-    let intent = "general";
+    let intent: IntentType = "general";
     const apiKey = getNextApiKey();
-    
+
     // Fallback heuristic function
-    const heuristicCheck = () => {
-        return medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent);
+    const heuristicCheck = (): IntentType => {
+        if (medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent)) {
+            return hasImage ? "drug_id" : "drug_info";
+        }
+        return "general";
     };
 
     if (apiKey) {
         try {
             const ai = new GoogleGenAI({ apiKey });
-            const prompt = `Classify the strictly main intent of the user message. 
-If the user is asking a medical or pharmaceutical question (e.g., identifying a pill, asking for drug dosage, side effects, etc.), classify as "medical".
-If it is a general chat, greeting, code task, web search, or video summary, classify as "general".
-
-Reference examples of medical keywords that MIGHT indicate a medical intent: ${medicalKeywords.join(", ")}
-
-User Message: "${textContent}"
-
-Output ONLY a JSON object exactly like this:
-{"intent": "general"} OR {"intent": "medical"}`;
+            const prompt = `Classify the strictly main intent of the user message into one of these 9 categories:
+- "drug_id"    : pill/tablet image identification (user has an image AND asks to identify it)
+- "drug_info"  : text-based drug name lookup, dosage, side effects, ingredients
+- "medical_qa" : general medical or health question (symptoms, diseases, treatments, anatomy)
+- "biology"    : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
+- "chemistry"  : chemistry, molecular structure, chemical reaction, element, compound, SMILES
+- "physics"    : physics simulation, mechanics, force, motion, gravity, collision, electricity
+- "astronomy"  : constellation, star, planet, galaxy, universe, space observation
+- "data_viz"   : data analysis, statistics, chart, graph, visualization of numbers/trends
+- "general"    : everything else (code, writing, general chat, web search, video summary, etc.)\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general"}`;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite', // Using flash-lite for speed
+                model: 'gemini-2.5-flash-lite',
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    temperature: 0,
-                    responseMimeType: "application/json"
-                }
+                config: { temperature: 0, responseMimeType: "application/json" }
             });
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                if (parsed.intent === "medical") {
-                    intent = "medical";
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                if (validIntents.includes(parsed.intent)) {
+                    intent = parsed.intent as IntentType;
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
             }
         } catch (error) {
             console.warn('[LangGraph] Semantic Router LLM failed, falling back to heuristics:', error);
-            if (heuristicCheck()) intent = "medical";
+            intent = heuristicCheck();
         }
     } else {
-        if (heuristicCheck()) intent = "medical";
+        intent = heuristicCheck();
     }
 
-    // Route 1: Pill image identification → vision preprocessing needed
-    if (intent === "medical" && hasImage) {
-        console.log('[LangGraph] Router decided: VISION processing required');
-        return { nextNode: "vision", intent: "medical" };
+    // Route: drug_id requires vision preprocessing when image is present
+    // If drug_id but no image, treat as drug_info
+    if (intent === "drug_id") {
+        if (hasImage) {
+            console.log('[LangGraph] Router decided: VISION processing required');
+            return { nextNode: "vision", intent: "drug_id" };
+        } else {
+            intent = "drug_info";
+        }
     }
 
     console.log(`[LangGraph] Router decided: intent=${intent}`);

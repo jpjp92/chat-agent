@@ -4,20 +4,6 @@
 
 ---
 
-## 진행 중
-
-### 에이전트 오케스트레이션 — 9-Intent 리팩토링
-
-상세 설계 명세: [DEV_260404.md](DEV_260404.md)
-
-- [ ] `router.ts` — intent 분류기를 9개로 확장 (`drug_id`, `drug_info`, `medical_qa`, `biology`, `chemistry`, `physics`, `astronomy`, `data_viz`, `general`)
-- [ ] `state.ts` — `IntentType` 유니온 타입 업데이트
-- [ ] `generator.ts` — 새 intent 기준으로 SDK / LangChain 분기 조건 변경
-- [ ] `prompt.ts` — 렌더러 섹션을 별도 export로 분리, intent별 필요한 섹션만 로드
-- [ ] `graph.ts` — `routePostRouter` 엣지 정리
-
----
-
 ## 백로그
 
 ### 핵심 UX
@@ -52,9 +38,8 @@
 - [ ] **3D Astro-Viz** — Three.js 3D 천구, 행성 위치 계산(케플러), ISS 오버레이
 - [ ] **3D Physics-Viz** — React Three Fiber + Rapier 강체/유체 시뮬레이션
 - [ ] **Plotly/D3 벡터장** — LaTeX 수식 입력 → 수치 해석 → 전자기장/파동함수 시각화
-- [ ] **Gemini 3.1 Flash Lite** — Free Tier Google Search Grounding 미지원으로 보류. 유료 전환 시 재검토.
 - [ ] **Service Worker (PWA)** — 정적 자산 캐싱. Vercel Edge로 커버되어 우선순위 낮음.
 
 ---
 
-_최종 수정: 2026-04-04_
+_최종 수정: 2026-04-04 (v4.14 9-intent 구현 완료)_

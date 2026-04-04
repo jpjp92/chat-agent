@@ -1,6 +1,17 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
+export type IntentType =
+    | "drug_id"      // 알약 이미지 식별 요청
+    | "drug_info"    // 텍스트 약품 정보 조회
+    | "medical_qa"   // 일반 의학/건강 질의
+    | "biology"      // 생명과학 (단백질, DNA, 세포)
+    | "chemistry"    // 화학 (분자구조, 반응, 원소)
+    | "physics"      // 물리 (역학, 시뮬레이션)
+    | "astronomy"    // 천문 (별자리, 행성, 우주)
+    | "data_viz"     // 데이터/통계 (차트, 그래프)
+    | "general";     // 나머지 모든 것
+
 /**
  * AgentState definition for LangGraph.js
  * Tracks conversation history, user attachments, extraction results, and routing flow.
@@ -60,8 +71,8 @@ export const GraphState = Annotation.Root({
         default: () => "Asia/Seoul",
     }),
 
-    // Determines which set of tools to bind (medical vs general search)
-    intent: Annotation<string>({
+    // Determines which set of tools to bind and which prompt sections to inject
+    intent: Annotation<IntentType>({
         reducer: (x, y) => y ?? x,
         default: () => "general",
     }),

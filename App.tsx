@@ -331,8 +331,7 @@ const App: React.FC = () => {
         return {
           ...s,
           messages: latestHistory,
-          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc,
-          lastActiveAttachments: attachments.length > 0 ? attachments : s.lastActiveAttachments
+          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc
         };
       }
       return s;
@@ -434,8 +433,8 @@ const App: React.FC = () => {
     // 2. 현재 첨부된 문서가 없지만, 세션에 저장된 이전 문서 컨텍스트가 있다면 보조 적용
     if (webContext === "" && currentSession?.lastActiveDoc?.extractedText) {
       const isVideoContext = currentSession.lastActiveDoc.mimeType?.startsWith('video/');
-      const tag = isVideoContext ? "[VIDEO_ANALYSIS_SUMMARY]" : "[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT]";
-      webContext = `${tag}: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
+      const tag = isVideoContext ? "VIDEO_ANALYSIS_SUMMARY" : "PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT";
+      webContext = `[${tag}: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
     }
 
     // URL 감지 로직
@@ -450,6 +449,9 @@ const App: React.FC = () => {
         uri: cleanUrl
       };
     });
+
+    let youtubeContextUrl = "";
+    let youtubeTranscriptCaptured = false;
 
     if (urls && urls.length > 0) {
       let rawUrl = urls[0].replace(/[.\)\]\!,?]+$/, '');
@@ -503,10 +505,12 @@ const App: React.FC = () => {
         if (transcript) {
           setLoadingStatus(t.analyzingTranscript);
           webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
+          youtubeTranscriptCaptured = true;
         } else {
           setLoadingStatus(t.watchingVideo);
           webContext += `\n\n${metadata}`;
         }
+        youtubeContextUrl = url;
         setTimeout(() => setLoadingStatus(null), 3000);
       } else if (isPdf) {
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
@@ -577,7 +581,7 @@ const App: React.FC = () => {
         selectedModel
       );
 
-      // 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
+      // 로컬 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
       const videoAttachment = finalAttachments.find(a => a.mimeType?.startsWith('video/'));
       if (videoAttachment && modelResponse) {
         setSessions(prev => prev.map(s => {
@@ -586,6 +590,24 @@ const App: React.FC = () => {
               ...s,
               lastActiveDoc: {
                 ...videoAttachment,
+                extractedText: modelResponse
+              }
+            };
+          }
+          return s;
+        }));
+      }
+
+      // YouTube URL 분석인 경우, AI 요약본을 lastActiveDoc에 저장하여 후속 질문 컨텍스트 제공
+      if (youtubeContextUrl && modelResponse) {
+        setSessions(prev => prev.map(s => {
+          if (s.id === currentSessionId) {
+            return {
+              ...s,
+              lastActiveDoc: {
+                fileName: youtubeContextUrl,
+                mimeType: 'video/youtube',
+                data: youtubeContextUrl,
                 extractedText: modelResponse
               }
             };

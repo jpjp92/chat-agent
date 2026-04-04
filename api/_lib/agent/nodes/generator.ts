@@ -5,6 +5,7 @@ import { getNextApiKey, markKeyRateLimited, API_KEYS } from "../../config.js";
 import { identifyPillTool, searchWebTool } from "../tools.js";
 import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import { getIntentFocusHint } from "../prompt.js";
 
 /**
  * Generator Node
@@ -37,10 +38,28 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             finalInstruction += `\n\n${state.contextInfo}`;
         }
 
-        // SDK path: handles general, YouTube, and multimodal (image/PDF) requests.
+        // Inject intent-specific focus hint to guide renderer selection
+        const intentHint = getIntentFocusHint(state.intent);
+        if (intentHint) {
+            finalInstruction += `\n\n${intentHint}`;
+        }
+
+        // Intent routing:
+        // LangChain path — intents that need custom tools (drug_id, drug_info)
+        // SDK path — all other intents (Google Search grounding available)
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info"];
+        const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
+
+        // Model selection: data_viz can use lighter model; others use state.model
+        const MODEL_OVERRIDES: Partial<Record<string, string>> = {
+            data_viz: "gemini-2.5-flash-lite",
+        };
+        const resolvedModel = MODEL_OVERRIDES[state.intent] ?? (state.model || "gemini-2.5-flash");
+
+        // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
-        // Google Search is enabled for general queries but disabled for YouTube/multimodal to avoid conflicts.
-        if (state.intent !== "medical") {
+        // Google Search grounding is enabled unless multimodal content is present.
+        if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = apiKey; // start with the key already chosen above
             let sdkAttempt = 0;
@@ -125,7 +144,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     const sdkResponse = await genai.models.generateContent({
-                        model: state.model || "gemini-2.5-flash",
+                        model: resolvedModel,
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
@@ -175,7 +194,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             }
         }
 
-        // Fallback path: LangChain (for medical intent or SDK failure)
+        // LangChain path: drug_id and drug_info intents need custom DB/identification tools.
         // Note: YouTube and general multimodal requests are handled exclusively in the SDK path above.
         let lcApiKey = apiKey;
         let lcAttempt = 0;
@@ -183,7 +202,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         while (lcAttempt < API_KEYS.length) {
             try {
                 const llm = new ChatGoogleGenerativeAI({
-                    model: state.model || "gemini-2.0-flash",
+                    model: resolvedModel,
                     apiKey: lcApiKey,
                     temperature: 0.2,
                     topP: 0.8,
@@ -192,8 +211,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 });
 
                 let allTools: any[] = [];
-                if (state.intent === "medical") {
-                    allTools = [searchDrugInfoTool, identifyPillTool, searchWebTool];
+                if (state.intent === "drug_id") {
+                    allTools = [identifyPillTool, searchWebTool];
+                } else if (state.intent === "drug_info") {
+                    allTools = [searchDrugInfoTool, searchWebTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);

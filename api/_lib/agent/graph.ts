@@ -29,6 +29,7 @@ export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: b
 
     // Evaluates where to go after the Router Node detects constraints
     const routePostRouter = (state: AgentStateType) => {
+        // drug_id with image → vision preprocessing; all others go directly to generator
         return state.nextNode === "vision" ? "vision" : "generator";
     };
 
