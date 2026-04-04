@@ -15,8 +15,10 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language, selectedModel, onModelChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [tempProfile, setTempProfile] = useState<UserProfile>(userProfile);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
 
   const i18n = {
     ko: {
@@ -85,6 +87,16 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
     setTempProfile(userProfile);
   }, [userProfile]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setIsModelMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const toggleDarkMode = () => {
     const isDark = document.documentElement.classList.toggle('dark');
     setIsDarkMode(isDark);
@@ -130,33 +142,38 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
             <i className="fa-solid fa-bars text-lg"></i>
           </button>
 
-          <div className="flex items-center group relative z-50">
-            <button className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200">
+          <div ref={modelMenuRef} className="flex items-center relative z-50">
+            <button
+              onClick={() => setIsModelMenuOpen(prev => !prev)}
+              className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200"
+            >
               <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-800 dark:text-white/90">
                 {selectedModel === 'gemini-2.5-flash' ? t.model25Flash : t.model25FlashLite}
               </span>
-              <i className="fa-solid fa-chevron-down text-xs sm:text-sm text-slate-400 dark:text-white/50 group-hover:text-slate-600 dark:group-hover:text-white transition"></i>
+              <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-slate-400 dark:text-white/50 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-slate-600 dark:text-white' : ''}`}></i>
             </button>
-            
-            {/* Hover Dropdown Menu */}
-            <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-[#2f2f2f] rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden hidden group-hover:block transition-all opacity-0 group-hover:opacity-100 transform origin-top-left">
+
+            {/* Click Dropdown Menu */}
+            {isModelMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-[#2f2f2f] rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
                 <div className="flex flex-col py-1">
-                    <div onClick={() => onModelChange('gemini-2.5-flash')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
-                        <div>
-                            <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash</div>
-                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25FlashDesc}</div>
-                        </div>
-                        {selectedModel === 'gemini-2.5-flash' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                  <div onClick={() => { onModelChange('gemini-2.5-flash'); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                    <div>
+                      <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash</div>
+                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25FlashDesc}</div>
                     </div>
-                    <div onClick={() => onModelChange('gemini-2.5-flash-lite')} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center group/item transition-colors">
-                        <div>
-                            <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash-Lite</div>
-                            <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25LiteDesc}</div>
-                        </div>
-                        {selectedModel === 'gemini-2.5-flash-lite' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                    {selectedModel === 'gemini-2.5-flash' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                  </div>
+                  <div onClick={() => { onModelChange('gemini-2.5-flash-lite'); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                    <div>
+                      <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash-Lite</div>
+                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25LiteDesc}</div>
                     </div>
+                    {selectedModel === 'gemini-2.5-flash-lite' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                  </div>
                 </div>
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
