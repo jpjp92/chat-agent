@@ -6,13 +6,27 @@
 
 ## 최근 작업 로그
 
-- [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차 (사이드바 너비/모달 크기/dvh 위치/ChatArea 간격)
+- [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차, **스트리밍 실시간 전송 버그 수정**, **웰컴화면 질의 미표시 버그 수정**, **사이드바 ⋯ 드롭다운 메뉴**
 - [DEV_260404.md](DEV_260404.md) — 약품검색 Strategy 3 버그 수정, ConnectDI URL 정규화, searchWebTool 소스칩, 에이전트 9-intent 오케스트레이션 설계 및 구현, 멀티턴 버그 수정, Lighthouse 측정, **UI 글래스모피즘 개선 구현**
 - [DEV_260403.md](DEV_260403.md) — 타이레놀 검색 오매칭 수정, pharm.or.kr 각인 검증 강화
 
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.21 (Sidebar ⋯ Dropdown i18n — 2026-04-05)
+- **Sidebar Menu i18n**: 드롭다운 편집/삭제 텍스트를 i18n 객체(`t.edit` / `t.delete`)로 교체. ko/en/es/fr 4개 언어 대응.
+- **Sidebar overflow-hidden 제거**: 세션 아이템 `overflow-hidden` 제거 — 드롭다운이 아이템 경계 밖으로 정상 표시.
+
+### v4.20 (Sidebar ⋯ Dropdown — 2026-04-05)
+- **⋯ Dropdown Menu**: 사이드바 편집/삭제 버튼 2개 → ⋯ 단일 아이콘 + 드롭다운 방식으로 교체. 긴 제목에서 버튼 겹침 문제 해결.
+- **Title Space**: 제목 `pr-5` 고정 공간 확보 — ⋯ 버튼과 겹침 방지.
+- **Outside Click**: `openMenuId` state + `menuRef` + `useEffect` 외부 클릭 감지로 드롭다운 자동 닫기.
+
+### v4.19 (Streaming Fix + Welcome Bug — 2026-04-05)
+- **Streaming Real-time**: SDK path `generateContent()` (비스트리밍) → `generateContentStream()`으로 교체. 청크 단위 실시간 타이핑 효과 복원.
+- **sendEvent Chain**: `generator.ts → graph.ts → chat.ts` `sendEvent` 파라미터 체인으로 청크 즉시 전달. `trackingEvent` 래퍼로 `fullAiResponse` 자동 누적 (Supabase 저장용).
+- **Welcome userMessage Bug**: 새 세션 생성 시 두 번의 `setSessions` 호출로 userMessage가 React 배치에서 소실되던 문제 수정. `messages: [userMessage]` 포함한 단일 `setSessions`로 통합.
 
 ### v4.18 (UI Polish 2 — 2026-04-05)
 - **Sidebar Width**: 펼쳐진 상태 `280/300px` → `260/272px` 소폭 축소.

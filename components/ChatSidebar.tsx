@@ -36,8 +36,20 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    if (openMenuId) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMenuId]);
 
   const languages: { code: Language; name: string; label: string }[] = [
     { code: 'ko', name: '한국어', label: 'Korean' },
@@ -54,7 +66,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       deleteMsg: "이 채팅방을 정말 삭제하시겠습니까?\n삭제된 기록은 복구할 수 없습니다.",
       doubleClick: "더블 클릭하여 수정",
       languageLabel: "언어 설정",
-      searchPlaceholder: "채팅 검색"
+      searchPlaceholder: "채팅 검색",
+      edit: "편집",
+      delete: "삭제"
     },
     en: {
       newChat: "New Chat",
@@ -63,7 +77,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       deleteMsg: "Are you sure you want to delete this chat?\nThis cannot be undone.",
       doubleClick: "Double-click to edit",
       languageLabel: "Language",
-      searchPlaceholder: "Search chats"
+      searchPlaceholder: "Search chats",
+      edit: "Edit",
+      delete: "Delete"
     },
     es: {
       newChat: "Nuevo Chat",
@@ -72,7 +88,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       deleteMsg: "¿Estás seguro de que quieres eliminar este chat?\nNo se puede deshacer.",
       doubleClick: "Doble clic para editar",
       languageLabel: "Idioma",
-      searchPlaceholder: "Buscar chats"
+      searchPlaceholder: "Buscar chats",
+      edit: "Editar",
+      delete: "Eliminar"
     },
     fr: {
       newChat: "Nouveau Chat",
@@ -81,7 +99,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       deleteMsg: "Êtes-vous sûr de vouloir supprimer ce chat ?\nCette action est irréversible.",
       doubleClick: "Double-cliquez pour modifier",
       languageLabel: "Langue",
-      searchPlaceholder: "Rechercher"
+      searchPlaceholder: "Rechercher",
+      edit: "Modifier",
+      delete: "Supprimer"
     }
   };
 
@@ -194,7 +214,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       if (isOpen) onClose?.();
                     }
                   }}
-                  className={`group relative flex items-center px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200 overflow-hidden 
+                  className={`group relative flex items-center px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200
                     ${currentSessionId === session.id
                       ? 'bg-indigo-100/80 dark:bg-white/[0.13] text-indigo-700 dark:text-white font-bold'
                       : 'hover:bg-slate-200/60 dark:hover:bg-white/[0.07] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -221,12 +241,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         setEditingId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 text-sm bg-transparent border-b border-primary-500 outline-none"
+                      className="flex-1 text-xs bg-transparent border-b border-primary-500 outline-none"
                       autoFocus
                     />
                   ) : (
                     <span
-                      className="truncate flex-1 text-sm tracking-tight"
+                      className="truncate flex-1 text-[13px] tracking-tight pr-5"
                       title={session.title}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
@@ -238,27 +258,51 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </span>
                   )}
 
-                  <div className={`absolute right-2 flex items-center space-x-0.5 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingId(session.id);
-                        setEditingTitle(session.title);
-                      }}
-                      className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                  {editingId !== session.id && (
+                    <div
+                      ref={openMenuId === session.id ? menuRef : null}
+                      className="absolute right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <i className="fa-solid fa-pen text-[9px]"></i>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showConfirmDialog(t.deleteTitle, t.deleteMsg, () => onDeleteSession(session.id), 'danger');
-                      }}
-                      className="p-1.5 rounded-full text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <i className="fa-solid fa-trash-can text-[9px]"></i>
-                    </button>
-                  </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(openMenuId === session.id ? null : session.id);
+                        }}
+                        className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                      >
+                        <i className="fa-solid fa-ellipsis text-[10px]"></i>
+                      </button>
+
+                      {openMenuId === session.id && (
+                        <div className="absolute right-0 top-full mt-1 w-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingId(session.id);
+                              setEditingTitle(session.title);
+                              setOpenMenuId(null);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                          >
+                            <i className="fa-solid fa-pen text-[9px]"></i>
+                            {t.edit}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              showConfirmDialog(t.deleteTitle, t.deleteMsg, () => onDeleteSession(session.id), 'danger');
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                          >
+                            <i className="fa-solid fa-trash-can text-[9px]"></i>
+                            {t.delete}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
