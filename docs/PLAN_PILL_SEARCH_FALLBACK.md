@@ -1,11 +1,13 @@
 # 약품검색 폴백 메커니즘 계획 (Google Search)
 
+> **구현 완료: 2026-04-04** — 실제 구현은 초기 계획과 다른 방향으로 결정됨. 하단 참조.
+
 ## 현재 상황
 - 약학정보원(pharm.or.kr)에서만 약품 데이터 검색
 - 약학정보원에 해당 약품 정보 없으면 → **빈 결과 반환** (실패)
 
 ## 개선 목표
-약학정보원 검색 실패 시 Google Search로 폴백하여 **더 많은 약품 정보에 접근**
+약학정보원 검색 실패 시 DDG(DuckDuckGo) Search로 폴백하여 **더 많은 약품 정보에 접근**
 
 ---
 
@@ -100,79 +102,55 @@ ELSE
 
 ---
 
-## 4️⃣ 코드 구현 계획
+## 4️⃣ 실제 구현 방향 (계획 수정)
 
-### 수정 대상 파일
+> **초기 계획 변경**: `pill-logic.ts`에 `searchGoogleFallback()` 추가 방식 대신,
+> **MFDS Strategy 3 버그 수정 + LLM 레이어 폴백** 방식으로 구현.
 
-#### ① `api/_lib/pill-logic.ts`
-**변경사항:**
-- `searchPill()` 함수 로직 수정
-  - L20-60: 약학정보원 검색 후 **결과 체크 추가**
-  - 결과 없으면 → `searchGoogleFallback(criteria)` 호출
-  
-- 새 함수 추가
-  - `searchGoogleFallback(criteria)`: Google Search 실행
-  - `fetchGoogleSearchResults(query)`: 구글 검색
-  - `parseGoogleSearchResults(html, criteria)`: 결과 파싱 & 매칭
+### 변경 이유
+로그 분석 결과, 문제는 약학정보원이 아니라 **MFDS Strategy 3**에 있었음:
+- Strategy 3(base name 검색)이 전혀 다른 약품을 반환 → LLM이 오검색된 약을 그대로 처리
+- 이 버그를 먼저 수정하지 않으면 폴백 자체가 의미 없음
 
-#### ② `api/_lib/config.ts` (선택)
-**변경사항:**
-- Google Search 관련 환경변수 (필요 시)
-- 타임아웃 설정 추가
+### 실제 구현 내용 (2026-04-04)
 
-#### ③ `api/pill-search.ts` (선택)
-**변경사항:**
-- 응답 포맷 확장 (source 필드 추가)
-  ```json
-  {
-    found: boolean,
-    match_type: "perfect_match|color_shape_match|google_search",
-    source: "pharm_or_kr|google_search",
-    results: [...]
-  }
-  ```
+```
+Strategy 1: "제놀푸로탑" → MFDS 실패
+Strategy 2: 단위 변환 → MFDS 실패
+(Strategy 3 제거)
+  ↓
+반환: "식약처 DB 없음" + search_web 툴 유도 메시지
+  ↓
+LLM → searchWebTool("제놀 푸로탑 성분 용법 용량") 호출
+  ↓
+DDG 검색 결과 → 스니펫 + 소스 URL 반환
+  ↓
+소스 URL → chat.ts에서 파싱 → 하단 소스 칩 렌더링
+```
 
----
+### 수정된 파일
+| 파일 | 변경 내용 |
+|------|-----------|
+| `api/_lib/agent/drug-info-tool.ts` | Strategy 3 블록 삭제, 실패 메시지에 `search_web` 유도 |
+| `api/_lib/agent/tools.ts` | DDG URL 파싱 추가, `[WEB_SOURCE_URLS]` 블록 반환 |
+| `api/chat.ts` | `on_tool_end` 이벤트에서 소스 URL 파싱 → 소스 칩 발송 |
+| `components/ChatMessage.tsx` | ConnectDI URL 한글 단위 regex 수정 (`밀리그[램람]`) |
 
-## 5️⃣ 타임라인 & 우선순위
-
-| # | 작업 | 예상시간 | 우선순위 |
-|---|------|---------|---------|
-| 1 | `searchGoogleFallback()` 함수 구현 | 30min | 🔴 HIGH |
-| 2 | Google 검색 쿼리 생성 로직 | 20min | 🔴 HIGH |
-| 3 | 결과 파싱 & 매칭 검증 | 40min | 🔴 HIGH |
-| 4 | 에러 처리 & 타임아웃 | 20min | 🟡 MEDIUM |
-| 5 | 테스트 & 검증 | 30min | 🟡 MEDIUM |
-| 6 | 응답 포맷 문서화 | 15min | 🟢 LOW |
-
-**총 예상**: ~2.5시간
+→ 상세 내용: [DEV_260404.md](DEV_260404.md)
 
 ---
 
-## 6️⃣ 예상 이슈 & 대응
+## 5️⃣ 향후 고려사항
 
-| 이슈 | 원인 | 해결책 |
-|------|------|--------|
-| Google 검색 느림 | 네트워크 요청 | 타임아웃 설정 (5초) + 캐싱 |
-| 오매칭 | 약명 유사 | 각인 검증 필수 구현 |
-| 크롤링 차단 | User-Agent 감지 | Referer, User-Agent 헤더 추가 |
-| 한글 인코딩 | URL 인코딩 누락 | `encodeURIComponent()` 사용 |
+- `pill-logic.ts` 레이어(이미지 기반 알약 식별)의 폴백은 별도 작업으로 분리 검토
+- DDG 검색 소스 칩 표시 테스트 후 품질 검증
 
 ---
 
-## 7️⃣ 성공 기준
+## 성공 기준
 
-- ✅ 약학정보원 검색 성공 → 이전대로 반환 (폴백 미실행)
-- ✅ 약학정보원 실패 → Google Search 수행
-- ✅ Google 검색 결과 → 각인/색상/모양으로 검증
-- ✅ 응답 포맷 일관성 유지
-- ✅ 에러 핸들링 개선
-
----
-
-## 다음 단계
-
-1. **계획 검토** - 위 계획 승인 여부
-2. **구현 시작** - pill-logic.ts 수정
-3. **테스트** - 다양한 약품으로 테스트
-4. **배포** - Vercel 배포
+- ✅ Strategy 3 오매칭 제거 → 완료
+- ✅ MFDS 실패 시 원래 검색어로 DDG 검색 → 완료
+- ✅ DDG 검색 결과 소스 칩 렌더링 → 완료
+- ✅ ConnectDI URL 밀리그람 정규화 → 완료
+- ⏳ 테스트: "제놀 푸로탑" 실제 검색 확인

@@ -19,21 +19,51 @@ export const searchWebTool = tool(
                 body: `q=${encodeURIComponent(query)}`
             });
             const text = await res.text();
-            let results = [];
-            // Regex to parse snippet text from DDG HTML
-            let regex = /<a class="result__snippet[^>]*>(.*?)<\/a>/g;
-            let match;
-            while ((match = regex.exec(text)) !== null) {
-                let snippet = match[1].replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-                if (snippet && snippet.length > 20) {
-                    results.push(snippet);
+            const snippets: string[] = [];
+            const urls: { title: string; url: string }[] = [];
+
+            // Parse result blocks: each block contains a link + snippet
+            const blockRegex = /<div class="result__body"[\s\S]*?<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
+            let blockMatch;
+            while ((blockMatch = blockRegex.exec(text)) !== null) {
+                const rawUrl = blockMatch[1];
+                const title = blockMatch[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+                const snippet = blockMatch[3].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+                // DDG wraps real URLs in redirect: extract uddg= param
+                let realUrl = rawUrl;
+                try {
+                    const uddg = new URL('https://duckduckgo.com' + rawUrl).searchParams.get('uddg');
+                    if (uddg) realUrl = decodeURIComponent(uddg);
+                } catch {}
+
+                if (snippet.length > 20) snippets.push(snippet);
+                if (realUrl.startsWith('http') && urls.length < 4) {
+                    urls.push({ title: title || realUrl, url: realUrl });
                 }
-                if (results.length >= 4) break;
+                if (snippets.length >= 4) break;
             }
-            if (results.length === 0) {
+
+            // Fallback: snippet-only regex if block regex matched nothing
+            if (snippets.length === 0) {
+                const snippetRegex = /<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
+                let m;
+                while ((m = snippetRegex.exec(text)) !== null) {
+                    const s = m[1].replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+                    if (s.length > 20) snippets.push(s);
+                    if (snippets.length >= 4) break;
+                }
+            }
+
+            if (snippets.length === 0) {
                 return `웹 검색 결과가 없습니다. 질의: ${query}`;
             }
-            return `[WEB_SEARCH_RESULTS for "${query}"]\n` + results.map((r, i) => `${i + 1}. ${r}`).join('\n\n');
+
+            let output = `[WEB_SEARCH_RESULTS for "${query}"]\n` + snippets.map((r, i) => `${i + 1}. ${r}`).join('\n\n');
+            if (urls.length > 0) {
+                output += `\n\n[WEB_SOURCE_URLS]\n` + urls.map(u => `${u.url} | ${u.title}`).join('\n');
+            }
+            return output;
         } catch (e: any) {
             console.error("[Agent Tool] searchWebTool error:", e);
             return "웹 검색 중 오류가 발생했습니다.";

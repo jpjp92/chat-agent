@@ -298,17 +298,7 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                // Strategy 3: Base name only as fallback (e.g. "딜라트렌정")
-                const baseNameMatch = drug_name.match(/^([가-힣a-zA-Z]+)/);
-                if (baseNameMatch && baseNameMatch[1] && baseNameMatch[1] !== searchName) {
-                    searchName = baseNameMatch[1];
-                    console.log(`[Agent Tool] MFDS Strategy 3 (Base name): ${searchName}`);
-                    items = await fetchMFDS(searchName);
-                }
-            }
-
-            if (!Array.isArray(items) || items.length === 0) {
-                return `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다.`;
+                return `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다. search_web 툴로 "${drug_name} 성분 용법 용량"을 검색하여 정보를 제공하세요.`;
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it

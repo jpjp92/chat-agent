@@ -240,6 +240,22 @@ export default async function handler(req: Request) {
               });
               if (addedNew) sendEvent({ sources: allSources });
             }
+          } else if (event.event === "on_tool_end" && event.name === "search_web") {
+            // Extract [WEB_SOURCE_URLS] block from searchWebTool output and push to sources
+            const toolOutput: string = typeof data?.output === 'string' ? data.output : '';
+            const urlBlockMatch = toolOutput.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
+            if (urlBlockMatch) {
+              let addedNew = false;
+              urlBlockMatch[1].split('\n').forEach((line: string) => {
+                const [url, ...titleParts] = line.split(' | ');
+                const title = titleParts.join(' | ').trim() || url;
+                if (url?.startsWith('http') && !allSources.some((e: any) => e.uri === url)) {
+                  allSources.push({ title, uri: url });
+                  addedNew = true;
+                }
+              });
+              if (addedNew) sendEvent({ sources: allSources });
+            }
           } else if (event.event === "on_chain_end" && event.name === "LangGraph") {
             const finalOutput = data?.output;
             const finalSources: any[] = finalOutput?.groundingSources || [];

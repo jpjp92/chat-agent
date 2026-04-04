@@ -660,7 +660,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                 {drugChips.map((chip, idx) => {
                   const normName = chip.name
                     .replace(/\(.*?\)/g, '')
-                    .replace(/\s*\d+(\.\d+)?\s*(밀리그램|마이크로그램|그램|mg|mcg|g|%|IU|ml|mL)/gi, '')
+                    .replace(/\s*\d+(\.\d+)?\s*(밀리그[램람]|마이크로그[램람]|그[램람]|mg|mcg|g|%|IU|ml|mL)/gi, '')
                     .trim();
                   const href = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(normName)}`;
                   return (
