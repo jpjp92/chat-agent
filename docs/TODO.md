@@ -13,7 +13,7 @@
 - [ ] **세션 문서 컨텍스트 영구 저장** — `lastActiveDoc`을 Supabase(`chat_sessions.last_active_doc` JSONB)에 저장하여 새로고침 후에도 컨텍스트 유지
 
 ### 성능 — Lighthouse 90+
-현재 점수: 83/100
+현재 점수: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04 측정)
 
 - [ ] `fonts.gstatic.com` preconnect에 `crossorigin="anonymous"` 추가 (혼합 힌트 경고 해소)
 - [ ] FontAwesome CDN → `@fortawesome/fontawesome-svg-core` 전환 (미사용 CSS 18KB + font-display 지연 100ms 제거)
