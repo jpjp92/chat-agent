@@ -13,7 +13,7 @@ import { getIntentFocusHint } from "../prompt.js";
  * For general intents, uses @google/genai SDK directly to capture groundingMetadata which
  * is lost by @langchain/google-genai's response parsing.
  */
-export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean) => {
+export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
         const apiKey = getNextApiKey();
@@ -143,7 +143,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] Multimodal content detected — Google Search disabled');
                     }
 
-                    const sdkResponse = await genai.models.generateContent({
+                    // Streaming SDK call — emits chunks to client in real-time
+                    const sdkStream = await genai.models.generateContentStream({
                         model: resolvedModel,
                         contents: sdkContents,
                         config: {
@@ -156,17 +157,29 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     });
 
-                    // Extract text and grounding
-                    const responseText = sdkResponse.text ?? "";
-                    const groundingMetadata = sdkResponse.candidates?.[0]?.groundingMetadata;
+                    let responseText = "";
                     let groundingSources: any[] = [];
-                    if (groundingMetadata?.groundingChunks) {
-                        groundingSources = groundingMetadata.groundingChunks
-                            .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                            .filter(Boolean);
-                        console.log(`[LangGraph] Found ${groundingSources.length} grounding sources via @google/genai SDK`);
-                    } else {
-                        console.log('[LangGraph] No groundingMetadata in SDK response');
+
+                    for await (const chunk of sdkStream) {
+                        const chunkText = chunk.text ?? "";
+                        if (chunkText) {
+                            const sanitized = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
+                            if (sanitized.trim()) {
+                                responseText += sanitized;
+                                if (sendEvent) sendEvent({ text: sanitized });
+                            }
+                        }
+                        // Grounding metadata arrives on final chunk
+                        const gm = chunk.candidates?.[0]?.groundingMetadata;
+                        if (gm?.groundingChunks) {
+                            groundingSources = gm.groundingChunks
+                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                .filter(Boolean);
+                        }
+                    }
+
+                    if (groundingSources.length > 0) {
+                        console.log(`[LangGraph] Found ${groundingSources.length} grounding sources via @google/genai SDK stream`);
                     }
 
                     sdkSuccess = true;

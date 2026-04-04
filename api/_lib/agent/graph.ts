@@ -11,9 +11,9 @@ import { searchDrugInfoTool } from "./drug-info-tool.js";
  * Compiles the LangGraph StateGraph instance.
  * Sets up edges, conditional routing, and binding the executable tools.
  */
-export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean) => {
+export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
 
-    const generator = createGeneratorNode(systemInstruction, isYoutubeRequest);
+    const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent);
     const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool]);
 
     // 2. Define Conditional Routing

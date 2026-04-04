@@ -317,54 +317,54 @@ const App: React.FC = () => {
   const handleSendMessage = async (content: string, _old_attachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
     if (!content.trim() && attachments.length === 0) return;
 
-    // 현재 세션이 없으면 새 세션을 먼저 생성 (새로고침 후 웰컴 화면에서 첫 메시지 전송 시)
-    let activeSessionId = currentSessionId;
-    if (!activeSessionId) {
-      const targetUserId = currentUser?.id;
-      if (!targetUserId) return;
-      try {
-        const { session, error } = await createSession(targetUserId);
-        if (error || !session) { showToast(error || 'Failed to create session', 'error'); return; }
-        const newSess: ChatSession = {
-          id: session.id, title: session.title, messages: [],
-          createdAt: new Date(session.created_at).getTime()
-        };
-        setSessions(prev => [newSess, ...prev]);
-        setCurrentSessionId(session.id);
-        activeSessionId = session.id;
-      } catch (e: any) {
-        showToast(e.message, 'error');
-        return;
-      }
-    }
-
-    // 1. UI 즉각 반응을 위해 업로드 대기 없이 로컬 이미지(Base64)로 사용자 메시지 먼저 추가
+    // 1. UI 즉각 반응을 위해 사용자 메시지를 먼저 생성
     const userMessage: Message = {
       id: Date.now().toString(),
       role: Role.USER,
       content,
       timestamp: Date.now(),
-      attachments: attachments, // 로컬 프리뷰 표시를 위한 임시 배열
-      // 하위 호환성 위해 첫 번째 파일 유지
+      attachments: attachments,
       attachment: attachments.length > 0 ? attachments[0] : undefined
     };
 
+    const docs = attachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
+    const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
+
+    // 현재 세션이 없으면 새 세션을 먼저 생성 (새로고침 후 웰컴 화면에서 첫 메시지 전송 시)
+    let activeSessionId = currentSessionId;
     let latestHistory: Message[] = [];
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
-
-        // 여러 문서가 업로드된 경우, 마지막 문서를 컨텍스트로 우선 저장 (향후 다중 컨텍스트 병합 고려 가능)
-        const docs = attachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
-        const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
-
-        return {
-          ...s,
-          messages: latestHistory,
-          lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc
+    if (!activeSessionId) {
+      const targetUserId = currentUser?.id;
+      if (!targetUserId) return;
+      setIsTyping(true);
+      try {
+        const { session, error } = await createSession(targetUserId);
+        if (error || !session) { setIsTyping(false); showToast(error || 'Failed to create session', 'error'); return; }
+        latestHistory = [userMessage];
+        // userMessage를 새 세션에 직접 포함해 단일 setSessions로 즉시 표시
+        const newSess: ChatSession = {
+          id: session.id, title: session.title, messages: latestHistory,
+          createdAt: new Date(session.created_at).getTime(),
+          lastActiveDoc: lastDoc ?? undefined
         };
+        setSessions(prev => [newSess, ...prev]);
+        setCurrentSessionId(session.id);
+        activeSessionId = session.id;
+      } catch (e: any) {
+        setIsTyping(false);
+        showToast(e.message, 'error');
+        return;
       }
-      return s;
-    }));
+    } else {
+      // 기존 세션: map으로 userMessage 추가
+      setSessions(prev => prev.map(s => {
+        if (s.id === activeSessionId) {
+          latestHistory = [...s.messages, userMessage];
+          return { ...s, messages: latestHistory, lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc };
+        }
+        return s;
+      }));
+    }
 
     setIsTyping(true);
 

@@ -167,10 +167,15 @@ export default async function handler(req: Request) {
 
       // 6. Execute LangGraph stream
       try {
-        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest);
+        let fullAiResponse = '';
+        // trackingEvent: generator.ts에서 SDK 스트리밍 청크를 보낼 때 fullAiResponse도 자동 누적
+        const trackingEvent = (data: any) => {
+          if (data.text) fullAiResponse += data.text;
+          sendEvent(data);
+        };
+        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, trackingEvent);
         const streamEvents = await graph.streamEvents(initialState, { version: "v2" });
 
-        let fullAiResponse = '';
         const allSources: any[] = [];
         if (isYoutubeRequest) {
           const normalizedYtUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
@@ -208,6 +213,9 @@ export default async function handler(req: Request) {
 
             const rawMsgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
             const msgText = rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1');
+            // SDK 스트리밍 경로: trackingEvent로 청크가 이미 전송됨 → fullAiResponse에 누적됨
+            // LangChain 경로: on_chat_model_stream으로 이미 전송됨
+            // fallback: 아무것도 누적되지 않은 경우 (예: 빈 응답 또는 예외 경로)
             if (msgText && !fullAiResponse) {
               fullAiResponse = msgText;
               sendEvent({ text: msgText });
