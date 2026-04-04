@@ -129,11 +129,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   };
 
   return (
-    <header className="relative z-40 sticky top-0 w-full transition-all">
-      {/* Background with Glass Effect */}
-      <div className="absolute inset-0 bg-white/80 dark:bg-[#131314]/80 glass-effect border-none -z-10"></div>
-
-      <div className="flex items-center justify-between px-4 sm:px-6 py-2 sm:py-4">
+    <header className="mx-3 mt-3 mb-1 sticky top-3 z-40">
+      <div className="bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-full border border-white/60 dark:border-slate-700/40 shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.6)] flex items-center justify-between px-4 sm:px-5 py-2">
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onMenuClick}
@@ -147,10 +144,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
               onClick={() => setIsModelMenuOpen(prev => !prev)}
               className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200"
             >
-              <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-800 dark:text-white/90">
+              <span className="text-lg sm:text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">
                 {selectedModel === 'gemini-2.5-flash' ? t.model25Flash : t.model25FlashLite}
               </span>
-              <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-slate-400 dark:text-white/50 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-slate-600 dark:text-white' : ''}`}></i>
+              <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-indigo-400/70 dark:text-indigo-400/60 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
             </button>
 
             {/* Click Dropdown Menu */}

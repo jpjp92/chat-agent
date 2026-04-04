@@ -113,21 +113,32 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       )}
 
       {/* Sidebar Aside */}
-      <aside className={`fixed md:relative inset-y-0 left-0 bg-white dark:bg-[#0a0a0a] border-r border-slate-200 dark:border-white/5 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
-        ${isCollapsed ? 'md:w-[68px]' : 'w-[280px] sm:w-[300px]'}`}>
+      <aside className={`fixed md:relative inset-y-0 left-0 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col md:p-3
+        ${isOpen ? 'translate-x-0 p-0' : '-translate-x-full md:translate-x-0'} 
+        ${isCollapsed ? 'md:w-[84px]' : 'w-[280px] sm:w-[300px]'}`}>
+        <div className="h-full flex flex-col bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl border-r border-slate-200/60 dark:border-white/0 md:border md:border-white/60 md:dark:border-slate-700/40 md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
 
         {/* Header Action Part */}
-        <div className={`flex items-center pt-4 pb-2 shrink-0 ${isCollapsed ? 'md:flex-col md:space-y-4 justify-center px-4' : 'justify-between pl-4 pr-4'}`}>
-          <div className="flex items-center">
+        <div className={`flex items-center pt-4 pb-2 shrink-0 ${isCollapsed ? 'flex-col items-center gap-4 px-0' : 'justify-between pl-4 pr-4'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'flex-col gap-4' : ''}`}>
             {/* Toggle Button for Desktop */}
             <button
               onClick={toggleCollapse}
-              className={`hidden md:flex items-center justify-center rounded-xl hover:bg-slate-200/60 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 transition-all ${isCollapsed ? 'w-10 h-10' : 'w-9 h-9'}`}
+              className="hidden md:flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-200/60 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 transition-all"
               title={isCollapsed ? "Expand" : "Collapse"}
             >
               <i className="fa-solid fa-bars text-[17px]"></i>
             </button>
+            {/* New Chat — collapsed 시 여기에 표시 */}
+            {isCollapsed && (
+              <button
+                onClick={onNewSession}
+                title={t.newChat}
+                className="hidden md:flex items-center justify-center w-10 h-10 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/5 transition-all active:scale-95"
+              >
+                <i className="fa-regular fa-pen-to-square text-[17px]"></i>
+              </button>
+            )}
           </div>
         </div>
 
@@ -165,18 +176,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             </div>
           )}
 
-          {/* Action Part: Collapsed Icons (Only for Desktop) */}
-          {isCollapsed && !isOpen && (
-            <div className="hidden md:flex flex-col items-center pb-4 space-y-4 animate-in fade-in duration-200">
-              <button
-                onClick={onNewSession}
-                title={t.newChat}
-                className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/5 transition-all"
-              >
-                <i className="fa-regular fa-pen-to-square text-[17px]"></i>
-              </button>
-            </div>
-          )}
+          {/* Action Part: Collapsed Icons (Only for Desktop) — 새채팅은 헤더로 이동했으므로 제거 */}
 
           {/* Scrollable List Part: Hidden when collapsed */}
           {(!isCollapsed || isOpen) && (
@@ -196,11 +196,11 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   }}
                   className={`group relative flex items-center px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200 overflow-hidden 
                     ${currentSessionId === session.id
-                      ? 'bg-blue-50/80 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 font-bold'
-                      : 'hover:bg-slate-200/60 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'
+                      ? 'bg-white/80 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-bold shadow-sm'
+                      : 'hover:bg-white/50 dark:hover:bg-white/8 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                     }`}
                 >
-                  <i className={`fa-regular fa-message text-xs mr-3 ${currentSessionId === session.id ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`}></i>
+                  <i className={`fa-regular fa-message text-xs mr-3 ${currentSessionId === session.id ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-400'}`}></i>
 
                   {editingId === session.id ? (
                     <input
@@ -238,7 +238,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </span>
                   )}
 
-                  <div className={`absolute right-2 flex items-center space-x-0.5 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity bg-gradient-to-l from-white dark:from-[#0a0a0a] via-white dark:via-[#0a0a0a] to-transparent pl-4`}>
+                  <div className={`absolute right-2 flex items-center space-x-0.5 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity bg-gradient-to-l from-white/60 dark:from-slate-900/50 via-white/60 dark:via-slate-900/50 to-transparent pl-4`}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -310,6 +310,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <i className="fa-solid fa-globe-asia text-[17px]"></i>
             </button>
           )}
+        </div>
         </div>
       </aside>
     </>

@@ -36,6 +36,15 @@ const App: React.FC = () => {
     (localStorage.getItem('preferred_model') as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') || 'gemini-2.5-flash'
   );
   const [editingMessageContent, setEditingMessageContent] = useState<string | undefined>(undefined);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Dialog & Toast State
   const [dialogConfig, setDialogConfig] = useState<{
@@ -677,7 +686,29 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen h-dvh w-full bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans">
+    <div
+      className="flex h-screen h-dvh w-full text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans"
+      style={{ background: isDark
+        ? 'linear-gradient(135deg, #0f1117 0%, #13152b 40%, #0e1a2e 70%, #0f1117 100%)'
+        : 'linear-gradient(135deg, #f0f2ff 0%, #eef2ff 40%, #e6fff7 100%)'
+      }}
+    >
+      {/* Ambient blobs */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+        {isDark ? (
+          <>
+            <div className="absolute -top-32 right-0 w-[600px] h-[600px] bg-indigo-900/30 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 -left-24 w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-3xl" />
+            <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-purple-900/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+          </>
+        ) : (
+          <>
+            <div className="absolute -top-32 right-0 w-[600px] h-[600px] bg-indigo-100/50 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 -left-24 w-[500px] h-[500px] bg-sky-100/40 rounded-full blur-3xl" />
+            <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-violet-100/30 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+          </>
+        )}
+      </div>
       <ChatSidebar
         sessions={sessions}
         currentSessionId={currentSessionId}
