@@ -4,56 +4,56 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 
 ---
 
-## Features
+## 1. Features
 
-### Conversation & Auth
+### 1-1. Conversation & Auth
 - **Login-less**: Start instantly with an auto-assigned random nickname and avatar
 - **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
 - **Auto-title**: Session titles generated automatically from conversation content (Gemma 3)
 - **Localization**: Full support for KO / EN / ES / FR
 
-### AI Intelligence
+### 1-2. AI Intelligence
 - **Gemini 2.5 Flash** (primary) with **Flash-Lite** for routing and lightweight tasks
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **YouTube analysis**: Transcript-first with direct video analysis fallback; structured summary with timestamp links
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
-### Visualization Renderers (7)
+### 1-3. Visualization Renderers (7)
 
-| Renderer | Trigger | Library |
-|----------|---------|---------|
-| Drug-Viz | Drug name query | MFDS API + pharm.or.kr deep link |
-| Chem-Viz | Molecule / chemical structure | smiles-drawer |
-| Bio-Viz | Protein / DNA query | NGL Viewer (3D PDB) |
-| Physics-Viz | Dynamics / simulation | Matter.js |
-| Diagram-Viz | Force diagram / inclined plane | Canvas 2D |
-| Constellation-Viz | Star / celestial query | HTML5 Canvas |
-| Chart-Viz | Data / statistics | ApexCharts |
+| Renderer | Intent | Trigger | Library |
+|----------|--------|---------|---------|
+| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 | MFDS API + pharm.or.kr |
+| 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
+| 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
+| ⚙️ Physics-Viz | `physics` | 역학 / 시뮬레이션 | Matter.js |
+| 📐 Diagram-Viz | `physics` | 경사면 힘 다이어그램 | Canvas 2D |
+| ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas |
+| 📊 Chart-Viz | `data_viz` | 데이터 / 통계 | ApexCharts |
 
-### Drug-Viz — Pill Identification Engine
+### 1-4. 💊 Drug-Viz — Pill Identification Engine
 - **Vision imprint extraction**: When MFDS returns a logo mark, Gemini Vision extracts the actual imprint text
 - **pharm.or.kr deep link**: Server-side POST extracts internal `idx` for a one-click identification card link
 - **2-stage image verification**: ConnectDI HTML parsing + imprint matching; accuracy 70% → 95%+
 - **Parallel processing**: MFDS lookup and pharm.or.kr lookup run concurrently
 - **DDG fallback**: Drugs not in MFDS fall back to DuckDuckGo search with source chips
 
-### Performance
+### 1-5. Performance
 - Lighthouse **83 / 100** (up from 44)
 - JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
 - CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
 - CLS **0.00** / Best Practices **100 / 100**
 
-### Security
+### 1-6. Security
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
 - **Row Level Security**: Supabase RLS enforces per-user data isolation
 - **API key rotation**: Automatic key cycling on 429 errors (60 s blacklist)
 
 ---
 
-## Architecture
+## 2. Architecture
 
-### System Overview
+### 2-1. System Overview
 
 ```mermaid
 flowchart TB
@@ -62,8 +62,8 @@ flowchart TB
     subgraph Frontend ["Frontend (React 19 + Vite)"]
         UI[Main UI & App State]
         subgraph Visualizers ["Visualization Modules"]
-            Astro["Astro-Viz"] & Bio["Bio-Viz"] & Chem["Chem-Viz"]
-            Phy["Physics-Viz"] & Drug["Drug-Viz"] & Charts["Chart-Viz"]
+            Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
+            Phy["⚙️ Physics-Viz"] & Drug["💊 Drug-Viz"] & Charts["📊 Chart-Viz"]
         end
     end
 
@@ -83,7 +83,7 @@ flowchart TB
     Backend <--> Supabase
 ```
 
-### LangGraph Agent Flow
+### 2-2. LangGraph Agent Flow
 
 ```mermaid
 flowchart TB
@@ -91,23 +91,37 @@ flowchart TB
 
     subgraph StateGraph ["LangGraph.js StateGraph"]
         StateNode[("AgentState")]
-        RouterNode{{"Semantic Router\n(Intent: medical | general)"}}
-        Vision["Vision Node\n(Pill image analysis)"]
-        ToolExecutor["Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
-        Generator["Generator Node\n(Gemini LLM)"]
+        RouterNode{{"🧭 Semantic Router\n(9 Intents)"}}
+        Vision["👁️ Vision Node\n(Pill image analysis)"]
+        ToolExecutor["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
+        Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
     Output([Streaming Response])
 
     User --> StateNode --> RouterNode
-    RouterNode -- "pill image" --> Vision --> StateNode
-    RouterNode -- "tool needed" --> ToolExecutor --> StateNode
+    RouterNode -- "drug_id (pill image)" --> Vision --> StateNode
+    RouterNode -- "drug_id / drug_info" --> ToolExecutor --> StateNode
     StateNode --> Generator --> Output
 ```
 
+### 2-3. Intent Routing
+
+| Intent | Path | Model |
+|--------|------|-------|
+| `drug_id` | Vision → LangChain + Tools | gemini-2.5-flash |
+| `drug_info` | LangChain + Tools | gemini-2.5-flash |
+| `medical_qa` | LangChain + Tools | gemini-2.5-flash |
+| `biology` | SDK + Google Search | gemini-2.5-flash |
+| `chemistry` | SDK + Google Search | gemini-2.5-flash |
+| `physics` | SDK + Google Search | gemini-2.5-flash |
+| `astronomy` | SDK + Google Search | gemini-2.5-flash |
+| `data_viz` | SDK + Google Search | gemini-2.5-flash |
+| `general` | SDK + Google Search | gemini-2.5-flash |
+
 ---
 
-## Tech Stack
+## 3. Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -117,7 +131,7 @@ flowchart TB
 | AI | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
 | Database | Supabase (PostgreSQL, Storage, Auth) |
 
-### Model Usage
+### 3-1. Model Usage
 
 | Purpose | Model |
 |---------|-------|
@@ -128,7 +142,7 @@ flowchart TB
 
 ---
 
-## Project Structure
+## 4. Project Structure
 
 ```
 ├── api/                        # Vercel Serverless Functions
@@ -163,15 +177,16 @@ flowchart TB
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog
 │   ├── DEV_260404.md           # Recent work log
-│   └── TODO.md                 # Roadmap
+│   ├── TODO.md                 # Roadmap
+│   └── REF_*.md                # Renderer test prompt guides
 └── types.ts
 ```
 
 ---
 
-## Getting Started
+## 5. Getting Started
 
-### Environment variables (`.env.local`)
+### 5-1. Environment variables (`.env.local`)
 
 ```env
 SUPABASE_URL=your_supabase_url
@@ -182,7 +197,7 @@ MFDS_API_ENDPOINT=your_mfds_endpoint
 MFDS_API_KEY=your_mfds_key
 ```
 
-### Install & run
+### 5-2. Install & run
 
 ```bash
 npm install
