@@ -51,7 +51,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       newChat: "새 채팅",
       history: "최근 기록",
       deleteTitle: "채팅방 삭제",
-      deleteMsg: "이 채팅방을 정말 삭제하시겠습니까? 삭제된 기록은 복구할 수 없습니다.",
+      deleteMsg: "이 채팅방을 정말 삭제하시겠습니까?\n삭제된 기록은 복구할 수 없습니다.",
       doubleClick: "더블 클릭하여 수정",
       languageLabel: "언어 설정",
       searchPlaceholder: "채팅 검색"
@@ -60,7 +60,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       newChat: "New Chat",
       history: "Recent",
       deleteTitle: "Delete Chat",
-      deleteMsg: "Are you sure you want to delete this chat? This cannot be undone.",
+      deleteMsg: "Are you sure you want to delete this chat?\nThis cannot be undone.",
       doubleClick: "Double-click to edit",
       languageLabel: "Language",
       searchPlaceholder: "Search chats"
@@ -69,7 +69,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       newChat: "Nuevo Chat",
       history: "Reciente",
       deleteTitle: "Eliminar Chat",
-      deleteMsg: "¿Estás seguro de que quieres eliminar este chat? No se puede deshacer.",
+      deleteMsg: "¿Estás seguro de que quieres eliminar este chat?\nNo se puede deshacer.",
       doubleClick: "Doble clic para editar",
       languageLabel: "Idioma",
       searchPlaceholder: "Buscar chats"
@@ -78,7 +78,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       newChat: "Nouveau Chat",
       history: "Récent",
       deleteTitle: "Supprimer le Chat",
-      deleteMsg: "Êtes-vous sûr de vouloir supprimer ce chat ? Cette action est irréversible.",
+      deleteMsg: "Êtes-vous sûr de vouloir supprimer ce chat ?\nCette action est irréversible.",
       doubleClick: "Double-cliquez pour modifier",
       languageLabel: "Langue",
       searchPlaceholder: "Rechercher"
@@ -115,7 +115,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       {/* Sidebar Aside */}
       <aside className={`fixed md:relative inset-y-0 left-0 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col md:p-3
         ${isOpen ? 'translate-x-0 p-0' : '-translate-x-full md:translate-x-0'} 
-        ${isCollapsed ? 'md:w-[84px]' : 'w-[280px] sm:w-[300px]'}`}>
+        ${isCollapsed ? 'md:w-[84px]' : 'w-[260px] sm:w-[272px]'}`}>
         <div className="h-full flex flex-col bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl border-r border-slate-200/60 dark:border-white/0 md:border md:border-white/60 md:dark:border-slate-700/40 md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
 
         {/* Header Action Part */}

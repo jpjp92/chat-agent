@@ -196,7 +196,7 @@ const App: React.FC = () => {
           };
         }));
         setSessions(mappedSessions);
-        if (mappedSessions.length > 0) handleSelectSession(mappedSessions[0].id);
+        // 자동 선택하지 않음 — 웰컴 화면에서 첫 메시지 전송 시 새 세션 생성
       } else {
         await handleNewSession(userId);
       }
@@ -315,7 +315,28 @@ const App: React.FC = () => {
   const currentSession = sessions.find(s => s.id === currentSessionId);
 
   const handleSendMessage = async (content: string, _old_attachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
-    if (!currentSessionId || (!content.trim() && attachments.length === 0)) return;
+    if (!content.trim() && attachments.length === 0) return;
+
+    // 현재 세션이 없으면 새 세션을 먼저 생성 (새로고침 후 웰컴 화면에서 첫 메시지 전송 시)
+    let activeSessionId = currentSessionId;
+    if (!activeSessionId) {
+      const targetUserId = currentUser?.id;
+      if (!targetUserId) return;
+      try {
+        const { session, error } = await createSession(targetUserId);
+        if (error || !session) { showToast(error || 'Failed to create session', 'error'); return; }
+        const newSess: ChatSession = {
+          id: session.id, title: session.title, messages: [],
+          createdAt: new Date(session.created_at).getTime()
+        };
+        setSessions(prev => [newSess, ...prev]);
+        setCurrentSessionId(session.id);
+        activeSessionId = session.id;
+      } catch (e: any) {
+        showToast(e.message, 'error');
+        return;
+      }
+    }
 
     // 1. UI 즉각 반응을 위해 업로드 대기 없이 로컬 이미지(Base64)로 사용자 메시지 먼저 추가
     const userMessage: Message = {
@@ -330,8 +351,7 @@ const App: React.FC = () => {
 
     let latestHistory: Message[] = [];
     setSessions(prev => prev.map(s => {
-      if (s.id === currentSessionId) {
-        latestHistory = [...s.messages, userMessage];
+      if (s.id === activeSessionId) {
 
         // 여러 문서가 업로드된 경우, 마지막 문서를 컨텍스트로 우선 저장 (향후 다중 컨텍스트 병합 고려 가능)
         const docs = attachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
@@ -427,7 +447,7 @@ const App: React.FC = () => {
     }
 
     // 지능형 컨텍스트 추출
-    const currentSession = sessions.find(s => s.id === currentSessionId);
+    const currentSession = sessions.find(s => s.id === activeSessionId);
     let webContext = "";
 
     // 1. 현재 첨부된 모든 문서들의 텍스트를 컨텍스트에 포함
@@ -541,7 +561,7 @@ const App: React.FC = () => {
           if (isReset) modelResponse = "";
           modelResponse += chunk;
           setSessions(prev => prev.map(s => {
-            if (s.id === currentSessionId) {
+            if (s.id === activeSessionId) {
               const existingMsgIndex = s.messages.findIndex(m => m.id === modelMessageId);
               if (existingMsgIndex > -1) {
                 const updatedMessages = [...s.messages];
@@ -568,7 +588,7 @@ const App: React.FC = () => {
         'text',
         (sources) => {
           setSessions(prev => prev.map(s => {
-            if (s.id === currentSessionId) {
+            if (s.id === activeSessionId) {
               return {
                 ...s,
                 messages: s.messages.map(m => {
@@ -585,7 +605,7 @@ const App: React.FC = () => {
             return s;
           }));
         },
-        currentSessionId,
+        activeSessionId,
         finalAttachments, // New: Pass multiple attachments to service
         selectedModel
       );
@@ -594,7 +614,7 @@ const App: React.FC = () => {
       const videoAttachment = finalAttachments.find(a => a.mimeType?.startsWith('video/'));
       if (videoAttachment && modelResponse) {
         setSessions(prev => prev.map(s => {
-          if (s.id === currentSessionId) {
+          if (s.id === activeSessionId) {
             return {
               ...s,
               lastActiveDoc: {
@@ -610,7 +630,7 @@ const App: React.FC = () => {
       // YouTube URL 분석인 경우, AI 요약본을 lastActiveDoc에 저장하여 후속 질문 컨텍스트 제공
       if (youtubeContextUrl && modelResponse) {
         setSessions(prev => prev.map(s => {
-          if (s.id === currentSessionId) {
+          if (s.id === activeSessionId) {
             return {
               ...s,
               lastActiveDoc: {
@@ -628,9 +648,9 @@ const App: React.FC = () => {
       // 제목 자동 업데이트
       if (latestHistory.length <= 2) {
         const newTitle = await summarizeConversation([...latestHistory, { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() }], language);
-        setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, title: newTitle } : s));
+        setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, title: newTitle } : s));
         try {
-          await updateSessionTitle(currentSessionId, newTitle);
+          await updateSessionTitle(activeSessionId, newTitle);
         } catch (e) {
           console.error("Failed to update session title in DB", e);
         }
