@@ -588,7 +588,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
             className={`relative transition-all duration-300 cursor-default ${isUser
-            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#eff1f1] dark:bg-[#2f2f2f] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
+            ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#e5eaf9] dark:bg-[#2a2d3e] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
             : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
             }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all', touchAction: 'pan-y', WebkitTouchCallout: 'none' }}>
             <div className="font-normal leading-relaxed w-full">

@@ -196,8 +196,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   }}
                   className={`group relative flex items-center px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200 overflow-hidden 
                     ${currentSessionId === session.id
-                      ? 'bg-white/80 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-bold shadow-sm'
-                      : 'hover:bg-white/50 dark:hover:bg-white/8 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                      ? 'bg-indigo-100/80 dark:bg-white/[0.13] text-indigo-700 dark:text-white font-bold'
+                      : 'hover:bg-slate-200/60 dark:hover:bg-white/[0.07] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
                   <i className={`fa-regular fa-message text-xs mr-3 ${currentSessionId === session.id ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-400'}`}></i>
@@ -238,14 +238,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </span>
                   )}
 
-                  <div className={`absolute right-2 flex items-center space-x-0.5 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity bg-gradient-to-l from-white/60 dark:from-slate-900/50 via-white/60 dark:via-slate-900/50 to-transparent pl-4`}>
+                  <div className={`absolute right-2 flex items-center space-x-0.5 ${currentSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingId(session.id);
                         setEditingTitle(session.title);
                       }}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                      className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                     >
                       <i className="fa-solid fa-pen text-[9px]"></i>
                     </button>
@@ -254,7 +254,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         e.stopPropagation();
                         showConfirmDialog(t.deleteTitle, t.deleteMsg, () => onDeleteSession(session.id), 'danger');
                       }}
-                      className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                      className="p-1.5 rounded-full text-slate-400 hover:text-red-500 transition-colors"
                     >
                       <i className="fa-solid fa-trash-can text-[9px]"></i>
                     </button>

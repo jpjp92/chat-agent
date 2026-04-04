@@ -130,13 +130,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
   return (
     <header className="mx-3 mt-3 mb-1 sticky top-3 z-40">
-      <div className="bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-full border border-white/60 dark:border-slate-700/40 shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.6)] flex items-center justify-between px-4 sm:px-5 py-2">
+      <div className="bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-full border border-white/60 dark:border-slate-700/40 shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.6)] flex items-center justify-between px-4 sm:px-5 py-1.5">
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onMenuClick}
-            className="md:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95"
+            className="md:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95"
           >
-            <i className="fa-solid fa-bars text-lg"></i>
+            <i className="fa-solid fa-bars text-base"></i>
           </button>
 
           <div ref={modelMenuRef} className="flex items-center relative z-50">
@@ -144,7 +144,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
               onClick={() => setIsModelMenuOpen(prev => !prev)}
               className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200"
             >
-              <span className="text-lg sm:text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">
+              <span className="text-base sm:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">
                 {selectedModel === 'gemini-2.5-flash' ? t.model25Flash : t.model25FlashLite}
               </span>
               <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-indigo-400/70 dark:text-indigo-400/60 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
@@ -180,13 +180,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
             className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
           >
             <div className="hidden lg:flex items-center gap-2 mr-1">
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{userProfile.name}</span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{userProfile.name}</span>
               <i className="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
             </div>
             <img
               src={userProfile.avatarUrl}
               alt="Profile"
-              className="w-9 h-9 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-800"
+              className="w-8 h-8 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-800"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userProfile.name);
               }}

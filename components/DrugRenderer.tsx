@@ -257,10 +257,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                         </span>
                                     ))}
                                 </div>
-                                <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+                                <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
                                     {data.name}
                                     {data.engName && (
-                                        <div className="text-sm font-medium text-slate-400 dark:text-slate-500 mt-1">{data.engName}</div>
+                                        <div className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">{data.engName}</div>
                                     )}
                                 </h2>
                             </div>
@@ -396,11 +396,11 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
-                                    <i className="fa-solid fa-microscope text-indigo-500 text-sm"></i>
+                                    <i className="fa-solid fa-microscope text-indigo-500 text-xs"></i>
                                 </div>
                                 <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.ingredient}</span>
                             </div>
-                            <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[12px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {data.ingredient}
                             </p>
                         </div>
@@ -409,11 +409,11 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
-                                    <i className="fa-solid fa-clock-rotate-left text-indigo-500 text-sm"></i>
+                                    <i className="fa-solid fa-clock-rotate-left text-indigo-500 text-xs"></i>
                                 </div>
                                 <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.dosage}</span>
                             </div>
-                            <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[12px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {data.dosage || (language === 'ko' ? '복용 전 의사·약사와 상의하세요.' : 'Please consult a doctor or pharmacist.')}
                             </p>
                         </div>
@@ -432,7 +432,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     className="p-4 bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl flex flex-col items-center justify-center text-center gap-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
                                 >
                                     <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-black/30 flex items-center justify-center border border-slate-100 dark:border-white/5">
-                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-lg`}></i>
+                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-base`}></i>
                                     </div>
                                     <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight">
                                         {eff.label}
