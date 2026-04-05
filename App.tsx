@@ -158,6 +158,8 @@ const App: React.FC = () => {
           if (!error && newUser) {
             user = newUser;
             localStorage.setItem('gemini_chat_user', JSON.stringify(newUser));
+          } else if (error) {
+            console.error("Auto-login error:", error);
           }
         } catch (e) {
           console.error("Auto-login failed:", e);
@@ -175,7 +177,10 @@ const App: React.FC = () => {
       setIsAuthLoading(false);
     };
 
-    initAuth();
+    initAuth().catch(e => {
+      console.error("initAuth failed:", e);
+      setIsAuthLoading(false);
+    });
 
     const savedLang = localStorage.getItem('gemini_language') as Language;
     if (savedLang) setLanguage(savedLang);
@@ -699,9 +704,15 @@ const App: React.FC = () => {
   };
 
 
-  if (isAuthLoading || !currentUser) {
+  if (isAuthLoading) {
     return (
       <LoadingScreen message={t.preparingSession} />
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <LoadingScreen message={language === 'ko' ? '연결에 실패했습니다. 페이지를 새로고침 해주세요.' : language === 'es' ? 'Error de conexión. Por favor, recarga la página.' : language === 'fr' ? 'Erreur de connexion. Veuillez recharger la page.' : 'Connection failed. Please refresh the page.'} />
     );
   }
 
