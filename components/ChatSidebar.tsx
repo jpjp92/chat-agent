@@ -173,24 +173,24 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   onNewSession();
                   if (isOpen) onClose?.();
                 }}
-                className="w-full h-11 flex items-center px-4 rounded-xl text-slate-600 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/5 transition-all active:scale-[0.98] group"
+                className="w-full h-9 flex items-center px-4 rounded-xl text-slate-600 dark:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/5 transition-all active:scale-[0.98] group"
               >
                 <div className="w-5 h-5 flex items-center justify-center mr-3">
-                  <i className="fa-regular fa-pen-to-square text-[16px]"></i>
+                  <i className="fa-regular fa-pen-to-square text-[14px]"></i>
                 </div>
-                <span className="text-[15px] font-medium tracking-tight text-left">{t.newChat}</span>
+                <span className="text-[13px] font-medium tracking-tight text-left">{t.newChat}</span>
               </button>
 
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center pointer-events-none">
-                  <i className="fa-solid fa-magnifying-glass text-[14px] text-slate-400 group-focus-within:text-primary-500 transition-colors"></i>
+                  <i className="fa-solid fa-magnifying-glass text-[13px] text-slate-400 group-focus-within:text-primary-500 transition-colors"></i>
                 </div>
                 <input
                   type="text"
                   placeholder={t.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-11 bg-transparent border-none rounded-xl py-0 pl-12 pr-4 text-[15px] font-medium text-slate-800 dark:text-slate-100 focus:ring-0 hover:bg-slate-200/60 dark:hover:bg-white/5 outline-none transition-all placeholder:text-slate-500 dark:placeholder:text-slate-400"
+                  className="w-full h-9 bg-transparent border-none rounded-xl py-0 pl-12 pr-4 text-[13px] font-medium text-slate-800 dark:text-slate-100 focus:ring-0 hover:bg-slate-200/60 dark:hover:bg-white/5 outline-none transition-all placeholder:text-slate-500 dark:placeholder:text-slate-400"
                 />
               </div>
             </div>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ChatSidebar from './components/ChatSidebar';
 import ChatMessage from './components/ChatMessage';
@@ -9,33 +9,20 @@ import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import WelcomeMessage from './components/WelcomeMessage';
 import ChatArea from './components/ChatArea';
-import { streamChatResponse, summarizeConversation, fetchUrlContent, fetchUrlData, fetchYoutubeTranscript, loginUser, fetchSessions, createSession, deleteSession, updateSessionTitle, updateRemoteUserProfile, uploadToStorage, fetchSessionMessages } from './services/geminiService';
-import { Role, Message, ChatSession, UserProfile, Language, GroundingSource, MessageAttachment } from './types';
+import { updateRemoteUserProfile } from './services/geminiService';
+import { UserProfile, Language, MessageAttachment } from './types';
+import { useAuthSession } from './src/hooks/useAuthSession';
+import { useChatSessions } from './src/hooks/useChatSessions';
+import { useChatStream } from './src/hooks/useChatStream';
 import 'katex/dist/katex.min.css';
 
-interface SupabaseUser {
-  id: number;
-  nickname: string;
-  created_at: string;
-  display_name?: string;
-  avatar_url?: string;
-}
-
 const App: React.FC = () => {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [language, setLanguage] = useState<Language>('ko');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [loginNickname, setLoginNickname] = useState('');
   const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>(
     (localStorage.getItem('preferred_model') as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') || 'gemini-2.5-flash'
   );
-  const [editingMessageContent, setEditingMessageContent] = useState<string | undefined>(undefined);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
   useEffect(() => {
@@ -69,6 +56,22 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile>({
     name: 'User',
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
+  });
+
+  const { currentUser, setCurrentUser, isAuthLoading, clearStoredUser, hydratedUserProfile } = useAuthSession();
+  const {
+    sessions,
+    setSessions,
+    currentSessionId,
+    setCurrentSessionId,
+    currentSession,
+    createNewSession,
+    selectSession,
+    removeSession,
+    renameSession,
+  } = useChatSessions({
+    userId: currentUser?.id ?? null,
+    onError: (message) => showToast(message, 'error'),
   });
 
 
@@ -142,76 +145,46 @@ const App: React.FC = () => {
 
   const t = i18n[language] || i18n.ko;
 
+  const {
+    isTyping,
+    loadingStatus,
+    editingMessageContent,
+    handleEditMessage,
+    handleSendMessage,
+  } = useChatStream({
+    sessions,
+    setSessions,
+    currentSessionId,
+    setCurrentSessionId,
+    currentUser,
+    language,
+    selectedModel,
+    statusMessages: {
+      uploadFailed: t.uploadFailed,
+      analyzingImage: t.analyzingImage,
+      analyzingPaper: t.analyzingPaper,
+      checkingYoutube: t.checkingYoutube,
+      analyzingTranscript: t.analyzingTranscript,
+      watchingVideo: t.watchingVideo,
+      fetchingUrl: t.fetchingUrl,
+      identifyingPill: t.identifyingPill,
+    },
+    onError: (message) => showToast(message, 'error'),
+  });
+
   useEffect(() => {
-    const initAuth = async () => {
-      let user: SupabaseUser | null = null;
-      const savedUser = localStorage.getItem('gemini_chat_user');
-
-      if (savedUser) {
-        user = JSON.parse(savedUser);
-      } else {
-        // 자동 익명 로그인 처리
-        const randomID = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const guestNickname = `사용자_${randomID}`;
-        try {
-          const { user: newUser, error } = await loginUser(guestNickname);
-          if (!error && newUser) {
-            user = newUser;
-            localStorage.setItem('gemini_chat_user', JSON.stringify(newUser));
-          } else if (error) {
-            console.error("Auto-login error:", error);
-          }
-        } catch (e) {
-          console.error("Auto-login failed:", e);
-        }
-      }
-
-      if (user) {
-        setCurrentUser(user);
-        setUserProfile({
-          name: user.display_name || user.nickname,
-          avatarUrl: user.avatar_url || "https://images.unsplash.com/photo-1591160690555-5debfba289f0?w=72&h=72&fit=crop&fm=webp&q=55"
-        });
-        await loadUserSessions(user.id);
-      }
-      setIsAuthLoading(false);
-    };
-
-    initAuth().catch(e => {
-      console.error("initAuth failed:", e);
-      setIsAuthLoading(false);
-    });
-
     const savedLang = localStorage.getItem('gemini_language') as Language;
     if (savedLang) setLanguage(savedLang);
   }, []);
 
-  const loadUserSessions = async (userId: number) => {
-    try {
-      const { sessions: dbSessions } = await fetchSessions(userId);
-      if (dbSessions && dbSessions.length > 0) {
-        // Map DB sessions to ChatSession type
-        const mappedSessions: ChatSession[] = await Promise.all(dbSessions.map(async (s: any) => {
-          // 각 세션의 마지막 메시지들을 미리 가져오지는 않고, 선택 시 가져옴
-          return {
-            id: s.id,
-            title: s.title,
-            messages: [], // 초기엔 빈 배열, 선택 시 로드
-            createdAt: new Date(s.created_at).getTime()
-          };
-        }));
-        setSessions(mappedSessions);
-        // 자동 선택하지 않음 — 웰컴 화면에서 첫 메시지 전송 시 새 세션 생성
-      } else {
-        await handleNewSession(userId);
-      }
-    } catch (e) {
-      console.error("Failed to load sessions", e);
+  useEffect(() => {
+    if (hydratedUserProfile) {
+      setUserProfile(hydratedUserProfile);
     }
-  };
+  }, [hydratedUserProfile]);
 
   const handleReset = () => {
-    localStorage.removeItem('gemini_chat_user');
+    clearStoredUser();
     window.location.reload(); // 새로고침하여 새로운 익명 사용자로 다시 시작
   };
   // Supabase 연동으로 인해 로컬스토리지 자동 저장은 비활성화하거나 유저 프로필만 남깁니다.
@@ -221,68 +194,17 @@ const App: React.FC = () => {
 
 
   const handleNewSession = async (userId?: number) => {
-    const targetUserId = userId || currentUser?.id;
-    if (!targetUserId) return;
-
-    try {
-      const { session, error } = await createSession(targetUserId);
-      if (error) throw new Error(error);
-
-      const newSession: ChatSession = {
-        id: session.id,
-        title: session.title,
-        messages: [],
-        createdAt: new Date(session.created_at).getTime()
-      };
-      setSessions(prev => [newSession, ...prev]);
-      setCurrentSessionId(newSession.id);
-      setIsSidebarOpen(false);
-    } catch (e: any) {
-      showToast(e.message, "error");
-    }
+    await createNewSession(userId);
+    setIsSidebarOpen(false);
   };
 
   const handleSelectSession = async (id: string) => {
-    setCurrentSessionId(id);
+    await selectSession(id);
     setIsSidebarOpen(false);
-
-    // 해당 세션의 메시지 로드 (비어있는 경우에만)
-    const session = sessions.find(s => s.id === id);
-    if (session && session.messages.length === 0) {
-      try {
-        const { messages, error } = await fetchSessionMessages(id);
-        if (error) throw new Error(error);
-        if (messages) {
-          const mappedMessages: Message[] = messages.map((m: any) => ({
-            id: m.id,
-            role: m.role === 'user' ? Role.USER : Role.MODEL,
-            content: m.content,
-            timestamp: new Date(m.created_at).getTime(),
-            groundingSources: m.grounding_sources,
-            attachment: m.attachment_url ? {
-              fileName: m.attachment_url.includes('pdf') ? 'document.pdf' : 'image_attached',
-              mimeType: m.attachment_url,
-              data: '' // 실제 데이터는 스토리지가 아니어서 없음
-            } : undefined
-          }));
-          setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: mappedMessages } : s));
-        }
-      } catch (e: any) {
-        showToast(e.message, "error");
-      }
-    }
   };
 
   const handleDeleteSession = async (id: string) => {
-    try {
-      await deleteSession(id);
-      const updated = sessions.filter(s => s.id !== id);
-      setSessions(updated);
-      if (currentSessionId === id) setCurrentSessionId(updated.length > 0 ? updated[0].id : null);
-      if (updated.length === 0) await handleNewSession();
-    } catch (e: any) {
-      showToast(e.message, "error");
-    }
+    await removeSession(id);
   };
 
   const handleUpdateProfile = async (profile: UserProfile) => {
@@ -317,373 +239,8 @@ const App: React.FC = () => {
     localStorage.setItem('gemini_language', lang);
   };
 
-  const currentSession = sessions.find(s => s.id === currentSessionId);
-
-  const handleSendMessage = async (content: string, _old_attachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
-    if (!content.trim() && attachments.length === 0) return;
-
-    // 1. UI 즉각 반응을 위해 사용자 메시지를 먼저 생성
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: Role.USER,
-      content,
-      timestamp: Date.now(),
-      attachments: attachments,
-      attachment: attachments.length > 0 ? attachments[0] : undefined
-    };
-
-    const docs = attachments.filter(a => a.extractedText || a.mimeType === 'application/pdf');
-    const lastDoc = docs.length > 0 ? docs[docs.length - 1] : undefined;
-
-    // 현재 세션이 없으면 새 세션을 먼저 생성 (새로고침 후 웰컴 화면에서 첫 메시지 전송 시)
-    let activeSessionId = currentSessionId;
-    let latestHistory: Message[] = [];
-    if (!activeSessionId) {
-      const targetUserId = currentUser?.id;
-      if (!targetUserId) return;
-      setIsTyping(true);
-      try {
-        const { session, error } = await createSession(targetUserId);
-        if (error || !session) { setIsTyping(false); showToast(error || 'Failed to create session', 'error'); return; }
-        latestHistory = [userMessage];
-        // userMessage를 새 세션에 직접 포함해 단일 setSessions로 즉시 표시
-        const newSess: ChatSession = {
-          id: session.id, title: session.title, messages: latestHistory,
-          createdAt: new Date(session.created_at).getTime(),
-          lastActiveDoc: lastDoc ?? undefined
-        };
-        setSessions(prev => [newSess, ...prev]);
-        setCurrentSessionId(session.id);
-        activeSessionId = session.id;
-      } catch (e: any) {
-        setIsTyping(false);
-        showToast(e.message, 'error');
-        return;
-      }
-    } else {
-      // 기존 세션: map으로 userMessage 추가
-      setSessions(prev => prev.map(s => {
-        if (s.id === activeSessionId) {
-          latestHistory = [...s.messages, userMessage];
-          return { ...s, messages: latestHistory, lastActiveDoc: lastDoc ? lastDoc : s.lastActiveDoc };
-        }
-        return s;
-      }));
-    }
-
-    setIsTyping(true);
-
-    // 2. 백그라운드에서 첨부파일들이 있는 경우 Supabase Storage에 순차적으로 업로드
-    let finalAttachments: MessageAttachment[] = [];
-
-    if (attachments.length > 0) {
-      try {
-        for (const attachment of attachments) {
-          const isImage = attachment.mimeType.startsWith('image/');
-          const isVideo = attachment.mimeType.startsWith('video/');
-          const isPDF = attachment.mimeType === 'application/pdf';
-
-          // v4.7 PDF Velocity Optimization: 3MB 이하 파일은 Supabase 업로드를 건너뛰고 바로 전송
-          // (Vercel의 4.5MB 페이로드 제한을 고려하여 3MB로 설정)
-          const isBase64 = !attachment.data.startsWith('http');
-          const base64Data = attachment.data.includes(',') ? attachment.data.split(',')[1] : attachment.data;
-          const estimatedSize = isBase64 ? (base64Data.length * 0.75) : 0;
-
-          if (!isVideo && estimatedSize < (3 * 1024 * 1024) && isBase64) {
-            // console.log(`[v4.7] Direct path optimized (Size: ${Math.round(estimatedSize / 1024)}KB)`);
-            finalAttachments.push(attachment);
-            continue;
-          }
-
-          // 자연스러운 로딩 문구 설정 (여러 개일 경우 개별 파일명 포함)
-          setLoadingStatus(`${attachment.fileName || '파일'} 업로드 중...`);
-
-          const bucket = isVideo ? 'chat-videos' : isImage ? 'chat-imgs' : 'chat-docs';
-          const uploadResult = await uploadToStorage({
-            fileName: attachment.fileName || (attachment.mimeType.includes('pdf') ? 'document.pdf' : isVideo ? 'video.mp4' : 'image.png'),
-            data: attachment.data,
-            mimeType: attachment.mimeType
-          }, bucket);
-
-          // 업로드된 실제 URL로 교체된 새 객체 추가
-          finalAttachments.push({ ...attachment, data: uploadResult.url });
-        }
-      } catch (e: any) {
-        showToast(t.uploadFailed, "error");
-        console.error("Upload error:", e);
-        setLoadingStatus(null);
-        setIsTyping(false);
-        // 업로드 실패 시 로컬 메시지 롤백 처리도 가능하지만, 일단 에러 반환
-        return;
-      } finally {
-        setLoadingStatus(null);
-      }
-    }
-
-    // 3. API Payload 효율을 위해 히스토리의 로컬 Base64를 최종 Remote URL로 교체
-    latestHistory = latestHistory.map((msg, index) => {
-      if (index === latestHistory.length - 1) {
-        return {
-          ...msg,
-          attachments: finalAttachments,
-          attachment: finalAttachments.length > 0 ? finalAttachments[0] : undefined
-        };
-      }
-      return msg;
-    });
-
-    let modelResponse = '';
-    const modelMessageId = (Date.now() + 1).toString();
-
-    // --- Enhanced Loading Feedback for Large Files ---
-    const hasLargeFile = finalAttachments.some(att => att.mimeType === 'application/pdf');
-    const pillKeywords = ['알약', '약품', '정', '캡슐', '명칭', '식별', '무슨 약'];
-    const hasPillKeyword = pillKeywords.some(k => content.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(content);
-    const hasImage = finalAttachments.some(att => att.mimeType.startsWith('image/'));
-
-    if (hasPillKeyword && hasImage) {
-      setLoadingStatus(t.identifyingPill);
-    } else if (hasLargeFile) {
-      setLoadingStatus("Gemini가 대용량 문서를 정교하게 분석 중입니다 (10~20초 소요 가능)...");
-    } else if (hasImage) {
-      setLoadingStatus(t.analyzingImage);
-    } else if (finalAttachments.length > 0) {
-      setLoadingStatus("첨부파일 분석 중...");
-    }
-
-    // 지능형 컨텍스트 추출
-    const currentSession = sessions.find(s => s.id === activeSessionId);
-    let webContext = "";
-
-    // 1. 현재 첨부된 모든 문서들의 텍스트를 컨텍스트에 포함
-    if (finalAttachments.length > 0) {
-      finalAttachments.forEach(att => {
-        if (att.extractedText) {
-          webContext += `\n[EXTRACTED_CONTENT: ${att.fileName}]\n${att.extractedText}\n`;
-        }
-      });
-    }
-
-    // 2. 현재 첨부된 문서가 없지만, 세션에 저장된 이전 문서 컨텍스트가 있다면 보조 적용
-    if (webContext === "" && currentSession?.lastActiveDoc?.extractedText) {
-      const isVideoContext = currentSession.lastActiveDoc.mimeType?.startsWith('video/');
-      const tag = isVideoContext ? "VIDEO_ANALYSIS_SUMMARY" : "PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT";
-      webContext = `[${tag}: ${currentSession.lastActiveDoc.fileName}]\n${currentSession.lastActiveDoc.extractedText}`;
-    }
-
-    // URL 감지 로직
-    const urlRegex = /(https?:\/\/[^\s\)]+)/g;
-    const urls = content.match(urlRegex);
-    
-    // 명시적 Grounding Source 생성 (UI 표시용)
-    const manualGroundingSources = (urls || []).map(u => {
-      const cleanUrl = u.replace(/[.\)\]\!,?]+$/, '');
-      return {
-        title: cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') ? 'YouTube Video' : 'Web Link',
-        uri: cleanUrl
-      };
-    });
-
-    let youtubeContextUrl = "";
-    let youtubeTranscriptCaptured = false;
-
-    if (urls && urls.length > 0) {
-      let rawUrl = urls[0].replace(/[.\)\]\!,?]+$/, '');
-      let url = rawUrl;
-      let isArxiv = false;
-      let isPdf = false;
-      let isYoutube = false;
-
-      try {
-        const parsedUrl = new URL(rawUrl);
-
-        // Clean tracking parameters (fbclid, utm_*) for safer link analysis
-        const paramsToStrip = ['fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-        let hasStripped = false;
-        paramsToStrip.forEach(p => {
-          if (parsedUrl.searchParams.has(p)) {
-            parsedUrl.searchParams.delete(p);
-            hasStripped = true;
-          }
-        });
-
-        if (hasStripped) {
-          url = parsedUrl.toString();
-        }
-
-        isArxiv = parsedUrl.hostname.includes('arxiv.org');
-        isYoutube = parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtu.be');
-        isPdf = parsedUrl.pathname.toLowerCase().endsWith('.pdf');
-      } catch (e) {
-        // Fallback if URL parsing fails
-        isArxiv = url.includes('arxiv.org');
-        isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
-        isPdf = url.toLowerCase().endsWith('.pdf');
-      }
-
-      if (isArxiv) {
-        setLoadingStatus(t.analyzingPaper);
-        finalAttachments.push({ fileName: 'arxiv.pdf', mimeType: 'application/pdf', data: url });
-        webContext += `\n[ARXIV_PDF_LINK_QUEUED]`;
-        setLoadingStatus(null);
-      } else if (isYoutube) {
-        setLoadingStatus(t.checkingYoutube);
-        const metadata = await fetchUrlContent(url);
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
-        const match = regExp.exec(url);
-        const videoId = (match && match[8].length === 11) ? match[8] : null;
-
-        let transcript = null;
-        if (videoId) transcript = await fetchYoutubeTranscript(videoId);
-
-        if (transcript) {
-          setLoadingStatus(t.analyzingTranscript);
-          webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
-          youtubeTranscriptCaptured = true;
-        } else {
-          setLoadingStatus(t.watchingVideo);
-          webContext += `\n\n${metadata}`;
-        }
-        youtubeContextUrl = url;
-        setTimeout(() => setLoadingStatus(null), 3000);
-      } else if (isPdf) {
-        finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
-        webContext += `\n[URL_PDF_LINK_QUEUED]`;
-      } else {
-        setLoadingStatus(t.fetchingUrl);
-        const pageContent = await fetchUrlContent(url);
-        webContext += `\n\n[URL_CONTENT: ${url}]\n` + pageContent;
-        setLoadingStatus(null);
-      }
-    }
-
-    let hasError = false;
-    try {
-      await streamChatResponse(
-        content,
-        currentSession?.messages || [],
-        (chunk, isReset) => {
-          if (isReset) modelResponse = "";
-          modelResponse += chunk;
-          setSessions(prev => prev.map(s => {
-            if (s.id === activeSessionId) {
-              const existingMsgIndex = s.messages.findIndex(m => m.id === modelMessageId);
-              if (existingMsgIndex > -1) {
-                const updatedMessages = [...s.messages];
-                updatedMessages[existingMsgIndex] = { ...updatedMessages[existingMsgIndex], content: modelResponse };
-                return { ...s, messages: updatedMessages };
-              } else {
-                const newModelMsg: Message = { 
-                  id: modelMessageId, 
-                  role: Role.MODEL, 
-                  content: modelResponse, 
-                  timestamp: Date.now(),
-                  // 수동으로 감지된 URL 소스를 초기값으로 주입
-                  groundingSources: manualGroundingSources.length > 0 ? manualGroundingSources : undefined 
-                };
-                return { ...s, messages: [...s.messages, newModelMsg] };
-              }
-            }
-            return s;
-          }));
-        },
-        language,
-        undefined, // single attachment is deprecated in favor of webContext and internal multi-image handling
-        webContext,
-        'text',
-        (sources) => {
-          setSessions(prev => prev.map(s => {
-            if (s.id === activeSessionId) {
-              return {
-                ...s,
-                messages: s.messages.map(m => {
-                  if (m.id === modelMessageId) {
-                    // 수동 소스와 AI 응답 소스를 병합 (중복 제거)
-                    const allSources = [...(manualGroundingSources || []), ...(sources || [])];
-                    const uniqueSources = Array.from(new Map(allSources.map(item => [item.uri, item])).values());
-                    return { ...m, groundingSources: uniqueSources.length > 0 ? uniqueSources : undefined };
-                  }
-                  return m;
-                })
-              };
-            }
-            return s;
-          }));
-        },
-        activeSessionId,
-        finalAttachments, // New: Pass multiple attachments to service
-        selectedModel
-      );
-
-      // 로컬 영상 분석인 경우, AI의 요약본을 다음 대화를 위한 텍스트 컨텍스트로 저장
-      const videoAttachment = finalAttachments.find(a => a.mimeType?.startsWith('video/'));
-      if (videoAttachment && modelResponse) {
-        setSessions(prev => prev.map(s => {
-          if (s.id === activeSessionId) {
-            return {
-              ...s,
-              lastActiveDoc: {
-                ...videoAttachment,
-                extractedText: modelResponse
-              }
-            };
-          }
-          return s;
-        }));
-      }
-
-      // YouTube URL 분석인 경우, AI 요약본을 lastActiveDoc에 저장하여 후속 질문 컨텍스트 제공
-      if (youtubeContextUrl && modelResponse) {
-        setSessions(prev => prev.map(s => {
-          if (s.id === activeSessionId) {
-            return {
-              ...s,
-              lastActiveDoc: {
-                fileName: youtubeContextUrl,
-                mimeType: 'video/youtube',
-                data: youtubeContextUrl,
-                extractedText: modelResponse
-              }
-            };
-          }
-          return s;
-        }));
-      }
-
-      // 제목 자동 업데이트
-      if (latestHistory.length <= 2) {
-        const newTitle = await summarizeConversation([...latestHistory, { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() }], language);
-        setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, title: newTitle } : s));
-        try {
-          await updateSessionTitle(activeSessionId, newTitle);
-        } catch (e) {
-          console.error("Failed to update session title in DB", e);
-        }
-      }
-
-    } catch (error: any) {
-      hasError = true;
-      setLoadingStatus(error.message);
-      setTimeout(() => setLoadingStatus(null), 5000);
-    } finally {
-      setIsTyping(false);
-      if (!hasError) setLoadingStatus(null);
-      setEditingMessageContent(undefined); // Clear edit state after send
-    }
-  };
-
   const handleRenameSession = async (id: string, newTitle: string) => {
-    try {
-      await updateSessionTitle(id, newTitle);
-      setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
-    } catch (e) {
-      console.error("Failed to rename session", e);
-      // showToast(t.renameFailed, "error");
-    }
-  };
-
-  const handleEditMessage = (content: string) => {
-    setEditingMessageContent(content);
+    await renameSession(id, newTitle);
   };
 
   const showConfirmDialog = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'info' = 'info') => {

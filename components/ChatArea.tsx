@@ -39,9 +39,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                         </div>
                     </div>
                     <div className="flex items-center gap-1.5 py-4">
-                        <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s]"></div>
-                        <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></div>
-                        <div className="w-2 h-2 bg-slate-300 dark:bg-slate-600 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></div>
+                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s]"></div>
+                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></div>
+                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></div>
                     </div>
                 </div>
             )}

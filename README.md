@@ -175,12 +175,20 @@ flowchart TB
 │   ├── ChartRenderer.tsx
 │   ├── DiagramRenderer.tsx
 │   └── ...
+├── src/
+│   └── hooks/                  # Custom React hooks (App.tsx 오케스트레이션 분리)
+│       ├── useAuthSession.ts   # Auth init, localStorage restore, 익명 로그인
+│       ├── useChatSessions.ts  # Session CRUD, 메시지 lazy load
+│       └── useChatStream.ts    # 메시지 전송 오케스트레이션 (upload / stream / title)
+├── services/
+│   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog
-│   ├── DEV_260404.md           # Recent work log
+│   ├── DEV_260405.md           # 최근 작업 로그
 │   ├── TODO.md                 # Roadmap
 │   └── REF_*.md                # Renderer test prompt guides
-└── types.ts
+├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
+└── types.ts                    # 공유 TypeScript 타입 정의
 ```
 
 ---

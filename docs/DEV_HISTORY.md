@@ -6,13 +6,26 @@
 
 ## 최근 작업 로그
 
-- [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차, 스트리밍 실시간 전송 버그 수정, 웰컴화면 질의 미표시 버그 수정, 사이드바 ⋯ 드롭다운 메뉴, **Lighthouse 성능 개선 계획**, **auth 에러 무한 LoadingScreen 수정**, **헤더 모델명 좌측 패딩 축소**
+- [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차, 스트리밍 실시간 전송 버그 수정, 웰컴화면 질의 미표시 버그 수정, 사이드바 ⋯ 드롭다운 메뉴, **Lighthouse 성능 개선 계획**, **auth 에러 무한 LoadingScreen 수정**, **헤더 모델명 좌측 패딩 축소**, **App.tsx 오케스트레이션 훅 분리 리팩토링**, **응답 대기 bouncing 도트 인디고 컬러**, **사이드바 새채팅/검색 폰트·높이 축소**
 - [DEV_260404.md](DEV_260404.md) — 약품검색 Strategy 3 버그 수정, ConnectDI URL 정규화, searchWebTool 소스칩, 에이전트 9-intent 오케스트레이션 설계 및 구현, 멀티턴 버그 수정, Lighthouse 측정, **UI 글래스모피즘 개선 구현**
 - [DEV_260403.md](DEV_260403.md) — 타이레놀 검색 오매칭 수정, pharm.or.kr 각인 검증 강화
 
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.26 (Sidebar Action Compact — 2026-04-05)
+- **새채팅·검색 폰트 축소**: 새채팅 버튼 텍스트·검색 input `text-[15px] → text-[13px]` 통일. 아이콘 `text-[16px]/[14px] → text-[14px]/[13px]`.
+- **높이 축소**: 버튼·input `h-11`(44px) → `h-9`(36px) — 사이드바 상단 액션 영역 밀도 개선.
+
+### v4.25 (Bouncing Dot Color — 2026-04-05)
+- **응답 대기 도트 컬러**: `ChatArea.tsx`·`ChatMessage.tsx` bouncing dot `bg-slate-300 dark:bg-slate-600` → `bg-indigo-300 dark:bg-indigo-400`. AI 아바타 그라디언트(`indigo→violet`) 계열과 통일, 라이트/다크 모두 대비 향상.
+
+### v4.24 (App.tsx Orchestration Refactoring — 2026-04-05)
+- **useAuthSession 분리**: auth 초기화·localStorage 복원·익명 로그인 로직을 `src/hooks/useAuthSession.ts`로 추출. `isMounted` cleanup으로 언마운트 안전 처리. `hydratedUserProfile` 계산값 자동 반환.
+- **useChatSessions 분리**: 세션 CRUD·메시지 lazy load를 `src/hooks/useChatSessions.ts`로 추출. `userId` 변경 시 자동 `loadUserSessions`, 빈 세션 선택 시 `fetchSessionMessages` 자동 호출.
+- **useChatStream 분리**: 메시지 전송 전체 오케스트레이션(파일 업로드·URL/YouTube/PDF 분기·스트리밍 누적·제목 요약)을 `src/hooks/useChatStream.ts`로 추출. `statusMessages` prop으로 i18n 문자열 외부 주입.
+- **App.tsx 대규모 축소**: `initAuth`, `loadUserSessions`, `handleSendMessage`, `handleEditMessage` 전체 본문 제거. 핸들러는 훅 위임 래퍼로만 남음. TypeScript 컴파일 오류 0개 확인.
 
 ### v4.23 (Header Pill Padding — 2026-04-05)
 - **Header Left Padding**: 데스크탑(`md:`)에서 pill 컨테이너 `pl-2` 적용 — 모델명 선택 버튼이 더 왼쪽에 배치.
