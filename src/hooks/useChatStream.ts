@@ -209,6 +209,7 @@ export const useChatStream = ({
       let isArxiv = false;
       let isPdf = false;
       let isYoutube = false;
+      let urlFetchError = false;
 
       try {
         const parsedUrl = new URL(rawUrl);
@@ -241,35 +242,51 @@ export const useChatStream = ({
         webContext += '\n[ARXIV_PDF_LINK_QUEUED]';
         setLoadingStatus(null);
       } else if (isYoutube) {
-        setLoadingStatus(statusMessages.checkingYoutube);
-        const metadata = await fetchUrlContent(url);
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
-        const match = regExp.exec(url);
-        const videoId = match && match[8].length === 11 ? match[8] : null;
+        try {
+          setLoadingStatus(statusMessages.checkingYoutube);
+          const metadata = await fetchUrlContent(url);
+          const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
+          const match = regExp.exec(url);
+          const videoId = match && match[8].length === 11 ? match[8] : null;
 
-        let transcript = null;
-        if (videoId) {
-          transcript = await fetchYoutubeTranscript(videoId);
+          let transcript = null;
+          if (videoId) {
+            transcript = await fetchYoutubeTranscript(videoId);
+          }
+
+          if (transcript) {
+            setLoadingStatus(statusMessages.analyzingTranscript);
+            webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
+          } else {
+            setLoadingStatus(statusMessages.watchingVideo);
+            webContext += `\n\n${metadata}`;
+          }
+
+          youtubeContextUrl = url;
+          setTimeout(() => setLoadingStatus(null), 3000);
+        } catch (urlError: any) {
+          console.error('[useChatStream] YouTube fetch error:', urlError);
+          setLoadingStatus(null);
+          urlFetchError = true;
         }
-
-        if (transcript) {
-          setLoadingStatus(statusMessages.analyzingTranscript);
-          webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
-        } else {
-          setLoadingStatus(statusMessages.watchingVideo);
-          webContext += `\n\n${metadata}`;
-        }
-
-        youtubeContextUrl = url;
-        setTimeout(() => setLoadingStatus(null), 3000);
       } else if (isPdf) {
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
       } else {
-        setLoadingStatus(statusMessages.fetchingUrl);
-        const pageContent = await fetchUrlContent(url);
-        webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
-        setLoadingStatus(null);
+        try {
+          setLoadingStatus(statusMessages.fetchingUrl);
+          const pageContent = await fetchUrlContent(url);
+          webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
+          setLoadingStatus(null);
+        } catch (urlError: any) {
+          console.error('[useChatStream] URL fetch error:', urlError);
+          setLoadingStatus(null);
+          urlFetchError = true;
+        }
+      }
+
+      if (urlFetchError) {
+        onError(statusMessages.fetchingUrl ? `URL 콘텐츠를 가져오지 못했습니다.` : 'Failed to fetch URL content.');
       }
     }
 

@@ -7,19 +7,32 @@ interface UseChatSessionsOptions {
   onError?: (message: string) => void;
 }
 
+const inferAttachment = (attachmentUrl: string): { fileName: string; mimeType: string; data: string } => {
+  // attachment_url can be an HTTP URL (uploaded) or a bare mimeType string (base64 kept inline)
+  if (!attachmentUrl.startsWith('http')) {
+    // Stored as mimeType fallback (e.g. 'image/jpeg') — data cannot be recovered
+    const fileName = attachmentUrl.includes('pdf') ? 'document.pdf'
+      : attachmentUrl.startsWith('video/') ? 'video.mp4'
+      : 'image_attached';
+    return { fileName, mimeType: attachmentUrl, data: '' };
+  }
+  // HTTP URL — infer mimeType from Supabase bucket path
+  const mimeType = attachmentUrl.includes('/chat-docs/') || attachmentUrl.includes('.pdf') ? 'application/pdf'
+    : attachmentUrl.includes('/chat-videos/') || attachmentUrl.includes('.mp4') ? 'video/mp4'
+    : 'image/jpeg';
+  const fileName = mimeType === 'application/pdf' ? 'document.pdf'
+    : mimeType.startsWith('video/') ? 'video.mp4'
+    : 'image_attached';
+  return { fileName, mimeType, data: attachmentUrl };
+};
+
 const mapDbMessage = (message: any): Message => ({
   id: message.id,
   role: message.role === 'user' ? Role.USER : Role.MODEL,
   content: message.content,
   timestamp: new Date(message.created_at).getTime(),
   groundingSources: message.grounding_sources,
-  attachment: message.attachment_url
-    ? {
-        fileName: message.attachment_url.includes('pdf') ? 'document.pdf' : 'image_attached',
-        mimeType: message.attachment_url,
-        data: '',
-      }
-    : undefined,
+  attachment: message.attachment_url ? inferAttachment(message.attachment_url) : undefined,
 });
 
 export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => {

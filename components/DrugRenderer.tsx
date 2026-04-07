@@ -227,13 +227,15 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         setServerPillVisual(pillVisual);
                     }
                     setImageError(false);
-                } else {
-                    setImageError(true);
                 }
+                // sync 실패 시 imageError를 건드리지 않음:
+                // - isSearchOrEntryPage=false(MFDS 등): proxiedImageUrl이 이미 proxy URL로 존재하므로 fallback 렌더링
+                // - isSearchOrEntryPage=true(ConnectDI 등): proxiedImageUrl=null이라 이미 noImage 상태
+                // imageError는 <img onError>에서만 설정
             } catch (error: any) {
                 if (error.name === 'AbortError') return;
                 console.error('[DrugRenderer] Image sync error:', error);
-                setImageError(true);
+                // 마찬가지로 네트워크 오류 시에도 proxy fallback에 맡김
             } finally {
                 setSyncing(false);
             }
