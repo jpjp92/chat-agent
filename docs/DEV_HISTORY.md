@@ -16,6 +16,10 @@
 
 ## v4.x — Multimodal & Agentic
 
+### v4.32 (Drug Image MFDS-missing Fix — 2026-04-07)
+- **MFDS 미등록 의약품 이미지 수정**: MFDS API에 없는 의약품(일부 OTC)에서 Pharm.or.kr 발견 결과를 버리던 문제 수정. MFDS 실패 시 `pharmUrlPromise` await 후 `PARTIAL_DATA`로 LLM에 pharm_url + image_url 전달.
+- **pharm.or.kr 스크래핑 추가**: `sync-drug-image.ts`에 `isPharmOrKr` 분기 추가. pharm.or.kr 상세 페이지 HTML에서 `common.health.kr/shared/images/sb_photo/` CDN 이미지 추출. `_b.jpg` 우선, 없으면 `_s.jpg` fallback.
+
 ### v4.31 (Drug Image Proxy Fallback Fix — 2026-04-07)
 - **sync 실패 시 imageError 잘못 설정 수정**: `sync-drug-image` non-OK 응답 시 `setImageError(true)` 호출로 유효한 `proxiedImageUrl`이 있어도 "이미지 준비 중"이 표시되던 문제 수정. sync 실패는 캐싱 실패일 뿐이며 `imageError`는 `<img onError>`에서만 설정하도록 변경.
 

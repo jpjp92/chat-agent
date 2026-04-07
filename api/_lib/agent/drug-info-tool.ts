@@ -298,7 +298,18 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                return `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다. search_web 툴로 "${drug_name} 성분 용법 용량"을 검색하여 정보를 제공하세요.`;
+                // MFDS 실패해도 parallel로 진행 중인 Pharm.or.kr 결과는 기다림
+                const fallbackPharmUrl = await pharmUrlPromise;
+                const connectdiUrl = `https://www.connectdi.co.kr/?search=${encodeURIComponent(drug_name)}`;
+
+                let fallbackMsg = `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다. search_web 툴로 "${drug_name} 성분 용법 용량"을 검색하여 정보를 제공하세요.`;
+
+                if (fallbackPharmUrl) {
+                    console.log(`[Agent Tool] MFDS failed but Pharm.or.kr found: ${fallbackPharmUrl}`);
+                    fallbackMsg += `\n\n[PARTIAL_DATA] Pharm.or.kr에서 약품 항목 발견:\nPharm_URL: ${fallbackPharmUrl}\nConnectDI_URL: ${connectdiUrl}\n\njson:drug 생성 시 아래 필드를 반드시 포함하세요:\n- "pharm_url": "${fallbackPharmUrl}"\n- "image_url": "${fallbackPharmUrl}" (이미지를 자동으로 추출합니다)\n- "connectdi_url": "${connectdiUrl}"\n\n나머지 성분·효능·용법은 검색 결과를 바탕으로 작성하세요.`;
+                }
+
+                return fallbackMsg;
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it
