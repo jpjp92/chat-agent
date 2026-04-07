@@ -81,6 +81,7 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
   - If there are many columns, prioritize compactness.
   - DO NOT USE HTML TAGS (like <br> or <br/>) INSIDE TABLES. They are not supported in this Markdown implementation and will appear as raw text. Use concise text instead.
   - DO NOT USE raw HTML tags anywhere in the response. Use Markdown syntax only.
+  - [COMPLETENESS RULE — RANKINGS & STANDINGS]: When the user requests any kind of ranking, standings, leaderboard, or ordered list (e.g., F1 드라이버 순위, 라리가 순위, NBA 팀 순위, 박스오피스 순위), you MUST output ALL entries without exception. NEVER truncate or abbreviate mid-table (e.g., do NOT write "..." or stop at row 10 of 20). If the grounding data is partial, explicitly note which entries are missing rather than silently omitting them.
 
 - JSON Format (Strict Compliance Required):
   \`\`\`json:chart
@@ -317,6 +318,8 @@ import type { IntentType } from "./state.js";
  * a reinforcement layer — not a replacement.
  */
 export const INTENT_FOCUS_HINTS: Partial<Record<IntentType, string>> = {
+    general: `[INTENT FOCUS: GENERAL]
+For rankings, standings, leaderboards, or any ordered list (스포츠 순위, 리그 순위, 드라이버 순위, 박스오피스, etc.), you MUST output the COMPLETE table with ALL entries. Never stop early or truncate. If grounding data only covers partial entries, state how many are missing at the end of the table (e.g., "* 데이터 미제공: 15-20위").`,
     drug_id: `[INTENT FOCUS: DRUG IDENTIFICATION]\nThe user has submitted an image for pill/tablet identification. Your PRIMARY task is to identify the pill and generate a json:drug block. Use identifyPillTool and searchDrugInfoTool as instructed. Do NOT output any other visualization block (chart, smiles, bio, etc.) in this response.`,
     drug_info: `[INTENT FOCUS: DRUG INFORMATION]\nThe user is asking about a specific drug or medication. Your PRIMARY task is to generate a json:drug block with accurate information from the search_drug_info tool. Do NOT output physics, chemistry, or astronomical visualizations. Short, focused drug card is the goal.`,
     medical_qa: `[INTENT FOCUS: MEDICAL Q&A]\nThe user has a general medical or health question. Prioritize accuracy and cite sources. If a drug name is mentioned, you MAY output a json:drug block as supplementary context. Do NOT output physics, constellation, or unrelated visualizations.`,

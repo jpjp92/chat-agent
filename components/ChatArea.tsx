@@ -26,7 +26,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     }, [messages, isTyping, loadingStatus]);
 
     return (
-        <div className="flex flex-col space-y-2 pt-4">
+        <div className="flex min-h-0 flex-col space-y-2 pt-4">
             {messages.map((msg) => (
                 <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} onEdit={onEdit} />
             ))}

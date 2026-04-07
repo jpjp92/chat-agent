@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -20,6 +20,37 @@ const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ defau
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
+
+const ScrollableTable: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => { e.stopPropagation(); };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="my-4 sm:my-8 rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm table-scrollbar"
+      style={{
+        maxHeight: '360px',
+        overflow: 'scroll',
+        overscrollBehavior: 'contain',
+      }}
+    >
+      <table
+        className="min-w-full text-left border-collapse"
+        style={{ width: 'max-content', minWidth: '100%', wordBreak: 'normal', overflowWrap: 'normal' }}
+      >
+        {children}
+      </table>
+    </div>
+  );
+};
 
 interface ChatMessageProps {
   message: Message;
@@ -183,6 +214,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     };
   }, [contextMenu.visible]);
 
+  const userInteractionProps = isUser
+    ? {
+        onContextMenu,
+        onTouchStart,
+        onTouchMove,
+        onTouchEnd,
+      }
+    : {};
+
   const MarkdownComponents = {
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 mt-2 text-slate-900 dark:text-white" {...props} />,
     h2: ({ ...props }) => <h2 className="text-lg font-bold mb-3 mt-4 text-slate-800 dark:text-slate-100" {...props} />,
@@ -265,11 +305,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         </div>
       );
     },
-    table: ({ children }: any) => (
-      <div className="my-4 sm:my-8 overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm">
-        <table className="w-full text-left border-collapse">{children}</table>
-      </div>
-    ),
+    table: ({ children }: any) => <ScrollableTable>{children}</ScrollableTable>,
     thead: ({ children }: any) => <thead className="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-200/50 dark:border-white/5">{children}</thead>,
     th: ({ children }: any) => <th className="px-3 py-2 sm:px-5 sm:py-4 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[10px] sm:text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02] whitespace-nowrap">{children}</th>,
     td: ({ children }: any) => <td className="px-3 py-2 sm:px-5 sm:py-4 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[12px] sm:text-[14px] leading-snug sm:leading-relaxed align-middle tabular-nums whitespace-nowrap">{children}</td>,
@@ -534,7 +570,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             );
           }
           return (
-            <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed break-all">
+            <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed [overflow-wrap:anywhere] [word-break:break-word] prose-table:[word-break:normal] prose-table:[overflow-wrap:normal]">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -561,7 +597,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           </div>
         )}
 
-        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1 overflow-hidden`}>
+        <div className={`flex min-h-0 flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1 ${isUser ? 'overflow-hidden' : ''}`}>
 
           {renderAttachments()}
 
@@ -583,14 +619,11 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           )}
 
           <div 
-            onContextMenu={onContextMenu}
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
+            {...userInteractionProps}
             className={`relative transition-all duration-300 cursor-default ${isUser
             ? 'px-4 sm:px-5 py-3 rounded-[24px] bg-[#e5eaf9] dark:bg-[#2a2d3e] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
             : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
-            }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all', touchAction: 'pan-y', WebkitTouchCallout: 'none' }}>
+            }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all', touchAction: isUser ? 'pan-y' : 'auto', WebkitTouchCallout: isUser ? 'none' : 'default' }}>
             <div className="font-normal leading-relaxed w-full">
               {message.content ? (
                 renderContent(message.content)
