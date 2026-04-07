@@ -203,6 +203,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
         setSyncing(true);
 
+        const controller = new AbortController();
+
         const syncImage = async () => {
             try {
                 const response = await fetch('/api/sync-drug-image', {
@@ -213,7 +215,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         imprint_front: data.pill_visual?.imprint_front,
                         imprint_back: data.pill_visual?.imprint_back,
                         drug_name: data.name
-                    })
+                    }),
+                    signal: controller.signal
                 });
 
                 if (response.ok) {
@@ -227,7 +230,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 } else {
                     setImageError(true);
                 }
-            } catch (error) {
+            } catch (error: any) {
+                if (error.name === 'AbortError') return;
                 console.error('[DrugRenderer] Image sync error:', error);
                 setImageError(true);
             } finally {
@@ -236,6 +240,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         };
 
         syncImage();
+
+        return () => controller.abort();
     }, [data.image_url]);
 
 

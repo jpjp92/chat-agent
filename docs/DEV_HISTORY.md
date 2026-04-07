@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260406.md](DEV_260406.md) — 예외처리 플로우 전체 검토 (P1~P5), **의약품 이미지 간헐적 미표시 버그 수정** (DrugRenderer race condition + sync-drug-image 스코프 버그)
 - [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차, 스트리밍 실시간 전송 버그 수정, 웰컴화면 질의 미표시 버그 수정, 사이드바 ⋯ 드롭다운 메뉴, **Lighthouse 성능 개선 계획**, **auth 에러 무한 LoadingScreen 수정**, **헤더 모델명 좌측 패딩 축소**, **App.tsx 오케스트레이션 훅 분리 리팩토링**, **응답 대기 bouncing 도트 인디고 컬러**, **사이드바 새채팅/검색 폰트·높이 축소**
 - [DEV_260404.md](DEV_260404.md) — 약품검색 Strategy 3 버그 수정, ConnectDI URL 정규화, searchWebTool 소스칩, 에이전트 9-intent 오케스트레이션 설계 및 구현, 멀티턴 버그 수정, Lighthouse 측정, **UI 글래스모피즘 개선 구현**
 - [DEV_260403.md](DEV_260403.md) — 타이레놀 검색 오매칭 수정, pharm.or.kr 각인 검증 강화
@@ -13,6 +14,13 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.28 (Drug Image Race Condition Fix — 2026-04-07)
+- **DrugRenderer race condition 수정**: `useEffect` cleanup 부재로 이전 drug 요청 완료 시 새 drug state를 덮어쓰던 문제 해결. `AbortController` + `signal` 추가, cleanup에서 `abort()` 호출, `AbortError`는 state 변경 없이 무시.
+- **sync-drug-image 스코프 버그 수정**: `fileName`, `resolveInflight`가 `try` 블록 내 `const`/`let`으로 선언되어 `catch`에서 접근 불가했던 문제 해결. 두 변수를 `try` 바깥으로 이동하여 Promise leak(무한 대기) 방지.
+
+### v4.27 (Exception Flow Audit — 2026-04-06)
+- **예외처리 전체 검토**: `geminiService.ts` fetch 6개 함수 `response.ok` 미체크(P1), `useChatStream` 스트리밍 catch에서 `onError()` 미호출(P2), `!currentUser` 에러 화면 새로고침 버튼 부재(P3), SSE JSON.parse 무방어(P4), `fetchSessions` error 필드 무시(P5) 항목 식별 및 문서화. DEV_260405 미완성 체크리스트(Lighthouse, 시각화 팝업, 아키텍처 리팩토링) 이월 정리.
 
 ### v4.26 (Sidebar Action Compact — 2026-04-05)
 - **새채팅·검색 폰트 축소**: 새채팅 버튼 텍스트·검색 input `text-[15px] → text-[13px]` 통일. 아이콘 `text-[16px]/[14px] → text-[14px]/[13px]`.

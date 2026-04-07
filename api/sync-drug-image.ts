@@ -15,6 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[Sync] Imprint verification data - Front: "${imprint_front}", Back: "${imprint_back}"`);
 
+    // Declare outside try so catch/finally can access for cleanup
+    let fileName: string | undefined;
+    let resolveInflight: ((v: { publicUrl: string; pillVisual: any } | null) => void) | undefined;
+
     try {
         console.log(`[Sync] original url: ${url}`);
 
@@ -49,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 1. URL 해싱을 통한 중복 체크 (repairedUrl + drug_name 기준으로 용량별 분리)
         const cacheKey = drug_name ? `${repairedUrl}::${drug_name}` : repairedUrl;
         const urlHash = crypto.createHash('md5').update(cacheKey).digest('hex');
-        const fileName = `drug-cache/${urlHash}.jpg`;
+        fileName = `drug-cache/${urlHash}.jpg`;
         console.log(`[Sync] Cache key: ${drug_name || '(no name)'} | fileName: ${fileName}`);
 
         // 2a. In-flight deduplication: wait for an already-running request for the same file
@@ -61,7 +65,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Register promise immediately so concurrent requests coalesce into this one
-        let resolveInflight!: (v: { publicUrl: string; pillVisual: any } | null) => void;
         inflightRequests.set(fileName, new Promise(r => { resolveInflight = r; }));
 
         // 2b. 이미 존재하는지 확인
