@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { loginUser } from '../../services/geminiService';
 import { UserProfile } from '../../types';
 
@@ -82,6 +82,6 @@ export const useAuthSession = () => {
     setCurrentUser,
     isAuthLoading,
     clearStoredUser,
-    hydratedUserProfile: currentUser ? buildUserProfile(currentUser) : null,
+    hydratedUserProfile: useMemo(() => currentUser ? buildUserProfile(currentUser) : null, [currentUser]),
   };
 };

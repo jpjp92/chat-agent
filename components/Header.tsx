@@ -83,9 +83,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
     }
   }, []);
 
-  useEffect(() => {
-    setTempProfile(userProfile);
-  }, [userProfile]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -176,7 +173,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
         <div className="flex items-center gap-3">
           <div
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setTempProfile(userProfile); setIsModalOpen(true); }}
             className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
           >
             <div className="hidden lg:flex items-center gap-2 mr-1">

@@ -17,6 +17,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
         const apiKey = getNextApiKey();
+        console.log('[LangGraph] API key available:', !!apiKey, '| intent:', state.intent, '| model:', state.model);
         if (!apiKey) throw new Error("No API key available");
 
         let finalInstruction = systemInstructionBase;
@@ -143,6 +144,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] Multimodal content detected — Google Search disabled');
                     }
 
+                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| contentsLen:', sdkContents.length);
                     // Streaming SDK call — emits chunks to client in real-time
                     const sdkStream = await genai.models.generateContentStream({
                         model: resolvedModel,
@@ -159,9 +161,24 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     let responseText = "";
                     let groundingSources: any[] = [];
+                    let chunkCount = 0;
 
                     for await (const chunk of sdkStream) {
-                        const chunkText = chunk.text ?? "";
+                        chunkCount++;
+                        const candidate = chunk.candidates?.[0];
+                        const finishReason = candidate?.finishReason;
+                        if (finishReason && finishReason !== 'STOP') {
+                            console.warn('[LangGraph] Non-STOP finishReason:', finishReason, JSON.stringify(candidate?.safetyRatings));
+                        }
+                        let chunkText = "";
+                        try { chunkText = chunk.text ?? ""; } catch (e: any) {
+                            console.warn('[LangGraph] chunk.text threw:', e?.message);
+                        }
+                        if (!chunkText && candidate?.content?.parts) {
+                            chunkText = candidate.content.parts
+                                .filter((p: any) => !p.thought)
+                                .map((p: any) => p.text || "").join("");
+                        }
                         if (chunkText) {
                             const sanitized = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
                             if (sanitized.trim()) {
@@ -178,8 +195,37 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     }
 
+                    console.log('[LangGraph] SDK stream done | chunkCount:', chunkCount, '| responseLen:', responseText.length, '| sources:', groundingSources.length);
+
+                    // Fallback: if streaming returned no text (e.g. vercel dev proxy buffers SSE),
+                    // retry with non-streaming generateContent which is unaffected by proxy buffering.
+                    if (!responseText) {
+                        console.log('[LangGraph] Stream returned empty text (chunkCount:', chunkCount, ') — falling back to generateContent');
+                        const fallbackResponse = await genai.models.generateContent({
+                            model: resolvedModel,
+                            contents: sdkContents,
+                            config: {
+                                systemInstruction: finalInstruction,
+                                tools: useGoogleSearch ? [{ googleSearch: {} }] : undefined,
+                                temperature: 0.2,
+                                topP: 0.8,
+                                topK: 40,
+                                maxOutputTokens: 8192,
+                            }
+                        });
+                        responseText = fallbackResponse.text ?? "";
+                        const fbGrounding = fallbackResponse.candidates?.[0]?.groundingMetadata;
+                        if (fbGrounding?.groundingChunks) {
+                            groundingSources = fbGrounding.groundingChunks
+                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                .filter(Boolean);
+                        }
+                        if (responseText && sendEvent) sendEvent({ text: responseText });
+                        console.log('[LangGraph] Fallback generateContent done | responseLen:', responseText.length);
+                    }
+
                     if (groundingSources.length > 0) {
-                        console.log(`[LangGraph] Found ${groundingSources.length} grounding sources via @google/genai SDK stream`);
+                        console.log(`[LangGraph] Found ${groundingSources.length} grounding sources`);
                     }
 
                     sdkSuccess = true;
@@ -199,9 +245,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     }
                     // Non-rate-limit error or no more keys: fall through to LangChain
-                    if (!sdkSuccess) {
-                        console.error('[LangGraph] SDK call failed (non-rate-limit), falling back to LangChain:', err?.message || err);
-                    }
+                    console.error('[LangGraph] SDK call failed:', err?.status, err?.message || err);
                     break;
                 }
             }

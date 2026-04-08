@@ -1,38 +1,28 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabase } from './_lib/supabase.js';
 import { API_KEYS } from './_lib/config.js';
 import { getSystemInstruction } from './_lib/agent/prompt.js';
 import { compileAgentGraph } from './_lib/agent/graph.js';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 
-export const config = {
-  runtime: 'edge',
-};
-
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
-  }
+  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone } = req.body;
 
-  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone } = body;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
 
-  const encoder = new TextEncoder();
-  
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendEvent = (data: any) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      };
+  const sendEvent = (data: any) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
 
-      if (API_KEYS.length === 0) {
+  if (API_KEYS.length === 0) {
         sendEvent({ error: 'No API keys found in server environment.' });
-        controller.close();
+        res.end();
         return;
       }
 
@@ -299,21 +289,10 @@ export default async function handler(req: Request) {
           sendEvent({ error: 'LLM returned empty response.' });
         }
 
-        controller.close();
+  } catch (error: any) {
+    console.error("[LangGraph] Execution Error:", error);
+    sendEvent({ error: 'LangGraph Execution Error: ' + error.message });
+  }
 
-      } catch (error: any) {
-        console.error("[LangGraph] Execution Error:", error);
-        sendEvent({ error: 'LangGraph Execution Error: ' + error.message });
-        controller.close();
-      }
-    }
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+  res.end();
 }
