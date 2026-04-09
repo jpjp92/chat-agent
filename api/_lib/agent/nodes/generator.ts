@@ -197,31 +197,39 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     console.log('[LangGraph] SDK stream done | chunkCount:', chunkCount, '| responseLen:', responseText.length, '| sources:', groundingSources.length);
 
-                    // Fallback: if streaming returned no text (e.g. vercel dev proxy buffers SSE),
-                    // retry with non-streaming generateContent which is unaffected by proxy buffering.
+                    // Fallback: if streaming returned no text (e.g. vercel dev proxy buffers SSE chunks),
+                    // retry with non-streaming generateContent. First try with Google Search off
+                    // (grounding can alter response structure), then with it on.
                     if (!responseText) {
-                        console.log('[LangGraph] Stream returned empty text (chunkCount:', chunkCount, ') — falling back to generateContent');
-                        const fallbackResponse = await genai.models.generateContent({
-                            model: resolvedModel,
-                            contents: sdkContents,
-                            config: {
-                                systemInstruction: finalInstruction,
-                                tools: useGoogleSearch ? [{ googleSearch: {} }] : undefined,
-                                temperature: 0.2,
-                                topP: 0.8,
-                                topK: 40,
-                                maxOutputTokens: 8192,
+                        console.log('[LangGraph] Stream empty (chunkCount:', chunkCount, ') — falling back to generateContent');
+                        for (const fbUseSearch of (useGoogleSearch ? [false, true] : [false])) {
+                            const fallbackResponse = await genai.models.generateContent({
+                                model: resolvedModel,
+                                contents: sdkContents,
+                                config: {
+                                    systemInstruction: finalInstruction,
+                                    tools: fbUseSearch ? [{ googleSearch: {} }] : undefined,
+                                    temperature: 0.2,
+                                    topP: 0.8,
+                                    topK: 40,
+                                    maxOutputTokens: 8192,
+                                }
+                            });
+                            // Extract text from parts directly to handle thought-only or grounding responses
+                            const fbParts = fallbackResponse.candidates?.[0]?.content?.parts ?? [];
+                            responseText = (fallbackResponse.text ?? fbParts.filter((p: any) => !p.thought).map((p: any) => p.text || "").join("")).trim();
+                            const fbGrounding = fallbackResponse.candidates?.[0]?.groundingMetadata;
+                            if (fbGrounding?.groundingChunks) {
+                                groundingSources = fbGrounding.groundingChunks
+                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                    .filter(Boolean);
                             }
-                        });
-                        responseText = fallbackResponse.text ?? "";
-                        const fbGrounding = fallbackResponse.candidates?.[0]?.groundingMetadata;
-                        if (fbGrounding?.groundingChunks) {
-                            groundingSources = fbGrounding.groundingChunks
-                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                .filter(Boolean);
+                            console.log('[LangGraph] Fallback generateContent | search:', fbUseSearch, '| responseLen:', responseText.length);
+                            if (responseText) {
+                                if (sendEvent) sendEvent({ text: responseText });
+                                break;
+                            }
                         }
-                        if (responseText && sendEvent) sendEvent({ text: responseText });
-                        console.log('[LangGraph] Fallback generateContent done | responseLen:', responseText.length);
                     }
 
                     if (groundingSources.length > 0) {
@@ -234,17 +242,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                 } catch (err: any) {
                     const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
-                    if (isRateLimit) {
-                        markKeyRateLimited(sdkApiKey);
+                    const isUnavailable = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
+                    if (isRateLimit || isUnavailable) {
+                        if (isRateLimit) markKeyRateLimited(sdkApiKey);
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
                             sdkAttempt++;
-                            console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1})`);
+                            console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : '503');
                             continue;
                         }
                     }
-                    // Non-rate-limit error or no more keys: fall through to LangChain
+                    // Non-retryable error or no more keys
                     console.error('[LangGraph] SDK call failed:', err?.status, err?.message || err);
                     break;
                 }
