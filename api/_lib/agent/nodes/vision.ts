@@ -43,21 +43,19 @@ Return ONLY a JSON object in this exact format, no other text:
     }
 
     try {
-        let inlineData = imageAtt.data;
-        if (inlineData.startsWith("http")) {
-            const res = await fetch(inlineData);
-            if (res.ok) {
-                const arrayBuffer = await res.arrayBuffer();
-                inlineData = Buffer.from(arrayBuffer).toString('base64');
-            }
-        } else if (inlineData.includes(",")) {
-            inlineData = inlineData.split(",")[1];
+        let imageUrlPart: any;
+        if (imageAtt.data.startsWith("http")) {
+            // Public URL: pass directly, no server-side re-fetch needed
+            imageUrlPart = { type: "image_url", image_url: { url: imageAtt.data } };
+        } else {
+            const inlineData = imageAtt.data.includes(",") ? imageAtt.data.split(",")[1] : imageAtt.data;
+            imageUrlPart = { type: "image_url", image_url: { url: `data:${imageAtt.mimeType};base64,${inlineData}` } };
         }
 
         const message = new HumanMessage({
             content: [
                 { type: "text", text: visionPrompt },
-                { type: "image_url", image_url: { url: `data:${imageAtt.mimeType};base64,${inlineData}` } }
+                imageUrlPart,
             ]
         });
 

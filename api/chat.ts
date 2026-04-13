@@ -20,6 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
+  // Heartbeat: Router/Vision 실행 중 무음 구간에 연결이 끊기는 것을 방지
+  const heartbeatInterval = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ heartbeat: true })}\n\n`);
+  }, 15000);
+
   if (API_KEYS.length === 0) {
         sendEvent({ error: 'No API keys found in server environment.' });
         res.end();
@@ -270,21 +275,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // 7. Supabase DB AI Response Sync
+        // 7. Supabase DB AI Response Sync (fire-and-forget — res.end() 전에 await하지 않음)
         if (fullAiResponse && session_id) {
-          try {
-            await supabase.from('chat_messages').insert({
-              session_id,
-              role: 'assistant',
-              content: fullAiResponse,
-              grounding_sources: allSources.length > 0 ? allSources : null
+          supabase.from('chat_messages').insert({
+            session_id,
+            role: 'assistant',
+            content: fullAiResponse,
+            grounding_sources: allSources.length > 0 ? allSources : null
+          }).then(({ error }) => {
+            if (error) console.error('[Chat API] Assistant message save error:', error);
+          });
+          supabase.from('chat_sessions')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('id', session_id)
+            .then(({ error }) => {
+              if (error) console.error('[Chat API] Session update error:', error);
             });
-            await supabase.from('chat_sessions')
-              .update({ updated_at: new Date().toISOString() })
-              .eq('id', session_id);
-          } catch (e) {
-            console.error('[Chat API] Assistant message save error:', e);
-          }
         } else if (!fullAiResponse) {
           sendEvent({ error: 'LLM returned empty response.' });
         }
@@ -292,6 +298,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error("[LangGraph] Execution Error:", error);
     sendEvent({ error: 'LangGraph Execution Error: ' + error.message });
+  } finally {
+    clearInterval(heartbeatInterval);
   }
 
   res.end();

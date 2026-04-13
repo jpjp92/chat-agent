@@ -97,20 +97,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                             parts.push({ inlineData: { mimeType, data: b64data } });
                                             hasMultimodalContent = true;
                                         } else if (url.startsWith('http')) {
-                                            // Public URL: fetch and convert to inline base64
-                                            try {
-                                                const fetchRes = await fetch(url);
-                                                if (fetchRes.ok) {
-                                                    const contentType = fetchRes.headers.get('content-type') || 'image/jpeg';
-                                                    const mimeType = contentType.split(';')[0];
-                                                    const arrayBuffer = await fetchRes.arrayBuffer();
-                                                    const b64 = Buffer.from(arrayBuffer).toString('base64');
-                                                    parts.push({ inlineData: { mimeType, data: b64 } });
-                                                    hasMultimodalContent = true;
-                                                }
-                                            } catch (fetchErr) {
-                                                console.warn('[LangGraph] Failed to fetch image URL for SDK:', fetchErr);
-                                            }
+                                            // Public URL: pass directly as fileData (Gemini SDK supports public URLs natively)
+                                            // Fetching and re-encoding to base64 is unnecessary and adds 2~5s latency
+                                            const mimeTypeHint = url.includes('.png') ? 'image/png'
+                                                : url.includes('.webp') ? 'image/webp'
+                                                : url.includes('.gif') ? 'image/gif'
+                                                : 'image/jpeg';
+                                            parts.push({ fileData: { fileUri: url, mimeType: mimeTypeHint } });
+                                            hasMultimodalContent = true;
                                         }
                                     } else if (part.fileData?.fileUri) {
                                         // Native fileData (YouTube video URI) - supported natively by SDK

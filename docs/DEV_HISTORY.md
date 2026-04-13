@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260413.md](DEV_260413.md) — **이미지 분석 Latency & 세션 종료 버그 수정** (Router fast-path, 공개 URL 이중 fetch 제거, Supabase fire-and-forget, SSE heartbeat)
 - [DEV_260407.md](DEV_260407.md) — **의약품 이미지 미표시 버그 3차 수정** (sync 실패 시 proxy fallback 무시 버그), **mapDbMessage attachment 복원 수정**, **useChatStream URL 처리 블록 try-catch 추가**
 - [DEV_260406.md](DEV_260406.md) — 예외처리 플로우 전체 검토 (P1~P5), 의약품 이미지 버그 발견 (#1 race condition, #2 scope bug)
 - [DEV_260405.md](DEV_260405.md) — 시각화 카드 전체화면 팝업 계획 정리, 세션 race condition 버그 수정, UI 폴리시 2차, 스트리밍 실시간 전송 버그 수정, 웰컴화면 질의 미표시 버그 수정, 사이드바 ⋯ 드롭다운 메뉴, **Lighthouse 성능 개선 계획**, **auth 에러 무한 LoadingScreen 수정**, **헤더 모델명 좌측 패딩 축소**, **App.tsx 오케스트레이션 훅 분리 리팩토링**, **응답 대기 bouncing 도트 인디고 컬러**, **사이드바 새채팅/검색 폰트·높이 축소**
@@ -15,6 +16,13 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.36 (Image Latency & Session Drop Fix — 2026-04-13)
+- **Router fast-path**: 이미지 첨부 + 의약품 키워드 없음 → Router LLM 호출 스킵, `"general"` 즉시 반환 (~1s 단축)
+- **공개 URL 이중 fetch 제거**: generator.ts에서 Supabase 공개 URL을 서버 re-fetch → base64 변환하던 로직 제거. Gemini SDK `fileData.fileUri`로 직접 전달 (~2~5s 단축)
+- **Vision Node URL 처리 개선**: vision.ts에서도 동일하게 공개 URL 재-fetch 제거, `image_url` 타입으로 직접 전달
+- **Supabase fire-and-forget**: chat.ts에서 스트리밍 완료 후 Supabase 쓰기를 순차 `await`하던 로직을 `.then()` 비동기 처리로 변경. `res.end()`를 DB 쓰기 전에 선행하여 Vercel 60s 한계로 인한 세션 종료 해소
+- **SSE heartbeat**: Router/Vision 실행 중 15s마다 `{ heartbeat: true }` 이벤트 전송으로 무음 구간 연결 유지. geminiService.ts 파서에서 heartbeat 무시 처리
 
 ### v4.32 (Drug Image MFDS-missing Fix — 2026-04-07)
 - **MFDS 미등록 의약품 이미지 수정**: MFDS API에 없는 의약품(일부 OTC)에서 Pharm.or.kr 발견 결과를 버리던 문제 수정. MFDS 실패 시 `pharmUrlPromise` await 후 `PARTIAL_DATA`로 LLM에 pharm_url + image_url 전달.

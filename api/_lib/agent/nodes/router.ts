@@ -48,6 +48,13 @@ export const routerNode = async (state: AgentStateType) => {
         return "general";
     };
 
+    // Fast-path: 이미지 첨부 + 의약품 키워드 없음 → 항상 "general" → Router LLM 호출 스킵
+    const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent);
+    if (hasImage && !hasMedicalKeyword) {
+        console.log('[LangGraph] Router fast-path: image without medical keyword → general');
+        return { nextNode: "generator", intent: "general" };
+    }
+
     if (apiKey) {
         try {
             const ai = new GoogleGenAI({ apiKey });

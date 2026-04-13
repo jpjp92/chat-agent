@@ -247,6 +247,7 @@ export const streamChatResponse = async (
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = JSON.parse(line.slice(6));
+          if (data.heartbeat) continue;
           if (data.error) throw new Error(data.error);
           if (data.text) onChunk(data.text, false);
           if (data.sources && onMetadata) onMetadata(data.sources);

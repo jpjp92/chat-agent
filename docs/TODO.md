@@ -4,6 +4,42 @@
 
 ---
 
+## 예외처리 (P1~P5) — DEV_260406 식별
+
+| 순서 | 항목 | 영향 | 비용 |
+|------|------|------|------|
+| 1 | **P2** `useChatStream.ts` 스트리밍 catch → `onError()` 호출 | 에러 UX 즉시 개선 | 낮음 |
+| 2 | **P1** `geminiService.ts` `response.ok` 체크 (6개 함수) | silent failure 방지 | 낮음 |
+| 3 | **P4** SSE 라인 `JSON.parse` try-catch 방어 | 스트리밍 안정성 | 낮음 |
+| 4 | **P5** `fetchSessions` error 필드 체크 | 세션 로드 실패 UX | 낮음 |
+| 5 | **P3** `!currentUser` 에러 화면 새로고침 버튼 추가 | auth 실패 복구 UX | 낮음 |
+
+**P1 대상 함수:** `loginUser` / `updateRemoteUserProfile` / `fetchSessions` / `createSession` / `fetchSessionMessages` / `deleteSession` / `updateSessionTitle`
+
+---
+
+## 시각화 카드 전체화면 팝업 — DEV_260405 계획
+
+- [ ] `expandedViz` state + `VisualizationModal` Portal (`App.tsx`)
+- [ ] ESC 키 닫기
+- [ ] `onExpand` prop + expand 버튼 — ChatMessage.tsx (7종 렌더러)
+- [ ] `isExpanded` prop 수용, 3D 캔버스 height 조정 (`BioRenderer.tsx`)
+- [ ] `isPaused` prop + Runner 제어 (`PhysicsRenderer.tsx`)
+
+---
+
+## 아키텍처 리팩토링 — DEV_260406 이월
+
+> P1 (훅 분리) ✅ 완료 (v4.24)
+
+- [ ] **P2** `api/chat.ts` — normalizer / stream-events / persistence 분리
+- [ ] **P3** `geminiService.ts` 에러 계약 통일 (Result 패턴 전면 도입)
+- [ ] **P4** `attachment` + `attachments` 필드 단일화
+- [ ] **P5** `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
+- [ ] **P6** i18n 중앙화 (`src/i18n/messages.ts`)
+
+---
+
 ## 백로그
 
 ### 핵심 UX
@@ -15,6 +51,14 @@
 ### 성능 — Lighthouse 90+
 현재 점수: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04 측정)
 
+**LCP 개선 (현재 ~3,300ms — `isAuthLoading` 블로킹)**
+- [ ] `isAuthLoading` 제거 + 백그라운드 `loadUserSessions` (`App.tsx`)
+- [ ] `ChatInput` — `!currentUser` 시 disabled 처리 (`components/ChatInput.tsx`)
+- [ ] 사이드바 세션 로딩 중 스켈레톤 UI (`components/ChatSidebar.tsx`)
+- [ ] `handleNewSession` Optimistic UI (tempId 패턴, `useChatSessions.ts`)
+- [ ] 세션 전환 중 `isLoadingMessages` 스켈레톤 (`components/ChatArea.tsx`)
+
+**번들 최적화**
 - [ ] `fonts.gstatic.com` preconnect에 `crossorigin="anonymous"` 추가 (혼합 힌트 경고 해소)
 - [ ] FontAwesome CDN → `@fortawesome/fontawesome-svg-core` 전환 (미사용 CSS 18KB + font-display 지연 100ms 제거)
 - [ ] `react-markdown` lazy loading — 메인 번들에서 분리하여 미사용 JS ~247KB 절감
@@ -42,4 +86,4 @@
 
 ---
 
-_최종 수정: 2026-04-04 (v4.14 9-intent 구현 완료)_
+_최종 수정: 2026-04-13 (v4.36 — 이미지 latency & 세션 종료 수정 완료. 예외처리 P1~P5, 시각화 팝업, 아키텍처 리팩토링 이월 유지)_
