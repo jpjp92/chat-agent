@@ -47,7 +47,9 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 ### 1-6. Security
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
 - **Row Level Security**: Supabase RLS enforces per-user data isolation
-- **API key rotation**: Automatic key cycling on 429 errors (60 s blacklist)
+- **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null` to prevent circular 429 loops
+- **Error message sanitize**: Internal error details (`error.message`) never forwarded to the client; status-code-based user-friendly messages only
+- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube 10s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
 
 ---
 
@@ -147,20 +149,25 @@ flowchart TB
 
 ```
 ├── api/                        # Vercel Serverless Functions
-│   ├── chat.ts                 # Main Gemini streaming endpoint (LangGraph)
-│   ├── speech.ts               # TTS service
+│   ├── chat.ts                 # Main Gemini streaming endpoint (LangGraph, SSE)
+│   ├── speech.ts               # TTS service (gemini-2.5-flash-preview-tts)
+│   ├── summarize-title.ts      # Auto session title generation
 │   ├── sync-drug-image.ts      # Drug image caching and parsing
 │   ├── pill-search.ts          # Pill identification API
 │   ├── sessions.ts             # Session / message CRUD
 │   ├── upload.ts               # Supabase Storage upload proxy
 │   ├── fetch-url.ts            # Web / ArXiv scraping
-│   ├── fetch-transcript.ts     # YouTube transcript extraction
+│   ├── fetch-transcript.ts     # YouTube transcript extraction (10s/8s timeout)
+│   ├── auth.ts                 # Auth handling
+│   ├── create-signed-url.ts    # Supabase Storage signed URL generation
+│   ├── proxy-image.ts          # Image proxy
 │   └── _lib/                   # Shared utilities (excluded from Vercel function count)
+│       ├── config.ts           # API key pool, markKeyRateLimited / markKeyInvalid
 │       ├── agent/              # LangGraph agent
 │       │   ├── graph.ts        # StateGraph definition
 │       │   ├── nodes/          # router / vision / generator
-│       │   ├── drug-info-tool.ts
-│       │   ├── tools.ts
+│       │   ├── drug-info-tool.ts  # MFDS + pharm.or.kr + Vision imprint (timeouts)
+│       │   ├── tools.ts        # identifyPillTool, searchWebTool (DDG 8s timeout)
 │       │   ├── prompt.ts
 │       │   └── state.ts
 │       ├── pill-logic.ts       # pharm.or.kr search logic
@@ -183,8 +190,8 @@ flowchart TB
 ├── services/
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
-│   ├── DEV_HISTORY.md          # Version changelog
-│   ├── DEV_260405.md           # 최근 작업 로그
+│   ├── DEV_HISTORY.md          # Version changelog (v4.x)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260415.md)
 │   ├── TODO.md                 # Roadmap
 │   └── REF_*.md                # Renderer test prompt guides
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
