@@ -395,11 +395,10 @@ export const useChatStream = ({
       }
     } catch (error: any) {
       hasError = true;
-      setLoadingStatus(error.message);
-      setTimeout(() => setLoadingStatus(null), 5000);
+      onError(error.message);
     } finally {
       setIsTyping(false);
-      if (!hasError) setLoadingStatus(null);
+      setLoadingStatus(null);
       setEditingMessageContent(undefined);
     }
   };

@@ -17,12 +17,20 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         if (!apiKey) return null;
 
         // Download the image
-        const imgRes = await fetch(imageUrl, {
-            headers: {
-                'User-Agent': 'curl/8.5.0',
-                'Referer': 'https://nedrug.mfds.go.kr/',
-            }
-        });
+        const imgController = new AbortController();
+        const imgTimeout = setTimeout(() => imgController.abort(), 6000);
+        let imgRes: Response;
+        try {
+            imgRes = await fetch(imageUrl, {
+                signal: imgController.signal,
+                headers: {
+                    'User-Agent': 'curl/8.5.0',
+                    'Referer': 'https://nedrug.mfds.go.kr/',
+                }
+            });
+        } finally {
+            clearTimeout(imgTimeout);
+        }
         if (!imgRes.ok) return null;
 
         const buffer = await imgRes.arrayBuffer();
@@ -144,15 +152,23 @@ async function getPharmOrKrDetailUrl(drugName: string, imprint?: string): Promis
         });
 
         try {
-            const res = await fetch('https://www.pharm.or.kr/search/drugidfy/list.asp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': 'https://www.pharm.or.kr/search/drugidfy/search.asp',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-                body: body.toString()
-            });
+            const pharmController = new AbortController();
+            const pharmTimeout = setTimeout(() => pharmController.abort(), 8000);
+            let res: Response;
+            try {
+                res = await fetch('https://www.pharm.or.kr/search/drugidfy/list.asp', {
+                    method: 'POST',
+                    signal: pharmController.signal,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Referer': 'https://www.pharm.or.kr/search/drugidfy/search.asp',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    },
+                    body: body.toString()
+                });
+            } finally {
+                clearTimeout(pharmTimeout);
+            }
 
             if (!res.ok) continue;
 
@@ -272,7 +288,14 @@ export const searchDrugInfoTool = tool(
             const fetchMFDS = async (nameToSearch: string) => {
                 const encodedName = encodeURIComponent(nameToSearch);
                 const url = `${MFDS_API_ENDPOINT}?serviceKey=${MFDS_API_KEY}&numOfRows=5&pageNo=1&type=json&item_name=${encodedName}`;
-                const res = await fetch(url, { headers: { 'User-Agent': 'curl/8.5.0', 'Referer': 'https://www.data.go.kr' } });
+                const mfdsController = new AbortController();
+                const mfdsTimeout = setTimeout(() => mfdsController.abort(), 8000);
+                let res: Response;
+                try {
+                    res = await fetch(url, { signal: mfdsController.signal, headers: { 'User-Agent': 'curl/8.5.0', 'Referer': 'https://www.data.go.kr' } });
+                } finally {
+                    clearTimeout(mfdsTimeout);
+                }
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
                 return json?.body?.items || [];

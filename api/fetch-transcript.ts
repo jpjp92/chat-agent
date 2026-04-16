@@ -3,14 +3,21 @@ export const config = {
 };
 
 async function fetchTranscript(videoId: string) {
-  const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Accept-Language': 'en-US,en;q=0.9',
-    }
-  });
-  
-  const html = await response.text();
+  const pageController = new AbortController();
+  const pageTimeout = setTimeout(() => pageController.abort(), 10000);
+  let html: string;
+  try {
+    const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      signal: pageController.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }
+    });
+    html = await response.text();
+  } finally {
+    clearTimeout(pageTimeout);
+  }
 
   // Regex to extract captionTracks directly without JSON.parse the whole document
   const captionRegex = /"captionTracks":(\[.*?\])/;
@@ -36,8 +43,15 @@ async function fetchTranscript(videoId: string) {
   const track = captionTracks.find((t: any) => t.languageCode === 'ko' || t.languageCode === 'en') || captionTracks[0];
 
   // Fetch XML (less likely to be truncated than JSON block)
-  const transcriptResponse = await fetch(track.baseUrl);
-  const transcriptXml = await transcriptResponse.text();
+  const xmlController = new AbortController();
+  const xmlTimeout = setTimeout(() => xmlController.abort(), 8000);
+  let transcriptXml: string;
+  try {
+    const transcriptResponse = await fetch(track.baseUrl, { signal: xmlController.signal });
+    transcriptXml = await transcriptResponse.text();
+  } finally {
+    clearTimeout(xmlTimeout);
+  }
 
   const transcript = [];
   const regex = /<text\s+start="([\d.]+)"\s+(?:dur="([\d.]+)"\s+)?[^>]*>(.*?)<\/text>/g;

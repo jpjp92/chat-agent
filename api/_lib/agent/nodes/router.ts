@@ -1,7 +1,7 @@
 import { AgentStateType, IntentType } from "../state.js";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey } from "../../config.js";
+import { getNextApiKey, markKeyRateLimited } from "../../config.js";
 
 /**
  * Router Node
@@ -83,8 +83,10 @@ export const routerNode = async (state: AgentStateType) => {
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
             }
-        } catch (error) {
-            console.warn('[LangGraph] Semantic Router LLM failed, falling back to heuristics:', error);
+        } catch (error: any) {
+            const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
+            if (isRateLimit && apiKey) markKeyRateLimited(apiKey);
+            console.warn('[LangGraph] Semantic Router LLM failed, falling back to heuristics:', error?.status ?? error);
             intent = heuristicCheck();
         }
     } else {

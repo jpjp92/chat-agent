@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260415.md](DEV_260415.md) — **에러 처리 전체 감사 + 1~4라운드 적용 완료** / **SDK 스트리밍 중복 응답 버그 수정** / **`drug-info-tool.ts` timeout 3곳** / **`responseText` 스코프 버그 수정**
 - [DEV_260413.md](DEV_260413.md) — **이미지 분석 Latency & 세션 종료 버그 수정** (Router fast-path, 공개 URL 이중 fetch 제거, Supabase fire-and-forget, SSE heartbeat)
 - [DEV_260407.md](DEV_260407.md) — **의약품 이미지 미표시 버그 3차 수정** (sync 실패 시 proxy fallback 무시 버그), **mapDbMessage attachment 복원 수정**, **useChatStream URL 처리 블록 try-catch 추가**
 - [DEV_260406.md](DEV_260406.md) — 예외처리 플로우 전체 검토 (P1~P5), 의약품 이미지 버그 발견 (#1 race condition, #2 scope bug)
@@ -16,6 +17,27 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.40 (Error Handling Round 3~4 + Scope Fix — 2026-04-16)
+- **drug-info-tool.ts timeout 3곳**: `extractImprintViaVision` nedrug 이미지 fetch 6초, `getPharmOrKrDetailUrl` pharm.or.kr 전략 루프 fetch 8초/iteration, `fetchMFDS` MFDS API fetch 8초. AbortController try/finally 패턴.
+- **generator.ts `responseText` 스코프 버그 수정**: `let responseText`/`groundingSources`가 `try {}` 내에서 선언되어 `catch {}` 블록에서 접근 불가했던 문제 수정. `while` 루프 직하로 이동. 중복 응답 방지 가드가 이제 실제로 동작.
+
+### v4.39 (Error Handling Round 2 — 2026-04-15)
+- **config.ts `markKeyInvalid`**: 401/403 응답 키를 24시간 비활성화. 기존 `markKeyRateLimited`(60초)와 차등화.
+- **generator.ts 401/403 처리**: SDK·LangChain 양쪽 catch에서 `markKeyInvalid` + 다음 키 retry. SDK fallthrough 명시적 경고 로그. `lcApiKey = getNextApiKey() ?? apiKey`로 소진 키 재사용 최소화.
+- **vision.ts retry + 로그**: 429 시 다음 키로 1회 retry (`MAX_ATTEMPTS=2`). JSON parse 실패 시 `console.warn` 추가.
+- **fetch-transcript.ts timeout**: YouTube HTML fetch 10초, XML fetch 8초 AbortController 적용.
+- **tools.ts DDG timeout**: `searchWebTool` DuckDuckGo fetch 8초 AbortController 적용.
+
+### v4.38 (Error Handling Round 1 — 2026-04-15)
+- **config.ts 키 소진 순환 방지**: 모든 키 rate-limited 시 제한된 키를 재반환하던 "last resort" 로직 제거 → `null` 반환. 모든 호출자가 이미 null 처리 중.
+- **router.ts 429 키 마킹**: Router LLM 429 시 `markKeyRateLimited` 추가. Router와 Generator가 같은 키로 연속 429하던 패턴 차단.
+- **summarize-title.ts, speech.ts 429 키 마킹**: 두 엔드포인트의 catch에서도 429 시 공유 키 풀에 반영.
+- **chat.ts 에러 메시지 sanitize**: `error.message` 직접 노출 제거. 429/503/401/기타 코드별 사용자 친화 메시지로 분기.
+- **useChatStream.ts 에러 표시 개선**: 에러를 `setLoadingStatus`(5초 소멸)→ `onError`(토스트)로 변경. `finally`의 `if (!hasError)` 조건 제거로 에러 시 로딩 상태 고착 버그 동시 수정.
+
+### v4.37 (SDK Stream Duplicate Response Fix — 2026-04-15)
+- **중복 응답 버그 수정**: SDK 스트리밍 도중/직후 429/503 에러 발생 시 retry가 텍스트를 중복 전송하던 문제 수정. `catch` 블록에 `responseText` guard 추가 — 이미 텍스트가 전송됐으면 즉시 반환하여 재시도 차단.
 
 ### v4.36 (Image Latency & Session Drop Fix — 2026-04-13)
 - **Router fast-path**: 이미지 첨부 + 의약품 키워드 없음 → Router LLM 호출 스킵, `"general"` 즉시 반환 (~1s 단축)

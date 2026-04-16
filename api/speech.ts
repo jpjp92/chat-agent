@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
-import { API_KEYS, getNextApiKey } from './_lib/config.js';
+import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -33,7 +33,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ data: base64Audio });
         } catch (error: any) {
-            console.error("Speech generation failed for key", error);
+            const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
+            if (isRateLimit && apiKey) markKeyRateLimited(apiKey);
+            console.error('[Speech API] Failed for key:', { status: error?.status, message: error?.message });
         }
     }
 

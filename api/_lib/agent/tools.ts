@@ -10,14 +10,22 @@ export const searchWebTool = tool(
     async ({ query }) => {
         try {
             console.log(`[Agent Tool] searchWebTool called with query: ${query}`);
-            const res = await fetch("https://html.duckduckgo.com/html/", {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                },
-                body: `q=${encodeURIComponent(query)}`
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            let res: Response;
+            try {
+                res = await fetch("https://html.duckduckgo.com/html/", {
+                    method: "POST",
+                    signal: controller.signal,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    },
+                    body: `q=${encodeURIComponent(query)}`
+                });
+            } finally {
+                clearTimeout(timeoutId);
+            }
             const text = await res.text();
             const snippets: string[] = [];
             const urls: { title: string; url: string }[] = [];

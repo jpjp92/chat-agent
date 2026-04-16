@@ -33,6 +33,14 @@ export const markKeyRateLimited = (apiKey: string) => {
 };
 
 /**
+ * Mark an API key as invalid (401/403) — disabled for 24 hours.
+ */
+export const markKeyInvalid = (apiKey: string) => {
+    rateLimitedUntil.set(apiKey, Date.now() + 24 * 60 * 60_000);
+    console.error(`[Config] API key ...${apiKey.slice(-6)} marked invalid (401/403). Disabled for 24h.`);
+};
+
+/**
  * Get the next available API key, skipping rate-limited ones.
  * Returns null if all keys are currently rate-limited.
  */
@@ -57,9 +65,9 @@ export const getNextApiKey = (): string | null => {
         attempts++;
     }
 
-    // All keys are rate-limited: return the least-recently limited one as last resort
-    console.error('[Config] All API keys are rate-limited. Using least-recently limited key.');
-    return API_KEYS[currentKeyIndex];
+    // All keys are rate-limited: return null so callers can handle gracefully
+    console.error('[Config] All API keys are rate-limited. Returning null.');
+    return null;
 };
 
 // Log the number of unique keys loaded

@@ -296,8 +296,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
   } catch (error: any) {
-    console.error("[LangGraph] Execution Error:", error);
-    sendEvent({ error: 'LangGraph Execution Error: ' + error.message });
+    console.error("[LangGraph] Execution Error:", error?.status, error?.message ?? error);
+    const status = error?.status ?? error?.code;
+    const clientMessage =
+      status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')
+        ? '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.'
+        : status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE')
+        ? '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.'
+        : status === 401 || status === 403
+        ? '인증 오류가 발생했습니다. 관리자에게 문의해주세요.'
+        : '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.';
+    sendEvent({ error: clientMessage });
   } finally {
     clearInterval(heartbeatInterval);
   }

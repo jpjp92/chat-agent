@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
-import { API_KEYS, getNextApiKey } from './_lib/config.js';
+import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
 
 const SUMMARY_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const TITLE_PROMPTS: any = {
@@ -56,10 +56,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     continue;
                 }
             } catch (error: any) {
-                console.error(`[Title API] Failed with model ${model}:`, {
-                    message: error.message,
-                    name: error.name
-                });
+                const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
+                if (isRateLimit && apiKey) markKeyRateLimited(apiKey);
+                console.error(`[Title API] Failed with model ${model}:`, { status: error?.status, message: error.message });
             }
         }
     }
