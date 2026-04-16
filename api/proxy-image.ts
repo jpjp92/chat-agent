@@ -60,13 +60,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             referer = 'https://nedrug.mfds.go.kr/';
         }
 
-        // 3. 외부 이미지 요청 (차단 우회)
-        const response = await fetch(finalUrl, {
-            headers: {
-                'Referer': referer,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
+        // 3. 외부 이미지 요청 (차단 우회, 10s timeout)
+        const proxyController = new AbortController();
+        const proxyTimeout = setTimeout(() => proxyController.abort(), 10000);
+        let response: Response;
+        try {
+            response = await fetch(finalUrl, {
+                signal: proxyController.signal,
+                headers: {
+                    'Referer': referer,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            });
+        } finally {
+            clearTimeout(proxyTimeout);
+        }
 
         if (!response.ok) {
             console.error(`[Proxy] Failed to fetch image: ${response.status} ${response.statusText}`);

@@ -1,13 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
-const API_KEYS = [
-    process.env.API_KEY,
-    process.env.API_KEY2,
-    process.env.API_KEY3,
-    process.env.API_KEY4,
-    process.env.API_KEY5,
-].filter(Boolean) as string[];
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -25,20 +17,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
         if (isYoutube) {
-            // First try to get OEmbed for basic info
-            const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+            // OEmbed: 8초 timeout
+            const oembedController = new AbortController();
+            const oembedTimeout = setTimeout(() => oembedController.abort(), 8000);
             let oData: any = {};
-            if (oRes.ok) oData = await oRes.json();
+            try {
+                const oRes = await fetch(
+                    `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+                    { signal: oembedController.signal }
+                );
+                if (oRes.ok) oData = await oRes.json();
+            } catch (e) {
+                console.warn('[fetch-url] YouTube oembed timeout or failed');
+            } finally {
+                clearTimeout(oembedTimeout);
+            }
 
-            // Next, try to get the page description from raw HTML with more robust regex
-            const pageRes = await fetch(targetUrl);
+            // 페이지 description: 10초 timeout
+            const pageController = new AbortController();
+            const pageTimeout = setTimeout(() => pageController.abort(), 10000);
             let description = "";
-            if (pageRes.ok) {
-                const text = await pageRes.text();
-                // Match both name="description" and property="og:description"
-                const descMatch = text.match(/<meta\s+(?:name|property)="[^"]*?description"\s+content="([^"]+)"/i) ||
-                                 text.match(/<meta\s+content="([^"]+)"\s+(?:name|property)="[^"]*?description"/i);
-                if (descMatch) description = descMatch[1];
+            try {
+                const pageRes = await fetch(targetUrl, { signal: pageController.signal });
+                if (pageRes.ok) {
+                    const text = await pageRes.text();
+                    const descMatch =
+                        text.match(/<meta\s+(?:name|property)="[^"]*?description"\s+content="([^"]+)"/i) ||
+                        text.match(/<meta\s+content="([^"]+)"\s+(?:name|property)="[^"]*?description"/i);
+                    if (descMatch) description = descMatch[1];
+                }
+            } catch (e) {
+                console.warn('[fetch-url] YouTube page fetch timeout or failed');
+            } finally {
+                clearTimeout(pageTimeout);
             }
 
             return res.status(200).json({
@@ -46,13 +57,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        const response = await fetch(targetUrl);
-        if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+        // 일반 URL: 10초 timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        let html: string;
+        try {
+            const response = await fetch(targetUrl, { signal: controller.signal });
+            if (!response.ok) throw new Error(`Fetch failed with status ${response.status}`);
+            html = await response.text();
+        } finally {
+            clearTimeout(timeout);
+        }
 
-        const html = await response.text();
-        // Since we are in a serverless function, we don't have DOMParser.
-        // We'll return the raw text cleaned of scripts/styles using regex or just the whole thing for the model.
-        // For simplicity and to let the model handle it:
         const cleanContent = html
             .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
             .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
@@ -63,6 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return res.status(200).json({ content: cleanContent });
     } catch (error: any) {
+        console.warn('[fetch-url] Failed:', error.message);
         return res.status(200).json({ content: `[FETCH_ERROR: ${error.message}]` });
     }
 }

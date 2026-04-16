@@ -275,22 +275,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // 7. Supabase DB AI Response Sync (fire-and-forget — res.end() 전에 await하지 않음)
+        // 7. Supabase DB AI Response Sync
+        // SSE 스트림은 이미 완료된 상태이므로 await해도 사용자 UX에 영향 없음
+        // fire-and-forget은 res.end() 직후 Vercel이 함수를 freeze해 Promise가 실행 안 되는 문제 발생
         if (fullAiResponse && session_id) {
-          supabase.from('chat_messages').insert({
-            session_id,
-            role: 'assistant',
-            content: fullAiResponse,
-            grounding_sources: allSources.length > 0 ? allSources : null
-          }).then(({ error }) => {
-            if (error) console.error('[Chat API] Assistant message save error:', error);
-          });
-          supabase.from('chat_sessions')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', session_id)
-            .then(({ error }) => {
-              if (error) console.error('[Chat API] Session update error:', error);
+          try {
+            await Promise.all([
+              supabase.from('chat_messages').insert({
+                session_id,
+                role: 'assistant',
+                content: fullAiResponse,
+                grounding_sources: allSources.length > 0 ? allSources : null
+              }),
+              supabase.from('chat_sessions')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', session_id)
+            ]).then(([{ error: msgError }, { error: sessionError }]) => {
+              if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
+              if (sessionError) console.error('[Chat API] Session update error:', sessionError);
             });
+          } catch (dbError: any) {
+            console.error('[Chat API] DB save failed:', dbError.message);
+          }
         } else if (!fullAiResponse) {
           sendEvent({ error: 'LLM returned empty response.' });
         }

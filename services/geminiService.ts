@@ -120,17 +120,22 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
  * URL에서 직접 텍스트 또는 파일을 추출 (백엔드 프록시 이용)
  */
 export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15초: 서버사이드 10초 + 네트워크 여유
   try {
     const response = await fetch('/api/fetch-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
     });
     const data = await response.json();
     return { isPdf: data.isPdf, content: data.content || "" };
   } catch (error) {
     console.warn("Direct scraping failed", error);
     return { isPdf: false, content: "" };
+  } finally {
+    clearTimeout(timeout);
   }
 };
 
@@ -246,7 +251,14 @@ export const streamChatResponse = async (
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
-          const data = JSON.parse(line.slice(6));
+          let data: any;
+          try {
+            data = JSON.parse(line.slice(6));
+          } catch {
+            // 모바일 네트워크 불안정으로 깨진 SSE 청크 → 무시하고 계속
+            console.warn('[SSE] Malformed chunk skipped:', line.slice(6, 60));
+            continue;
+          }
           if (data.heartbeat) continue;
           if (data.error) throw new Error(data.error);
           if (data.text) onChunk(data.text, false);

@@ -75,7 +75,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (publicUrlData && publicUrlData.publicUrl) {
             console.log(`[Sync] Checking if file already exists at: ${publicUrlData.publicUrl}`);
             try {
-                const headCheck = await fetch(publicUrlData.publicUrl, { method: 'HEAD' });
+                const headController = new AbortController();
+                const headTimeout = setTimeout(() => headController.abort(), 5000);
+                let headCheck: Response;
+                try {
+                    headCheck = await fetch(publicUrlData.publicUrl, { method: 'HEAD', signal: headController.signal });
+                } finally {
+                    clearTimeout(headTimeout);
+                }
                 // Validate it's actually an image, not a previously-cached HTML error page
                 const cachedType = headCheck.headers.get('content-type') || '';
                 if (headCheck.ok && (cachedType.includes('image/') || cachedType.includes('application/octet-stream'))) {
@@ -134,15 +141,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         };
         const fetchWithRetry = async (retries = 1): Promise<Response> => {
+            const attemptController = new AbortController();
+            const attemptTimeout = setTimeout(() => attemptController.abort(), 12000);
             try {
-                return await fetch(finalUrl, { headers: fetchHeaders });
+                return await fetch(finalUrl, { headers: fetchHeaders, signal: attemptController.signal });
             } catch (e: any) {
-                if (retries > 0 && (e.code === 'ECONNRESET' || e.message?.includes('fetch failed'))) {
+                if (retries > 0 && e.name !== 'AbortError' && (e.code === 'ECONNRESET' || e.message?.includes('fetch failed'))) {
                     console.warn(`[Sync] Fetch failed (${e.code || e.message}), retrying in 800ms...`);
                     await new Promise(r => setTimeout(r, 800));
                     return fetchWithRetry(retries - 1);
                 }
                 throw e;
+            } finally {
+                clearTimeout(attemptTimeout);
             }
         };
         const externalResponse = await fetchWithRetry();
@@ -187,22 +198,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (targetScrapedUrl) {
-                    const scrapedResponse = await fetch(targetScrapedUrl, {
-                        headers: {
-                            'Referer': 'https://www.pharm.or.kr/',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                        }
-                    });
+                    const pharmImgCtrl1 = new AbortController();
+                    const pharmImgT1 = setTimeout(() => pharmImgCtrl1.abort(), 8000);
+                    let scrapedResponse: Response;
+                    try {
+                        scrapedResponse = await fetch(targetScrapedUrl, {
+                            signal: pharmImgCtrl1.signal,
+                            headers: {
+                                'Referer': 'https://www.pharm.or.kr/',
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                            }
+                        });
+                    } finally {
+                        clearTimeout(pharmImgT1);
+                    }
                     if (!scrapedResponse.ok) {
                         // _b.jpg 없으면 _s.jpg로 재시도
                         targetScrapedUrl = targetScrapedUrl.replace(/_b\.jpg$/i, '_s.jpg');
                         console.log(`[Sync] Pharm.or.kr: big image returned ${scrapedResponse.status}, falling back to _s.jpg: ${targetScrapedUrl}`);
-                        const retryResponse = await fetch(targetScrapedUrl, {
-                            headers: {
-                                'Referer': 'https://www.pharm.or.kr/',
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                            }
-                        });
+                        const pharmImgCtrl2 = new AbortController();
+                        const pharmImgT2 = setTimeout(() => pharmImgCtrl2.abort(), 8000);
+                        let retryResponse: Response;
+                        try {
+                            retryResponse = await fetch(targetScrapedUrl, {
+                                signal: pharmImgCtrl2.signal,
+                                headers: {
+                                    'Referer': 'https://www.pharm.or.kr/',
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                }
+                            });
+                        } finally {
+                            clearTimeout(pharmImgT2);
+                        }
                         if (retryResponse.ok) {
                             const retryBuffer = Buffer.from(await retryResponse.arrayBuffer());
                             const result = await uploadAndReturn(retryBuffer, 'image/jpeg', fileName!);
@@ -341,12 +368,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (targetScrapedUrl) {
                 console.log(`[Sync] Found scraped URL: ${targetScrapedUrl}`);
-                const scrapedResponse = await fetch(targetScrapedUrl, {
-                    headers: {
-                        'Referer': isNaverEntry ? 'https://terms.naver.com/' : 'https://www.connectdi.com/',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    }
-                });
+                const scrapedCtrl = new AbortController();
+                const scrapedTimeout = setTimeout(() => scrapedCtrl.abort(), 8000);
+                let scrapedResponse: Response;
+                try {
+                    scrapedResponse = await fetch(targetScrapedUrl, {
+                        signal: scrapedCtrl.signal,
+                        headers: {
+                            'Referer': isNaverEntry ? 'https://terms.naver.com/' : 'https://www.connectdi.com/',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        }
+                    });
+                } finally {
+                    clearTimeout(scrapedTimeout);
+                }
 
                 if (scrapedResponse.ok) {
                     const scrapedBuffer = Buffer.from(await scrapedResponse.arrayBuffer());
@@ -418,12 +453,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // Fetch ConnectDI detail page HTML (handles search result redirect)
 async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {
     try {
-        const htmlResponse = await fetch(url, {
-            headers: {
-                'Referer': 'https://www.connectdi.com/',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
+        const htmlCtrl = new AbortController();
+        const htmlTimeout = setTimeout(() => htmlCtrl.abort(), 8000);
+        let htmlResponse: Response;
+        try {
+            htmlResponse = await fetch(url, {
+                signal: htmlCtrl.signal,
+                headers: {
+                    'Referer': 'https://www.connectdi.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+        } finally {
+            clearTimeout(htmlTimeout);
+        }
 
         if (!htmlResponse.ok) return null;
 
@@ -443,12 +486,20 @@ async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {
                 console.log(`[Sync] Found detail page: ${detailUrl}`);
 
                 // Fetch detail page
-                const detailResponse = await fetch(detailUrl, {
-                    headers: {
-                        'Referer': 'https://www.connectdi.com/',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
+                const detailCtrl = new AbortController();
+                const detailTimeout = setTimeout(() => detailCtrl.abort(), 8000);
+                let detailResponse: Response;
+                try {
+                    detailResponse = await fetch(detailUrl, {
+                        signal: detailCtrl.signal,
+                        headers: {
+                            'Referer': 'https://www.connectdi.com/',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+                } finally {
+                    clearTimeout(detailTimeout);
+                }
 
                 if (detailResponse.ok) {
                     html = await detailResponse.text();

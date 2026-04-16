@@ -204,6 +204,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         setSyncing(true);
 
         const controller = new AbortController();
+        // 모바일 네트워크 지연 대응: 20s 내 응답 없으면 abort → proxy fallback으로 전환
+        const syncTimeout = setTimeout(() => controller.abort(), 20000);
 
         const syncImage = async () => {
             try {
@@ -243,7 +245,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
         syncImage();
 
-        return () => controller.abort();
+        return () => {
+            clearTimeout(syncTimeout);
+            controller.abort();
+        };
     }, [data.image_url]);
 
 
