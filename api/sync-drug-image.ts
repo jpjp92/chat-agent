@@ -379,9 +379,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Direct image download (e.g. nedrug.mfds.go.kr)
         // Reject non-image responses to prevent caching HTML error pages
         if (!contentType.includes('image/') && !contentType.includes('application/octet-stream')) {
-            console.warn(`[Sync] Rejected non-image content-type: ${contentType}`);
-            resolveInflight(null);
-            inflightRequests.delete(fileName);
+            console.warn(`[Sync] Rejected non-image content-type: ${contentType} from ${finalUrl}`);
+
+            // MFDS 서버 유지보수 시 200 HTML을 반환하는 케이스 (예: "서비스 일시 중단 안내")
+            if (finalUrl.includes('nedrug.mfds.go.kr') && drug_name) {
+                console.log(`[Sync] MFDS returned HTML (maintenance page?), attempting ConnectDI fallback for "${drug_name}"...`);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
+                if (fallbackResult) {
+                    resolveInflight!(fallbackResult);
+                    inflightRequests.delete(fileName!);
+                    return res.status(200).json(fallbackResult);
+                }
+                console.warn(`[Sync] ConnectDI fallback failed for "${drug_name}" (HTML response case)`);
+            }
+
+            resolveInflight!(null);
+            inflightRequests.delete(fileName!);
             return res.status(422).json({ error: 'URL did not return an image', contentType });
         }
 

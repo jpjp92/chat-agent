@@ -19,6 +19,13 @@
 
 ## v4.x — Multimodal & Agentic
 
+### v4.44 (Node Bug Fixes + Drug Info Tool URL Fix — 2026-04-16)
+- **drug-info-tool.ts ConnectDI URL 수정**: `connectdi.co.kr` (잘못된 도메인) → `connectdi.com/mobile/drug/?pap=search_result...` 형식으로 교체. MFDS 성공/실패 두 분기 모두 수정.
+- **drug-info-tool.ts PARTIAL_DATA drug card 미생성 수정**: pharm.or.kr 발견 시 PARTIAL_DATA 지시문에 `[MANDATORY] json:drug 반드시 생성` 명시. 부분 데이터에도 drug card 먼저 생성하도록 순서 변경.
+- **sync-drug-image.ts MFDS 200 HTML 처리**: MFDS 유지보수 시 200 text/html 응답은 `!externalResponse.ok` 조건을 통과해 content-type 체크에서 걸림. 해당 분기에도 ConnectDI fallback 추가.
+- **generator.ts `[TRANSCRIPT]` 불일치 수정**: `[YOUTUBE_VIDEO_INFO]` → `[TRANSCRIPT]` 변경. YouTube 트랜스크립트 시 Google Search 비활성화 최적화 정상 동작.
+- **generator.ts `sdkSuccess` 스코프 버그 수정**: `let sdkSuccess`를 `if (!useLangChain)` 블록 바깥으로 이동. SDK 완전 실패 시 ReferenceError 방지.
+
 ### v4.43 (MFDS Outage ConnectDI Fallback — 2026-04-16)
 - **MFDS 장애 시 ConnectDI 폴백**: `sync-drug-image.ts`에 `tryConnectDIFallback` 추가. `nedrug.mfds.go.kr` 404 시 `drug_name`에서 기본명을 추출해 ConnectDI 검색 → `parseMedList` 파싱 → `scoreNameMatch`(score ≥ 40) 최적 매칭 → 이미지 다운로드 → Supabase 캐시. MFDS 서버 전체 중단 시에도 이미지 표시 가능.
 - **기존 ConnectDI 검색결과 파싱 버그 수정**: `html.split(drug_list div)` → `parseMedList + scoreNameMatch`로 교체. `drug_list` 클래스는 실제 ConnectDI HTML에 없어 항상 0개 블록이었음.

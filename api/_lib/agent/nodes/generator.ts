@@ -60,11 +60,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
         // Google Search grounding is enabled unless multimodal content is present.
+        let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = apiKey; // start with the key already chosen above
             let sdkAttempt = 0;
-            let sdkSuccess = false;
 
             while (sdkAttempt < MAX_KEY_RETRIES) {
                 // Declare outside try so catch block can read them for duplicate-guard
@@ -128,7 +128,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     // Google Search is incompatible with multimodal content (images, video, PDF)
                     // Optimization: Disable Google Search for YouTube summaries when transcript OR video data is present
-                    const hasTranscript = state.webContent.includes('[YOUTUBE_VIDEO_INFO]');
+                    const hasTranscript = state.webContent.includes('[TRANSCRIPT]');
                     const hasVideoData = state.messages.some((m: any) => 
                         Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
                     );
