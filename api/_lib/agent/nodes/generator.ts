@@ -133,13 +133,23 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
                     );
                     
+                    // Disable Google Search when the full article text is already provided
+                    // to prevent the LLM from using a brief Google snippet instead of the full content
+                    const hasUrlContent = state.webContent.includes('[URL_CONTENT]');
+
                     let useGoogleSearch = !hasMultimodalContent;
                     if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
                         useGoogleSearch = false;
                     }
-                    
+                    if (hasUrlContent) {
+                        useGoogleSearch = false;
+                    }
+
                     if (hasMultimodalContent && !isYoutubeRequest) {
                         console.log('[LangGraph] Multimodal content detected — Google Search disabled');
+                    }
+                    if (hasUrlContent) {
+                        console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
                     }
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| contentsLen:', sdkContents.length);

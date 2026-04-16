@@ -243,8 +243,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
               if (addedNew) sendEvent({ sources: allSources });
             }
-          } else if (event.event === "on_tool_end" && event.name === "search_web") {
-            // Extract [WEB_SOURCE_URLS] block from searchWebTool output and push to sources
+          } else if (event.event === "on_tool_end" && (event.name === "search_web" || event.name === "search_drug_info")) {
+            // Extract [WEB_SOURCE_URLS] block from searchWebTool / searchDrugInfoTool output and push to sources
+            // search_drug_info embeds web search results (incl. [WEB_SOURCE_URLS]) when MFDS returns no results
             const toolOutput: string = typeof data?.output === 'string' ? data.output : '';
             const urlBlockMatch = toolOutput.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
             if (urlBlockMatch) {

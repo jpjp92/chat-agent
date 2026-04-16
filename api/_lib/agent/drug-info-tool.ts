@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { getNextApiKey } from "../config.js";
+import { searchWebTool } from "./tools.js";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
 const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
@@ -321,19 +322,15 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                // MFDS 실패해도 parallel로 진행 중인 Pharm.or.kr 결과는 기다림
-                const fallbackPharmUrl = await pharmUrlPromise;
-                const connectdiBaseName = drug_name.replace(/\(.*?\)/g, '').trim();
-                const connectdiUrl = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(connectdiBaseName)}`;
-
-                let fallbackMsg = `식약처 DB에서 "${drug_name}"에 해당하는 약품 정보를 찾지 못했습니다. search_web 툴로 "${drug_name} 성분 용법 용량"을 검색하여 정보를 제공하세요.`;
-
-                if (fallbackPharmUrl) {
-                    console.log(`[Agent Tool] MFDS failed but Pharm.or.kr found: ${fallbackPharmUrl}`);
-                    fallbackMsg = `[PARTIAL_DATA] 식약처 DB 조회 실패. Pharm.or.kr에서 "${drug_name}" 항목 발견.\n\nPharm_URL: ${fallbackPharmUrl}\nConnectDI_URL: ${connectdiUrl}\n\n[MANDATORY] 반드시 json:drug 블록을 생성하세요. 아래 필드를 정확히 사용하세요:\n- "name": "${drug_name}"\n- "pharm_url": "${fallbackPharmUrl}"\n- "image_url": "${fallbackPharmUrl}"\n- "connectdi_url": "${connectdiUrl}"\n\n나머지 성분·효능·용법·모양·색상·각인은 search_web 툴로 "${drug_name} 성분 효능 용법"을 검색하여 채우세요. 정보가 부족해도 json:drug는 반드시 생성해야 합니다.`;
+                // MFDS에 데이터 없음 — pharm 병렬 요청은 버리고 직접 웹 검색 수행
+                pharmUrlPromise.catch(() => {});
+                console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Performing inline web search.`);
+                try {
+                    const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
+                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 공식 정보를 찾지 못했습니다. 아래 웹 검색 결과를 바탕으로 일반 텍스트로 안내하세요. json:drug 블록은 생성하지 마세요.\n\n${webResult}`;
+                } catch (e) {
+                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 정보를 찾지 못했습니다. 보유한 지식을 바탕으로 일반 텍스트로 안내하세요. json:drug 블록은 생성하지 마세요.`;
                 }
-
-                return fallbackMsg;
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it

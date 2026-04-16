@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260417.md](DEV_260417.md) — **DrugRenderer null crash 수정** / **drug-info-tool PARTIAL_DATA 제거** / **fetch-url 콘텐츠 추출 개선** / **chat.ts API 키 소진 에러 분류** / **MFDS 미등록 약품 출처 칩 미표시 수정** — searchDrugInfoTool 내 DDG 직접 검색 + chat.ts search_drug_info 이벤트 URL 추출 / **URL 요약 품질 개선** — [URL_CONTENT] 시 Google Search 비활성화 + prompt.ts 처리 지침 추가
 - [DEV_260416.md](DEV_260416.md) — **전체 코드 보안 취약점 감사** — IDOR(auth/sessions), SSRF(fetch-url), bucket 화이트리스트 미적용(upload/create-signed-url), 에러 노출, fetch timeout 미적용(fetch-url/sync-drug-image) / **약품 카드 이미지 미표시(모바일) 수정** — sync-drug-image·proxy-image·DrugRenderer 전 fetch timeout 추가 / **채팅 이전 대화 AI 응답 누락 수정** — chat.ts DB 저장 fire-and-forget → await 변경 / **MFDS 장애 시 ConnectDI 폴백** — nedrug 404 시 drug_name 기반 ConnectDI 자동 검색·캐시. parseMedList + scoreNameMatch 기반 정확 매칭. 기존 drug_list 파싱 버그도 함께 수정
 - [DEV_260415.md](DEV_260415.md) — **에러 처리 전체 감사 + 1~4라운드 적용 완료** / **SDK 스트리밍 중복 응답 버그 수정** / **`drug-info-tool.ts` timeout 3곳** / **`responseText` 스코프 버그 수정**
 - [DEV_260413.md](DEV_260413.md) — **이미지 분석 Latency & 세션 종료 버그 수정** (Router fast-path, 공개 URL 이중 fetch 제거, Supabase fire-and-forget, SSE heartbeat)
@@ -18,6 +19,16 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.46 (URL Summary Quality Fix + Drug Source Chip Fix — 2026-04-17)
+- **URL 요약 품질 개선**: `generator.ts`에서 `[URL_CONTENT]` 감지 시 Google Search 비활성화. 기존에는 Google Search 스니펫을 우선 사용해 2~3문장 요약만 반환. 이제 fetch-url로 가져온 20,000자 전문을 단독 소스로 사용 → 구조화된 상세 요약. `prompt.ts`에 `[URL_CONTENT]` 처리 지침 추가(SOLE primary source, headings/bullets 요구).
+- **MFDS 미등록 약품 출처 칩 미표시 수정**: `searchDrugInfoTool`이 MFDS 결과 없을 때 "search_web 툴을 호출하세요" 지시를 반환하면 LLM이 무시하고 가짜 [1], [2] 인용 생성. `searchWebTool.invoke()` 직접 호출로 변경 — DDG 결과 + `[WEB_SOURCE_URLS]`를 tool output에 임베딩. `chat.ts`에서 `search_drug_info` `on_tool_end` 이벤트도 URL 추출 대상에 추가.
+
+### v4.45 (DrugRenderer Null Safety + Drug Info Tool Fallback Simplification — 2026-04-17)
+- **DrugRenderer.tsx null crash 수정**: `data.category.split()` null 호출 크래시 → `(data.category || '').split()`으로 null safe 처리. `data.ingredient` null 렌더링도 `|| '-'` fallback 추가. ConnectDI 폴백으로 이미지만 있는 약품도 카드 정상 렌더링.
+- **drug-info-tool.ts PARTIAL_DATA 제거**: MFDS 결과 없음 시 PARTIAL_DATA 강제 drug card 생성 방식 제거. 모든 필드 null인 빈 카드 문제 해소. `search_web "${drug_name} 성분 효능 용법 용량"` 지시로 단순화 — 실질적인 텍스트 정보 제공.
+- **fetch-url.ts URL 콘텐츠 추출 개선**: 브라우저 User-Agent·Accept 헤더 추가(bot 차단 우회). og:title / og:description 메타 추출. nav·header·footer·aside·iframe 등 노이즈 태그 제거. `<article>` → `<main>` → class 패턴 우선 추출. 20,000자 제한 유지. 뉴스 기사 요약 품질 대폭 향상.
+- **chat.ts API 키 소진 에러 분류**: `No API key available` / `API keys exhausted` 패턴 감지 → 429와 동일한 "잠시 지연" 메시지. 내부 에러 문자열 노출 없음.
 
 ### v4.44 (Node Bug Fixes + Drug Info Tool URL Fix — 2026-04-16)
 - **drug-info-tool.ts ConnectDI URL 수정**: `connectdi.co.kr` (잘못된 도메인) → `connectdi.com/mobile/drug/?pap=search_result...` 형식으로 교체. MFDS 성공/실패 두 분기 모두 수정.
