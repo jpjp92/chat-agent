@@ -304,10 +304,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error("[LangGraph] Execution Error:", error?.status, error?.message ?? error);
     const status = error?.status ?? error?.code;
+    const msg = error?.message ?? '';
     const clientMessage =
-      status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')
+      status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')
         ? '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.'
-        : status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE')
+        // 모든 API 키 소진 — 사용자 관점에서는 과부하와 동일
+        : msg.includes('No API key available') || msg.includes('API keys exhausted') || msg.includes('All API keys')
+        ? '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.'
+        : status === 503 || msg.includes('503') || msg.includes('UNAVAILABLE')
         ? '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.'
         : status === 401 || status === 403
         ? '인증 오류가 발생했습니다. 관리자에게 문의해주세요.'

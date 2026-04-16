@@ -264,7 +264,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                             {/* Title & Badge */}
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-1">
-                                    {data.category.split(/[,/()]+/).filter(Boolean).map((cat, idx) => (
+                                    {(data.category || '').split(/[,/()]+/).filter(Boolean).map((cat, idx) => (
                                         <span key={idx} className="px-1.5 py-0.5 bg-indigo-500/10 dark:bg-indigo-500/20 text-[8px] sm:text-[10px] font-black text-indigo-600 dark:text-indigo-400 rounded-full uppercase tracking-tighter border border-indigo-200/50 dark:border-indigo-500/30">
                                             {cat.trim()}
                                         </span>
@@ -414,7 +414,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.ingredient}</span>
                             </div>
                             <p className="text-[12px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
-                                {data.ingredient}
+                                {data.ingredient || '-'}
                             </p>
                         </div>
 
