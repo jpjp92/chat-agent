@@ -160,6 +160,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!externalResponse.ok) {
             console.warn(`[Sync] External image fetch failed for ${finalUrl}: ${externalResponse.status}`);
+
+            // ConnectDI fallback when MFDS (nedrug.mfds.go.kr) is unavailable
+            if (finalUrl.includes('nedrug.mfds.go.kr') && drug_name) {
+                console.log(`[Sync] MFDS unavailable, attempting ConnectDI fallback for "${drug_name}"...`);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
+                if (fallbackResult) {
+                    resolveInflight!(fallbackResult);
+                    inflightRequests.delete(fileName!);
+                    return res.status(200).json(fallbackResult);
+                }
+                console.warn(`[Sync] ConnectDI fallback also failed for "${drug_name}"`);
+            }
+
             resolveInflight(null);
             inflightRequests.delete(fileName);
             return res.status(externalResponse.status).json({
@@ -281,83 +294,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             } else if (isConnectDIEntry) {
-                // 2. ConnectDI Logic with Imprint Verification
+                // 2. ConnectDI Logic
                 const isSearchResult = finalUrl.includes('search_result');
                 console.log(`[Sync] ConnectDI content detected (${isSearchResult ? 'Search Result' : 'Detail Page'})...`);
 
                 if (isSearchResult) {
-                    const productBlocks = html.split(/<div[^>]*class="[^"]*drug_list[^"]*"[^>]*>/i).slice(1);
+                    const items = parseMedList(html);
+                    console.log(`[Sync] ConnectDI: parsed ${items.length} items from medList`);
 
-                    if (imprint_front || imprint_back) {
-                        console.log(`[Sync] Searching for product with matching imprint...`);
-                        for (const block of productBlocks) {
-                            const frontMatch = block.match(/표시\s*\(앞\)[^<]*<[^>]*>([^<]+)</i);
-                            const backMatch = block.match(/표시\s*\(뒤\)[^<]*<[^>]*>([^<]+)</i);
-                            const blockFront = frontMatch ? frontMatch[1].trim() : '';
-                            const blockBack = backMatch ? backMatch[1].trim() : '';
+                    let targetItem: MedListItem | null = null;
 
-                            const normalizeFront = (s: string) => s.replace(/\s+/g, '').toUpperCase();
-                            const normalizeBack = (s: string) => s.replace(/\s+/g, '').toUpperCase().replace(/없음|NONE|-/g, '');
-                            const frontMatches = !imprint_front || normalizeFront(blockFront) === normalizeFront(imprint_front);
-                            const backMatches = !imprint_back || normalizeBack(blockBack) === normalizeBack(imprint_back || '');
+                    // Name-based scoring (primary selection)
+                    if (drug_name && items.length > 0) {
+                        const scored = items
+                            .filter(item => item.imgUrl)
+                            .map(item => ({ ...item, score: scoreNameMatch(drug_name, item.name) }))
+                            .sort((a, b) => b.score - a.score);
 
-                            console.log(`[Sync] Checking - Front: "${blockFront}" (${frontMatches}), Back: "${blockBack}" (${backMatches})`);
-
-                            if (frontMatches && backMatches) {
-                                const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                                if (imgMatch && imgMatch[1]) {
-                                    targetScrapedUrl = 'https://www.connectdi.com' + imgMatch[1];
-                                    console.log(`[Sync] ✅ Found matching product by imprint: ${targetScrapedUrl}`);
-                                    break;
-                                }
-                            }
+                        if (scored.length > 0 && scored[0].score >= 40) {
+                            targetItem = scored[0];
+                            console.log(`[Sync] ConnectDI: name-matched "${targetItem.name}" (score=${scored[0].score})`);
                         }
                     }
 
-                    if (!targetScrapedUrl) {
-                        if (imprint_front || imprint_back) {
-                            console.warn(`[Sync] ⚠️ No match for Front:"${imprint_front}" Back:"${imprint_back}"`);
-                        }
-
-                        // Dosage-based fallback (supports Korean units: 밀리그[람램])
-                        const dosageMatch = drug_name
-                            ? (drug_name.match(/(\d+\.?\d*)\s*(?:mg|밀리그[람램])/i) || drug_name.match(/(\d+\.?\d*)/))
-                            : null;
-                        const targetDosage = dosageMatch ? dosageMatch[1] : null;
-                        let fallbackUrl: string | null = null;
-
-                        if (targetDosage) {
-                            console.log(`[Sync] Trying dosage-based fallback: ${targetDosage}mg`);
-                            for (const block of productBlocks) {
-                                // Extract the drug name from the block to avoid matching dosage inside other fields
-                                const titleMatch = block.match(/class="[^"]*drug_title[^"]*"[^>]*>\s*<strong[^>]*>([^<]+)<\/strong>/i)
-                                    || block.match(/bold">([^<]+)<\//i); // Fallback title match
-
-                                const blockText = titleMatch ? titleMatch[1] : block.replace(/<[^>]+>/g, ' ');
-
-                                const blockDosageMatch = blockText.match(new RegExp(`\\b${targetDosage}\\s*mg`, 'i'));
-                                if (blockDosageMatch) {
-                                    const imgMatch = block.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                                    if (imgMatch && imgMatch[1]) {
-                                        fallbackUrl = 'https://www.connectdi.com' + imgMatch[1];
-                                        console.log(`[Sync] ✅ Dosage-matched fallback: ${fallbackUrl}`);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        // 최종 fallback: 첫 번째 이미지
-                        if (!fallbackUrl) {
-                            const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
-                            if (drugMatch && drugMatch[1]) {
-                                fallbackUrl = 'https://www.connectdi.com' + drugMatch[1];
-                                console.log(`[Sync] Using first-image fallback`);
-                            }
-                        }
-
-                        targetScrapedUrl = fallbackUrl;
+                    // Fallback: first item with an image
+                    if (!targetItem) {
+                        targetItem = items.find(item => item.imgUrl) || null;
+                        if (targetItem) console.log(`[Sync] ConnectDI: using first available item "${targetItem.name}"`);
                     }
+
+                    targetScrapedUrl = targetItem?.imgUrl || null;
                 } else {
                     const drugMatch = html.match(/src=["'](\/design\/img\/drug\/[^"']+)["']/i);
                     if (drugMatch && drugMatch[1]) {
@@ -449,6 +415,156 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
     }
 }
+
+// ─── ConnectDI name-matching helpers ────────────────────────────────────────
+
+function extractBaseName(name: string): string {
+    return name
+        .replace(/\(.*?\)/g, '')
+        .replace(/[\d.]+\s*(밀리그램|밀리그람|마이크로그램|마이크로그람|그램|그람|mg|mcg|g)/gi, '')
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+function extractDosageNumbers(name: string): string[] {
+    return (name.replace(/밀리그[램람]|마이크로그[램람]|그[램람]/g, '').match(/[\d.]+/g) || []);
+}
+
+function scoreNameMatch(targetName: string, candidateName: string): number {
+    const norm = (s: string) =>
+        s.replace(/\s+/g, '')
+         .replace(/밀리그[램람]/g, 'mg')
+         .replace(/마이크로그[램람]/g, 'mcg')
+         .toLowerCase();
+    const t = norm(targetName);
+    const c = norm(candidateName);
+    if (c === t) return 100;
+    const tBase = extractBaseName(t);
+    const cBase = extractBaseName(c);
+    const tDosages = extractDosageNumbers(t);
+    const cDosages = extractDosageNumbers(c);
+    if (cBase === tBase) {
+        const dosageMatch = tDosages.length > 0 && tDosages.every(d => cDosages.includes(d));
+        return dosageMatch ? 80 : 60;
+    }
+    if (c.includes(tBase) || t.includes(cBase)) return 40;
+    return 0;
+}
+
+interface MedListItem { name: string; imgUrl: string | null; detailUrl: string; }
+
+function parseMedList(html: string): MedListItem[] {
+    const items: MedListItem[] = [];
+    const blockRegex = /<a\s+href="([^"]*pap=detail[^"]*)">([\s\S]*?)<\/a>/gi;
+    for (const m of html.matchAll(blockRegex)) {
+        const detailPath = m[1];
+        const block = m[2];
+        const imgMatch = block.match(/src="(\/design\/img\/drug\/[^"]+)"/i);
+        const imgUrl = imgMatch ? 'https://www.connectdi.com' + imgMatch[1] : null;
+        const nameMatch = block.match(/<dt>([^<]+)<\/dt>/i);
+        const name = nameMatch ? nameMatch[1].trim() : '';
+        const detailUrl = detailPath.startsWith('http')
+            ? detailPath
+            : 'https://www.connectdi.com' + detailPath;
+        items.push({ name, imgUrl, detailUrl });
+    }
+    return items;
+}
+
+// ConnectDI fallback: MFDS(nedrug.mfds.go.kr) 장애 시 동명 약품을 ConnectDI에서 검색·다운로드
+async function tryConnectDIFallback(
+    drugName: string,
+    fileName: string,
+    imprintFront?: string,
+    imprintBack?: string
+): Promise<{ publicUrl: string; pillVisual: any } | null> {
+    try {
+        const baseName = extractBaseName(drugName);
+        const searchUrl = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(baseName)}`;
+        console.log(`[Sync] ConnectDI fallback: searching "${baseName}" → ${searchUrl}`);
+
+        const searchCtrl = new AbortController();
+        const searchTimeout = setTimeout(() => searchCtrl.abort(), 10000);
+        let searchResponse: Response;
+        try {
+            searchResponse = await fetch(searchUrl, {
+                signal: searchCtrl.signal,
+                headers: {
+                    'Referer': 'https://www.connectdi.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'ko-KR,ko;q=0.9',
+                }
+            });
+        } finally {
+            clearTimeout(searchTimeout);
+        }
+
+        if (!searchResponse.ok) {
+            console.warn(`[Sync] ConnectDI fallback: search failed (${searchResponse.status})`);
+            return null;
+        }
+
+        const searchHtml = await searchResponse.text();
+        const items = parseMedList(searchHtml);
+        console.log(`[Sync] ConnectDI fallback: found ${items.length} results`);
+        if (items.length === 0) return null;
+
+        // Score by drug name and pick best match
+        const scored = items
+            .filter(item => item.imgUrl)
+            .map(item => ({ ...item, score: scoreNameMatch(drugName, item.name) }))
+            .sort((a, b) => b.score - a.score);
+
+        const best = scored[0];
+        if (!best || best.score < 40) {
+            console.warn(`[Sync] ConnectDI fallback: no sufficient match (best="${best?.name}", score=${best?.score ?? 0})`);
+            return null;
+        }
+        console.log(`[Sync] ConnectDI fallback: best match "${best.name}" (score=${best.score}) → ${best.imgUrl}`);
+
+        // Download image
+        const imgCtrl = new AbortController();
+        const imgTimeout = setTimeout(() => imgCtrl.abort(), 8000);
+        let imgResponse: Response;
+        try {
+            imgResponse = await fetch(best.imgUrl!, {
+                signal: imgCtrl.signal,
+                headers: {
+                    'Referer': 'https://www.connectdi.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
+            });
+        } finally {
+            clearTimeout(imgTimeout);
+        }
+
+        if (!imgResponse.ok || !imgResponse.headers.get('content-type')?.includes('image')) {
+            console.warn(`[Sync] ConnectDI fallback: image download failed (${imgResponse.status})`);
+            return null;
+        }
+
+        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+        const result = await uploadAndReturn(imgBuffer, 'image/jpeg', fileName);
+
+        // Extract pill visual from detail page
+        let pillVisual = null;
+        try {
+            const detailHtml = await fetchConnectDIDetailHTML(best.detailUrl);
+            if (detailHtml) pillVisual = extractPillVisual(detailHtml);
+        } catch (e) {
+            console.warn('[Sync] ConnectDI fallback: pill visual extraction failed', e);
+        }
+
+        console.log(`[Sync] ConnectDI fallback: successfully cached image for "${drugName}"`);
+        return { ...result, pillVisual };
+    } catch (e: any) {
+        console.error('[Sync] ConnectDI fallback error:', e.message);
+        return null;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Fetch ConnectDI detail page HTML (handles search result redirect)
 async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {

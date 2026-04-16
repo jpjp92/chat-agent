@@ -6,7 +6,7 @@
 
 ## 최근 작업 로그
 
-- [DEV_260416.md](DEV_260416.md) — **전체 코드 보안 취약점 감사** — IDOR(auth/sessions), SSRF(fetch-url), bucket 화이트리스트 미적용(upload/create-signed-url), 에러 노출, fetch timeout 미적용(fetch-url/sync-drug-image) / **약품 카드 이미지 미표시(모바일) 수정** — sync-drug-image·proxy-image·DrugRenderer 전 fetch timeout 추가 / **채팅 이전 대화 AI 응답 누락 수정** — chat.ts DB 저장 fire-and-forget → await 변경
+- [DEV_260416.md](DEV_260416.md) — **전체 코드 보안 취약점 감사** — IDOR(auth/sessions), SSRF(fetch-url), bucket 화이트리스트 미적용(upload/create-signed-url), 에러 노출, fetch timeout 미적용(fetch-url/sync-drug-image) / **약품 카드 이미지 미표시(모바일) 수정** — sync-drug-image·proxy-image·DrugRenderer 전 fetch timeout 추가 / **채팅 이전 대화 AI 응답 누락 수정** — chat.ts DB 저장 fire-and-forget → await 변경 / **MFDS 장애 시 ConnectDI 폴백** — nedrug 404 시 drug_name 기반 ConnectDI 자동 검색·캐시. parseMedList + scoreNameMatch 기반 정확 매칭. 기존 drug_list 파싱 버그도 함께 수정
 - [DEV_260415.md](DEV_260415.md) — **에러 처리 전체 감사 + 1~4라운드 적용 완료** / **SDK 스트리밍 중복 응답 버그 수정** / **`drug-info-tool.ts` timeout 3곳** / **`responseText` 스코프 버그 수정**
 - [DEV_260413.md](DEV_260413.md) — **이미지 분석 Latency & 세션 종료 버그 수정** (Router fast-path, 공개 URL 이중 fetch 제거, Supabase fire-and-forget, SSE heartbeat)
 - [DEV_260407.md](DEV_260407.md) — **의약품 이미지 미표시 버그 3차 수정** (sync 실패 시 proxy fallback 무시 버그), **mapDbMessage attachment 복원 수정**, **useChatStream URL 처리 블록 try-catch 추가**
@@ -18,6 +18,10 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.43 (MFDS Outage ConnectDI Fallback — 2026-04-16)
+- **MFDS 장애 시 ConnectDI 폴백**: `sync-drug-image.ts`에 `tryConnectDIFallback` 추가. `nedrug.mfds.go.kr` 404 시 `drug_name`에서 기본명을 추출해 ConnectDI 검색 → `parseMedList` 파싱 → `scoreNameMatch`(score ≥ 40) 최적 매칭 → 이미지 다운로드 → Supabase 캐시. MFDS 서버 전체 중단 시에도 이미지 표시 가능.
+- **기존 ConnectDI 검색결과 파싱 버그 수정**: `html.split(drug_list div)` → `parseMedList + scoreNameMatch`로 교체. `drug_list` 클래스는 실제 ConnectDI HTML에 없어 항상 0개 블록이었음.
 
 ### v4.42 (Drug Card Image Timeout + Chat History AI Response Fix — 2026-04-16)
 - **약품 카드 이미지 미표시(모바일) 수정**: `sync-drug-image.ts` 내부 fetch 전체에 AbortController 추가 (HEAD 5s, 메인 12s, pharm.or.kr 8s×2, 스크래핑 8s, ConnectDI HTML 8s×2). `proxy-image.ts` 외부 fetch 10s timeout 추가. `DrugRenderer.tsx` 클라이언트 sync fetch 20s timeout → 초과 시 abort → proxy fallback 자동 전환. Shimmer 영구 표시 해소.
