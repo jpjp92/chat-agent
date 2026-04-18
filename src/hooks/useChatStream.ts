@@ -276,7 +276,12 @@ export const useChatStream = ({
         try {
           setLoadingStatus(statusMessages.fetchingUrl);
           const pageContent = await fetchUrlContent(url);
-          webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
+          if (pageContent) {
+            webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
+          } else {
+            console.warn('[useChatStream] URL fetch returned empty — skipping URL_CONTENT tag, Google Search will be used');
+            urlFetchError = true;
+          }
           setLoadingStatus(null);
         } catch (urlError: any) {
           console.error('[useChatStream] URL fetch error:', urlError);
@@ -285,9 +290,8 @@ export const useChatStream = ({
         }
       }
 
-      if (urlFetchError) {
-        onError(statusMessages.fetchingUrl ? `URL 콘텐츠를 가져오지 못했습니다.` : 'Failed to fetch URL content.');
-      }
+      // URL fetch 실패 시 에러를 띄우지 않음 — Google Search가 자동으로 대체
+      // (URL_CONTENT 태그가 없으면 generator에서 useGoogleSearch=true 유지)
     }
 
     let hasError = false;

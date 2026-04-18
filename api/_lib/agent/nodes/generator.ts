@@ -146,8 +146,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     );
                     
                     // Disable Google Search when the full article text is already provided
-                    // to prevent the LLM from using a brief Google snippet instead of the full content
-                    const hasUrlContent = state.webContent.includes('[URL_CONTENT]');
+                    // to prevent the LLM from using a brief Google snippet instead of the full content.
+                    // Only disable if there's actual non-empty content after the tag.
+                    const urlContentMatch = state.webContent.match(/\[URL_CONTENT:[^\]]+\]\n([\s\S]+)/);
+                    const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim());
 
                     let useGoogleSearch = !hasMultimodalContent;
                     if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
