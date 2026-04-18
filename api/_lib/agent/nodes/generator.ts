@@ -65,11 +65,16 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = apiKey; // start with the key already chosen above
             let sdkAttempt = 0;
+            // When multimodal content (YouTube fileData, PDF URL) causes a 500,
+            // retry once without media parts + Google Search enabled.
+            let forceTextOnly = false;
 
             while (sdkAttempt < MAX_KEY_RETRIES) {
                 // Declare outside try so catch block can read them for duplicate-guard
                 let responseText = "";
                 let groundingSources: any[] = [];
+                // Track whether this attempt included multimodal parts (readable in catch)
+                let hadMultimodalContent = false;
 
                 try {
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
@@ -88,6 +93,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     if (part.type === 'text') {
                                         parts.push({ text: part.text || '' });
                                     } else if (part.type === 'image_url' && part.image_url?.url) {
+                                        if (forceTextOnly) continue; // skip media on retry
                                         const url: string = part.image_url.url;
                                         if (url.startsWith('data:')) {
                                             // base64 inline data URI (e.g. data:image/jpeg;base64,...)
@@ -100,6 +106,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                             }
                                             parts.push({ inlineData: { mimeType, data: b64data } });
                                             hasMultimodalContent = true;
+                                            hadMultimodalContent = true;
                                         } else if (url.startsWith('http')) {
                                             // Public URL: pass directly as fileData (Gemini SDK supports public URLs natively)
                                             // Fetching and re-encoding to base64 is unnecessary and adds 2~5s latency
@@ -111,11 +118,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                                 : 'image/jpeg';
                                             parts.push({ fileData: { fileUri: url, mimeType: mimeTypeHint } });
                                             hasMultimodalContent = true;
+                                            hadMultimodalContent = true;
                                         }
                                     } else if (part.fileData?.fileUri) {
+                                        if (forceTextOnly) continue; // skip media on retry
                                         // Native fileData (YouTube video URI) - supported natively by SDK
                                         parts.push({ fileData: { fileUri: part.fileData.fileUri, mimeType: part.fileData.mimeType } });
                                         hasMultimodalContent = true;
+                                        hadMultimodalContent = true;
                                     }
                                 }
                                 if (parts.length === 0) parts.push({ text: '' });
@@ -165,7 +175,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             temperature: 0.2,
                             topP: 0.8,
                             topK: 40,
-                            maxOutputTokens: 8192,
+                            maxOutputTokens: 16384,
                         }
                     });
 
@@ -175,6 +185,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         chunkCount++;
                         const candidate = chunk.candidates?.[0];
                         const finishReason = candidate?.finishReason;
+                        if (finishReason === 'MAX_TOKENS') {
+                            console.warn('[LangGraph] Response truncated — MAX_TOKENS reached (responseLen so far:', responseText.length, ')');
+                        }
                         if (finishReason && finishReason !== 'STOP') {
                             console.warn('[LangGraph] Non-STOP finishReason:', finishReason, JSON.stringify(candidate?.safetyRatings));
                         }
@@ -220,7 +233,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     temperature: 0.2,
                                     topP: 0.8,
                                     topK: 40,
-                                    maxOutputTokens: 8192,
+                                    maxOutputTokens: 16384,
                                 }
                             });
                             // Extract text from parts directly to handle thought-only or grounding responses
@@ -276,6 +289,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : '503');
                             continue;
                         }
+                    } else if (err?.status === 500 && hadMultimodalContent && !forceTextOnly) {
+                        // Multimodal 500: video/image inaccessible or transient server error.
+                        // Retry once without media parts — Google Search will auto-enable (hasMultimodalContent=false).
+                        forceTextOnly = true;
+                        sdkAttempt++;
+                        console.warn('[LangGraph] SDK 500 on multimodal — retrying text-only with Google Search enabled');
+                        continue;
                     }
                     // Non-retryable error or no more keys
                     console.error('[LangGraph] SDK call failed:', err?.status, err?.message || err);
@@ -300,7 +320,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     temperature: 0.2,
                     topP: 0.8,
                     topK: 40,
-                    maxOutputTokens: 8192,
+                    maxOutputTokens: 16384,
                 });
 
                 let allTools: any[] = [];

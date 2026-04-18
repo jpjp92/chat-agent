@@ -240,6 +240,7 @@ export const streamChatResponse = async (
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let receivedAnyText = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -261,10 +262,15 @@ export const streamChatResponse = async (
           }
           if (data.heartbeat) continue;
           if (data.error) throw new Error(data.error);
-          if (data.text) onChunk(data.text, false);
+          if (data.text) { onChunk(data.text, false); receivedAnyText = true; }
           if (data.sources && onMetadata) onMetadata(data.sources);
         }
       }
+    }
+
+    // 스트림이 데이터 없이 종료된 경우 (Vercel 타임아웃, Gemini 무음 실패 등)
+    if (!receivedAnyText) {
+      throw new Error('응답을 받지 못했습니다. 다시 시도해주세요.');
     }
   } catch (error: any) {
     console.error("Chat streaming failed", error);

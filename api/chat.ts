@@ -100,7 +100,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let humanMessageParts: any[] = [{ type: "text", text: prompt }];
 
       const hasTranscript = webContent && webContent.includes('[TRANSCRIPT]');
-      if (isYoutubeRequest && !hasTranscript) {
+      // VIDEO_ANALYSIS_SUMMARY = already analyzed in a previous turn. Don't re-fetch the video.
+      const hasVideoSummary = webContent && webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
+      if (isYoutubeRequest && !hasTranscript && !hasVideoSummary) {
         const videoUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
         humanMessageParts.push({ fileData: { fileUri: videoUrl, mimeType: 'video/mp4' } });
         console.log('[Chat API] No transcript found. Falling back to Native Video Analysis (fileData).');
@@ -153,8 +155,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       let finalModel = model;
       if (!finalModel) {
-        // Use Lite for YouTube Vision (for speed) and Standard 2.5 Flash for others (for intelligence)
-        finalModel = (isYoutubeRequest && !hasTranscript) ? "gemini-2.5-flash-lite" : "gemini-2.5-flash";
+        // Always use standard model — lite had stability issues with native video analysis
+        finalModel = "gemini-2.5-flash";
       }
 
       const initialState = {
