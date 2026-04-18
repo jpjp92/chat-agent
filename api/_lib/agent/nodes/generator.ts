@@ -103,9 +103,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                         } else if (url.startsWith('http')) {
                                             // Public URL: pass directly as fileData (Gemini SDK supports public URLs natively)
                                             // Fetching and re-encoding to base64 is unnecessary and adds 2~5s latency
-                                            const mimeTypeHint = url.includes('.png') ? 'image/png'
-                                                : url.includes('.webp') ? 'image/webp'
-                                                : url.includes('.gif') ? 'image/gif'
+                                            const urlLower = url.toLowerCase();
+                                            const mimeTypeHint = urlLower.includes('.png') ? 'image/png'
+                                                : urlLower.includes('.webp') ? 'image/webp'
+                                                : urlLower.includes('.gif') ? 'image/gif'
+                                                : urlLower.includes('.pdf') || urlLower.includes('/pdf/') ? 'application/pdf'
                                                 : 'image/jpeg';
                                             parts.push({ fileData: { fileUri: url, mimeType: mimeTypeHint } });
                                             hasMultimodalContent = true;

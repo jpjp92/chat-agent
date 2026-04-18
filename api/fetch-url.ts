@@ -91,12 +91,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
             .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
 
-        // 본문 추출 우선순위: <article> → <main> → .article-content/.post-content 등 → 전체
-        const articleMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
-                          || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
-                          || cleaned.match(/class=["'][^"']*(?:article[-_](?:content|body|text)|post[-_](?:content|body)|news[-_](?:content|body|text)|content[-_](?:area|wrap|body))[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|section)>/i);
+        // 본문 추출 우선순위: <article> → <main> → class/id 패턴 → 전체
+        // <article>/<main>은 명확한 닫는 태그가 있으므로 그대로 사용.
+        // div/section 기반 패턴은 중첩 div 문제로 인해 닫는 태그 매칭 대신
+        // 열리는 태그 이후 전체를 가져오는 방식으로 처리.
+        const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
+                           || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
 
-        const bodyHtml = articleMatch ? (articleMatch[1] || articleMatch[0]) : cleaned;
+        // div/section: (열리는태그)(이후 전체) — group[2]가 본문
+        const divMatch = !semanticMatch && (
+            cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
+            || cleaned.match(/(<(?:div|section)[^>]*id=["'](?:article[-_]view|article[-_]content|article[-_]body|newsview|news[-_]view|read[-_]content)[^"']*["'][^>]*>)([\s\S]+)/i)
+        );
+
+        const bodyHtml = semanticMatch
+            ? (semanticMatch[1] || semanticMatch[0])
+            : divMatch
+            ? divMatch[2]
+            : cleaned;
 
         const bodyText = bodyHtml
             .replace(/<[^>]+>/g, ' ')

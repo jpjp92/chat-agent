@@ -35,8 +35,24 @@ const mapDbMessage = (message: any): Message => ({
   attachment: message.attachment_url ? inferAttachment(message.attachment_url) : undefined,
 });
 
+const SESSIONS_CACHE_KEY = 'chat_sessions_cache_v1';
+
+const readSessionsCache = (): ChatSession[] => {
+  try {
+    const raw = localStorage.getItem(SESSIONS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+};
+
+const writeSessionsCache = (sessions: ChatSession[]) => {
+  try {
+    localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(sessions.slice(0, 30)));
+  } catch {}
+};
+
 export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  // Hydrate from localStorage cache for instant render; API refresh happens in background
+  const [sessions, setSessions] = useState<ChatSession[]>(() => readSessionsCache());
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const reportError = (error: unknown, fallback: string) => {
@@ -63,7 +79,11 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
         createdAt: new Date(session.created_at).getTime(),
       };
 
-      setSessions(prev => [newSession, ...prev]);
+      setSessions(prev => {
+        const updated = [newSession, ...prev];
+        writeSessionsCache(updated);
+        return updated;
+      });
       setCurrentSessionId(newSession.id);
       return newSession;
     } catch (error) {
@@ -89,6 +109,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
           createdAt: new Date(session.created_at).getTime(),
         }));
         setSessions(mappedSessions);
+        writeSessionsCache(mappedSessions);
         return;
       }
 
@@ -103,6 +124,8 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
     if (!userId) {
       setSessions([]);
       setCurrentSessionId(null);
+      // Do NOT clear cache when userId is null — this is transient auth-loading state.
+      // Cache is only cleared on explicit user reset (handled by caller via window.location.reload).
       return;
     }
 
@@ -137,6 +160,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
       await deleteSession(id);
       const updated = sessions.filter(session => session.id !== id);
       setSessions(updated);
+      writeSessionsCache(updated);
       if (currentSessionId === id) {
         setCurrentSessionId(updated.length > 0 ? updated[0].id : null);
       }
@@ -151,7 +175,11 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
   const renameSession = async (id: string, newTitle: string) => {
     try {
       await updateSessionTitle(id, newTitle);
-      setSessions(prev => prev.map(session => (session.id === id ? { ...session, title: newTitle } : session)));
+      setSessions(prev => {
+        const updated = prev.map(session => (session.id === id ? { ...session, title: newTitle } : session));
+        writeSessionsCache(updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to rename session', error);
       reportError(error, 'Failed to rename session');

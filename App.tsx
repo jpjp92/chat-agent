@@ -14,7 +14,7 @@ import { UserProfile, Language, MessageAttachment } from './types';
 import { useAuthSession } from './src/hooks/useAuthSession';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
-import 'katex/dist/katex.min.css';
+// katex CSS is imported inside ChatMessage.tsx (lazy chunk) to avoid bloating the critical CSS
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('ko');

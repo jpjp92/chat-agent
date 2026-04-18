@@ -61,7 +61,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
               const isPublicUrl = att.data.startsWith('http');
               if (isPublicUrl) {
-                parts.push({ type: "image_url", image_url: { url: att.data } });
+                if (att.mimeType === 'application/pdf') {
+                  parts.push({ fileData: { fileUri: att.data, mimeType: 'application/pdf' } });
+                } else {
+                  parts.push({ type: "image_url", image_url: { url: att.data } });
+                }
               } else {
                 const base64Content = att.data.includes(',') ? att.data.split(',')[1] : att.data;
                 parts.push({ type: "image_url", image_url: { url: `data:${att.mimeType};base64,${base64Content}` } });
@@ -114,7 +118,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           processedAttachments.push(att); // Push to graph state for vision processing
 
           if (isPublicUrl) {
-            humanMessageParts.push({ type: "image_url", image_url: { url: att.data } });
+            if (att.mimeType === 'application/pdf') {
+              // PDF URL must use fileData format — image_url causes Gemini 500 + LangChain crash
+              humanMessageParts.push({ fileData: { fileUri: att.data, mimeType: 'application/pdf' } });
+            } else {
+              humanMessageParts.push({ type: "image_url", image_url: { url: att.data } });
+            }
           } else {
             const base64Data = att.data.includes(',') ? att.data.split(',')[1] : att.data;
             humanMessageParts.push({ type: "image_url", image_url: { url: `data:${att.mimeType};base64,${base64Data}` } });

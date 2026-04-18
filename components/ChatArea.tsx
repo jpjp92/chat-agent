@@ -1,6 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import ChatMessage from './ChatMessage';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
 import { Message, Role, UserProfile, Language } from '../types';
+
+// Lazy load ChatMessage to defer react-markdown + react-syntax-highlighter + rehype-katex
+// from the critical bundle. On initial load there are no messages, so this never blocks FCP/LCP.
+const ChatMessage = lazy(() => import('./ChatMessage'));
 
 interface ChatAreaProps {
     messages: Message[];
@@ -21,15 +24,24 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Preload ChatMessage chunk in the background after initial render,
+    // so it's ready before the user sends their first message.
+    useEffect(() => {
+        const id = setTimeout(() => { import('./ChatMessage'); }, 200);
+        return () => clearTimeout(id);
+    }, []);
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping, loadingStatus]);
 
     return (
         <div className="flex min-h-0 flex-col space-y-2 pt-4">
+            <Suspense fallback={null}>
             {messages.map((msg) => (
                 <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} onEdit={onEdit} />
             ))}
+            </Suspense>
 
             {((isTyping && messages.length > 0 && messages[messages.length - 1].role === Role.USER) || loadingStatus) && (
                 <div className="flex items-start gap-4 mt-4 pl-1">
