@@ -15,15 +15,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
 
   const sendEvent = (data: any) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  // Heartbeat: Router/Vision 실행 중 무음 구간에 연결이 끊기는 것을 방지
+  // Heartbeat: Router/Vision 실행 중 무음 구간에 연결이 끊기는 것을 방지 (모바일 프록시 드롭 방지로 8s로 단축)
   const heartbeatInterval = setInterval(() => {
     res.write(`data: ${JSON.stringify({ heartbeat: true })}\n\n`);
-  }, 15000);
+  }, 8000);
 
   if (API_KEYS.length === 0) {
         sendEvent({ error: 'No API keys found in server environment.' });

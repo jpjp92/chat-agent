@@ -6,6 +6,8 @@
 
 ## 최근 작업 로그
 
+- [DEV_260419.md](DEV_260419.md) — **모바일 YouTube 요약 연결 끊김 수정** (`fetch-transcript` Edge 런타임 제거 → Node.js 전환 + 타임아웃 10s/8s → 25s/15s) / SSE Heartbeat 15s→8s + `X-Accel-Buffering: no` 헤더 추가 / `fetchYoutubeTranscript` 프론트 45s 타임아웃 명시
+- [DEV_260418.md](DEV_260418.md) — **URL 요약 첫 시도 빈 응답 버그 수정** (`[FETCH_ERROR]` 감지 → `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체) / **Lighthouse 70점 성능 분석** (TBT forced reflow, ChatMessage 워터폴, 미사용 JS 281KB — 향후 수정 예정)
 - [DEV_260417.md](DEV_260417.md) — **DrugRenderer null crash 수정** / **drug-info-tool PARTIAL_DATA 제거** / **fetch-url 콘텐츠 추출 개선** / **chat.ts API 키 소진 에러 분류** / **MFDS 미등록 약품 출처 칩 미표시 수정** / **URL 요약 품질 개선** / **Lighthouse TBT 개선** + **캐시 버그 3건** / **URL 요약 3-part 구조화** / **fetch-url 중첩 div 본문 잘림 수정** / **테이블 포맷 안정화 지침** / **URL 기반 PDF 세션 크래시 수정** / **YouTube 세션 크래시 3종 수정** — follow-up 재분석 차단·lite→standard 모델 변경·빈 응답 에러 throw / **generator.ts multimodal 500 smart retry** — forceTextOnly + Google Search 자동 활성 재시도 / **maxOutputTokens 8192→16384** — YouTube 요약 잘림 수정·MAX_TOKENS 감지 로그 / **[미수정] useChatStream lastActiveDoc YouTube 오염 버그**
 - [DEV_260416.md](DEV_260416.md) — **전체 코드 보안 취약점 감사** — IDOR(auth/sessions), SSRF(fetch-url), bucket 화이트리스트 미적용(upload/create-signed-url), 에러 노출, fetch timeout 미적용(fetch-url/sync-drug-image) / **약품 카드 이미지 미표시(모바일) 수정** — sync-drug-image·proxy-image·DrugRenderer 전 fetch timeout 추가 / **채팅 이전 대화 AI 응답 누락 수정** — chat.ts DB 저장 fire-and-forget → await 변경 / **MFDS 장애 시 ConnectDI 폴백** — nedrug 404 시 drug_name 기반 ConnectDI 자동 검색·캐시. parseMedList + scoreNameMatch 기반 정확 매칭. 기존 drug_list 파싱 버그도 함께 수정
 - [DEV_260415.md](DEV_260415.md) — **에러 처리 전체 감사 + 1~4라운드 적용 완료** / **SDK 스트리밍 중복 응답 버그 수정** / **`drug-info-tool.ts` timeout 3곳** / **`responseText` 스코프 버그 수정**
@@ -19,6 +21,15 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.49 (Mobile YouTube Transcript Fix — 2026-04-20)
+- **모바일 YouTube 요약 연결 끊김 수정**: `fetch-transcript.ts` Edge 런타임 제거 → Node.js 전환 (Edge 30s 하드캡 해소). YouTube HTML fetch 타임아웃 10s→25s, XML 자막 fetch 8s→15s. 총 최대 소요 ~40s → Vercel 60s 이내 완료. 모바일 느린 네트워크에서 자막 fetch 실패 → native video analysis 폴백 → 60s 타임아웃 초과 연결 끊김 체인 차단.
+- **SSE 연결 안정성 강화**: `api/chat.ts`에 `X-Accel-Buffering: no` 헤더 추가(모바일 nginx 프록시 버퍼링 방지). Heartbeat 간격 15s→8s(모바일 idle 연결 드롭 방지).
+- **프론트 타임아웃 명시**: `fetchYoutubeTranscript`에 AbortController 45s 타임아웃 추가.
+- **자동 재시도**: `useChatStream`에 cold start 빈 응답 자동 1회 재시도 추가 — `재시도 중...` 상태 표시 후 1.5s 대기, 재시도 불가 에러(429/503/인증)는 즉시 에러 표시.
+
+### v4.48 (URL Summary Empty Response Fix — 2026-04-18)
+- **URL 요약 첫 시도 빈 응답 버그 수정**: `fetch-url` 타임아웃 또는 네트워크 에러 시 `[FETCH_ERROR]` 또는 빈 문자열이 반환되어도 `[URL_CONTENT]` 태그가 webContext에 붙으면서 `hasUrlContent=true` → Google Search 비활성화 → LLM이 빈 내용으로 호출 → 빈 응답. `fetchUrlContent`에서 `[FETCH_ERROR]` 감지 시 빈 문자열 반환. `useChatStream`에서 pageContent가 비어있으면 `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체. `generator.ts`에서 `hasUrlContent` 체크를 정규식으로 개선(태그+실제 내용 모두 있어야 true).
 
 ### v4.47 (Lighthouse TBT Performance Improvement + Cache Bug Fixes — 2026-04-17)
 - **ChatMessage 레이지 로딩 (`ChatArea.tsx`)**: `react-syntax-highlighter(Prism)` + `react-markdown` + `rehype-katex` 를 critical bundle에서 제거. 초기 로드 시 메시지 없음 → ChatMessage 청크 로드 안 됨 → Prism 언어 정의 초기화(forced reflow 원인)가 메인 스레드에서 제거. TBT 280ms → 150~180ms 목표.

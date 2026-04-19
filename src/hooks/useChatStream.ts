@@ -296,7 +296,23 @@ export const useChatStream = ({
 
     let hasError = false;
 
-    try {
+    const attemptStream = async (attempt: number) => {
+      // 재시도 시 이전 부분 응답 초기화
+      if (attempt > 0) {
+        modelResponse = '';
+        setSessions(prev => prev.map(session => {
+          if (session.id !== activeSessionId) return session;
+          return {
+            ...session,
+            messages: session.messages.map(msg =>
+              msg.id === modelMessageId ? { ...msg, content: '' } : msg
+            ),
+          };
+        }));
+        setLoadingStatus('재시도 중...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
       await streamChatResponse(
         content,
         activeSession?.messages || [],
@@ -395,6 +411,22 @@ export const useChatStream = ({
           await updateSessionTitle(activeSessionId, newTitle);
         } catch (error) {
           console.error('Failed to update session title in DB', error);
+        }
+      }
+    };
+
+    try {
+      try {
+        await attemptStream(0);
+      } catch (firstError: any) {
+        // cold start 또는 일시적 무응답 시 1회 자동 재시도
+        const isRetryable = firstError.message?.includes('응답을 받지 못했습니다') ||
+                            firstError.message?.includes('LLM returned empty response');
+        if (isRetryable) {
+          console.warn('[useChatStream] Retrying after empty response...');
+          await attemptStream(1);
+        } else {
+          throw firstError;
         }
       }
     } catch (error: any) {

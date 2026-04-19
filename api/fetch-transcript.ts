@@ -1,10 +1,6 @@
-export const config = {
-  runtime: 'edge',
-};
-
 async function fetchTranscript(videoId: string) {
   const pageController = new AbortController();
-  const pageTimeout = setTimeout(() => pageController.abort(), 10000);
+  const pageTimeout = setTimeout(() => pageController.abort(), 25000);
   let html: string;
   try {
     const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -44,7 +40,7 @@ async function fetchTranscript(videoId: string) {
 
   // Fetch XML (less likely to be truncated than JSON block)
   const xmlController = new AbortController();
-  const xmlTimeout = setTimeout(() => xmlController.abort(), 8000);
+  const xmlTimeout = setTimeout(() => xmlController.abort(), 15000);
   let transcriptXml: string;
   try {
     const transcriptResponse = await fetch(track.baseUrl, { signal: xmlController.signal });
