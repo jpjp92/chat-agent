@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .replace(/\[\d+\]/g, '')
             .replace(/\s+/g, ' ')
             .trim()
-            .slice(0, 12000);
+            .slice(0, 15000);
 
         // og 메타 + 본문 조합
         let content = '';
@@ -128,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
         content += bodyText;
 
-        return res.status(200).json({ content: content.trim().slice(0, 14000) });
+        return res.status(200).json({ content: content.trim().slice(0, 17000) });
     } catch (error: any) {
         console.warn('[fetch-url] Failed:', error.message);
         return res.status(200).json({ content: `[FETCH_ERROR: ${error.message}]` });

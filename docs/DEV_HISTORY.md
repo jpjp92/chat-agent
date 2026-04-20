@@ -6,7 +6,7 @@
 
 ## 최근 작업 로그
 
-- [DEV_260420.md](DEV_260420.md) — **URL 요약 `[1]` 인용 마커 제거** (전처리+조건부 후처리) / **긴 블로그 소스 텍스트 축소** (18000→12000자) / **다크모드 미드나잇 인디고 B+1 적용** (배경·orb·glass·유저버블·blockquote) / **한 줄 요약 blockquote 스타일 복원** / **모바일 사이드바 새 채팅 폰트 크기 불일치 수정**
+- [DEV_260420.md](DEV_260420.md) — **URL 요약 `[1]` 인용 마커 제거** / **소스 텍스트 크기 18000→15000자 조정** / **다크모드 미드나잇 인디고 B+1 적용** / **한 줄 요약 blockquote 스타일 복원** / **모바일 사이드바 새 채팅 폰트 불일치 수정** / **PDF URL 요약 포맷 통일** / **날씨 이모지 누락 수정** / **URL 요약 헤딩 다국어 대응** (언어별 주입)
 - [DEV_260419.md](DEV_260419.md) — **모바일 YouTube 요약 연결 끊김 수정** (`fetch-transcript` Edge 런타임 제거 → Node.js 전환 + 타임아웃 10s/8s → 25s/15s) / SSE Heartbeat 15s→8s + `X-Accel-Buffering: no` 헤더 추가 / `fetchYoutubeTranscript` 프론트 45s 타임아웃 명시
 - [DEV_260418.md](DEV_260418.md) — **URL 요약 첫 시도 빈 응답 버그 수정** (`[FETCH_ERROR]` 감지 → `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체) / **Lighthouse 70점 성능 분석** (TBT forced reflow, ChatMessage 워터폴, 미사용 JS 281KB — 향후 수정 예정)
 - [DEV_260417.md](DEV_260417.md) — **DrugRenderer null crash 수정** / **drug-info-tool PARTIAL_DATA 제거** / **fetch-url 콘텐츠 추출 개선** / **chat.ts API 키 소진 에러 분류** / **MFDS 미등록 약품 출처 칩 미표시 수정** / **URL 요약 품질 개선** / **Lighthouse TBT 개선** + **캐시 버그 3건** / **URL 요약 3-part 구조화** / **fetch-url 중첩 div 본문 잘림 수정** / **테이블 포맷 안정화 지침** / **URL 기반 PDF 세션 크래시 수정** / **YouTube 세션 크래시 3종 수정** — follow-up 재분석 차단·lite→standard 모델 변경·빈 응답 에러 throw / **generator.ts multimodal 500 smart retry** — forceTextOnly + Google Search 자동 활성 재시도 / **maxOutputTokens 8192→16384** — YouTube 요약 잘림 수정·MAX_TOKENS 감지 로그 / **[미수정] useChatStream lastActiveDoc YouTube 오염 버그**
