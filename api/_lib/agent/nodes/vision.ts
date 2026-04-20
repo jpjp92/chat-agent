@@ -56,7 +56,7 @@ Return ONLY a JSON object in this exact format, no other text:
     while (attempt < MAX_ATTEMPTS) {
         try {
             const model = new ChatGoogleGenerativeAI({
-                model: "gemini-2.5-flash-lite",
+                model: "gemini-2.5-flash",
                 apiKey: apiKey,
                 temperature: 0.1,
             });

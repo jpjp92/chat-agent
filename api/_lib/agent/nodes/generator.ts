@@ -51,11 +51,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const LANGCHAIN_INTENTS = ["drug_id", "drug_info"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
-        // Model selection: data_viz can use lighter model; others use state.model
-        const MODEL_OVERRIDES: Partial<Record<string, string>> = {
-            data_viz: "gemini-2.5-flash-lite",
-        };
-        const resolvedModel = MODEL_OVERRIDES[state.intent] ?? (state.model || "gemini-2.5-flash");
+        const resolvedModel = state.model || "gemini-2.5-flash";
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
