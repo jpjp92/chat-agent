@@ -7,7 +7,7 @@ interface LoadingScreenProps {
 const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
     return (
         <div className="flex h-dvh items-center justify-center" style={{ background: document.documentElement.classList.contains('dark')
-            ? 'linear-gradient(135deg, #0f1117 0%, #13152b 40%, #0e1a2e 70%, #0f1117 100%)'
+            ? 'linear-gradient(135deg, #141629 0%, #1a1f3c 50%, #141629 100%)'
             : 'linear-gradient(135deg, #f0f2ff 0%, #eef2ff 40%, #e6fff7 100%)' }}>
             <div className="flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-700">
                 <div className="relative">

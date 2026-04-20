@@ -206,7 +206,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     em: ({ ...props }) => <em className="italic text-slate-700 dark:text-slate-300" {...props} />,
     a: ({ ...props }) => <a className="text-primary-600 dark:text-primary-400 hover:underline transition-all font-medium" target="_blank" rel="noopener noreferrer" {...props} />,
     kbd: ({ ...props }) => <kbd className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded shadow-sm text-[11px] font-sans mx-0.5 font-bold" {...props} />,
-    blockquote: ({ ...props }) => <blockquote className="border-l-4 border-slate-200 dark:border-white/10 pl-4 py-1 my-4 italic text-slate-500" {...props} />,
+    blockquote: ({ ...props }) => <blockquote className="border-l-4 border-slate-200 dark:border-indigo-400/50 pl-4 py-1 my-4 italic text-slate-500 dark:text-white/70" {...props} />,
     hr: () => <hr className="my-8 border-t border-slate-200 dark:border-white/5" />,
     code: ({ children, className, ...props }: any) => {
       const isInline = !className || !className.includes('language-');
@@ -596,7 +596,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           <div 
             {...userInteractionProps}
             className={`relative transition-all duration-300 cursor-default ${isUser
-            ? 'overflow-hidden px-4 sm:px-5 py-3 rounded-[24px] bg-[#e5eaf9] dark:bg-[#2a2d3e] text-slate-800 dark:text-slate-100 shadow-sm w-fit max-w-full ml-auto'
+            ? 'overflow-hidden px-4 sm:px-5 py-3 rounded-[24px] bg-[#e5eaf9] dark:bg-indigo-500/20 dark:border dark:border-indigo-500/30 text-slate-800 dark:text-indigo-100 shadow-sm w-fit max-w-full ml-auto'
             : 'px-1 py-1 text-slate-800 dark:text-[#e3e3e3] w-full'
             }`} style={{ overflowWrap: 'anywhere', wordBreak: 'break-all', touchAction: isUser ? 'pan-y' : 'auto', WebkitTouchCallout: isUser ? 'none' : 'default' }}>
             <div className="font-normal leading-relaxed w-full">

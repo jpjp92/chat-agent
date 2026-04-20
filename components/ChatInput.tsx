@@ -432,7 +432,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-slate-800/60 backdrop-blur-sm p-0.5 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/10 shadow-sm min-h-[40px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
