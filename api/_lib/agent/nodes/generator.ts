@@ -259,6 +259,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log(`[LangGraph] Found ${groundingSources.length} grounding sources`);
                     }
 
+                    // Google Search가 꺼진 경우(URL 요약 등) source echo로 남은 [N] 마커 제거
+                    if (!useGoogleSearch) {
+                        responseText = responseText.replace(/\[\d+\]/g, '');
+                    }
+
                     sdkSuccess = true;
                     const aiMsg = new AIMessage(responseText);
                     return { messages: [aiMsg], groundingSources };
