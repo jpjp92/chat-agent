@@ -237,8 +237,15 @@ export const streamChatResponse = async (
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Server error: ${response.status}`);
+      let errorMsg = `Server error: ${response.status}`;
+      try {
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        }
+      } catch {}
+      throw new Error(errorMsg);
     }
 
     const reader = response.body?.getReader();

@@ -149,7 +149,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // to prevent the LLM from using a brief Google snippet instead of the full content.
                     // Only disable if there's actual non-empty content after the tag.
                     const urlContentMatch = state.webContent.match(/\[URL_CONTENT:[^\]]+\]\n([\s\S]+)/);
-                    const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim());
+                    // 300자 미만이면 JS 렌더링 실패로 간주 → Google Search fallback 허용
+                    const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim().length >= 300);
 
                     let useGoogleSearch = !hasMultimodalContent;
                     if (isYoutubeRequest && (hasTranscript || hasVideoData)) {

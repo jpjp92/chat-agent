@@ -310,7 +310,7 @@ export const useChatStream = ({
           };
         }));
         setLoadingStatus('재시도 중...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       await streamChatResponse(
