@@ -322,6 +322,19 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
+                // Strategy 3: 구 표기 변환 — MFDS DB는 "밀리그람"(구 표기) 기준 저장
+                // "타이레놀정500밀리그램" → "타이레놀정500밀리그람" 으로 재검색
+                const oldSpelling = searchName
+                    .replace(/밀리그램/g, '밀리그람')
+                    .replace(/마이크로그램/g, '마이크로그람')
+                    .replace(/그램/g, '그람');
+                if (oldSpelling !== searchName) {
+                    console.log(`[Agent Tool] MFDS Strategy 3 (Old spelling): ${oldSpelling}`);
+                    items = await fetchMFDS(oldSpelling);
+                }
+            }
+
+            if (!Array.isArray(items) || items.length === 0) {
                 // MFDS에 데이터 없음 — pharm 병렬 요청은 버리고 직접 웹 검색 수행
                 pharmUrlPromise.catch(() => {});
                 console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Performing inline web search.`);

@@ -47,3 +47,4 @@ scripts/test-connectdi-fallback.js
 .superpowers/brainstorm/25178-1776689967/state/server-stopped
 .superpowers/brainstorm/25178-1776689967/state/server.log
 .superpowers/brainstorm/25178-1776689967/state/server.pid
+scripts/test-drug-image.js

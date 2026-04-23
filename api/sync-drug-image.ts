@@ -186,84 +186,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // --- 3.5. Scraping Fallbacks ---
         const isNaverEntry = finalUrl.includes('terms.naver.com');
         const isConnectDIEntry = finalUrl.includes('connectdi.com');
-        const isPharmOrKr = finalUrl.includes('pharm.or.kr');
         let html = ''; // Declare outside for wider scope
 
-        if (contentType.includes('text/html') && (isNaverEntry || isConnectDIEntry || isPharmOrKr)) {
-            console.log(`[Sync] HTML content detected, searching for pill photo in ${isNaverEntry ? 'Naver' : isPharmOrKr ? 'Pharm.or.kr' : 'ConnectDI'}...`);
+        if (contentType.includes('text/html') && (isNaverEntry || isConnectDIEntry)) {
+            console.log(`[Sync] HTML content detected, searching for pill photo in ${isNaverEntry ? 'Naver' : 'ConnectDI'}...`);
             html = await externalResponse.text();
             let targetScrapedUrl = null;
-
-            if (isPharmOrKr) {
-                // pharm.or.kr detail page: health.kr CDN 이미지 추출
-                // 큰 이미지(_b.jpg) 우선, 없으면 소형(_s.jpg) 사용
-                const healthKrBig = html.match(/https?:\/\/common\.health\.kr\/shared\/images\/sb_photo\/[^"'\s>]+_b\.jpg/i);
-                if (healthKrBig) {
-                    targetScrapedUrl = healthKrBig[0];
-                    console.log(`[Sync] Pharm.or.kr: found big image: ${targetScrapedUrl}`);
-                } else {
-                    const healthKrAny = html.match(/https?:\/\/common\.health\.kr\/shared\/images\/sb_photo\/[^"'\s>]+\.jpg/i);
-                    if (healthKrAny) {
-                        // 소형(_s.jpg) → 대형(_b.jpg) 시도
-                        targetScrapedUrl = healthKrAny[0].replace(/_s\.jpg$/i, '_b.jpg');
-                        console.log(`[Sync] Pharm.or.kr: promoting small→big: ${targetScrapedUrl}`);
-                    }
-                }
-
-                if (targetScrapedUrl) {
-                    const pharmImgCtrl1 = new AbortController();
-                    const pharmImgT1 = setTimeout(() => pharmImgCtrl1.abort(), 8000);
-                    let scrapedResponse: Response;
-                    try {
-                        scrapedResponse = await fetch(targetScrapedUrl, {
-                            signal: pharmImgCtrl1.signal,
-                            headers: {
-                                'Referer': 'https://www.pharm.or.kr/',
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                            }
-                        });
-                    } finally {
-                        clearTimeout(pharmImgT1);
-                    }
-                    if (!scrapedResponse.ok) {
-                        // _b.jpg 없으면 _s.jpg로 재시도
-                        targetScrapedUrl = targetScrapedUrl.replace(/_b\.jpg$/i, '_s.jpg');
-                        console.log(`[Sync] Pharm.or.kr: big image returned ${scrapedResponse.status}, falling back to _s.jpg: ${targetScrapedUrl}`);
-                        const pharmImgCtrl2 = new AbortController();
-                        const pharmImgT2 = setTimeout(() => pharmImgCtrl2.abort(), 8000);
-                        let retryResponse: Response;
-                        try {
-                            retryResponse = await fetch(targetScrapedUrl, {
-                                signal: pharmImgCtrl2.signal,
-                                headers: {
-                                    'Referer': 'https://www.pharm.or.kr/',
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                                }
-                            });
-                        } finally {
-                            clearTimeout(pharmImgT2);
-                        }
-                        if (retryResponse.ok) {
-                            const retryBuffer = Buffer.from(await retryResponse.arrayBuffer());
-                            const result = await uploadAndReturn(retryBuffer, 'image/jpeg', fileName!);
-                            resolveInflight!(result);
-                            inflightRequests.delete(fileName!);
-                            return res.status(200).json(result);
-                        }
-                    } else {
-                        const scrapedBuffer = Buffer.from(await scrapedResponse.arrayBuffer());
-                        const result = await uploadAndReturn(scrapedBuffer, 'image/jpeg', fileName!);
-                        resolveInflight!(result);
-                        inflightRequests.delete(fileName!);
-                        return res.status(200).json(result);
-                    }
-                }
-
-                console.warn(`[Sync] No image found on pharm.or.kr page.`);
-                resolveInflight!(null);
-                inflightRequests.delete(fileName!);
-                return res.status(404).json({ error: 'No image found on pharm.or.kr page' });
-            }
 
             if (isNaverEntry) {
                 // 1. Naver Logic
@@ -419,6 +347,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error(`[Sync] Fatal error during sync:`, error);
+
+        // nedrug.mfds.go.kr 네트워크 오류(timeout/ECONNRESET) 시 ConnectDI 폴백 시도
+        // HTTP 에러 응답(4xx/5xx)은 위에서 처리되지만 fetch 자체가 throw하면 여기로 이동
+        if (drug_name && fileName) {
+            try {
+                console.log(`[Sync] Network error fallback: trying ConnectDI for "${drug_name}"...`);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName, imprint_front, imprint_back);
+                if (fallbackResult) {
+                    console.log(`[Sync] ConnectDI fallback succeeded after network error`);
+                    resolveInflight?.(fallbackResult);
+                    inflightRequests.delete(fileName);
+                    return res.status(200).json(fallbackResult);
+                }
+            } catch (fallbackErr) {
+                console.warn(`[Sync] ConnectDI fallback also failed:`, fallbackErr);
+            }
+        }
+
         try { resolveInflight?.(null); } catch {}
         try { inflightRequests.delete(fileName); } catch {}
         return res.status(500).json({

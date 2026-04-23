@@ -81,8 +81,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(response.status).json({ error: 'Failed to fetch external image' });
         }
 
-        // 3. 컨텐츠 타입 확인 및 전송
-        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        // 3. 컨텐츠 타입 확인 — 이미지가 아니면 거부 (HTML 점검 페이지 차단)
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('image/') && !contentType.includes('application/octet-stream')) {
+            console.error(`[Proxy] Non-image content-type: ${contentType} from ${finalUrl}`);
+            return res.status(422).json({ error: 'URL did not return an image', contentType });
+        }
         const buffer = await response.arrayBuffer();
 
         // 브라우저 캐싱 허용 (성능 최적화)

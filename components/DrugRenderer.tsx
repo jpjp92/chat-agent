@@ -229,6 +229,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         setServerPillVisual(pillVisual);
                     }
                     setImageError(false);
+                } else {
+                    console.warn(`[DrugRenderer] sync failed: HTTP ${response.status} | url: ${data.image_url} | drug: ${data.name}`);
                 }
                 // sync 실패 시 imageError를 건드리지 않음:
                 // - isSearchOrEntryPage=false(MFDS 등): proxiedImageUrl이 이미 proxy URL로 존재하므로 fallback 렌더링
