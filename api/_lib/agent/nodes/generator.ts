@@ -371,19 +371,26 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
             } catch (err: any) {
                 const isRateLimit = err?.status === 429 || err?.statusText === 'Too Many Requests';
-                if (isRateLimit) {
-                    markKeyRateLimited(lcApiKey);
+                // Failed to parse stream: transient Gemini API error — retry with next key
+                const isStreamError = typeof err?.message === 'string' && (
+                    err.message.includes('Failed to parse stream') ||
+                    err.message.includes('INTERNAL') ||
+                    err.message.includes('503')
+                );
+                if (isRateLimit || isStreamError) {
+                    if (isRateLimit) markKeyRateLimited(lcApiKey);
                     const nextKey = getNextApiKey();
                     if (nextKey && nextKey !== lcApiKey) {
                         lcApiKey = nextKey;
                         lcAttempt++;
-                        console.log(`[LangGraph] LangChain 429: retrying with next key (attempt ${lcAttempt + 1})`);
+                        console.log(`[LangGraph] LangChain retry (attempt ${lcAttempt + 1}) reason:`, isRateLimit ? '429' : 'stream-error', err?.message?.slice(0, 80));
                         continue;
                     }
                 }
                 const isAuth = err?.status === 401 || err?.status === 403;
                 if (isAuth) markKeyInvalid(lcApiKey);
-                throw err; // Re-throw non-rate-limit errors
+                console.error('[LangGraph] LangChain path fatal error:', err?.status, err?.message?.slice(0, 120));
+                throw err;
             }
         }
 

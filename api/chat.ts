@@ -181,6 +181,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       // 6. Execute LangGraph stream
+      // Guard: LangGraph pregel errors can escape try-catch as unhandledRejection in dev
+      const unhandledRejectionGuard = (reason: any) => {
+        console.error('[Chat API] Unhandled rejection intercepted:', reason?.message ?? reason);
+        try {
+          sendEvent({ error: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.' });
+        } catch {}
+      };
+      process.once('unhandledRejection', unhandledRejectionGuard);
+
       try {
         let fullAiResponse = '';
         // trackingEvent: generator.ts에서 SDK 스트리밍 청크를 보낼 때 fullAiResponse도 자동 누적
@@ -208,6 +217,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               let sanitizedText = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
               const toolCallPattern = /(?:```json\s*)?\{\s*"tool_code":\s*".*?"\s*\}(?:\s*```)?/gs;
               sanitizedText = sanitizedText.replace(toolCallPattern, '');
+              // Gemini grounding inline citations ([1], [1, 3], [1, 3, 4]) — sources shown as chips below
+              sanitizedText = sanitizedText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
               
               if (sanitizedText.trim()) {
                 fullAiResponse += sanitizedText;
@@ -227,7 +238,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const modelMsg = output?.messages?.[0];
 
             const rawMsgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
-            const msgText = rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1');
+            const msgText = rawMsgText
+              .replace(/(.)\1{49,}/g, '$1$1$1')
+              // Strip MFDS_NOT_FOUND instruction leakage patterns
+              .replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '')
+              .replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '')
+              // Strip grounding inline citations
+              .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
             // SDK 스트리밍 경로: trackingEvent로 청크가 이미 전송됨 → fullAiResponse에 누적됨
             // LangChain 경로: on_chat_model_stream으로 이미 전송됨
             // fallback: 아무것도 누적되지 않은 경우 (예: 빈 응답 또는 예외 경로)
@@ -266,7 +283,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else if (event.event === "on_tool_end" && (event.name === "search_web" || event.name === "search_drug_info")) {
             // Extract [WEB_SOURCE_URLS] block from searchWebTool / searchDrugInfoTool output and push to sources
             // search_drug_info embeds web search results (incl. [WEB_SOURCE_URLS]) when MFDS returns no results
-            const toolOutput: string = typeof data?.output === 'string' ? data.output : '';
+            const rawOutput = data?.output;
+            const toolOutput: string = typeof rawOutput === 'string'
+              ? rawOutput
+              : typeof rawOutput?.content === 'string'
+              ? rawOutput.content
+              : Array.isArray(rawOutput?.content)
+              ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('')
+              : '';
+            console.log(`[Chat API] on_tool_end "${event.name}" output type: ${typeof rawOutput}, length: ${toolOutput.length}, hasUrls: ${toolOutput.includes('[WEB_SOURCE_URLS]')}`);
             const urlBlockMatch = toolOutput.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
             if (urlBlockMatch) {
               let addedNew = false;
@@ -340,6 +365,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     sendEvent({ error: clientMessage });
   } finally {
     clearInterval(heartbeatInterval);
+    process.off('unhandledRejection', unhandledRejectionGuard);
   }
 
   res.end();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createSession, fetchUrlContent, fetchYoutubeTranscript, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { SupabaseUser } from './useAuthSession';
@@ -40,6 +40,11 @@ export const useChatStream = ({
   const [isTyping, setIsTyping] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [editingMessageContent, setEditingMessageContent] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setIsTyping(false);
+    setLoadingStatus(null);
+  }, [currentSessionId]);
 
   const handleEditMessage = (content: string) => {
     setEditingMessageContent(content);

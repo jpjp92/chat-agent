@@ -27,24 +27,26 @@ export const searchWebTool = tool(
                 clearTimeout(timeoutId);
             }
             const text = await res.text();
+            console.log(`[DDG Debug] raw HTML sample (first 600 chars):\n${text.slice(0, 600)}`);
             const snippets: string[] = [];
             const urls: { title: string; url: string }[] = [];
 
-            // Parse result blocks: each block contains a link + snippet
-            const blockRegex = /<div class="result__body"[\s\S]*?<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
+            // Helper: extract real URL from DDG redirect href
+            const extractRealUrl = (rawUrl: string): string => {
+                try {
+                    const base = rawUrl.startsWith('http') ? rawUrl : 'https://duckduckgo.com' + rawUrl;
+                    const uddg = new URL(base).searchParams.get('uddg');
+                    return uddg ? decodeURIComponent(uddg) : rawUrl;
+                } catch { return rawUrl; }
+            };
+
+            // Strategy 1: block regex — title link + snippet in proximity
+            const blockRegex = /<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]{0,600}?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
             let blockMatch;
             while ((blockMatch = blockRegex.exec(text)) !== null) {
-                const rawUrl = blockMatch[1];
+                const realUrl = extractRealUrl(blockMatch[1]);
                 const title = blockMatch[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
                 const snippet = blockMatch[3].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-
-                // DDG wraps real URLs in redirect: extract uddg= param
-                let realUrl = rawUrl;
-                try {
-                    const uddg = new URL('https://duckduckgo.com' + rawUrl).searchParams.get('uddg');
-                    if (uddg) realUrl = decodeURIComponent(uddg);
-                } catch {}
-
                 if (snippet.length > 20) snippets.push(snippet);
                 if (realUrl.startsWith('http') && urls.length < 4) {
                     urls.push({ title: title || realUrl, url: realUrl });
@@ -52,7 +54,26 @@ export const searchWebTool = tool(
                 if (snippets.length >= 4) break;
             }
 
-            // Fallback: snippet-only regex if block regex matched nothing
+            // Strategy 2: extract uddg= URLs independently if Strategy 1 missed them
+            if (urls.length === 0) {
+                const uddgRegex = /href="([^"]*uddg=[^"]+)"/g;
+                const titleRegex = /<a class="result__a"[^>]*>([\s\S]*?)<\/a>/g;
+                const allTitles: string[] = [];
+                let tm;
+                while ((tm = titleRegex.exec(text)) !== null) {
+                    allTitles.push(tm[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
+                }
+                let um; let tIdx = 0;
+                while ((um = uddgRegex.exec(text)) !== null && urls.length < 4) {
+                    const realUrl = extractRealUrl(um[1]);
+                    if (realUrl.startsWith('http') && !urls.some(u => u.url === realUrl)) {
+                        urls.push({ title: allTitles[tIdx] || realUrl, url: realUrl });
+                    }
+                    tIdx++;
+                }
+            }
+
+            // Strategy 3: snippet-only fallback
             if (snippets.length === 0) {
                 const snippetRegex = /<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
                 let m;
