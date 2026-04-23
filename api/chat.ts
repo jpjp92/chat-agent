@@ -5,6 +5,14 @@ import { getSystemInstruction } from './_lib/agent/prompt.js';
 import { compileAgentGraph } from './_lib/agent/graph.js';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });

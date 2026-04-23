@@ -340,7 +340,7 @@ export const searchDrugInfoTool = tool(
                 console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Performing inline web search.`);
                 try {
                     const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
-                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 공식 정보를 찾지 못했습니다. 아래 웹 검색 결과를 바탕으로 일반 텍스트로 안내하세요. json:drug 블록은 생성하지 마세요.\n\n${webResult}`;
+                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 공식 정보를 찾지 못했습니다. 아래 웹 검색 결과를 바탕으로 일반 텍스트로 안내하세요. json:drug 블록은 생성하지 마세요.\n응답 마지막에 [WEB_SOURCE_URLS] 섹션의 URL을 "**출처**" 제목 아래 마크다운 링크로 반드시 표시하세요.\n\n${webResult}`;
                 } catch (e) {
                     return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 정보를 찾지 못했습니다. 보유한 지식을 바탕으로 일반 텍스트로 안내하세요. json:drug 블록은 생성하지 마세요.`;
                 }

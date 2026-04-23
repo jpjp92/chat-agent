@@ -137,10 +137,21 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Google Search is incompatible with multimodal content (images, video, PDF)
                     // Optimization: Disable Google Search for YouTube summaries when transcript OR video data is present
                     const hasTranscript = state.webContent.includes('[TRANSCRIPT]');
-                    const hasVideoData = state.messages.some((m: any) => 
+                    const hasVideoData = state.messages.some((m: any) =>
                         Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
                     );
-                    
+
+                    // Disable Google Search when image exists anywhere in conversation history.
+                    // Gemini API does not support Google Search + image in the same request.
+                    // Without this, follow-up turns (e.g. "표로 정리해줘") after an image analysis
+                    // would enable Google Search (no image in *current* turn), causing the model
+                    // to ignore the image history and return sparse, search-based responses.
+                    const historyHasImage = state.messages.some((m: any) =>
+                        Array.isArray(m.content) && m.content.some((p: any) =>
+                            p.inlineData || (p.fileData && !p.fileData.fileUri?.includes('youtube'))
+                        )
+                    );
+
                     // Disable Google Search when the full article text is already provided
                     // to prevent the LLM from using a brief Google snippet instead of the full content.
                     // Only disable if there's actual non-empty content after the tag.
@@ -148,7 +159,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // 300자 미만이면 JS 렌더링 실패로 간주 → Google Search fallback 허용
                     const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim().length >= 300);
 
-                    let useGoogleSearch = !hasMultimodalContent;
+                    let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
                     if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
                         useGoogleSearch = false;
                     }
@@ -156,8 +167,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         useGoogleSearch = false;
                     }
 
-                    if (hasMultimodalContent && !isYoutubeRequest) {
-                        console.log('[LangGraph] Multimodal content detected — Google Search disabled');
+                    if ((hasMultimodalContent || historyHasImage) && !isYoutubeRequest) {
+                        console.log('[LangGraph] Image in conversation — Google Search disabled', { hasMultimodalContent, historyHasImage });
                     }
                     if (hasUrlContent) {
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
