@@ -185,7 +185,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             temperature: 0.2,
                             topP: 0.8,
                             topK: 40,
-                            maxOutputTokens: 8192,
+                            maxOutputTokens: 32768,
                         }
                     });
 
@@ -245,7 +245,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     temperature: 0.2,
                                     topP: 0.8,
                                     topK: 40,
-                                    maxOutputTokens: 8192,
+                                    maxOutputTokens: 32768,
                                 }
                             });
                             // Extract text from parts directly to handle thought-only or grounding responses
@@ -334,7 +334,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     temperature: 0.2,
                     topP: 0.8,
                     topK: 40,
-                    maxOutputTokens: 8192,
+                    maxOutputTokens: 32768,
                 });
 
                 let allTools: any[] = [];
