@@ -211,7 +211,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 .map((p: any) => p.text || "").join("");
                         }
                         if (chunkText) {
-                            const sanitized = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
+                            let sanitized = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
+                            // Strip grounding inline citations before sending — sources are shown as chips
+                            sanitized = sanitized.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
                             if (sanitized.trim()) {
                                 responseText += sanitized;
                                 if (sendEvent) sendEvent({ text: sanitized });
@@ -257,6 +259,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             }
                             console.log('[LangGraph] Fallback generateContent | search:', fbUseSearch, '| responseLen:', responseText.length);
                             if (responseText) {
+                                // Strip grounding inline citations before sending — sources are shown as chips
+                                responseText = responseText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
                                 if (sendEvent) sendEvent({ text: responseText });
                                 break;
                             }
@@ -265,11 +269,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     if (groundingSources.length > 0) {
                         console.log(`[LangGraph] Found ${groundingSources.length} grounding sources`);
-                    }
-
-                    // Google Search가 꺼진 경우(URL 요약 등) source echo로 남은 [N] 마커 제거
-                    if (!useGoogleSearch) {
-                        responseText = responseText.replace(/\[\d+\]/g, '');
                     }
 
                     sdkSuccess = true;

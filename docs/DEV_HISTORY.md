@@ -6,6 +6,13 @@
 
 ## 최근 작업 로그
 
+- [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`)
+
+### v4.53 (SDK Streaming Citation Strip & New Session Spinner Fix — 2026-04-24)
+- **SDK 스트리밍 `[N]` 인라인 마커 미제거 수정**: `generator.ts` SDK 스트리밍 청크·비스트리밍 fallback 양쪽에서 `sendEvent` 호출 전에 `\s?\[\d+(?:,\s*\d+)*\]/g` strip 적용. 기존 로직은 `AIMessage` 상태만 수정하고 SSE로 전송된 청크에는 무관했음. LangChain 경로(`chat.ts:221`)와 동일한 패턴으로 통일.
+- **새 세션 첫 질의 스피너 미표시 수정**: `useChatStream.ts`에 `prevSessionIdRef` 도입. `null → sessionId` 전환(새 세션 생성)은 useEffect 리셋 skip, `sessionId → anything` 전환(사용자 전환)만 `isTyping=false` / `loadingStatus=null` 리셋. B1 수정(v4.51) 부작용으로 새 세션 생성 시 useEffect가 발화해 스피너를 즉시 꺼버리던 문제 해소.
+- **TS 타입 에러 수정**: `streamChatResponse` 호출 시 `activeSessionId ?? undefined`, `updateSessionTitle` 호출 시 `activeSessionId!` non-null assertion 추가.
+- [DEV_260423.md](DEV_260423.md) — **에러 처리 전체 감사** (CRITICAL/HIGH/MEDIUM/LOW 분류) / **약품 이미지 시스템 전면 수정** (J1~J5: nedrug 차단 시 ConnectDI 폴백, content-type 검증, 밀리그람 전략, pharm.or.kr dead code 23개 약품 0% 확인 후 제거) / **이미지 분석 bodyParser 10MB** / **멀티턴 이미지 분석 품질 저하 수정** (historyHasImage Google Search 오염 방지) / **세션 전환 시 입력창 비활성화 수정** (isTyping/loadingStatus 리셋 useEffect) / **스트림 에러 키 재시도 확장** (K1: INTERNAL/503/parse 에러 포함) / **DuckDuckGo 파싱 개선** (K2: Strategy 1 정규식 완화, Strategy 2 추가) / **chat.ts 다중 개선** (K3: unhandledRejection 가드, K4: Gemini 인라인 인용 `[1]` 스트리핑, K5: MFDS_NOT_FOUND 시스템 지시 누출 필터, K6: on_tool_end 출력 타입 핸들링)
 - [DEV_260420.md](DEV_260420.md) — **URL 요약 `[1]` 인용 마커 제거** / **소스 텍스트 크기 18000→15000자 조정** / **다크모드 미드나잇 인디고 B+1 적용** / **한 줄 요약 blockquote 스타일 복원** / **모바일 사이드바 새 채팅 폰트 불일치 수정** / **PDF URL 요약 포맷 통일** / **날씨 이모지 누락 수정** / **URL 요약 헤딩 다국어 대응** (언어별 주입)
 - [DEV_260419.md](DEV_260419.md) — **모바일 YouTube 요약 연결 끊김 수정** (`fetch-transcript` Edge 런타임 제거 → Node.js 전환 + 타임아웃 10s/8s → 25s/15s) / SSE Heartbeat 15s→8s + `X-Accel-Buffering: no` 헤더 추가 / `fetchYoutubeTranscript` 프론트 45s 타임아웃 명시
 - [DEV_260418.md](DEV_260418.md) — **URL 요약 첫 시도 빈 응답 버그 수정** (`[FETCH_ERROR]` 감지 → `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체) / **Lighthouse 70점 성능 분석** (TBT forced reflow, ChatMessage 워터폴, 미사용 JS 281KB — 향후 수정 예정)
@@ -22,6 +29,28 @@
 ---
 
 ## v4.x — Multimodal & Agentic
+
+### v4.52 (Drug Image System Overhaul — 2026-04-23)
+- **nedrug 차단 시 ConnectDI 자동 폴백 (J1)**: `sync-drug-image.ts` catch 블록에 ConnectDI 폴백 추가. nedrug ECONNRESET/timeout 시에도 동일 이미지 ID로 ConnectDI 검색·캐시. 23개 약품 테스트 기준 24% 차단 케이스 전부 커버.
+- **HTML 점검 페이지 통과 차단 (J2)**: `proxy-image.ts` content-type 검증 추가. `image/` 또는 `application/octet-stream` 아닌 응답 422 반환 → `<img>` onError 오탐 제거.
+- **MFDS 밀리그람 구표기 전략 추가 (J3)**: `drug-info-tool.ts` MFDS 검색 Strategy 3 추가. `밀리그램→밀리그람` / `마이크로그램→마이크로그람` 변환 후 재검색 → MFDS DB 실제 표기 기준 매칭 성공률 향상.
+- **DrugRenderer sync 실패 로깅 (J4)**: sync 실패(4xx/5xx) 시 `console.warn` 추가. 원인 추적 가시성 개선.
+- **pharm.or.kr 완전 제거 (J5)**: 23개 약품 전수 테스트에서 0% 성공 확인 후 dead code 제거. `getPharmOrKrDetailUrl` 198줄, 병렬 `pharmUrlPromise` 킥오프, 결과 포매팅 `Pharm_URL` 항목 전부 제거. `pharm_url` 지시 "항상 null, URL 추측 금지"로 고정.
+- **23개 약품 테스트 스크립트**: MFDS 검색 74%, nedrug 직접 차단 24%(ConnectDI 커버), DB 미등재 4건(구조적 한계), ConnectDI JS렌더링 1건(엣지케이스) 확인.
+
+### v4.51 (Image Analysis & Session Bug Fixes — 2026-04-23)
+- **이미지 분석 bodyParser 10MB (I1)**: `api/chat.ts`에 `export const config = { api: { bodyParser: { sizeLimit: '10mb' } } }` 추가. base64 인라인 이미지(~4MB) + history로 Vercel 기본 4.5MB 초과 → `TypeError: Load failed` 간헐 크래시 해소.
+- **멀티턴 이미지 Google Search 오염 방지 (I6)**: `generator.ts`에 `historyHasImage` 체크 추가. `useGoogleSearch = !hasMultimodalContent && !historyHasImage`. 이미지 분석 2턴 이후 `isRecent` 컷오프로 이미지 탈락 → `hasMultimodalContent=false` → Google Search 강제 활성 → 짧은 generic 응답 체인 차단.
+- **세션 전환 시 입력창 비활성화 수정 (B1)**: `useChatStream.ts`에 `currentSessionId` 변경 감지 `useEffect` 추가. 세션 전환 즉시 `isTyping=false` / `loadingStatus=null` 리셋. 스트리밍 도중 세션 전환 시 `finally` 타이밍 레이스로 `isTyping=true` 고착되던 문제 해소.
+
+### v4.50 (Error Handling Audit & Chat Robustness — 2026-04-23)
+- **에러 처리 전체 감사**: CRITICAL(C1 pill-logic Promise.all, C2 geminiService response.ok 미체크) / HIGH(H1 Supabase insert .catch 누락, H2 fetch-url 에러 시 200 반환, H3 drug-info-tool .catch 빈 삼킴) / MEDIUM(M1 URL fetch 실패 미표시, M2 sessions 파라미터 검증 없음, M3 upload base64 검증, M4 React Error Boundary 없음) / LOW(LangGraph 타임아웃, SSE disconnect 핸들링, API 키 circuit breaker) 분류·문서화.
+- **스트림 에러 키 재시도 확장 (K1)**: `generator.ts` 429 Rate Limit 외 `Failed to parse stream` / `INTERNAL` / `503` 에러도 다음 API 키로 재시도. 재시도 로그에 실패 원인 포함.
+- **DuckDuckGo 파싱 개선 (K2)**: `tools.ts` `extractRealUrl` 헬퍼 추출. Strategy 1 정규식 완화(`result__body` 래퍼 제거, result__a + snippet 근접 매칭). Strategy 2 추가(uddg= URL 독립 추출 fallback). 디버그 로깅 원시 HTML 600자 샘플.
+- **unhandledRejection 가드 (K3)**: `api/chat.ts`에 LangGraph pregel 에러가 try-catch 외부로 탈출 시 에러 이벤트 전송 후 클린업.
+- **Gemini 인라인 인용 스트리핑 (K4)**: `api/chat.ts` 스트림 청크·fallback 메시지 양쪽에서 `[1]`, `[1, 3]` 등 grounding 인라인 인용 패턴 제거.
+- **MFDS_NOT_FOUND 지시 누출 필터 (K5)**: `api/chat.ts` `json:drug 블록은 생성하지 마세요` 등 시스템 지시문이 응답에 노출되는 경우 스트리핑.
+- **on_tool_end 출력 타입 핸들링 (K6)**: `api/chat.ts` string / `{content: string}` / `{content: array}` 형식 모두 처리. 디버그 로그 추가.
 
 ### v4.49 (Mobile YouTube Transcript Fix — 2026-04-20)
 - **모바일 YouTube 요약 연결 끊김 수정**: `fetch-transcript.ts` Edge 런타임 제거 → Node.js 전환 (Edge 30s 하드캡 해소). YouTube HTML fetch 타임아웃 10s→25s, XML 자막 fetch 8s→15s. 총 최대 소요 ~40s → Vercel 60s 이내 완료. 모바일 느린 네트워크에서 자막 fetch 실패 → native video analysis 폴백 → 60s 타임아웃 초과 연결 끊김 체인 차단.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createSession, fetchUrlContent, fetchYoutubeTranscript, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { SupabaseUser } from './useAuthSession';
@@ -41,7 +41,13 @@ export const useChatStream = ({
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [editingMessageContent, setEditingMessageContent] = useState<string | undefined>(undefined);
 
+  const prevSessionIdRef = useRef(currentSessionId);
   useEffect(() => {
+    const prev = prevSessionIdRef.current;
+    prevSessionIdRef.current = currentSessionId;
+    // null → sessionId 전환은 새 세션 생성(handleSendMessage 내부) — 리셋 생략
+    // sessionId → anything 전환은 사용자 세션 전환 — isTyping/loadingStatus 리셋
+    if (prev === null && currentSessionId !== null) return;
     setIsTyping(false);
     setLoadingStatus(null);
   }, [currentSessionId]);
@@ -368,7 +374,7 @@ export const useChatStream = ({
             return session;
           }));
         },
-        activeSessionId,
+        activeSessionId ?? undefined,
         finalAttachments,
         selectedModel,
       );
@@ -413,7 +419,7 @@ export const useChatStream = ({
         ], language);
         setSessions(prev => prev.map(session => (session.id === activeSessionId ? { ...session, title: newTitle } : session)));
         try {
-          await updateSessionTitle(activeSessionId, newTitle);
+          await updateSessionTitle(activeSessionId!, newTitle);
         } catch (error) {
           console.error('Failed to update session title in DB', error);
         }
