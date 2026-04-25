@@ -49,6 +49,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const targetUrl = new URL(finalUrl);
+
+        // Block SSRF: localhost, loopback, AWS/GCP metadata server, link-local
+        const blockedHost = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|169\.254\.\d+\.\d+|::1)$/i.test(targetUrl.hostname);
+        if (blockedHost) return res.status(400).json({ error: 'URL not allowed' });
+
         let referer = targetUrl.origin + '/';
 
         // 네이버 지식백과 및 ConnectDI의 경우 적절한 Referer 요구됨

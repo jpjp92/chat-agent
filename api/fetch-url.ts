@@ -8,6 +8,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
+    // Block requests to private/metadata IP ranges to prevent SSRF
+    // Covers: localhost, loopback, AWS/GCP metadata server, link-local
+    // Note: redirect-based bypass is a known limitation of hostname-only checks
+    try {
+        const { hostname } = new URL(url);
+        const blocked = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|169\.254\.\d+\.\d+|::1)$/i.test(hostname);
+        if (blocked) return res.status(400).json({ error: 'URL not allowed' });
+    } catch {
+        return res.status(400).json({ error: 'Invalid URL' });
+    }
+
     try {
         let targetUrl = url;
         if (url.includes('arxiv.org/pdf/')) {

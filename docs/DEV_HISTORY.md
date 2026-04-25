@@ -6,12 +6,14 @@
 
 ## 최근 작업 로그
 
-- [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의)
+- [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
 ### v4.54 (npm audit fix + maxOutputTokens — 2026-04-25)
 - **npm audit fix**: 의존성 취약점 22건 → 17건. `smol-toml` 등 non-breaking 5건 해소. 잔여 17건은 `@vercel/node@5.5.17→4.0.0` 다운그레이드 또는 `xlsx` fix 없음으로 `--force` 미적용.
 - **maxOutputTokens 상향**: `generator.ts` SDK 스트리밍·fallback·LangChain 3경로 모두 8,192 → 32,768. Gemini 2.5 Flash 최대 65,536 기준 12.5% → 50% 허용. 한국어 응답 상한 ~5,000자 → ~20,000자. Vercel `maxDuration: 60` 기준 16,000토큰+ 응답 시 타임아웃 가능성 있음.
+- **보안 헤더 추가**: `vercel.json`에 X-Content-Type-Options·X-Frame-Options·Referrer-Policy·HSTS·Permissions-Policy 5종 추가. CSP는 KaTeX·FontAwesome inline style 의존성으로 보류.
+- **SSRF hostname 차단**: `fetch-url.ts` 선행 검사 + `proxy-image.ts` URL repair 후 검사. localhost·127.x.x.x·169.254.x.x(메타데이터 서버)·::1 차단. redirect 우회 한계 감수.
 
 ### v4.53 (SDK Streaming Citation Strip & New Session Spinner Fix — 2026-04-24)
 - **SDK 스트리밍 `[N]` 인라인 마커 미제거 수정**: `generator.ts` SDK 스트리밍 청크·비스트리밍 fallback 양쪽에서 `sendEvent` 호출 전에 `\s?\[\d+(?:,\s*\d+)*\]/g` strip 적용. 기존 로직은 `AIMessage` 상태만 수정하고 SSE로 전송된 청크에는 무관했음. LangChain 경로(`chat.ts:221`)와 동일한 패턴으로 통일.
