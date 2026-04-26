@@ -190,6 +190,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     });
 
                     let chunkCount = 0;
+                    // Buffer chars that could be the start of a split [N] citation (e.g. "[" arriving alone)
+                    let citationBuffer = '';
+                    // Regex to detect an incomplete [N] pattern at the end of a string
+                    const incompletecitation = /\s?\[\d*(?:,\s*\d*)*$/;
 
                     for await (const chunk of sdkStream) {
                         chunkCount++;
@@ -211,9 +215,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 .map((p: any) => p.text || "").join("");
                         }
                         if (chunkText) {
-                            let sanitized = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
-                            // Strip grounding inline citations before sending — sources are shown as chips
+                            // Prepend any buffered incomplete citation from the previous chunk
+                            const combined = citationBuffer + chunkText;
+                            citationBuffer = '';
+                            let sanitized = combined.replace(/(.)\1{49,}/g, '$1$1$1');
+                            // Strip complete grounding inline citations — sources are shown as chips
                             sanitized = sanitized.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
+                            // Hold back any trailing incomplete citation pattern for the next chunk
+                            const incomplete = sanitized.match(incompletecitation);
+                            if (incomplete) {
+                                citationBuffer = incomplete[0];
+                                sanitized = sanitized.slice(0, -citationBuffer.length);
+                            }
                             if (sanitized.trim()) {
                                 responseText += sanitized;
                                 if (sendEvent) sendEvent({ text: sanitized });
@@ -226,6 +239,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
                                 .filter(Boolean);
                         }
+                    }
+
+                    // Flush any remaining buffer (incomplete pattern at stream end = not a citation)
+                    if (citationBuffer) {
+                        responseText += citationBuffer;
+                        if (sendEvent) sendEvent({ text: citationBuffer });
+                        citationBuffer = '';
                     }
 
                     console.log('[LangGraph] SDK stream done | chunkCount:', chunkCount, '| responseLen:', responseText.length, '| sources:', groundingSources.length);

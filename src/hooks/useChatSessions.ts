@@ -7,18 +7,47 @@ interface UseChatSessionsOptions {
   onError?: (message: string) => void;
 }
 
+const EXT_MIME: Record<string, string> = {
+  pdf:  'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  hwpx: 'application/x-hwpx',
+  csv:  'text/csv',
+  mp4:  'video/mp4',
+  webm: 'video/webm',
+  mov:  'video/quicktime',
+};
+
 const inferAttachment = (attachmentUrl: string): { fileName: string; mimeType: string; data: string } => {
   // attachment_url can be an HTTP URL (uploaded) or a bare mimeType string (base64 kept inline)
   if (!attachmentUrl.startsWith('http')) {
-    // Stored as mimeType fallback (e.g. 'image/jpeg') — data cannot be recovered
-    const fileName = attachmentUrl.includes('pdf') ? 'document.pdf'
-      : attachmentUrl.startsWith('video/') ? 'video.mp4'
-      : 'image_attached';
-    return { fileName, mimeType: attachmentUrl, data: '' };
+    // Stored as mimeType string — data cannot be recovered
+    const mime = attachmentUrl;
+    const fileName = mime.includes('pdf') ? 'document.pdf'
+      : mime.includes('word') ? 'document.docx'
+      : mime.includes('sheet') ? 'document.xlsx'
+      : mime.includes('presentationml') ? 'document.pptx'
+      : mime.includes('hwpx') || mime.includes('x-hwp') ? 'document.hwpx'
+      : mime.includes('csv') ? 'document.csv'
+      : mime.startsWith('video/') ? 'video.mp4'
+      : mime.startsWith('image/') ? 'image_attached'
+      : 'document';
+    return { fileName, mimeType: mime, data: '' };
   }
-  // HTTP URL — infer mimeType from Supabase bucket path
-  const mimeType = attachmentUrl.includes('/chat-docs/') || attachmentUrl.includes('.pdf') ? 'application/pdf'
-    : attachmentUrl.includes('/chat-videos/') || attachmentUrl.includes('.mp4') ? 'video/mp4'
+  // HTTP URL — infer mimeType from file extension first, then bucket path
+  const ext = attachmentUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  if (ext && EXT_MIME[ext]) {
+    const mimeType = EXT_MIME[ext];
+    const fileName = ext === 'pdf' ? 'document.pdf'
+      : mimeType.startsWith('video/') ? `video.${ext}`
+      : mimeType.startsWith('image/') ? 'image_attached'
+      : `document.${ext}`;
+    return { fileName, mimeType, data: attachmentUrl };
+  }
+  // Fallback: bucket path heuristic
+  const mimeType = attachmentUrl.includes('/chat-videos/') ? 'video/mp4'
+    : attachmentUrl.includes('/chat-docs/') ? 'application/pdf'
     : 'image/jpeg';
   const fileName = mimeType === 'application/pdf' ? 'document.pdf'
     : mimeType.startsWith('video/') ? 'video.mp4'

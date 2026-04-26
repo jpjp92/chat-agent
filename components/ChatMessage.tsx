@@ -22,6 +22,18 @@ const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
+const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () => void }> = ({ src, className, onClick }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed || !src) {
+    return (
+      <div className={`${className} flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl`} onClick={onClick}>
+        <i className="fa-solid fa-image text-3xl text-slate-400 dark:text-slate-500"></i>
+        <span className="text-xs text-slate-400 dark:text-slate-500">이미지 첨부파일</span>
+      </div>
+    );
+  }
+  return <img src={src} alt="Attachment" className={className} onClick={onClick} onError={() => setFailed(true)} />;
+};
 
 interface ChatMessageProps {
   message: Message;
@@ -297,11 +309,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     if (isImage) {
       return (
         <div key={index} className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${isUser ? 'origin-right' : 'origin-left'}`}>
-          <img
+          <AttachmentImage
             src={att.data}
-            alt="Attachment"
             className="w-full h-auto object-cover max-w-full sm:max-w-[480px]"
-            decoding="async"
+            onClick={() => att.data && window.open(att.data, '_blank')}
           />
         </div>
       );
@@ -331,15 +342,20 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       );
     }
 
+    const isWord  = att.mimeType.includes('word')           || att.fileName?.endsWith('.docx');
+    const isExcel = att.mimeType.includes('sheet')          || att.fileName?.endsWith('.xlsx');
+    const isPPT   = att.mimeType.includes('presentationml') || att.fileName?.endsWith('.pptx');
+    const isCSV   = att.mimeType.includes('csv')            || att.fileName?.endsWith('.csv');
+    const isHWPX  = att.mimeType.includes('hwpx') || att.mimeType.includes('x-hwp') || att.fileName?.endsWith('.hwpx');
+    const docIcon = isWord  ? { icon: 'fa-file-word',       color: 'text-blue-500' }
+                  : isExcel ? { icon: 'fa-file-excel',      color: 'text-green-700' }
+                  : isPPT   ? { icon: 'fa-file-powerpoint', color: 'text-orange-600' }
+                  : isCSV   ? { icon: 'fa-file-csv',        color: 'text-green-600' }
+                  : isHWPX  ? { icon: 'fa-file-lines',      color: 'text-blue-400' }
+                  :           { icon: 'fa-file',             color: 'text-slate-400' };
     return (
       <div key={index} className="mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-        <i className={`fa-solid ${att.mimeType.includes('word') || att.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
-          att.mimeType.includes('sheet') || att.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
-            att.mimeType.includes('presentationml') || att.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
-              att.mimeType.includes('csv') || att.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
-                att.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
-                  'fa-file'
-          } text-slate-400 flex-shrink-0`}></i>
+        <i className={`fa-solid ${docIcon.icon} ${docIcon.color} flex-shrink-0`}></i>
         <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{att.fileName || t.attachment}</span>
       </div>
     );
@@ -357,7 +373,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             <div className={`grid ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 mb-2`}>
               {images.map((img, i) => (
                 <div key={i} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:opacity-95 transition-opacity">
-                  <img src={img.data} alt="Attachment" className="w-full h-32 sm:h-48 object-cover" onClick={() => window.open(img.data, '_blank')} />
+                  <AttachmentImage src={img.data} className="w-full h-32 sm:h-48 object-cover" onClick={() => img.data && window.open(img.data, '_blank')} />
                 </div>
               ))}
             </div>

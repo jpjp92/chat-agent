@@ -207,6 +207,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sendEvent({ sources: allSources });
         }
 
+        // Buffer for incomplete [N] citation split across LangChain stream chunks
+        let lcCitationBuffer = '';
+        const incompletecitation = /\s?\[\d*(?:,\s*\d*)*$/;
+
         for await (const event of streamEvents) {
           const data = event.data;
 
@@ -214,16 +218,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const chunk = data?.chunk;
             const chunkText = chunk?.content;
             if (chunkText && typeof chunkText === 'string') {
-              let sanitizedText = chunkText.replace(/(.)\1{49,}/g, '$1$1$1');
+              const combined = lcCitationBuffer + chunkText;
+              lcCitationBuffer = '';
+              let sanitizedText = combined.replace(/(.)\1{49,}/g, '$1$1$1');
               const toolCallPattern = /(?:```json\s*)?\{\s*"tool_code":\s*".*?"\s*\}(?:\s*```)?/gs;
               sanitizedText = sanitizedText.replace(toolCallPattern, '');
-              // Gemini grounding inline citations ([1], [1, 3], [1, 3, 4]) — sources shown as chips below
+              // Strip complete grounding inline citations — sources shown as chips below
               sanitizedText = sanitizedText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
+              // Hold back any trailing incomplete citation for the next chunk
+              const incomplete = sanitizedText.match(incompletecitation);
+              if (incomplete) {
+                lcCitationBuffer = incomplete[0];
+                sanitizedText = sanitizedText.slice(0, -lcCitationBuffer.length);
+              }
               // Strip MFDS_NOT_FOUND / json:drug instruction leakage (best-effort per-chunk)
               sanitizedText = sanitizedText.replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '');
               sanitizedText = sanitizedText.replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '');
               sanitizedText = sanitizedText.replace(/⚠️\s*CRITICAL INSTRUCTION:[^\n]*/g, '');
-              
+
               if (sanitizedText.trim()) {
                 fullAiResponse += sanitizedText;
                 sendEvent({ text: sanitizedText });
@@ -237,6 +249,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 sendEvent({ sources: allSources });
               }
             }
+          } else if (event.event === "on_chain_end" && event.name === "LangGraph" && lcCitationBuffer) {
+            // Flush incomplete citation buffer — stream ended so it's not a real citation
+            fullAiResponse += lcCitationBuffer;
+            sendEvent({ text: lcCitationBuffer });
+            lcCitationBuffer = '';
           } else if (event.event === "on_chain_end" && event.name === "generator") {
             const output = data?.output;
             const modelMsg = output?.messages?.[0];
