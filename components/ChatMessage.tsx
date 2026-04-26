@@ -26,9 +26,9 @@ const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () =
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
     return (
-      <div className={`${className} flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl`} style={style} onClick={onClick}>
-        <i className="fa-solid fa-image text-3xl text-slate-400 dark:text-slate-500"></i>
-        <span className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">img</span>
+      <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-800" style={style} onClick={onClick}>
+        <i className="fa-solid fa-image text-lg text-slate-400 dark:text-slate-500"></i>
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">img</span>
       </div>
     );
   }
@@ -317,13 +317,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     if (isImage) {
       return (
-        <div key={index} className={`mb-2 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-sm cursor-pointer hover:opacity-95 transition-opacity ${isUser ? 'origin-right' : 'origin-left'}`}
+        <div
+          key={index}
+          className={`mb-2 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-sm cursor-pointer hover:opacity-95 transition-opacity w-full max-w-[220px] ${isUser ? 'ml-auto' : ''}`}
+          style={{ aspectRatio: '16/9' }}
           onClick={() => att.data && window.open(att.data, '_blank')}
         >
           <AttachmentImage
             src={att.data}
-            className="w-full object-cover max-w-full sm:max-w-[420px]"
-            style={{ height: '200px', display: 'block' } as React.CSSProperties}
+            className="w-full h-full object-cover"
           />
         </div>
       );
@@ -395,8 +397,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           {images.length > 0 && (
             <div className={`grid ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 mb-2`}>
               {images.map((img, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:opacity-95 transition-opacity">
-                  <AttachmentImage src={img.data} className="w-full h-32 sm:h-48 object-cover" onClick={() => img.data && window.open(img.data, '_blank')} />
+                <div
+                  key={i}
+                  className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-sm cursor-pointer hover:opacity-95 transition-opacity"
+                  style={{ aspectRatio: '16/9' }}
+                  onClick={() => img.data && window.open(img.data, '_blank')}
+                >
+                  <AttachmentImage src={img.data} className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
