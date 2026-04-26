@@ -28,10 +28,12 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
         });
         const text = response.text?.trim();
         if (!text || text.length < 50) return null;
-        console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars`);
+
+        const gm = response.candidates?.[0]?.groundingMetadata as any;
+        console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars | chunks: ${gm?.groundingChunks?.length ?? 'none'} | queries: ${JSON.stringify(gm?.webSearchQueries)}`);
 
         // Extract grounding source URLs so chat.ts on_tool_end can surface them as chips
-        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks as any[] | undefined;
+        const chunks = gm?.groundingChunks as any[] | undefined;
         if (chunks && chunks.length > 0) {
             const urlLines = chunks
                 .filter((c: any) => c.web?.uri)
@@ -40,6 +42,12 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
             if (urlLines) {
                 return `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}`;
             }
+        }
+        // Fallback: if grounding chunks are empty but search queries exist, use a Google search URL
+        const queries = gm?.webSearchQueries as string[] | undefined;
+        if (queries && queries.length > 0) {
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queries[0])}`;
+            return `${text}\n\n[WEB_SOURCE_URLS]\n${searchUrl} | Google 검색: ${queries[0]}`;
         }
         return text;
     } catch (e: any) {
