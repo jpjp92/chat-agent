@@ -320,6 +320,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         data: reader.result as string,
         mimeType: file.type || (file.name.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'),
         fileName: file.name,
+        fileSize: file.size,
         extractedText: extractedText || undefined
       };
       setSelectedAttachments(prev => [...prev, newAttachment]);
@@ -393,20 +394,30 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 relative">
       {selectedAttachments.length > 0 && (
-        <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-3 animate-in slide-in-from-bottom-2 duration-300">
+        <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-2 animate-in slide-in-from-bottom-2 duration-300">
           {selectedAttachments.map((attachment, index) => (
             <div key={index} className="relative group">
-              <div className="overflow-hidden rounded-2xl border-2 border-white dark:border-[#2f2f2f] shadow-2xl bg-white dark:bg-[#1e1e1f]">
+              <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-md bg-white dark:bg-[#1e1e1f]" style={{ height: '72px' }}>
                 {attachment.mimeType.startsWith('image/') ? (
-                  <img src={attachment.data} alt="Upload" className="h-16 w-16 sm:h-20 sm:w-20 object-cover" />
+                  /* 이미지: 직사각형 가로형 */
+                  <div className="flex h-full" style={{ width: '128px' }}>
+                    <img src={attachment.data} alt="Upload" className="w-full h-full object-cover" />
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase">
+                      {attachment.fileName?.split('.').pop() || 'img'}
+                    </div>
+                  </div>
                 ) : attachment.mimeType.startsWith('video/') ? (
-                  <div className="h-16 w-16 sm:h-20 sm:w-20 flex flex-col items-center justify-center bg-slate-900 border-none relative overflow-hidden">
-                    <video src={attachment.data} className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                  /* 비디오: 직사각형 가로형 */
+                  <div className="relative flex items-center justify-center bg-slate-900" style={{ width: '128px', height: '72px' }}>
+                    <video src={attachment.data} className="absolute inset-0 w-full h-full object-cover opacity-40" />
                     <i className="fa-solid fa-circle-play text-white text-2xl z-10 drop-shadow-md"></i>
-                    <span className="absolute bottom-1 right-1 text-[8px] text-white bg-black/50 px-1 rounded z-10 font-bold uppercase overflow-hidden max-w-[90%] truncate">{(attachment.fileName || 'video').split('.').pop()}</span>
+                    <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md z-10 uppercase">
+                      {(attachment.fileName || 'video').split('.').pop()}
+                    </div>
                   </div>
                 ) : (
-                  <div className="h-16 w-32 flex flex-col items-center justify-center p-2 gap-1 bg-slate-50 dark:bg-slate-500/5">
+                  /* 문서: 직사각형, 아이콘 + 이름 */
+                  <div className="flex items-center gap-2.5 px-3 bg-slate-50 dark:bg-slate-500/5" style={{ width: '160px', height: '72px' }}>
                     <i className={`fa-solid ${attachment.mimeType === 'application/pdf' ? 'fa-file-pdf text-red-500' :
                       attachment.mimeType.includes('word') || attachment.fileName?.endsWith('.docx') ? 'fa-file-word text-blue-500' :
                         attachment.mimeType.includes('sheet') || attachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
@@ -414,14 +425,26 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                             attachment.mimeType.includes('csv') || attachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
                               attachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
                                 'fa-file-lines text-slate-500'
-                      } text-xl`}></i>
-                    <span className="text-[10px] text-slate-500 truncate w-full text-center px-1 font-medium">{attachment.fileName}</span>
+                      } text-2xl flex-shrink-0`}></i>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] text-slate-700 dark:text-slate-200 font-semibold truncate leading-tight" style={{ maxWidth: '100px' }}>
+                        {attachment.fileName}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                        {attachment.fileName?.split('.').pop() || 'file'}
+                      </span>
+                    </div>
                   </div>
                 )}
+
+                {/* Hover overlay 삭제 버튼 */}
+                <button
+                  onClick={() => removeAttachment(index)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-all duration-200 rounded-xl"
+                >
+                  <i className="fa-solid fa-xmark text-white text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg"></i>
+                </button>
               </div>
-              <button onClick={() => removeAttachment(index)} className="absolute -top-2.5 -right-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all z-10 border border-white/20">
-                <i className="fa-solid fa-xmark text-[10px]"></i>
-              </button>
             </div>
           ))}
         </div>

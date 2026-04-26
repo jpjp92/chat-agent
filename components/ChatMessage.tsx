@@ -22,17 +22,17 @@ const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
-const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () => void }> = ({ src, className, onClick }) => {
+const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () => void; style?: React.CSSProperties }> = ({ src, className, onClick, style }) => {
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
     return (
-      <div className={`${className} flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl`} onClick={onClick}>
+      <div className={`${className} flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl`} style={style} onClick={onClick}>
         <i className="fa-solid fa-image text-3xl text-slate-400 dark:text-slate-500"></i>
         <span className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">img</span>
       </div>
     );
   }
-  return <img src={src} alt="Attachment" className={className} onClick={onClick} onError={() => setFailed(true)} />;
+  return <img src={src} alt="Attachment" className={className} style={style} onClick={onClick} onError={() => setFailed(true)} />;
 };
 
 interface ChatMessageProps {
@@ -299,20 +299,31 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
 
+  // 파일 크기를 사람이 읽기 편한 형식으로 변환
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const renderSingleAttachment = (att: any, index?: number) => {
     if (!att) return null;
 
     const isImage = att.mimeType.startsWith('image/');
     const isPDF = att.mimeType === 'application/pdf';
     const isVideo = att.mimeType.startsWith('video/');
+    const sizeLabel = formatFileSize(att.fileSize);
 
     if (isImage) {
       return (
-        <div key={index} className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${isUser ? 'origin-right' : 'origin-left'}`}>
+        <div key={index} className={`mb-2 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-sm cursor-pointer hover:opacity-95 transition-opacity ${isUser ? 'origin-right' : 'origin-left'}`}
+          onClick={() => att.data && window.open(att.data, '_blank')}
+        >
           <AttachmentImage
             src={att.data}
-            className="w-full h-auto object-cover max-w-full sm:max-w-[480px]"
-            onClick={() => att.data && window.open(att.data, '_blank')}
+            className="w-full object-cover max-w-full sm:max-w-[420px]"
+            style={{ height: '200px', display: 'block' } as React.CSSProperties}
           />
         </div>
       );
@@ -320,7 +331,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     if (isVideo) {
       return (
-        <div key={index} className={`mb-3 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm aspect-video sm:max-w-[480px] bg-black flex items-center justify-center relative`}>
+        <div key={index} className={`mb-2 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-sm sm:max-w-[420px] bg-black flex items-center justify-center relative`} style={{ aspectRatio: '16/9' }}>
           <video src={att.data} controls className="w-full h-full" />
         </div>
       );
@@ -328,15 +339,18 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     if (isPDF) {
       return (
-        <div key={index} className={`mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-          <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0">
-            <i className="fa-solid fa-file-pdf text-xl"></i>
+        <div key={index} className={`mb-2 flex items-center gap-3 px-3.5 py-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] hover:border-red-300 dark:hover:border-red-500/40 transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+          <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0 border border-red-100 dark:border-red-500/20">
+            <i className="fa-solid fa-file-pdf text-2xl"></i>
           </div>
           <div className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate" style={{ maxWidth: '280px' }}>
               {att.fileName || 'document.pdf'}
             </span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">pdf</span>
+            <div className={`flex items-center gap-1.5 mt-0.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">pdf</span>
+              {sizeLabel && <><span className="text-[10px] text-slate-300 dark:text-slate-600">·</span><span className="text-[10px] text-slate-400">{sizeLabel}</span></>}
+            </div>
           </div>
         </div>
       );
@@ -347,21 +361,24 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     const isPPT   = att.mimeType.includes('presentationml') || att.fileName?.endsWith('.pptx');
     const isCSV   = att.mimeType.includes('csv')            || att.fileName?.endsWith('.csv');
     const isHWPX  = att.mimeType.includes('hwpx') || att.mimeType.includes('x-hwp') || att.fileName?.endsWith('.hwpx');
-    const docIcon = isWord  ? { icon: 'fa-file-word',       color: 'text-blue-500' }
-                  : isExcel ? { icon: 'fa-file-excel',      color: 'text-green-700' }
-                  : isPPT   ? { icon: 'fa-file-powerpoint', color: 'text-orange-600' }
-                  : isCSV   ? { icon: 'fa-file-csv',        color: 'text-green-600' }
-                  : isHWPX  ? { icon: 'fa-file-lines',      color: 'text-blue-400' }
-                  :           { icon: 'fa-file',             color: 'text-slate-400' };
+    const docIcon = isWord  ? { icon: 'fa-file-word',       color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-100 dark:border-blue-500/20',   hover: 'hover:border-blue-300 dark:hover:border-blue-500/40' }
+                  : isExcel ? { icon: 'fa-file-excel',      color: 'text-green-700',  bg: 'bg-green-50 dark:bg-green-700/10', border: 'border-green-100 dark:border-green-700/20', hover: 'hover:border-green-300 dark:hover:border-green-700/40' }
+                  : isPPT   ? { icon: 'fa-file-powerpoint', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-600/10', border: 'border-orange-100 dark:border-orange-500/20', hover: 'hover:border-orange-300 dark:hover:border-orange-500/40' }
+                  : isCSV   ? { icon: 'fa-file-csv',        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-600/10', border: 'border-green-100 dark:border-green-500/20', hover: 'hover:border-green-300 dark:hover:border-green-500/40' }
+                  : isHWPX  ? { icon: 'fa-file-lines',      color: 'text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-400/10',   border: 'border-blue-100 dark:border-blue-400/20',   hover: 'hover:border-blue-300 dark:hover:border-blue-400/40' }
+                  :           { icon: 'fa-file',             color: 'text-slate-400',  bg: 'bg-slate-50 dark:bg-slate-400/10', border: 'border-slate-200 dark:border-slate-400/20', hover: 'hover:border-slate-300 dark:hover:border-slate-400/40' };
     const docLabel = isWord ? 'docx' : isExcel ? 'xlsx' : isPPT ? 'pptx' : isCSV ? 'csv' : isHWPX ? 'hwpx' : 'file';
     return (
-      <div key={index} className={`mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isWord ? 'bg-blue-500/10' : isExcel ? 'bg-green-700/10' : isPPT ? 'bg-orange-500/10' : isCSV ? 'bg-green-600/10' : isHWPX ? 'bg-blue-400/10' : 'bg-slate-400/10'}`}>
-          <i className={`fa-solid ${docIcon.icon} ${docIcon.color} text-xl`}></i>
+      <div key={index} className={`mb-2 flex items-center gap-3 px-3.5 py-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] ${docIcon.hover} transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`w-12 h-12 rounded-xl ${docIcon.bg} flex items-center justify-center flex-shrink-0 border ${docIcon.border}`}>
+          <i className={`fa-solid ${docIcon.icon} ${docIcon.color} text-2xl`}></i>
         </div>
         <div className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">{att.fileName || docLabel}</span>
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{docLabel}</span>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate" style={{ maxWidth: '280px' }}>{att.fileName || docLabel}</span>
+          <div className={`flex items-center gap-1.5 mt-0.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{docLabel}</span>
+            {sizeLabel && <><span className="text-[10px] text-slate-300 dark:text-slate-600">·</span><span className="text-[10px] text-slate-400">{sizeLabel}</span></>}
+          </div>
         </div>
       </div>
     );

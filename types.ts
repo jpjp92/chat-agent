@@ -11,6 +11,7 @@ export interface MessageAttachment {
   data: string;
   mimeType: string;
   fileName?: string;
+  fileSize?: number; // bytes — for display in chat history cards
   extractedText?: string; // Client-side extracted text (for docx, txt, etc.)
 }
 
