@@ -1,12 +1,40 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { getNextApiKey } from "../config.js";
 import { searchWebTool } from "./tools.js";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
 const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
+
+/**
+ * Uses Gemini SDK with Google Search grounding to retrieve drug info.
+ * Called when MFDS returns no results (non-pill products like patches, ointments).
+ */
+async function searchDrugViaGoogleSearch(drugName: string): Promise<string | null> {
+    const apiKey = getNextApiKey();
+    if (!apiKey) return null;
+    try {
+        const genai = new GoogleGenAI({ apiKey });
+        const response = await genai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: `${drugName} 의약품의 성분, 효능, 용법, 용량, 주의사항을 알려주세요.` }] }],
+            config: {
+                tools: [{ googleSearch: {} }],
+                temperature: 0.1,
+            },
+        });
+        const text = response.text?.trim();
+        if (!text || text.length < 50) return null;
+        console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars`);
+        return text;
+    } catch (e: any) {
+        console.error(`[Agent Tool] Google Search drug info error:`, e.message);
+        return null;
+    }
+}
 
 /**
  * Uses Gemini Vision to read actual imprint text from an MFDS drug image.
@@ -134,18 +162,26 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Performing inline web search.`);
+                console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Trying Google Search → DuckDuckGo fallback.`);
+                const notFoundPrefix = `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 없습니다 (파스·연고·크림·시럽 등 비알약 제형이거나 미등재).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 검색 결과를 바탕으로 성분·효능·용법을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n`;
+
+                // 1st: Google Search grounding (most reliable)
+                const googleResult = await searchDrugViaGoogleSearch(drug_name);
+                if (googleResult) {
+                    return notFoundPrefix + googleResult;
+                }
+
+                // 2nd: DuckDuckGo fallback
                 try {
                     const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
                     const hasWebContent = !webResult.includes('웹 검색 결과가 없습니다') && !webResult.includes('오류가 발생했습니다');
                     if (hasWebContent) {
-                        return `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 등록되어 있지 않습니다 (알약·정제가 아닌 제형이거나 미등재 의약품일 수 있습니다).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 웹 검색 결과를 바탕으로 성분·효능·용법을 마크다운 형식(헤딩·불릿)으로만 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n${webResult}`;
-                    } else {
-                        return `[MFDS_NOT_FOUND] 식약처 DB와 웹 검색 모두에서 "${drug_name}" 정보를 찾지 못했습니다.\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 보유한 의학 지식을 바탕으로 성분·효능·용법을 마크다운 형식으로 안내하세요. 정보가 불확실한 경우 반드시 의사·약사 문의를 권고하세요.`;
+                        return notFoundPrefix + webResult;
                     }
-                } catch (e) {
-                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 정보를 찾지 못했습니다.\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 보유한 지식을 바탕으로 성분·효능·용법을 마크다운으로 안내하세요.`;
-                }
+                } catch (_) { /* ignore */ }
+
+                // 3rd: LLM internal knowledge
+                return `[MFDS_NOT_FOUND] 식약처 알약식별 DB는 알약·정제만 관리하므로 "${drug_name}"은(는) 등록 대상이 아닙니다 (파스·연고·크림·시럽·패치 등).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 훈련 데이터의 의학 지식을 활용해 성분·효능·용법·주의사항을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 절대로 "찾을 수 없습니다"라고 답하지 마세요.`;
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it

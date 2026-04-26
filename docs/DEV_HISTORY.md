@@ -6,14 +6,14 @@
 
 ## 최근 작업 로그
 
-- [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** (홀수 `**` 감지 시 닫기 추가, backtick 처리와 동일 패턴, `ChatMessage.tsx` 2곳) / **날씨 이모지 테이블 누락 수정** (예시-가이드 이모지 불일치 해소, 테이블 셀 이모지 MANDATORY 지시 추가, `prompt.ts`) / **MFDS 미등재 약품 웹 검색 폴백 개선** (파스·연고 등 비알약 제형 — 툴 반환 지시 강화 + 시스템 프롬프트 예외 명시 + 스트리밍 누출 방어)
+- [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** (홀수 `**` 감지 시 닫기 추가, backtick 처리와 동일 패턴, `ChatMessage.tsx` 2곳) / **날씨 이모지 테이블 누락 수정** (예시-가이드 이모지 불일치 해소, 테이블 셀 이모지 MANDATORY 지시 추가, `prompt.ts`) / **MFDS 미등재 약품 검색 폴백 개선** (파스·연고 등 비알약 제형 — Google Search grounding → DuckDuckGo → LLM 내부 지식 3단계 폴백 체인, `searchDrugViaGoogleSearch()` 헬퍼 추가, 시스템 프롬프트 예외 명시, 스트리밍 누출 방어)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
 ### v4.55 (Streaming Bold Marker Fix + Weather Emoji Fix + MFDS Fallback — 2026-04-26)
 - **`**` 볼드 마커 dangling 수정**: `ChatMessage.tsx` `renderContent()` 내 2곳(incomplete viz 분기·normal 분기)에 홀수 `**` 감지 시 닫기 추가. `(processedRemaining.match(/\*\*/g) || []).length % 2 !== 0` 조건 시 `processedRemaining += '**'`. 스트리밍 도중 닫히는 `**`가 아직 미도착한 경우 ReactMarkdown이 `**` 기호를 리터럴로 렌더링하던 문제 해소. 기존 backtick dangling closure(` ``` ` 홀수 시 `\n` ``` 추가) 패턴과 동일 구조. 다음 청크 도착 시 실제 닫히는 `**`로 자연스럽게 중화.
 - **날씨 이모지 테이블 누락 수정**: `api/_lib/agent/prompt.ts` 날씨 이모지 가이드와 예시 테이블의 맑음 이모지 불일치(`🌤️` vs `🌞`) 해소 → 예시 테이블을 `🌞 맑음`으로 통일. 테이블 셀에 이모지 MANDATORY 지시 추가. 비(`🌧️`)는 정상 표시되지만 맑음은 누락되던 문제 — 가이드 불일치로 모델이 혼선을 빚어 맑음 이모지를 생략하던 원인.
-- **MFDS 미등재 약품 웹 검색 폴백 개선**: 파스·연고·액제 등 비알약 제형은 MFDS 알약식별 DB에 원천 미등재 → MFDS 실패 시 DuckDuckGo 웹 검색 결과가 있음에도 LLM이 `json:drug` 생성 강제 지시로 포기하고 "찾을 수 없습니다" 출력하던 문제 수정. `drug-info-tool.ts` 반환 지시에 `json:drug 생성 금지` 명시 강화, `prompt.ts` PROACTIVE DRUG VISUALIZATION·PRIORITY RULE·drug_info intent hint에 `[MFDS_NOT_FOUND]` 예외 추가, `chat.ts` 스트리밍 청크 sanitizer에 누출 방어 3종 추가.
+- **MFDS 미등재 약품 검색 폴백 개선**: 파스·연고·액제 등 비알약 제형은 MFDS 알약식별 DB에 원천 미등재. MFDS 실패 시 Google Search grounding → DuckDuckGo → LLM 내부 지식 3단계 폴백 체인으로 변경. `searchDrugViaGoogleSearch()` 헬퍼 추가(`GoogleGenAI` SDK + `googleSearch` tool). `prompt.ts` PROACTIVE DRUG VISUALIZATION·PRIORITY RULE·drug_info intent hint에 `[MFDS_NOT_FOUND]` 예외 추가. `chat.ts` 스트리밍 sanitizer에 누출 방어 3종 추가.
 
 ### v4.54 (npm audit fix + maxOutputTokens — 2026-04-25)
 - **npm audit fix**: 의존성 취약점 22건 → 17건. `smol-toml` 등 non-breaking 5건 해소. 잔여 17건은 `@vercel/node@5.5.17→4.0.0` 다운그레이드 또는 `xlsx` fix 없음으로 `--force` 미적용.
