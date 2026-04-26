@@ -328,6 +328,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           } else if (event.event === "on_chain_end" && event.name === "LangGraph") {
             const finalOutput = data?.output;
+
+            // Scan ToolMessages in final graph state for [WEB_SOURCE_URLS] blocks.
+            // This is the reliable fallback when on_tool_end doesn't surface these.
+            const finalMessages: any[] = finalOutput?.messages || [];
+            for (const msg of finalMessages) {
+              const msgType = msg._getType?.() ?? msg.getType?.() ?? msg.type;
+              if (msgType === 'tool') {
+                const content = typeof msg.content === 'string' ? msg.content : '';
+                const urlBlockMatch = content.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
+                console.log(`[Chat API] LangGraph end — ToolMessage len: ${content.length}, hasUrls: ${content.includes('[WEB_SOURCE_URLS]')}`);
+                if (urlBlockMatch) {
+                  let addedNew = false;
+                  urlBlockMatch[1].split('\n').forEach((line: string) => {
+                    const [url, ...titleParts] = line.split(' | ');
+                    const title = titleParts.join(' | ').trim() || url;
+                    if (url?.startsWith('http') && !allSources.some((e: any) => e.uri === url)) {
+                      allSources.push({ title, uri: url });
+                      addedNew = true;
+                    }
+                  });
+                  if (addedNew) sendEvent({ sources: allSources });
+                }
+              }
+            }
+
             const finalSources: any[] = finalOutput?.groundingSources || [];
             if (finalSources.length > 0) {
               let addedNew = false;
