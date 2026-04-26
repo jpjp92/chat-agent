@@ -28,7 +28,7 @@ const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () =
     return (
       <div className={`${className} flex flex-col items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl`} onClick={onClick}>
         <i className="fa-solid fa-image text-3xl text-slate-400 dark:text-slate-500"></i>
-        <span className="text-xs text-slate-400 dark:text-slate-500">이미지 첨부파일</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">img</span>
       </div>
     );
   }
@@ -336,7 +336,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">
               {att.fileName || 'document.pdf'}
             </span>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t.pdf}</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">pdf</span>
           </div>
         </div>
       );
@@ -353,10 +353,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                   : isCSV   ? { icon: 'fa-file-csv',        color: 'text-green-600' }
                   : isHWPX  ? { icon: 'fa-file-lines',      color: 'text-blue-400' }
                   :           { icon: 'fa-file',             color: 'text-slate-400' };
+    const docLabel = isWord ? 'docx' : isExcel ? 'xlsx' : isPPT ? 'pptx' : isCSV ? 'csv' : isHWPX ? 'hwpx' : 'file';
     return (
-      <div key={index} className="mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-        <i className={`fa-solid ${docIcon.icon} ${docIcon.color} flex-shrink-0`}></i>
-        <span className="text-sm text-slate-600 dark:text-slate-300 truncate">{att.fileName || t.attachment}</span>
+      <div key={index} className={`mb-3 flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isWord ? 'bg-blue-500/10' : isExcel ? 'bg-green-700/10' : isPPT ? 'bg-orange-500/10' : isCSV ? 'bg-green-600/10' : isHWPX ? 'bg-blue-400/10' : 'bg-slate-400/10'}`}>
+          <i className={`fa-solid ${docIcon.icon} ${docIcon.color} text-xl`}></i>
+        </div>
+        <div className={`flex flex-col min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+          <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">{att.fileName || docLabel}</span>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{docLabel}</span>
+        </div>
       </div>
     );
   };
