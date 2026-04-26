@@ -168,6 +168,7 @@ export const useChatStream = ({
     });
 
     let modelResponse = '';
+    let pendingSources: any[] = [];
     const modelMessageId = (Date.now() + 1).toString();
 
     const hasLargeFile = finalAttachments.some(attachment => attachment.mimeType === 'application/pdf');
@@ -340,12 +341,14 @@ export const useChatStream = ({
                 return { ...session, messages: updatedMessages };
               }
 
+              const allInitialSources = [...manualGroundingSources, ...pendingSources];
+              const uniqueInitialSources = Array.from(new Map(allInitialSources.map(item => [item.uri, item])).values());
               const newModelMessage: Message = {
                 id: modelMessageId,
                 role: Role.MODEL,
                 content: modelResponse,
                 timestamp: Date.now(),
-                groundingSources: manualGroundingSources.length > 0 ? manualGroundingSources : undefined,
+                groundingSources: uniqueInitialSources.length > 0 ? uniqueInitialSources : undefined,
               };
               return { ...session, messages: [...session.messages, newModelMessage] };
             }
@@ -357,6 +360,8 @@ export const useChatStream = ({
         webContext,
         'text',
         (sources) => {
+          // Always store latest sources so they're available when the message is created
+          pendingSources = sources || [];
           setSessions(prev => prev.map(session => {
             if (session.id === activeSessionId) {
               return {
