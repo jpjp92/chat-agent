@@ -29,6 +29,18 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
         const text = response.text?.trim();
         if (!text || text.length < 50) return null;
         console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars`);
+
+        // Extract grounding source URLs so chat.ts on_tool_end can surface them as chips
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks as any[] | undefined;
+        if (chunks && chunks.length > 0) {
+            const urlLines = chunks
+                .filter((c: any) => c.web?.uri)
+                .map((c: any) => `${c.web.uri} | ${c.web.title || c.web.uri}`)
+                .join('\n');
+            if (urlLines) {
+                return `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}`;
+            }
+        }
         return text;
     } catch (e: any) {
         console.error(`[Agent Tool] Google Search drug info error:`, e.message);

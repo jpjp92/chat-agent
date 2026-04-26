@@ -13,7 +13,7 @@
 ### v4.55 (Streaming Bold Marker Fix + Weather Emoji Fix + MFDS Fallback — 2026-04-26)
 - **`**` 볼드 마커 dangling 수정**: `ChatMessage.tsx` `renderContent()` 내 2곳(incomplete viz 분기·normal 분기)에 홀수 `**` 감지 시 닫기 추가. `(processedRemaining.match(/\*\*/g) || []).length % 2 !== 0` 조건 시 `processedRemaining += '**'`. 스트리밍 도중 닫히는 `**`가 아직 미도착한 경우 ReactMarkdown이 `**` 기호를 리터럴로 렌더링하던 문제 해소. 기존 backtick dangling closure(` ``` ` 홀수 시 `\n` ``` 추가) 패턴과 동일 구조. 다음 청크 도착 시 실제 닫히는 `**`로 자연스럽게 중화.
 - **날씨 이모지 테이블 누락 수정**: `api/_lib/agent/prompt.ts` 날씨 이모지 가이드와 예시 테이블의 맑음 이모지 불일치(`🌤️` vs `🌞`) 해소 → 예시 테이블을 `🌞 맑음`으로 통일. 테이블 셀에 이모지 MANDATORY 지시 추가. 비(`🌧️`)는 정상 표시되지만 맑음은 누락되던 문제 — 가이드 불일치로 모델이 혼선을 빚어 맑음 이모지를 생략하던 원인.
-- **MFDS 미등재 약품 검색 폴백 개선**: 파스·연고·액제 등 비알약 제형은 MFDS 알약식별 DB에 원천 미등재. MFDS 실패 시 Google Search grounding → DuckDuckGo → LLM 내부 지식 3단계 폴백 체인으로 변경. `searchDrugViaGoogleSearch()` 헬퍼 추가(`GoogleGenAI` SDK + `googleSearch` tool). `prompt.ts` PROACTIVE DRUG VISUALIZATION·PRIORITY RULE·drug_info intent hint에 `[MFDS_NOT_FOUND]` 예외 추가. `chat.ts` 스트리밍 sanitizer에 누출 방어 3종 추가.
+- **MFDS 미등재 약품 검색 폴백 개선**: 파스·연고·액제 등 비알약 제형은 MFDS 알약식별 DB에 원천 미등재. MFDS 실패 시 Google Search grounding → DuckDuckGo → LLM 내부 지식 3단계 폴백 체인으로 변경. `searchDrugViaGoogleSearch()` 헬퍼 추가(`GoogleGenAI` SDK + `googleSearch` tool + grounding chunks → `[WEB_SOURCE_URLS]` 블록 반환으로 소스 칩 표시). `prompt.ts` PROACTIVE DRUG VISUALIZATION·PRIORITY RULE·drug_info intent hint에 `[MFDS_NOT_FOUND]` 예외 추가. `chat.ts` 스트리밍 sanitizer에 누출 방어 3종 추가.
 
 ### v4.54 (npm audit fix + maxOutputTokens — 2026-04-25)
 - **npm audit fix**: 의존성 취약점 22건 → 17건. `smol-toml` 등 non-breaking 5건 해소. 잔여 17건은 `@vercel/node@5.5.17→4.0.0` 다운그레이드 또는 `xlsx` fix 없음으로 `--force` 미적용.
