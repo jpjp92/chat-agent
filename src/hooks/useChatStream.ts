@@ -341,14 +341,12 @@ export const useChatStream = ({
                 return { ...session, messages: updatedMessages };
               }
 
-              const allInitialSources = [...manualGroundingSources, ...pendingSources];
-              const uniqueInitialSources = Array.from(new Map(allInitialSources.map(item => [item.uri, item])).values());
               const newModelMessage: Message = {
                 id: modelMessageId,
                 role: Role.MODEL,
                 content: modelResponse,
                 timestamp: Date.now(),
-                groundingSources: uniqueInitialSources.length > 0 ? uniqueInitialSources : undefined,
+                groundingSources: manualGroundingSources.length > 0 ? manualGroundingSources : undefined,
               };
               return { ...session, messages: [...session.messages, newModelMessage] };
             }
@@ -360,24 +358,8 @@ export const useChatStream = ({
         webContext,
         'text',
         (sources) => {
-          // Always store latest sources so they're available when the message is created
+          // Store sources to apply after streaming completes — avoids chips appearing mid-stream
           pendingSources = sources || [];
-          setSessions(prev => prev.map(session => {
-            if (session.id === activeSessionId) {
-              return {
-                ...session,
-                messages: session.messages.map(message => {
-                  if (message.id === modelMessageId) {
-                    const allSources = [...manualGroundingSources, ...(sources || [])];
-                    const uniqueSources = Array.from(new Map(allSources.map(item => [item.uri, item])).values());
-                    return { ...message, groundingSources: uniqueSources.length > 0 ? uniqueSources : undefined };
-                  }
-                  return message;
-                }),
-              };
-            }
-            return session;
-          }));
         },
         activeSessionId ?? undefined,
         finalAttachments,
@@ -449,6 +431,21 @@ export const useChatStream = ({
       hasError = true;
       onError(error.message);
     } finally {
+      // Apply any pending sources after streaming completes — chips appear only after full response
+      if (pendingSources.length > 0) {
+        setSessions(prev => prev.map(session => {
+          if (session.id !== activeSessionId) return session;
+          return {
+            ...session,
+            messages: session.messages.map(message => {
+              if (message.id !== modelMessageId) return message;
+              const allSources = [...manualGroundingSources, ...pendingSources];
+              const uniqueSources = Array.from(new Map(allSources.map(item => [item.uri, item])).values());
+              return { ...message, groundingSources: uniqueSources.length > 0 ? uniqueSources : undefined };
+            }),
+          };
+        }));
+      }
       setIsTyping(false);
       setLoadingStatus(null);
       setEditingMessageContent(undefined);
