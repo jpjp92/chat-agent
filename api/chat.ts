@@ -219,6 +219,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               sanitizedText = sanitizedText.replace(toolCallPattern, '');
               // Gemini grounding inline citations ([1], [1, 3], [1, 3, 4]) — sources shown as chips below
               sanitizedText = sanitizedText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
+              // Strip MFDS_NOT_FOUND / json:drug instruction leakage (best-effort per-chunk)
+              sanitizedText = sanitizedText.replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '');
+              sanitizedText = sanitizedText.replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '');
+              sanitizedText = sanitizedText.replace(/⚠️\s*CRITICAL INSTRUCTION:[^\n]*/g, '');
               
               if (sanitizedText.trim()) {
                 fullAiResponse += sanitizedText;

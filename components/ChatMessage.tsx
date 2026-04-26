@@ -447,6 +447,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           if (backticks && backticks.length % 2 !== 0) {
             processedVisible += '\n```';
           }
+          // Close unclosed bold markers during streaming
+          if ((processedVisible.match(/\*\*/g) || []).length % 2 !== 0) {
+            processedVisible += '**';
+          }
 
           parts.push({
             type: 'text',
@@ -463,6 +467,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         const backticks = processedRemaining.match(/```/g);
         if (backticks && backticks.length % 2 !== 0) {
           processedRemaining += '\n```';
+        }
+        // Close unclosed bold markers during streaming
+        if ((processedRemaining.match(/\*\*/g) || []).length % 2 !== 0) {
+          processedRemaining += '**';
         }
 
         parts.push({

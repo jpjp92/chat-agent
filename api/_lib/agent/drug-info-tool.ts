@@ -137,9 +137,14 @@ export const searchDrugInfoTool = tool(
                 console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Performing inline web search.`);
                 try {
                     const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
-                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 공식 정보를 찾지 못했습니다. 아래 웹 검색 결과를 바탕으로 성분·효능·용법을 마크다운으로 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n${webResult}`;
+                    const hasWebContent = !webResult.includes('웹 검색 결과가 없습니다') && !webResult.includes('오류가 발생했습니다');
+                    if (hasWebContent) {
+                        return `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 등록되어 있지 않습니다 (알약·정제가 아닌 제형이거나 미등재 의약품일 수 있습니다).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 웹 검색 결과를 바탕으로 성분·효능·용법을 마크다운 형식(헤딩·불릿)으로만 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n${webResult}`;
+                    } else {
+                        return `[MFDS_NOT_FOUND] 식약처 DB와 웹 검색 모두에서 "${drug_name}" 정보를 찾지 못했습니다.\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 보유한 의학 지식을 바탕으로 성분·효능·용법을 마크다운 형식으로 안내하세요. 정보가 불확실한 경우 반드시 의사·약사 문의를 권고하세요.`;
+                    }
                 } catch (e) {
-                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 정보를 찾지 못했습니다. 보유한 지식을 바탕으로 성분·효능·용법을 마크다운으로 안내하세요.`;
+                    return `[MFDS_NOT_FOUND] 식약처 DB에서 "${drug_name}" 정보를 찾지 못했습니다.\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 보유한 지식을 바탕으로 성분·효능·용법을 마크다운으로 안내하세요.`;
                 }
             }
 

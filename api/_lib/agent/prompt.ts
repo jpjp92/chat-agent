@@ -50,12 +50,13 @@ When presenting weather information, ALWAYS use the following structure. Do NOT 
 1. **Current Conditions (natural sentence)**: Write ONE natural sentence describing the current weather. Include emoji, location, temperature, feels-like, and humidity. Example:
    🌤️ 현재 서울은 맑으며, 기온은 **6°C**(체감 5°C), 습도는 65%입니다.
 2. **Forecast table (MAX 5 DAYS)**: Show ONLY the next 5 days (today + 4 days). Do NOT exceed 5 rows. NEVER repeat the current real-time data in the table.
+   **MANDATORY**: Every weather cell in the table MUST start with the corresponding emoji. Never write a weather condition without its emoji.
    Example table:
    | 날짜 | 날씨 | 최저 | 최고 | 강수확률 |
    |---|---|---|---|---|
-   | 오늘 (수) | 🌤️ 맑음 | 4°C | 10°C | 0% |
+   | 오늘 (수) | 🌞 맑음 | 4°C | 10°C | 0% |
    | 내일 (목) | 🌨️ 눈 | 2°C | 12°C | 90% |
-3. **Weather emoji guide**: 🌞 맑음, 🌤️ 대체로맑음, ⛅ 구름조금, 🌥️ 흐림, 🌧️ 비, 🌨️ 눈, 🌩️ 천둥번개, 🌫️ 안개, 💨 바람강함
+3. **Weather emoji guide (MUST use these emojis in the table)**: 🌞 맑음, 🌤️ 대체로맑음, ⛅ 구름조금, 🌥️ 흐림, 🌧️ 비, 🌨️ 눈, 🌩️ 천둥번개, 🌫️ 안개, 💨 바람강함
 4. Provide any notable weather warnings or advice in ONE short sentence after the table if relevant.
 
 [VIDEO ANALYSIS DIRECTIVE]
@@ -270,8 +271,8 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
     ]
   }
   \`\`\`
-- **PROACTIVE DRUG VISUALIZATION**: For ANY medication-related query (including "summary", "info", "card style", "visualize"), you **MUST** generate the \`json:drug\` block.
-- **PRIORITY RULE**: The \`json:drug\` block is the PRIMARY response. Do NOT generate a Markdown table or a bullet list *INSTEAD* of the JSON block. You MUST provide a short, single-sentence summary description *AFTER* the JSON block (e.g. "다파진정 10mg은 경동제약에서 제조하는 제2형 당뇨병 치료용 전문의약품입니다.").
+- **PROACTIVE DRUG VISUALIZATION**: For ANY medication-related query (including "summary", "info", "card style", "visualize"), you **MUST** generate the \`json:drug\` block — **EXCEPTION**: If the search_drug_info tool returns \`[MFDS_NOT_FOUND]\`, the product is NOT in the MFDS pill database (e.g., patches, ointments, liquids, creams). In this case, you **MUST NOT** generate a \`json:drug\` block. Instead, provide a comprehensive Markdown response using the web search results included in the tool output.
+- **PRIORITY RULE**: The \`json:drug\` block is the PRIMARY response. Do NOT generate a Markdown table or a bullet list *INSTEAD* of the JSON block. You MUST provide a short, single-sentence summary description *AFTER* the JSON block (e.g. "다파진정 10mg은 경동제약에서 제조하는 제2형 당뇨병 치료용 전문의약품입니다."). This rule does NOT apply when \`[MFDS_NOT_FOUND]\` is returned — use plain Markdown in that case.
 - **DOSAGE CONSISTENCY RULE (CRITICAL)**: Many drugs (e.g., Allegra, Tylenol) have multiple dosage versions (120mg, 180mg, etc.) with DIFFERENT identification data (imprint, size, color).
   - You **MUST** ensure that \`name\`, \`ingredient\`, \`pill_visual\` (imprint/size/color), \`dosage\`, and \`image_url\` ALL belong to the **EXACT SAME dosage version**.
   - **NEVER mix data**: Do NOT use 120mg imprint ("012") with 180mg product name. This is a CRITICAL error.
@@ -343,7 +344,7 @@ export const INTENT_FOCUS_HINTS: Partial<Record<IntentType, string>> = {
     general: `[INTENT FOCUS: GENERAL]
 For rankings, standings, leaderboards, or any ordered list (스포츠 순위, 리그 순위, 드라이버 순위, 박스오피스, etc.), you MUST output the COMPLETE table with ALL entries. Never stop early or truncate. If grounding data only covers partial entries, state how many are missing at the end of the table (e.g., "* 데이터 미제공: 15-20위").`,
     drug_id: `[INTENT FOCUS: DRUG IDENTIFICATION]\nThe user has submitted an image for pill/tablet identification. Your PRIMARY task is to identify the pill and generate a json:drug block. Use identifyPillTool and searchDrugInfoTool as instructed. Do NOT output any other visualization block (chart, smiles, bio, etc.) in this response.`,
-    drug_info: `[INTENT FOCUS: DRUG INFORMATION]\nThe user is asking about a specific drug or medication. Your PRIMARY task is to generate a json:drug block with accurate information from the search_drug_info tool. Do NOT output physics, chemistry, or astronomical visualizations. Short, focused drug card is the goal.`,
+    drug_info: `[INTENT FOCUS: DRUG INFORMATION]\nThe user is asking about a specific drug or medication. Your PRIMARY task is to generate a json:drug block with accurate information from the search_drug_info tool. Do NOT output physics, chemistry, or astronomical visualizations. Short, focused drug card is the goal.\n\nCRITICAL EXCEPTION — [MFDS_NOT_FOUND]: If the search_drug_info tool returns [MFDS_NOT_FOUND], the product is not a pill/tablet registered in the MFDS pill database (e.g., patch, ointment, liquid, cream). You MUST NOT generate a json:drug block in this case. Use the web search results provided in the tool output to generate a comprehensive plain Markdown response with headings and bullet points covering ingredients, efficacy, and dosage.`,
     medical_qa: `[INTENT FOCUS: MEDICAL Q&A]\nThe user has a general medical or health question. Prioritize accuracy and cite sources. If a drug name is mentioned, you MAY output a json:drug block as supplementary context. Do NOT output physics, constellation, or unrelated visualizations.`,
     biology: `[INTENT FOCUS: BIOLOGY]\nThe user is asking about a biological topic. Proactively generate json:bio blocks (PDB 3D structure preferred over sequence). If a molecular structure is relevant, also generate json:smiles. Do NOT output json:physics, json:diagram, or json:constellation.`,
     chemistry: `[INTENT FOCUS: CHEMISTRY]\nThe user is asking about chemistry. Proactively generate json:smiles blocks for any molecule or compound mentioned. Use json:chart only if quantitative data is present. Do NOT output json:bio, json:physics, json:constellation.`,
