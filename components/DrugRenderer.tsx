@@ -259,7 +259,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
     return (
         <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
-            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
+            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Hero Section: Integrated Title & Image */}
                 <div className="relative bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 dark:from-transparent dark:to-transparent border-b border-slate-100 dark:border-white/5">
@@ -461,9 +461,9 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 </div>
 
                 {/* Refined Footer */}
-                <div className="px-6 sm:px-8 py-4 sm:py-5 bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div className="px-6 sm:px-8 py-4 sm:py-5 bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-col flex-shrink-0">
-                        <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase whitespace-nowrap">MED INDEX</span>
+                        <span className="text-[9px] font-black tracking-[0.2em] uppercase whitespace-nowrap bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MED INDEX</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         {(data.mfds_url || data.pharm_url) && (
