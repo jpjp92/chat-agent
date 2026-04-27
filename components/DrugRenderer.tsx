@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PillVisual {
@@ -36,7 +37,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     const [imageError, setImageError] = useState(false);
     const [syncedUrl, setSyncedUrl] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(!!data.image_url);
-    const [serverPillVisual, setServerPillVisual] = useState<any>(null); // Server-extracted pill visual
+    const [serverPillVisual, setServerPillVisual] = useState<any>(null);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
 
 
     const i18n = {
@@ -258,6 +260,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
 
     return (
+        <>
         <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
@@ -292,7 +295,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 </div>
                                 <div className="relative group w-full">
                                     {/* Digital Specimen Slide Look: Unified dark background */}
-                                    <div className="w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500">
+                                    <div
+                                        className={`w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500 ${proxiedImageUrl && !imageError ? 'cursor-zoom-in' : ''}`}
+                                        onClick={() => { if (proxiedImageUrl && !imageError) setLightboxOpen(true); }}
+                                    >
                                         <AnimatePresence mode="wait">
                                             {syncing && !proxiedImageUrl ? (
                                                 <motion.div
@@ -349,11 +355,16 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                         </AnimatePresence>
                                     </div>
                                     {/* Action Hint */}
-                                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <div className="w-6 h-6 rounded-lg bg-black/20 backdrop-blur-md border border-white/10 flex items-center justify-center">
-                                            <i className="fa-solid fa-expand text-[10px] text-white/50"></i>
+                                    {proxiedImageUrl && !imageError && (
+                                        <div
+                                            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
+                                            onClick={() => setLightboxOpen(true)}
+                                        >
+                                            <div className="w-7 h-7 rounded-lg bg-black/30 backdrop-blur-md border border-white/20 flex items-center justify-center">
+                                                <i className="fa-solid fa-expand text-[11px] text-white/80"></i>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -480,5 +491,57 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 </div>
             </div>
         </div>
+
+            {/* Lightbox Portal */}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {lightboxOpen && (
+                        <motion.div
+                            key="lightbox-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-8 bg-black/75 backdrop-blur-xl cursor-zoom-out"
+                            onClick={() => setLightboxOpen(false)}
+                        >
+                            <motion.div
+                                key="lightbox-image"
+                                initial={{ scale: 0.85, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.85, opacity: 0 }}
+                                transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
+                                className="relative max-w-2xl w-full"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Close button */}
+                                <button
+                                    onClick={() => setLightboxOpen(false)}
+                                    className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+                                >
+                                    <i className="fa-solid fa-xmark text-sm"></i>
+                                </button>
+
+                                {/* Image */}
+                                <div className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 shadow-2xl">
+                                    <img
+                                        src={proxiedImageUrl!}
+                                        alt={data.name}
+                                        className="w-full h-auto max-h-[80vh] object-contain"
+                                        draggable={false}
+                                    />
+                                </div>
+
+                                {/* Drug name caption */}
+                                <div className="mt-3 text-center">
+                                    <span className="text-xs font-bold text-white/50 tracking-wide">{data.name}</span>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+        </>
     );
 };

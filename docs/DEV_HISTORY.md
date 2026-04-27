@@ -6,15 +6,17 @@
 
 ## 최근 작업 로그
 
-- [DEV_260427.md](DEV_260427.md) — **약품 카드 "자세히" 버튼 복구** (pharm_url 항상 null → nedrug 식약처 상세 직링크로 교체, `ITEM_SEQ` 기반 `mfds_url` 신규 필드) / **모바일 응답 실패 완화** (LangChain path maxOutputTokens 32768 → 8192, 약품 카드 생성 타임아웃 여유 확보) / **README·DEV_HISTORY 최신화** (Lighthouse 83→91, data_viz 모델, DEV_260421 누락 항목 복원 등)
+- [DEV_260427.md](DEV_260427.md) — **약품 카드 "자세히" 버튼 복구** (pharm_url 항상 null → nedrug 식약처 상세 직링크로 교체, `ITEM_SEQ` 기반 `mfds_url` 신규 필드) / **모바일 응답 실패 완화** (LangChain path maxOutputTokens 32768 → 8192, 약품 카드 생성 타임아웃 여유 확보) / **약품 카드 이미지 Lightbox** (이미지 클릭 → 전체 화면 팝업, Portal + framer-motion spring 애니메이션, 다크 오버레이 + X버튼 닫기) / **약품 카드 다크모드 시각 개선** (글래스모피즘 베이스, 푸터 투명화, MED INDEX 인디고-퍼플 그라디언트) / **README·DEV_HISTORY 최신화** (Lighthouse 83→91, data_viz 모델, DEV_260421 누락 항목 복원 등)
 - [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** / **날씨 이모지 테이블 누락 수정** / **MFDS 미등재 약품 검색 폴백 개선** / **MFDS 폴백 출처 칩 미표시 수정 3단계** / **소스 칩 스트리밍 완료 후 표시** / **첨부파일 UX 전면 개선** (자세한 내용은 DEV_260426.md 켜럼 수정 1~4 참조) / **이미지 썸네일 aspect-ratio 16/9 컨테이너** (`max-w-[220px]`, 폴백 컨테이너 크기 고정, 아이콘 축소) / **이미지 항상 Supabase 업로드** (크기 무관 `chat-imgs` 버킷 업로드 후 URL DB 저장 → 히스토리 미리보기 복원, `useChatStream.ts`)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
-### v4.56 (Drug Card "자세히" Button Restore + Mobile Stability — 2026-04-27)
+### v4.56 (Drug Card "자세히" Button Restore + Mobile Stability + Lightbox + Dark Mode Polish — 2026-04-27)
 - **약품 카드 "자세히" 버튼 복구**: v4.52(J5)에서 pharm.or.kr dead code 제거 후 `pharm_url`이 항상 null → 버튼 미렌더 상태였음. nedrug 식약처 공식 상세 페이지 직링크(`ITEM_SEQ` 기반)로 교체. `drug-info-tool.ts`에 `ITEM_SEQ` 및 `MFDS_DETAIL_URL` 출력 추가 → `mfds_url` 필드 신규 생성. `DrugData` 인터페이스에 `mfds_url?: string` / `connectdi_url?: string` 추가. 버튼 조건 `data.pharm_url` → `data.mfds_url || data.pharm_url` 변경. ConnectDI URL은 기존 하단 소스 칩 역할 유지.
 - **모바일 응답 실패 완화**: LangChain 경로(drug_id·drug_info) `maxOutputTokens: 32768 → 8192`. 약품 카드 JSON + 한 줄 요약은 1,500토큰 이내 — 32768 토큰 대기는 불필요했고 Router + MFDS API + Vision + 생성 시간이 Vercel 60s에 근접하던 문제 완화. SDK 경로(일반 쿼리) 32768 유지.
 - **prompt.ts json:drug 스키마 정비**: `mfds_url` 필드 추가, PHARM_URL·MFDS_URL·CONNECTDI_URL 규칙 분리 명확화.
+- **약품 카드 이미지 Lightbox**: `DrugRenderer.tsx`에 `createPortal` 기반 전체 화면 이미지 뷰어 추가. 이미지 클릭 → `backdrop-blur-xl` 다크 오버레이 + spring easing scale 애니메이션(`[0.34, 1.56, 0.64, 1]`). 배경 탭 또는 X 버튼으로 닫기. 기존 hover expand 아이콘 실제 동작 연결. 이미지 없을 때 자동 비활성화. 신규 의존성 없음(기존 framer-motion 재활용).
+- **약품 카드 다크모드 시각 개선**: 카드 베이스 `dark:bg-[#1e1e1f]` → 글래스모피즘(`dark:bg-white/[0.06] dark:backdrop-blur-xl`), 테두리 `dark:border-white/10`. 푸터 `dark:bg-black/20` → `dark:bg-transparent`(검은 띠 제거). MED INDEX 텍스트 `text-slate-400` → 인디고-퍼플 그라디언트(`bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent`).
 
 ### v4.55 (Streaming Bold Marker Fix + Weather Emoji Fix + MFDS Fallback + Attachment Icons + Citation Buffer + Attachment UX — 2026-04-26)
 - **`**` 볼드 마커 dangling 수정**: `ChatMessage.tsx` `renderContent()` 내 2곳(incomplete viz 분기·normal 분기)에 홀수 `**` 감지 시 닫기 추가. `(processedRemaining.match(/\*\*/g) || []).length % 2 !== 0` 조건 시 `processedRemaining += '**'`. 스트리밍 도중 닫히는 `**`가 아직 미도착한 경우 ReactMarkdown이 `**` 기호를 리터럴로 렌더링하던 문제 해소. 기존 backtick dangling closure(` ``` ` 홀수 시 `\n` ``` 추가) 패턴과 동일 구조. 다음 청크 도착 시 실제 닫히는 `**`로 자연스럽게 중화.
