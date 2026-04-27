@@ -354,7 +354,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     temperature: 0.2,
                     topP: 0.8,
                     topK: 40,
-                    maxOutputTokens: 32768,
+                    // Drug card JSON is compact — 8192 is sufficient and reduces Vercel 60s timeout risk
+                    maxOutputTokens: 8192,
                 });
 
                 let allTools: any[] = [];

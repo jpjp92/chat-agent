@@ -6,9 +6,15 @@
 
 ## 최근 작업 로그
 
+- [DEV_260427.md](DEV_260427.md) — **약품 카드 "자세히" 버튼 복구** (pharm_url 항상 null → nedrug 식약처 상세 직링크로 교체, `ITEM_SEQ` 기반 `mfds_url` 신규 필드) / **모바일 응답 실패 완화** (LangChain path maxOutputTokens 32768 → 8192, 약품 카드 생성 타임아웃 여유 확보) / **README·DEV_HISTORY 최신화** (Lighthouse 83→91, data_viz 모델, DEV_260421 누락 항목 복원 등)
 - [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** / **날씨 이모지 테이블 누락 수정** / **MFDS 미등재 약품 검색 폴백 개선** / **MFDS 폴백 출처 칩 미표시 수정 3단계** / **소스 칩 스트리밍 완료 후 표시** / **첨부파일 UX 전면 개선** (자세한 내용은 DEV_260426.md 켜럼 수정 1~4 참조) / **이미지 썸네일 aspect-ratio 16/9 컨테이너** (`max-w-[220px]`, 폴백 컨테이너 크기 고정, 아이콘 축소) / **이미지 항상 Supabase 업로드** (크기 무관 `chat-imgs` 버킷 업로드 후 URL DB 저장 → 히스토리 미리보기 복원, `useChatStream.ts`)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
+
+### v4.56 (Drug Card "자세히" Button Restore + Mobile Stability — 2026-04-27)
+- **약품 카드 "자세히" 버튼 복구**: v4.52(J5)에서 pharm.or.kr dead code 제거 후 `pharm_url`이 항상 null → 버튼 미렌더 상태였음. nedrug 식약처 공식 상세 페이지 직링크(`ITEM_SEQ` 기반)로 교체. `drug-info-tool.ts`에 `ITEM_SEQ` 및 `MFDS_DETAIL_URL` 출력 추가 → `mfds_url` 필드 신규 생성. `DrugData` 인터페이스에 `mfds_url?: string` / `connectdi_url?: string` 추가. 버튼 조건 `data.pharm_url` → `data.mfds_url || data.pharm_url` 변경. ConnectDI URL은 기존 하단 소스 칩 역할 유지.
+- **모바일 응답 실패 완화**: LangChain 경로(drug_id·drug_info) `maxOutputTokens: 32768 → 8192`. 약품 카드 JSON + 한 줄 요약은 1,500토큰 이내 — 32768 토큰 대기는 불필요했고 Router + MFDS API + Vision + 생성 시간이 Vercel 60s에 근접하던 문제 완화. SDK 경로(일반 쿼리) 32768 유지.
+- **prompt.ts json:drug 스키마 정비**: `mfds_url` 필드 추가, PHARM_URL·MFDS_URL·CONNECTDI_URL 규칙 분리 명확화.
 
 ### v4.55 (Streaming Bold Marker Fix + Weather Emoji Fix + MFDS Fallback + Attachment Icons + Citation Buffer + Attachment UX — 2026-04-26)
 - **`**` 볼드 마커 dangling 수정**: `ChatMessage.tsx` `renderContent()` 내 2곳(incomplete viz 분기·normal 분기)에 홀수 `**` 감지 시 닫기 추가. `(processedRemaining.match(/\*\*/g) || []).length % 2 !== 0` 조건 시 `processedRemaining += '**'`. 스트리밍 도중 닫히는 `**`가 아직 미도착한 경우 ReactMarkdown이 `**` 기호를 리터럴로 렌더링하던 문제 해소. 기존 backtick dangling closure(` ``` ` 홀수 시 `\n` ``` 추가) 패턴과 동일 구조. 다음 청크 도착 시 실제 닫히는 `**`로 자연스럽게 중화.
@@ -37,6 +43,7 @@
 - **새 세션 첫 질의 스피너 미표시 수정**: `useChatStream.ts`에 `prevSessionIdRef` 도입. `null → sessionId` 전환(새 세션 생성)은 useEffect 리셋 skip, `sessionId → anything` 전환(사용자 전환)만 `isTyping=false` / `loadingStatus=null` 리셋. B1 수정(v4.51) 부작용으로 새 세션 생성 시 useEffect가 발화해 스피너를 즉시 꺼버리던 문제 해소.
 - **TS 타입 에러 수정**: `streamChatResponse` 호출 시 `activeSessionId ?? undefined`, `updateSessionTitle` 호출 시 `activeSessionId!` non-null assertion 추가.
 - [DEV_260423.md](DEV_260423.md) — **에러 처리 전체 감사** (CRITICAL/HIGH/MEDIUM/LOW 분류) / **약품 이미지 시스템 전면 수정** (J1~J5: nedrug 차단 시 ConnectDI 폴백, content-type 검증, 밀리그람 전략, pharm.or.kr dead code 23개 약품 0% 확인 후 제거) / **이미지 분석 bodyParser 10MB** / **멀티턴 이미지 분석 품질 저하 수정** (historyHasImage Google Search 오염 방지) / **세션 전환 시 입력창 비활성화 수정** (isTyping/loadingStatus 리셋 useEffect) / **스트림 에러 키 재시도 확장** (K1: INTERNAL/503/parse 에러 포함) / **DuckDuckGo 파싱 개선** (K2: Strategy 1 정규식 완화, Strategy 2 추가) / **chat.ts 다중 개선** (K3: unhandledRejection 가드, K4: Gemini 인라인 인용 `[1]` 스트리핑, K5: MFDS_NOT_FOUND 시스템 지시 누출 필터, K6: on_tool_end 출력 타입 핸들링)
+- [DEV_260421.md](DEV_260421.md) — **prompt.ts 성능 회귀 롤백** (날씨·URL/PDF 포맷 회귀 수정, cc04895 기준 복원) / **모델 gemini-2.5-flash 전면 통일** (`data_viz` flash-lite 오버라이드 제거, `vision.ts` flash-lite → flash) / **URL 요약 헤딩 다국어 재적용** (KO/EN/ES/FR `URL_SUMMARY_LABELS` 맵, `getSystemInstruction` 블록 함수 전환)
 - [DEV_260420.md](DEV_260420.md) — **URL 요약 `[1]` 인용 마커 제거** / **소스 텍스트 크기 18000→15000자 조정** / **다크모드 미드나잇 인디고 B+1 적용** / **한 줄 요약 blockquote 스타일 복원** / **모바일 사이드바 새 채팅 폰트 불일치 수정** / **PDF URL 요약 포맷 통일** / **날씨 이모지 누락 수정** / **URL 요약 헤딩 다국어 대응** (언어별 주입)
 - [DEV_260419.md](DEV_260419.md) — **모바일 YouTube 요약 연결 끊김 수정** (`fetch-transcript` Edge 런타임 제거 → Node.js 전환 + 타임아웃 10s/8s → 25s/15s) / SSE Heartbeat 15s→8s + `X-Accel-Buffering: no` 헤더 추가 / `fetchYoutubeTranscript` 프론트 45s 타임아웃 명시
 - [DEV_260418.md](DEV_260418.md) — **URL 요약 첫 시도 빈 응답 버그 수정** (`[FETCH_ERROR]` 감지 → `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체) / **Lighthouse 70점 성능 분석** (TBT forced reflow, ChatMessage 워터폴, 미사용 JS 281KB — 향후 수정 예정)
@@ -81,6 +88,11 @@
 - **SSE 연결 안정성 강화**: `api/chat.ts`에 `X-Accel-Buffering: no` 헤더 추가(모바일 nginx 프록시 버퍼링 방지). Heartbeat 간격 15s→8s(모바일 idle 연결 드롭 방지).
 - **프론트 타임아웃 명시**: `fetchYoutubeTranscript`에 AbortController 45s 타임아웃 추가.
 - **자동 재시도**: `useChatStream`에 cold start 빈 응답 자동 1회 재시도 추가 — `재시도 중...` 상태 표시 후 1.5s 대기, 재시도 불가 에러(429/503/인증)는 즉시 에러 표시.
+
+### v4.49.1 (Prompt Rollback + Model Unification + i18n URL Headings — 2026-04-21)
+- **prompt.ts 성능 회귀 롤백**: `cc04895` 이후 누적된 변경으로 날씨 응답 포맷 이상·URL/PDF 요약 잘림·PDF 분석 세션 타임아웃 회귀 발생. cc04895 기준으로 `prompt.ts` 전체 롤백. 비-prompt 개선사항(geminiService.ts 504 크래시 방지, useChatStream.ts 재시도 딜레이, generator.ts maxOutputTokens 8192 복원·[N] 마커 제거·hasUrlContent 300자 threshold)은 유지.
+- **모델 gemini-2.5-flash 전면 통일**: `generator.ts` `data_viz` intent flash-lite 오버라이드 제거 → 모든 intent flash 사용. `vision.ts` `gemini-2.5-flash-lite` → `gemini-2.5-flash` 교체. flash-lite는 긴 문서·PDF 분석 품질 저하 및 세션 불안정 확인에 따른 결정.
+- **URL 요약 헤딩 다국어 재적용**: `getSystemInstruction` arrow → block 함수 전환. `URL_SUMMARY_LABELS` 맵 추가(KO/EN/ES/FR). URL_CONTENT 포맷 블록 헤딩을 언어별 `${lbl.summary}` / `${lbl.content}` / `${lbl.points}` 변수로 주입 — `ENTIRE RESPONSE IN ENGLISH` 지시 시에도 한국어 헤딩 고정 출력되던 문제 해소.
 
 ### v4.48 (URL Summary Empty Response Fix — 2026-04-18)
 - **URL 요약 첫 시도 빈 응답 버그 수정**: `fetch-url` 타임아웃 또는 네트워크 에러 시 `[FETCH_ERROR]` 또는 빈 문자열이 반환되어도 `[URL_CONTENT]` 태그가 webContext에 붙으면서 `hasUrlContent=true` → Google Search 비활성화 → LLM이 빈 내용으로 호출 → 빈 응답. `fetchUrlContent`에서 `[FETCH_ERROR]` 감지 시 빈 문자열 반환. `useChatStream`에서 pageContent가 비어있으면 `[URL_CONTENT]` 태그 미부착 → Google Search 자동 대체. `generator.ts`에서 `hasUrlContent` 체크를 정규식으로 개선(태그+실제 내용 모두 있어야 true).
@@ -347,7 +359,7 @@
 
 | 항목 | Before | After | 방법 |
 |------|--------|-------|------|
-| Lighthouse | 44/100 | 83/100 | 전반적 최적화 |
+| Lighthouse | 44/100 | 91/100 | 전반적 최적화 |
 | CSS Bundle | 124 KiB | ~15 KiB | CDN → Build-time Tailwind |
 | JS Bundle (gzip) | 1.0 MB | 365 KB | Code Splitting + Lazy Loading |
 | Build Time | 17s | 13s | esbuild minification |
@@ -375,3 +387,6 @@
 | v3.7 | SDK path(`@google/genai`) / LangChain path 이중 분기. Google Search grounding 분리 |
 | v4.0 | Supabase 직접 업로드. Presigned URL 보안 아키텍처 |
 | 2026-04-04 | MFDS Strategy 3 제거. DDG 폴백 소스칩. 9-intent 오케스트레이션 계획 수립 |
+| v4.24 | App.tsx 오케스트레이션 훅 분리 — `useAuthSession` / `useChatSessions` / `useChatStream` |
+| v4.49.1 | 전 intent `gemini-2.5-flash` 통일 (Router 제외). flash-lite는 Router 전용으로 축소 |
+| v4.55 | 이미지 항상 Supabase `chat-imgs` 버킷 업로드 → URL DB 저장으로 히스토리 미리보기 복원 |

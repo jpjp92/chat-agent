@@ -21,6 +21,8 @@ interface DrugData {
     dosage?: string;
     image_url?: string;
     pharm_url?: string;
+    mfds_url?: string;
+    connectdi_url?: string;
     pill_visual?: PillVisual;
     efficacy?: Efficacy[];
 }
@@ -464,14 +466,14 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         <span className="text-[9px] font-black text-slate-400 tracking-[0.2em] uppercase whitespace-nowrap">MED INDEX</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        {data.pharm_url && (
+                        {(data.mfds_url || data.pharm_url) && (
                             <a
-                                href={data.pharm_url}
+                                href={(data.mfds_url || data.pharm_url)!}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-500/10 text-[11px] font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all border border-emerald-100 dark:border-emerald-500/20 whitespace-nowrap"
                             >
-                                자세히 <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                                {t.details} <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
                             </a>
                         )}
                     </div>

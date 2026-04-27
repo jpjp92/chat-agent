@@ -9,11 +9,11 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 ### 1-1. Conversation & Auth
 - **Login-less**: Start instantly with an auto-assigned random nickname and avatar
 - **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
-- **Auto-title**: Session titles generated automatically from conversation content (Gemma 3)
+- **Auto-title**: Session titles generated automatically from conversation content (Gemini 2.5 Flash)
 - **Localization**: Full support for KO / EN / ES / FR
 
 ### 1-2. AI Intelligence
-- **Gemini 2.5 Flash** (primary) with **Flash-Lite** for routing and lightweight tasks
+- **Gemini 2.5 Flash** (primary) with **Flash-Lite** for semantic routing
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **YouTube analysis**: Transcript-first with direct video analysis fallback; structured summary with timestamp links
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
@@ -39,7 +39,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **DDG fallback**: Drugs not in MFDS fall back to DuckDuckGo search with source chips
 
 ### 1-5. Performance
-- Lighthouse **83 / 100** (up from 44)
+- Lighthouse **91 / 100** (up from 44)
 - JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
 - CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
 - CLS **0.00** / Best Practices **100 / 100**
@@ -49,7 +49,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **Row Level Security**: Supabase RLS enforces per-user data isolation
 - **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null` to prevent circular 429 loops
 - **Error message sanitize**: Internal error details (`error.message`) never forwarded to the client; status-code-based user-friendly messages only
-- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube 10s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
+- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube HTML 25s / XML 15s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
 
 ---
 
@@ -119,7 +119,7 @@ flowchart TB
 | `chemistry` | SDK + Google Search | gemini-2.5-flash |
 | `physics` | SDK + Google Search | gemini-2.5-flash |
 | `astronomy` | SDK + Google Search | gemini-2.5-flash |
-| `data_viz` | SDK + Google Search | gemini-2.5-flash-**lite** |
+| `data_viz` | SDK + Google Search | gemini-2.5-flash |
 | `general` | SDK + Google Search | gemini-2.5-flash |
 
 ---
@@ -139,9 +139,9 @@ flowchart TB
 | Purpose | Model |
 |---------|-------|
 | Main chat | `gemini-2.5-flash` |
-| Router / lightweight | `gemini-2.5-flash-lite` |
+| Router (intent classification) | `gemini-2.5-flash-lite` |
 | TTS | `gemini-2.5-flash-preview-tts` |
-| Session title | `gemini-2.5-flash-lite` / `gemma-3-4b-it` |
+| Session title | `gemini-2.5-flash` / `gemini-2.5-flash-lite` (fallback) |
 
 ---
 
@@ -191,7 +191,7 @@ flowchart TB
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260415.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260426.md)
 │   ├── TODO.md                 # Roadmap
 │   └── REF_*.md                # Renderer test prompt guides
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)

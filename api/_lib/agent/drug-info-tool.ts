@@ -256,6 +256,12 @@ export const searchDrugInfoTool = tool(
                 result += `크기(장): ${item.LENG_LONG}mm\n`;
                 result += `크기(단): ${item.LENG_SHORT}mm\n`;
                 result += `공식 이미지URL: ${item.ITEM_IMAGE || 'null'}\n`;
+                result += `품목일련번호(ITEM_SEQ): ${item.ITEM_SEQ || 'null'}\n`;
+                // nedrug 식약처 공식 상세 페이지 직링크
+                const mfdsDetailUrl = item.ITEM_SEQ
+                    ? `https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${item.ITEM_SEQ}`
+                    : 'null';
+                result += `MFDS_DETAIL_URL: ${mfdsDetailUrl}\n`;
                 // ConnectDI reference URL (약품명만으로 검색 - 사용자가 여러 옵션 중 선택 가능)
                 const connectdiSearchName = item.ITEM_NAME.split('(')[0].replace(/\(.*?\)/g, '').trim();
                 const connectdiUrl = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(connectdiSearchName)}`;
@@ -276,8 +282,9 @@ export const searchDrugInfoTool = tool(
 10. "pill_visual.color": EXACT Korean value from "색상1" (DO NOT translate to English). Append "색상2" with '/' if not null. (e.g. "주황", "하양", "노랑" as-is)
 11. "image_url": the EXACT "공식 이미지URL" string. Do NOT modify it.
 12. "pharm_url": always set to null. Do NOT fabricate or guess a pharm.or.kr URL.
-13. "connectdi_url": use the EXACT value from "ConnectDI_URL" if provided in MFDS_DRUG_DATA. This is a reference URL for users to explore multiple options.
-14. If multiple candidates exist, choose the one whose "약품명(KO)" EXACTLY matches the user's query (including dosage numbers like 5/20 vs 5/40).`;
+13. "mfds_url": use the EXACT value from "MFDS_DETAIL_URL" if provided in MFDS_DRUG_DATA. This is the official 식약처 nedrug detail page link for the "자세히" button. Set to null if "null".
+14. "connectdi_url": use the EXACT value from "ConnectDI_URL" if provided in MFDS_DRUG_DATA. This is a source chip reference URL.
+15. If multiple candidates exist, choose the one whose "약품명(KO)" EXACTLY matches the user's query (including dosage numbers like 5/20 vs 5/40).`;
 
             return result;
 
