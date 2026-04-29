@@ -1,6 +1,6 @@
 async function fetchTranscript(videoId: string) {
   const pageController = new AbortController();
-  const pageTimeout = setTimeout(() => pageController.abort(), 25000);
+  const pageTimeout = setTimeout(() => pageController.abort(), 12000);
   let html: string;
   try {
     const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {

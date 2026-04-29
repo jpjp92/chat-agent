@@ -210,9 +210,17 @@ export const useChatStream = ({
     const urls = content.match(urlRegex);
     const manualGroundingSources = (urls || []).map(url => {
       const cleanUrl = url.replace(/[.\)\]\!,?]+$/, '');
+      const isYt = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
+      // Normalize YouTube URL to canonical form — backend sources use youtube.com/watch?v=ID,
+      // so dedup (Map keyed by uri) works correctly regardless of original URL format (youtu.be, shorts, etc.)
+      let normalizedUrl = cleanUrl;
+      if (isYt) {
+        const ytIdMatch = cleanUrl.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+        if (ytIdMatch) normalizedUrl = `https://www.youtube.com/watch?v=${ytIdMatch[1]}`;
+      }
       return {
-        title: cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be') ? 'YouTube Video' : 'Web Link',
-        uri: cleanUrl,
+        title: isYt ? 'YouTube Video' : 'Web Link',
+        uri: normalizedUrl,
       };
     });
 
@@ -271,7 +279,11 @@ export const useChatStream = ({
 
           if (transcript) {
             setLoadingStatus(statusMessages.analyzingTranscript);
-            webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${transcript}`;
+            const MAX_TRANSCRIPT_CHARS = 20000;
+            const trimmedTranscript = transcript.length > MAX_TRANSCRIPT_CHARS
+              ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) + '\n\n[자막이 너무 길어 일부만 제공됩니다]'
+              : transcript;
+            webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${trimmedTranscript}`;
           } else {
             setLoadingStatus(statusMessages.watchingVideo);
             webContext += `\n\n${metadata}`;
