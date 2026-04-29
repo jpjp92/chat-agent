@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }],
                     config: {
                         temperature: 0.3,
-                        maxOutputTokens: 512  // Generous limit to ensure complete title generation
+                        maxOutputTokens: 120  // 512는 과도, 한국어 5단어 여유분 포함
                     }
                 });
 

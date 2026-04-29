@@ -92,27 +92,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const promptYtMatch = prompt.match(ytRegex);
 
       let isYoutubeRequest = false;
+      let isYoutubeFromPrompt = false; // true = 현재 프롬프트에 YouTube URL 포함 (신규 분석 요청)
       let ytMatch = null;
 
       if (promptUrls.length > 0) {
-        // If there are URLs in the current prompt, only consider it a YouTube request if it's a YouTube URL.
         ytMatch = promptYtMatch;
         isYoutubeRequest = !!ytMatch;
+        isYoutubeFromPrompt = isYoutubeRequest;
       } else {
-        // No URL in prompt, check previous context (webContent or history)
-        ytMatch = (webContent && webContent.match(ytRegex)) || 
+        // No URL in prompt — 멀티턴 컨텍스트 유지용으로만 YouTube 감지
+        ytMatch = (webContent && webContent.match(ytRegex)) ||
                   (history.findLast((m: any) => m.role === 'user' && m.content.match(ytRegex))?.content?.match(ytRegex));
         isYoutubeRequest = !!ytMatch;
+        isYoutubeFromPrompt = false; // 히스토리/컨텍스트에서 감지 → 영상 재전송 금지
       }
 
       // 3. Current Request Multimodal Payload
       let humanMessageParts: any[] = [{ type: "text", text: prompt }];
 
       const hasTranscript = webContent && webContent.includes('[TRANSCRIPT]');
-      // VIDEO_ANALYSIS_SUMMARY = already analyzed in a previous turn. Don't re-fetch the video.
+      // VIDEO_ANALYSIS_SUMMARY = 이전 턴에서 이미 분석됨. 영상 재전송 금지.
       const hasVideoSummary = webContent && webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
-      if (isYoutubeRequest && !hasTranscript && !hasVideoSummary) {
-        const videoUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+      // 현재 프롬프트에 YouTube URL이 있을 때만 native video 분석 — 멀티턴 follow-up은 제외
+      if (isYoutubeFromPrompt && !hasTranscript && !hasVideoSummary) {
+        const videoUrl = `https://www.youtube.com/watch?v=${ytMatch![1]}`;
         humanMessageParts.push({ fileData: { fileUri: videoUrl, mimeType: 'video/mp4' } });
         console.log('[Chat API] No transcript found. Falling back to Native Video Analysis (fileData).');
       }
@@ -201,8 +204,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const streamEvents = await graph.streamEvents(initialState, { version: "v2" });
 
         const allSources: any[] = [];
-        if (isYoutubeRequest) {
-          const normalizedYtUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+        // 현재 프롬프트에 YouTube URL이 있는 경우(신규 분석)만 소스 칩 + 임베드 전송
+        // 멀티턴 follow-up에서는 이전 AI 응답에 이미 임베드가 표시되어 있으므로 재전송 금지
+        if (isYoutubeFromPrompt) {
+          const normalizedYtUrl = `https://www.youtube.com/watch?v=${ytMatch![1]}`;
           allSources.push({ title: 'YouTube Video', uri: normalizedYtUrl });
           sendEvent({ sources: allSources });
         }

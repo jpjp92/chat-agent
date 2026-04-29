@@ -229,12 +229,26 @@ export const streamChatResponse = async (
   model: string = 'gemini-2.5-flash',
   onCutOff?: () => void,
 ) => {
+  const controller = new AbortController();
+  let lastActivity = Date.now();
+  // 25s = heartbeat 8s × 3회 미수신 시 연결 드롭으로 간주
+  const ACTIVITY_TIMEOUT = 25000;
+
+  const activityMonitor = setInterval(() => {
+    if (Date.now() - lastActivity > ACTIVITY_TIMEOUT) {
+      clearInterval(activityMonitor);
+      console.warn('[SSE] No activity for 25s — aborting stale connection');
+      controller.abort();
+    }
+  }, 5000);
+
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone })
+      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -255,11 +269,13 @@ export const streamChatResponse = async (
     const decoder = new TextDecoder();
     let buffer = "";
     let receivedAnyText = false;
+    let receivedDone = false;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
+      lastActivity = Date.now();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || "";
@@ -275,7 +291,7 @@ export const streamChatResponse = async (
             continue;
           }
           if (data.heartbeat) continue;
-          if (data.done) continue;
+          if (data.done) { receivedDone = true; continue; }
           if (data.cutOff && onCutOff) { onCutOff(); continue; }
           if (data.error) throw new Error(data.error);
           if (data.text) { onChunk(data.text, false); receivedAnyText = true; }
@@ -284,13 +300,25 @@ export const streamChatResponse = async (
       }
     }
 
-    // 스트림이 데이터 없이 종료된 경우 (Vercel 타임아웃, Gemini 무음 실패 등)
     if (!receivedAnyText) {
+      // cold start / Vercel 타임아웃 → 재시도 가능
       throw new Error('응답을 받지 못했습니다. 다시 시도해주세요.');
     }
+
+    // 부분 응답 수신 후 done 없이 종료 → 연결 드롭 → amber 배너
+    if (!receivedDone && onCutOff) {
+      console.warn('[SSE] Stream ended without done event — partial response (connection drop)');
+      onCutOff();
+    }
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      // activityMonitor가 25s 무활동으로 중단 → 재시도 가능 에러로 변환
+      throw new Error('응답을 받지 못했습니다. 다시 시도해주세요.');
+    }
     console.error("Chat streaming failed", error);
     throw error;
+  } finally {
+    clearInterval(activityMonitor);
   }
 };
 

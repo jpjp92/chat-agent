@@ -446,9 +446,11 @@ export const useChatStream = ({
       try {
         await attemptStream(0);
       } catch (firstError: any) {
-        // cold start 또는 일시적 무응답 시 1회 자동 재시도
+        // cold start / 일시 무응답 / 모바일 네트워크 에러 시 1회 자동 재시도
         const isRetryable = firstError.message?.includes('응답을 받지 못했습니다') ||
-                            firstError.message?.includes('LLM returned empty response');
+                            firstError.message?.includes('LLM returned empty response') ||
+                            firstError.message?.includes('Failed to fetch') ||
+                            firstError.name === 'TypeError';  // 네트워크 오류
         if (isRetryable) {
           console.warn('[useChatStream] Retrying after empty response...');
           await attemptStream(1);

@@ -204,6 +204,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     });
 
                     let chunkCount = 0;
+                    let hitMaxTokens = false;
                     // Buffer chars that could be the start of a split [N] citation (e.g. "[" arriving alone)
                     let citationBuffer = '';
                     // Regex to detect an incomplete [N] pattern at the end of a string
@@ -214,6 +215,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         const candidate = chunk.candidates?.[0];
                         const finishReason = candidate?.finishReason;
                         if (finishReason === 'MAX_TOKENS') {
+                            hitMaxTokens = true;
                             console.warn('[LangGraph] Response truncated — MAX_TOKENS reached (responseLen so far:', responseText.length, ')');
                         }
                         if (finishReason && finishReason !== 'STOP') {
@@ -261,6 +263,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         if (sendEvent) sendEvent({ text: citationBuffer });
                         citationBuffer = '';
                     }
+
+                    if (hitMaxTokens && sendEvent) sendEvent({ cutOff: true });
 
                     console.log('[LangGraph] SDK stream done | chunkCount:', chunkCount, '| responseLen:', responseText.length, '| sources:', groundingSources.length);
 
