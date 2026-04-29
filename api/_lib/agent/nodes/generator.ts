@@ -79,6 +79,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
                     const sdkContents: any[] = [];
                     let hasMultimodalContent = false; // track if any non-text parts exist
+                    let hasDocumentContent = false;  // track if PDF/doc (not pure image)
 
                     for (const msg of state.messages) {
                         if (msg._getType() === 'human') {
@@ -103,6 +104,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                             parts.push({ inlineData: { mimeType, data: b64data } });
                                             hasMultimodalContent = true;
                                             hadMultimodalContent = true;
+                                            if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) hasDocumentContent = true;
                                         } else if (url.startsWith('http')) {
                                             // Public URL: pass directly as fileData (Gemini SDK supports public URLs natively)
                                             // Fetching and re-encoding to base64 is unnecessary and adds 2~5s latency
@@ -110,18 +112,20 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                             const mimeTypeHint = urlLower.includes('.png') ? 'image/png'
                                                 : urlLower.includes('.webp') ? 'image/webp'
                                                 : urlLower.includes('.gif') ? 'image/gif'
-                                                : urlLower.includes('.pdf') || urlLower.includes('/pdf/') ? 'application/pdf'
+                                                : urlLower.includes('.pdf') || urlLower.includes('/pdf/') || urlLower.includes('chat-docs') ? 'application/pdf'
                                                 : 'image/jpeg';
                                             parts.push({ fileData: { fileUri: url, mimeType: mimeTypeHint } });
                                             hasMultimodalContent = true;
                                             hadMultimodalContent = true;
+                                            if (mimeTypeHint === 'application/pdf') hasDocumentContent = true;
                                         }
                                     } else if (part.fileData?.fileUri) {
                                         if (forceTextOnly) continue; // skip media on retry
-                                        // Native fileData (YouTube video URI) - supported natively by SDK
+                                        // Native fileData (YouTube video URI or PDF) - supported natively by SDK
                                         parts.push({ fileData: { fileUri: part.fileData.fileUri, mimeType: part.fileData.mimeType } });
                                         hasMultimodalContent = true;
                                         hadMultimodalContent = true;
+                                        if (part.fileData.mimeType === 'application/pdf') hasDocumentContent = true;
                                     }
                                 }
                                 if (parts.length === 0) parts.push({ text: '' });
@@ -167,6 +171,16 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         useGoogleSearch = false;
                     }
 
+                    // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
+                    const resolvedMaxTokens = (() => {
+                        if (hasDocumentContent) return 16384;               // PDF·문서 분석
+                        if (hasMultimodalContent) return 4096;              // 이미지 분석
+                        if (hasUrlContent) return 8192;                     // URL 요약
+                        if (isYoutubeRequest) return 12288;                 // YouTube 요약
+                        if (state.intent === 'data_viz') return 8192;      // 차트 JSON
+                        return 32768;                                        // 코드·일반
+                    })();
+
                     if ((hasMultimodalContent || historyHasImage) && !isYoutubeRequest) {
                         console.log('[LangGraph] Image in conversation — Google Search disabled', { hasMultimodalContent, historyHasImage });
                     }
@@ -174,7 +188,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
                     }
 
-                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| contentsLen:', sdkContents.length);
+                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', resolvedMaxTokens, '| contentsLen:', sdkContents.length);
                     // Streaming SDK call — emits chunks to client in real-time
                     const sdkStream = await genai.models.generateContentStream({
                         model: resolvedModel,
@@ -185,7 +199,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             temperature: 0.2,
                             topP: 0.8,
                             topK: 40,
-                            maxOutputTokens: 32768,
+                            maxOutputTokens: resolvedMaxTokens,
                         }
                     });
 
@@ -265,7 +279,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     temperature: 0.2,
                                     topP: 0.8,
                                     topK: 40,
-                                    maxOutputTokens: 32768,
+                                    maxOutputTokens: resolvedMaxTokens,
                                 }
                             });
                             // Extract text from parts directly to handle thought-only or grounding responses
@@ -299,6 +313,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // If text was already streamed to the client, do NOT retry — would cause duplicate output
                     if (responseText) {
                         console.warn('[LangGraph] Error after partial stream (err:', err?.status, ') — returning partial response to avoid duplication');
+                        if (sendEvent) sendEvent({ cutOff: true });
                         sdkSuccess = true;
                         return { messages: [new AIMessage(responseText)], groundingSources };
                     }

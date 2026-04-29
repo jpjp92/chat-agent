@@ -226,7 +226,8 @@ export const streamChatResponse = async (
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
   attachments?: MessageAttachment[],
-  model: string = 'gemini-2.5-flash'
+  model: string = 'gemini-2.5-flash',
+  onCutOff?: () => void,
 ) => {
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -274,6 +275,8 @@ export const streamChatResponse = async (
             continue;
           }
           if (data.heartbeat) continue;
+          if (data.done) continue;
+          if (data.cutOff && onCutOff) { onCutOff(); continue; }
           if (data.error) throw new Error(data.error);
           if (data.text) { onChunk(data.text, false); receivedAnyText = true; }
           if (data.sources && onMetadata) onMetadata(data.sources);

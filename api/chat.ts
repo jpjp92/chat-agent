@@ -393,6 +393,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sendEvent({ error: 'LLM returned empty response.' });
         }
 
+        sendEvent({ done: true });
+
   } catch (error: any) {
     console.error("[LangGraph] Execution Error:", error?.status, error?.message ?? error);
     const status = error?.status ?? error?.code;

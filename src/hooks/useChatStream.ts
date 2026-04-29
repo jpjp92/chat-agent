@@ -367,6 +367,20 @@ export const useChatStream = ({
         activeSessionId ?? undefined,
         finalAttachments,
         selectedModel,
+        () => {
+          // cutOff: 서버가 mid-stream 에러로 부분 응답만 반환한 경우
+          setSessions(prev => prev.map(session => {
+            if (session.id === activeSessionId) {
+              return {
+                ...session,
+                messages: session.messages.map(msg =>
+                  msg.id === modelMessageId ? { ...msg, isCutOff: true } : msg
+                ),
+              };
+            }
+            return session;
+          }));
+        },
       );
 
       const videoAttachment = finalAttachments.find(attachment => attachment.mimeType?.startsWith('video/'));

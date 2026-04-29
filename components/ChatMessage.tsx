@@ -745,9 +745,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               </div>
             );
           })()}
+
+          {!isUser && message.isCutOff && (
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-400/80 animate-in fade-in duration-500">
+              <i className="fa-solid fa-triangle-exclamation text-[10px]" />
+              <span>응답이 불완전할 수 있습니다</span>
+            </div>
+          )}
         </div>
       </div>
-      
+
       {/* Premium Custom Context Menu */}
       {contextMenu.visible && (
         <div 
