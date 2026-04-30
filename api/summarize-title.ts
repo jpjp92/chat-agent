@@ -4,10 +4,10 @@ import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
 
 const SUMMARY_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const TITLE_PROMPTS: any = {
-    ko: "위 대화 내용의 핵심 주제를 담은 제목을 한국어로 10단어 이내로 지어줘. 너무 짧게 줄이지 말고 내용이 무엇인지 알 수 있게 써줘. 따옴표는 빼고 제목만 출력해줘.",
-    en: "Create a descriptive title summarizing the conversation in English within 10 words. Make it informative enough to convey the topic. Output only the title without quotes.",
-    es: "Crea un título descriptivo que resuma la conversación en español en menos de 10 palabras. Hazlo informativo. Muestra solo el título sin comillas.",
-    fr: "Créez un titre descriptif résumant la conversation en français en moins de 10 mots. Rendez-le informatif. Affichez uniquement le titre sans guillemets."
+    ko: "아래 대화의 핵심 내용을 담은 완결된 명사형 제목을 한국어로 만들어줘. '~앞두고', '~관련' 같은 미완성 구로 끝내지 말고, 무슨 내용인지 한눈에 알 수 있게 써줘. 단어 수는 5~15단어 사이. 따옴표 없이 제목만 출력.",
+    en: "Write a complete, self-contained title for the conversation below. Do not use trailing phrases like 'ahead of...' or 'regarding...'. Make it informative at a glance, 5–15 words. Output only the title without quotes.",
+    es: "Escribe un título completo y autónomo para la conversación. No uses frases incompletas. Hazlo informativo, entre 5 y 15 palabras. Solo el título, sin comillas.",
+    fr: "Écris un titre complet et autonome pour la conversation. Pas de phrases incomplètes. Informatif en un coup d'œil, 5 à 15 mots. Uniquement le titre, sans guillemets."
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -27,7 +27,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ title: "New Chat" });
     }
 
-    const chatHistoryText = history.slice(-6).map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n");
+    const stripMarkdown = (text: string) =>
+        text.replace(/```[\s\S]*?```/g, '').replace(/[*_`>#~\[\]]/g, '').replace(/\s+/g, ' ').trim();
+
+    const chatHistoryText = history.slice(-6).map((m: any) => {
+        if (m.role === 'user') return `User: ${m.content}`;
+        const plain = stripMarkdown(m.content || '');
+        return `Assistant: ${plain.slice(0, 300)}${plain.length > 300 ? '...' : ''}`;
+    }).join("\n");
 
     // Try each model with each API key
     for (const model of SUMMARY_MODELS) {
@@ -40,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     model: model,
                     contents: [{
                         parts: [{
-                            text: `${TITLE_PROMPT}\n\n[대화 내용]\n${chatHistoryText}\n\n제목:`
+                            text: `${TITLE_PROMPT}\n\n[대화 내용]\n${chatHistoryText}`
                         }]
                     }],
                     config: {
