@@ -1,126 +1,133 @@
+export const config = { preferredRegion: ['hnd1'] }; // Tokyo — iad1 (US East) IP blocked by YouTube
+
+const HANDLER_TIMEOUT_MS = 18000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+        ),
+    ]);
+}
+
 async function fetchTranscript(videoId: string) {
-  const pageController = new AbortController();
-  const pageTimeout = setTimeout(() => pageController.abort(), 6000);
-  let html: string;
-  try {
-    const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      signal: pageController.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      }
-    });
-    html = await response.text();
-  } finally {
-    clearTimeout(pageTimeout);
-  }
+    // Step 1: Get available caption tracks (lightweight XML, ~2KB vs ~500KB HTML)
+    const listController = new AbortController();
+    const listTimeout = setTimeout(() => listController.abort(), 4000);
 
-  // Regex to extract captionTracks directly without JSON.parse the whole document
-  const captionRegex = /"captionTracks":(\[.*?\])/;
-  const match = html.match(captionRegex);
-  
-  if (!match || match.length < 2) {
-      throw new Error('No transcript tracks found for this video.');
-  }
+    let trackListXml: string;
+    try {
+        const res = await fetch(
+            `https://www.youtube.com/api/timedtext?v=${videoId}&type=list`,
+            {
+                signal: listController.signal,
+                headers: { 'Accept-Language': 'en-US,en;q=0.9' },
+            }
+        );
+        trackListXml = await res.text();
+    } finally {
+        clearTimeout(listTimeout);
+    }
 
-  let captionTracks;
-  try {
-     // Match group 1 is just the list of tracks
-     captionTracks = JSON.parse(match[1]);
-  } catch(e) {
-     throw new Error('Failed to parse caption tracks array.');
-  }
+    // Parse lang_code attributes from XML track list
+    const langs = [...trackListXml.matchAll(/lang_code="([^"]+)"/g)].map(m => m[1]);
 
-  if (!captionTracks || captionTracks.length === 0) {
-    throw new Error('Caption tracks array is empty.');
-  }
+    if (langs.length === 0) {
+        throw new Error('No caption tracks available for this video.');
+    }
 
-  // Prefer Korean, then English, then fallback
-  const track = captionTracks.find((t: any) => t.languageCode === 'ko' || t.languageCode === 'en') || captionTracks[0];
+    // Prefer Korean → English → first available
+    const lang = langs.find(l => l === 'ko') ?? langs.find(l => l === 'en') ?? langs[0];
 
-  // Fetch XML (less likely to be truncated than JSON block)
-  const xmlController = new AbortController();
-  const xmlTimeout = setTimeout(() => xmlController.abort(), 8000);
-  let transcriptXml: string;
-  try {
-    const transcriptResponse = await fetch(track.baseUrl, { signal: xmlController.signal });
-    transcriptXml = await transcriptResponse.text();
-  } finally {
-    clearTimeout(xmlTimeout);
-  }
+    // Step 2: Fetch transcript JSON
+    const txController = new AbortController();
+    const txTimeout = setTimeout(() => txController.abort(), 8000);
 
-  const transcript = [];
-  const regex = /<text\s+start="([\d.]+)"\s+(?:dur="([\d.]+)"\s+)?[^>]*>(.*?)<\/text>/g;
-  let textMatch;
+    let data: any;
+    try {
+        const res = await fetch(
+            `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3`,
+            { signal: txController.signal }
+        );
+        data = await res.json();
+    } finally {
+        clearTimeout(txTimeout);
+    }
 
-  const decodeHtmlEntities = (text: string) => {
-    return text.replace(/&amp;/g, '&')
-               .replace(/&lt;/g, '<')
-               .replace(/&gt;/g, '>')
-               .replace(/&quot;/g, '"')
-               .replace(/&#39;/g, "'")
-               .replace(/&#x27;/g, "'");
-  };
+    const transcript = (data?.events ?? [])
+        .filter((e: any) => e.segs)
+        .map((e: any) => ({
+            offset: (e.tStartMs ?? 0) / 1000,
+            duration: (e.dDurationMs ?? 0) / 1000,
+            text: e.segs.map((s: any) => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim(),
+        }))
+        .filter((t: any) => t.text.length > 0);
 
-  while ((textMatch = regex.exec(transcriptXml)) !== null) {
-    transcript.push({
-      offset: parseFloat(textMatch[1]),
-      duration: textMatch[2] ? parseFloat(textMatch[2]) : 0,
-      text: decodeHtmlEntities(textMatch[3]),
-    });
-  }
+    if (transcript.length === 0) {
+        throw new Error('Transcript events are empty after parsing.');
+    }
 
-  if (transcript.length === 0) {
-    throw new Error('Failed to extract text from XML transcript.');
-  }
-
-  return transcript;
+    return transcript;
 }
 
 export default async function handler(req: Request) {
     if (req.method !== 'POST') {
-        return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
+            status: 405,
+            headers: { 'Content-Type': 'application/json' },
+        });
     }
 
-    let body;
+    let body: any;
     try {
         body = await req.json();
-    } catch (e) {
-        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    } catch {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+        });
     }
-    
+
     const { videoId } = body;
-    if (!videoId) return new Response(JSON.stringify({ error: 'Video ID is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    if (!videoId) {
+        return new Response(JSON.stringify({ error: 'Video ID is required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
 
     try {
-        const transcript = await fetchTranscript(videoId);
+        const transcript = await withTimeout(fetchTranscript(videoId), HANDLER_TIMEOUT_MS);
 
-        // Combine into a single text block
+        // Build minute-chunked text block
         let fullText = '';
         let currentChunkIndex = -1;
-        const chunkSizeInSeconds = 60; // 1-minute chunks
-
-        const minOffset = transcript[0]?.offset || 0;
+        const CHUNK_SEC = 60;
+        const minOffset = transcript[0]?.offset ?? 0;
 
         for (const t of transcript) {
-            const rawOffsetInSeconds = Math.max(0, t.offset - minOffset);
-            const chunkIndex = Math.floor(rawOffsetInSeconds / chunkSizeInSeconds);
-            
+            const sec = Math.max(0, t.offset - minOffset);
+            const chunkIndex = Math.floor(sec / CHUNK_SEC);
+
             if (chunkIndex > currentChunkIndex) {
                 currentChunkIndex = chunkIndex;
-                const minutes = Math.floor(rawOffsetInSeconds / 60);
-                const seconds = Math.floor(rawOffsetInSeconds % 60);
-                const timeString = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
-                fullText += `\n\n${timeString}\n`;
+                const m = Math.floor(sec / 60).toString().padStart(2, '0');
+                const s = Math.floor(sec % 60).toString().padStart(2, '0');
+                fullText += `\n\n[${m}:${s}]\n`;
             }
             fullText += t.text + ' ';
         }
 
-        fullText = fullText.trim();
-
-        return new Response(JSON.stringify({ transcript: fullText }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ transcript: fullText.trim() }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+        });
     } catch (error: any) {
-        console.error('Transcript fetch failed:', error.message);
-        return new Response(JSON.stringify({ error: 'Transcript unavailable', details: error.message }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        console.error('[fetch-transcript] failed:', error.message);
+        return new Response(
+            JSON.stringify({ error: 'Transcript unavailable', details: error.message }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
     }
 }
