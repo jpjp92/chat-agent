@@ -13,6 +13,9 @@
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
+### v4.64 (YouTube thinkingBudget 1024→0 — 2026-04-30)
+- **`thinkingBudget: 0`으로 하향**: 긴 영상(15분+)에서 영상 처리 30~50s + thinking 1024(~10s) + 응답 생성이 60s를 초과해 타임아웃 재발. YouTube 요약은 deep reasoning 불필요 → 완전 비활성화. 429로 첫 번째 키 실패 시 0.3s 낭비도 마진 부족의 원인.
+
 ### v4.63 (YouTube Native Video Timeout Fix — 2026-04-30)
 - **`thinkingBudget: 1024` for YouTube native video**: `gemini-2.5-flash` 무제한 thinking이 20~30s 소비해 Vercel 60s 초과. `isYoutubeRequest && hasVideoData` 조건 시 1024 토큰으로 제한 → Gemini API 55.5s → ~35-40s. 스트리밍·fallback 경로 모두 적용.
 - **transcript 추출 전면 제거**: HTML 스크래핑, timedtext API, youtubei.js InnerTube 등 모든 방법이 YouTube IP 차단(iad1, hnd1)으로 실패 확인. `fetchYoutubeTranscript()` 제거, `youtubei.js` 언인스톨, `fetch-transcript.ts` 즉시 에러 반환으로 전환. YouTube 요약은 native Gemini video 단일 경로로 통합.
