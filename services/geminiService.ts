@@ -315,6 +315,13 @@ export const streamChatResponse = async (
       // activityMonitor가 25s 무활동으로 중단 → 재시도 가능 에러로 변환
       throw new Error('응답을 받지 못했습니다. 다시 시도해주세요.');
     }
+    // 모바일 네트워크 드롭: 부분 텍스트를 이미 받은 경우 amber 배너 표시 후 조용히 종료
+    // reader.read() 예외 시 try 블록의 !receivedDone 체크가 건너뛰어지는 문제 보완
+    if (receivedAnyText && onCutOff) {
+      console.warn('[SSE] Network error after partial response — showing cutOff banner', error.message);
+      onCutOff();
+      return;
+    }
     console.error("Chat streaming failed", error);
     throw error;
   } finally {
