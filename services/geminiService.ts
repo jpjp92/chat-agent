@@ -145,27 +145,6 @@ export const fetchUrlContent = async (url: string): Promise<string> => {
    return data.content;
 };
 
-/**
- * YouTube 자막 가져오기 (백엔드 프록시)
- */
-export const fetchYoutubeTranscript = async (videoId: string): Promise<string | null> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000); // fail fast — server aborts at 12s, client gives up at 5s
-  try {
-    const response = await fetch('/api/fetch-transcript', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoId }),
-      signal: controller.signal,
-    });
-    const data = await response.json();
-    return data.transcript || null;
-  } catch (error) {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-};
 
 function decodeBase64(base64: string): Uint8Array {
   try {

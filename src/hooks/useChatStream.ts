@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { createSession, fetchUrlContent, fetchYoutubeTranscript, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
+import { createSession, fetchUrlContent, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { SupabaseUser } from './useAuthSession';
 
@@ -271,22 +271,9 @@ export const useChatStream = ({
           const match = regExp.exec(url);
           const videoId = match && match[8].length === 11 ? match[8] : null;
 
-          const [metadata, transcript] = await Promise.all([
-            fetchUrlContent(url),
-            videoId ? fetchYoutubeTranscript(videoId) : Promise.resolve(null),
-          ]);
-
-          if (transcript) {
-            setLoadingStatus(statusMessages.analyzingTranscript);
-            const MAX_TRANSCRIPT_CHARS = 20000;
-            const trimmedTranscript = transcript.length > MAX_TRANSCRIPT_CHARS
-              ? transcript.slice(0, MAX_TRANSCRIPT_CHARS) + '\n\n[자막이 너무 길어 일부만 제공됩니다]'
-              : transcript;
-            webContext += `\n\n${metadata}\n\n[TRANSCRIPT]\n${trimmedTranscript}`;
-          } else {
-            setLoadingStatus(statusMessages.watchingVideo);
-            webContext += `\n\n${metadata}`;
-          }
+          const metadata = await fetchUrlContent(url);
+          setLoadingStatus(statusMessages.watchingVideo);
+          webContext += `\n\n${metadata}`;
 
           youtubeContextUrl = url;
           setTimeout(() => setLoadingStatus(null), 3000);
