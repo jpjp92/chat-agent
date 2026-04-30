@@ -1,59 +1,29 @@
 export const config = { preferredRegion: ['hnd1'] }; // Tokyo — iad1 (US East) IP blocked by YouTube
 
-const HANDLER_TIMEOUT_MS = 18000;
+const ABORT_TIMEOUT_MS = 12000;
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-        ),
-    ]);
-}
+async function fetchTranscript(videoId: string, signal: AbortSignal) {
+    // Step 1: Get available caption tracks
+    const listRes = await fetch(
+        `https://www.youtube.com/api/timedtext?v=${videoId}&type=list`,
+        {
+            signal,
+            headers: { 'Accept-Language': 'en-US,en;q=0.9' },
+        }
+    );
+    const trackListXml = await listRes.text();
 
-async function fetchTranscript(videoId: string) {
-    // Step 1: Get available caption tracks (lightweight XML, ~2KB vs ~500KB HTML)
-    const listController = new AbortController();
-    const listTimeout = setTimeout(() => listController.abort(), 4000);
-
-    let trackListXml: string;
-    try {
-        const res = await fetch(
-            `https://www.youtube.com/api/timedtext?v=${videoId}&type=list`,
-            {
-                signal: listController.signal,
-                headers: { 'Accept-Language': 'en-US,en;q=0.9' },
-            }
-        );
-        trackListXml = await res.text();
-    } finally {
-        clearTimeout(listTimeout);
-    }
-
-    // Parse lang_code attributes from XML track list
     const langs = [...trackListXml.matchAll(/lang_code="([^"]+)"/g)].map(m => m[1]);
+    if (langs.length === 0) throw new Error('No caption tracks available for this video.');
 
-    if (langs.length === 0) {
-        throw new Error('No caption tracks available for this video.');
-    }
-
-    // Prefer Korean → English → first available
     const lang = langs.find(l => l === 'ko') ?? langs.find(l => l === 'en') ?? langs[0];
 
     // Step 2: Fetch transcript JSON
-    const txController = new AbortController();
-    const txTimeout = setTimeout(() => txController.abort(), 8000);
-
-    let data: any;
-    try {
-        const res = await fetch(
-            `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3`,
-            { signal: txController.signal }
-        );
-        data = await res.json();
-    } finally {
-        clearTimeout(txTimeout);
-    }
+    const txRes = await fetch(
+        `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3`,
+        { signal }
+    );
+    const data = await txRes.json();
 
     const transcript = (data?.events ?? [])
         .filter((e: any) => e.segs)
@@ -64,9 +34,7 @@ async function fetchTranscript(videoId: string) {
         }))
         .filter((t: any) => t.text.length > 0);
 
-    if (transcript.length === 0) {
-        throw new Error('Transcript events are empty after parsing.');
-    }
+    if (transcript.length === 0) throw new Error('Transcript events are empty after parsing.');
 
     return transcript;
 }
@@ -97,10 +65,13 @@ export default async function handler(req: Request) {
         });
     }
 
-    try {
-        const transcript = await withTimeout(fetchTranscript(videoId), HANDLER_TIMEOUT_MS);
+    // Top-level AbortController — actually cancels underlying fetch connections
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ABORT_TIMEOUT_MS);
 
-        // Build minute-chunked text block
+    try {
+        const transcript = await fetchTranscript(videoId, controller.signal);
+
         let fullText = '';
         let currentChunkIndex = -1;
         const CHUNK_SEC = 60;
@@ -109,7 +80,6 @@ export default async function handler(req: Request) {
         for (const t of transcript) {
             const sec = Math.max(0, t.offset - minOffset);
             const chunkIndex = Math.floor(sec / CHUNK_SEC);
-
             if (chunkIndex > currentChunkIndex) {
                 currentChunkIndex = chunkIndex;
                 const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -129,5 +99,8 @@ export default async function handler(req: Request) {
             JSON.stringify({ error: 'Transcript unavailable', details: error.message }),
             { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
+    } finally {
+        clearTimeout(timeout);
+        controller.abort(); // Ensure all pending fetch connections are closed
     }
 }
