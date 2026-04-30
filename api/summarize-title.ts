@@ -30,10 +30,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const stripMarkdown = (text: string) =>
         text.replace(/```[\s\S]*?```/g, '').replace(/[*_`>#~\[\]]/g, '').replace(/\s+/g, ' ').trim();
 
+    const stripUrls = (text: string) =>
+        text.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim();
+
     const chatHistoryText = history.slice(-6).map((m: any) => {
-        if (m.role === 'user') return `User: ${m.content}`;
+        if (m.role === 'user') return `User: ${stripUrls(m.content)}`;
         const plain = stripMarkdown(m.content || '');
-        return `Assistant: ${plain.slice(0, 300)}${plain.length > 300 ? '...' : ''}`;
+        return `Assistant: ${plain.slice(0, 500)}${plain.length > 500 ? '...' : ''}`;
     }).join("\n");
 
     // Try each model with each API key
@@ -52,13 +55,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }],
                     config: {
                         temperature: 0.3,
-                        maxOutputTokens: 200  // 한국어 10단어 여유분 포함
+                        maxOutputTokens: 400,
                     }
                 });
 
                 if (response.text) {
-                    const title = response.text.trim().replace(/["']/g, "");
-                    return res.status(200).json({ title });
+                    // Take only the first non-empty line — prevents explanation bleed after the title
+                    const firstLine = response.text
+                        .split('\n')
+                        .map((l: string) => l.trim())
+                        .find((l: string) => l.length > 0) ?? '';
+                    const title = firstLine.replace(/["'「」『』]/g, '').trim();
+                    if (title) return res.status(200).json({ title });
                 } else {
                     continue;
                 }
