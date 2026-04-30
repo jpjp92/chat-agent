@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
 
-const SUMMARY_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+const SUMMARY_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 const TITLE_PROMPTS: any = {
     ko: "아래 대화의 핵심 내용을 담은 완결된 명사형 제목을 한국어로 만들어줘. '~앞두고', '~관련' 같은 미완성 구로 끝내지 말고, 무슨 내용인지 한눈에 알 수 있게 써줘. 단어 수는 5~15단어 사이. 따옴표 없이 제목만 출력.",
     en: "Write a complete, self-contained title for the conversation below. Do not use trailing phrases like 'ahead of...' or 'regarding...'. Make it informative at a glance, 5–15 words. Output only the title without quotes.",
