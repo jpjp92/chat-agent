@@ -164,6 +164,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim().length >= 300);
 
                     let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
+                    // 1턴: transcript 또는 native video 있으면 Search 비활성 (영상 자체가 컨텍스트)
+                    // 2턴+: VIDEO_ANALYSIS_SUMMARY가 있어도 Search 허용 — 모델이 문맥에 따라 판단
                     if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
                         useGoogleSearch = false;
                     }

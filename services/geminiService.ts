@@ -150,7 +150,7 @@ export const fetchUrlContent = async (url: string): Promise<string> => {
  */
 export const fetchYoutubeTranscript = async (videoId: string): Promise<string | null> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45000);
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const response = await fetch('/api/fetch-transcript', {
       method: 'POST',

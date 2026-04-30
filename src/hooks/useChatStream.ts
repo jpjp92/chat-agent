@@ -267,15 +267,14 @@ export const useChatStream = ({
       } else if (isYoutube) {
         try {
           setLoadingStatus(statusMessages.checkingYoutube);
-          const metadata = await fetchUrlContent(url);
           const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
           const match = regExp.exec(url);
           const videoId = match && match[8].length === 11 ? match[8] : null;
 
-          let transcript = null;
-          if (videoId) {
-            transcript = await fetchYoutubeTranscript(videoId);
-          }
+          const [metadata, transcript] = await Promise.all([
+            fetchUrlContent(url),
+            videoId ? fetchYoutubeTranscript(videoId) : Promise.resolve(null),
+          ]);
 
           if (transcript) {
             setLoadingStatus(statusMessages.analyzingTranscript);

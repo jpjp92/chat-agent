@@ -6,11 +6,18 @@
 
 ## 최근 작업 로그
 
+- [DEV_260430.md](DEV_260430.md) — **YouTube 요약 처리 성능 개선**: (1) `useChatStream.ts` `fetchUrlContent` + `fetchYoutubeTranscript` 직렬 → `Promise.all` 병렬화 (2~5s 절감) (2) `router.ts` YouTube URL fast-path 추가 — YouTube 감지 시 `gemini-2.5-flash-lite` LLM 분류 호출 생략, 즉시 `general → generator` 라우팅 (1~3s 절감) (3) `fetch-transcript.ts` 서버 timeout 단축 (페이지 12s→6s, XML 15s→8s, 실패 케이스 최대 대기 27s→14s) (4) `geminiService.ts` 클라이언트 timeout 45s→20s
 - [DEV_260429.md](DEV_260429.md) — **maxOutputTokens 인텐트별 분기** (PDF 16384 / 이미지 4096 / URL 8192 / YouTube 8192 / data_viz 8192 / 코드·일반 32768, 실측 검증 완료) / **PDF `hasDocumentContent` 플래그** (`fileData` 분기 감지로 `image_url` 분기 감지 실패 수정) / **응답 잘림 감지 UI** (generator.ts `cutOff` SSE 이벤트, chat.ts `done` 이벤트, useChatStream.ts `isCutOff` 플래그, ChatMessage.tsx amber 경고 배너) / **YouTube 요약 최적화** (트랜스크립트 20,000자 상한, native video maxTokens 오분기 수정, URL 칩 중복 수정, fetch-transcript timeout 25s→12s) / **모바일 SSE 안정성 강화** (AbortController + 25s activityMonitor, receivedDone 드롭 감지, Failed to fetch 재시도, MAX_TOKENS cutOff 이벤트 누락 수정) / **YouTube 멀티턴 미리보기 재등장 수정** (`isYoutubeFromPrompt` 플래그 도입, 2턴 native 영상 재전송 차단, groundingSources 재전송 차단 → 임베드 재렌더링 방지)
 - [DEV_260427.md](DEV_260427.md) — **약품 카드 "자세히" 버튼 복구** (pharm_url 항상 null → nedrug 식약처 상세 직링크로 교체, `ITEM_SEQ` 기반 `mfds_url` 신규 필드) / **모바일 응답 실패 완화** (LangChain path maxOutputTokens 32768 → 8192, 약품 카드 생성 타임아웃 여유 확보) / **약품 카드 이미지 Lightbox** (이미지 클릭 → 전체 화면 팝업, Portal + framer-motion spring 애니메이션, 다크 오버레이 + X버튼 닫기) / **약품 카드 다크모드 시각 개선** (글래스모피즘 베이스, 푸터 투명화, MED INDEX 인디고-퍼플 그라디언트) / **README·DEV_HISTORY 최신화** (Lighthouse 83→91, data_viz 모델, DEV_260421 누락 항목 복원 등)
 - [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** / **날씨 이모지 테이블 누락 수정** / **MFDS 미등재 약품 검색 폴백 개선** / **MFDS 폴백 출처 칩 미표시 수정 3단계** / **소스 칩 스트리밍 완료 후 표시** / **첨부파일 UX 전면 개선** (자세한 내용은 DEV_260426.md 켜럼 수정 1~4 참조) / **이미지 썸네일 aspect-ratio 16/9 컨테이너** (`max-w-[220px]`, 폴백 컨테이너 크기 고정, 아이콘 축소) / **이미지 항상 Supabase 업로드** (크기 무관 `chat-imgs` 버킷 업로드 후 URL DB 저장 → 히스토리 미리보기 복원, `useChatStream.ts`)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
+
+### v4.59 (YouTube Request Latency Optimization — 2026-04-30)
+- **fetchUrlContent + fetchYoutubeTranscript 병렬화**: `useChatStream.ts` YouTube 분기에서 두 fetch를 `Promise.all`로 동시 실행. 메타데이터와 자막 fetch 간 순서 의존성 없음 — 직렬 합산 시간 → 느린 쪽 단일 시간으로 단축.
+- **Router YouTube fast-path**: `router.ts`에 `hasYoutubeUrl` 감지 조건 추가. YouTube URL(프롬프트 또는 webContent)이 있고 의약품 키워드가 없으면 `gemini-2.5-flash-lite` LLM 분류 없이 즉시 `general → generator` 라우팅. 기존 이미지 fast-path와 동일 패턴.
+- **fetch-transcript.ts timeout 단축**: 페이지 HTML fetch 12s → 6s, caption XML fetch 15s → 8s. 자막 추출 실패 케이스 최대 대기 27s → 14s.
+- **geminiService.ts 클라이언트 timeout 단축**: `fetchYoutubeTranscript` AbortController timeout 45s → 20s. 서버 최대(14s) 대비 충분한 여유 유지.
 
 ### v4.58 (Mobile SSE Stability + YouTube Multi-turn Embed Fix — 2026-04-29)
 - **모바일 SSE 연결 안정성**: `geminiService.ts`에 `AbortController` + `activityMonitor` 추가. 25s(heartbeat 8s × 3회) 무활동 시 연결 강제 종료 → AbortError → 재시도 가능 에러 변환. `receivedDone` 플래그로 done 없이 종료 시 `onCutOff()` 호출. `useChatStream.ts` `isRetryable`에 `Failed to fetch` / `TypeError` 추가.
