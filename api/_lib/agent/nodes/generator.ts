@@ -192,10 +192,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', resolvedMaxTokens, '| contentsLen:', sdkContents.length);
                     // Streaming SDK call — emits chunks to client in real-time
-                    // YouTube native video: limit thinking to prevent 60s Vercel timeout
-                    // (Gemini downloads + processes video, then thinks — unconstrained thinking adds 20-30s)
+                    // YouTube native video: disable thinking entirely to stay within Vercel 60s
+                    // Video download + processing already takes 30-50s; thinking adds 10-20s more
                     const thinkingConfig = (isYoutubeRequest && hasVideoData)
-                        ? { thinkingBudget: 1024 }
+                        ? { thinkingBudget: 0 }
                         : undefined;
 
                     const sdkStream = await genai.models.generateContentStream({
