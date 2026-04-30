@@ -192,6 +192,12 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', resolvedMaxTokens, '| contentsLen:', sdkContents.length);
                     // Streaming SDK call — emits chunks to client in real-time
+                    // YouTube native video: limit thinking to prevent 60s Vercel timeout
+                    // (Gemini downloads + processes video, then thinks — unconstrained thinking adds 20-30s)
+                    const thinkingConfig = (isYoutubeRequest && hasVideoData)
+                        ? { thinkingBudget: 1024 }
+                        : undefined;
+
                     const sdkStream = await genai.models.generateContentStream({
                         model: resolvedModel,
                         contents: sdkContents,
@@ -202,6 +208,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             topP: 0.8,
                             topK: 40,
                             maxOutputTokens: resolvedMaxTokens,
+                            ...(thinkingConfig ? { thinkingConfig } : {}),
                         }
                     });
 
@@ -286,6 +293,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     topP: 0.8,
                                     topK: 40,
                                     maxOutputTokens: resolvedMaxTokens,
+                                    ...(thinkingConfig ? { thinkingConfig } : {}),
                                 }
                             });
                             // Extract text from parts directly to handle thought-only or grounding responses
