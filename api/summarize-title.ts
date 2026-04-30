@@ -4,10 +4,10 @@ import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
 
 const SUMMARY_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const TITLE_PROMPTS: any = {
-    ko: "위 대화 내용을 요약하는 아주 짧고 간결한 제목을 한국어로 5단어 이내로 지어줘. 따옴표는 빼고 제목만 출력해줘.",
-    en: "Create a very short and concise title summarizing the conversation in English within 5 words. Output only the title without quotes.",
-    es: "Crea un título muy corto y conciso que resuma la conversación en español en menos de 5 palabras. Muestra solo el título sin comillas.",
-    fr: "Créez un titre très court et concis résumant la conversation en français en moins de 5 mots. Affichez uniquement le titre sans guillemets."
+    ko: "위 대화 내용의 핵심 주제를 담은 제목을 한국어로 10단어 이내로 지어줘. 너무 짧게 줄이지 말고 내용이 무엇인지 알 수 있게 써줘. 따옴표는 빼고 제목만 출력해줘.",
+    en: "Create a descriptive title summarizing the conversation in English within 10 words. Make it informative enough to convey the topic. Output only the title without quotes.",
+    es: "Crea un título descriptivo que resuma la conversación en español en menos de 10 palabras. Hazlo informativo. Muestra solo el título sin comillas.",
+    fr: "Créez un titre descriptif résumant la conversation en français en moins de 10 mots. Rendez-le informatif. Affichez uniquement le titre sans guillemets."
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }],
                     config: {
                         temperature: 0.3,
-                        maxOutputTokens: 120  // 512는 과도, 한국어 5단어 여유분 포함
+                        maxOutputTokens: 200  // 한국어 10단어 여유분 포함
                     }
                 });
 
