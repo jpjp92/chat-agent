@@ -56,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     config: {
                         temperature: 0.3,
                         maxOutputTokens: 400,
+                        thinkingConfig: { thinkingBudget: 0 },
                     }
                 });
 
