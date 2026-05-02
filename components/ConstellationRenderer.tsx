@@ -37,6 +37,22 @@ const labels = {
     fr: { title: 'Carte des Constellations', snapshot: 'Capture', analyzing: 'Analyse de constellation...' }
 };
 
+// Star color temperature by magnitude (O/B → K/M type)
+const getStarColor = (mag: number): string => {
+    if (mag < 0.5) return '#cad8ff'; // blue-white (Rigel, Sirius)
+    if (mag < 1.5) return '#e8f0ff'; // white-blue (Vega, Deneb)
+    if (mag < 2.5) return '#fff8f0'; // warm white
+    if (mag < 3.5) return '#ffecd0'; // yellow-white
+    return '#ffddaa';                 // orange (K/M type)
+};
+
+const hexToRgba = (hex: string, a: number): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${a})`;
+};
+
 const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, language }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,7 +65,6 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
     const [hoveredStar, setHoveredStar] = useState<Star | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
     const [hasAutoCentered, setHasAutoCentered] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
 
@@ -133,6 +148,16 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         return particles;
     }, []);
 
+    // Decorative background faint stars (screen-space, deterministic)
+    const bgStars = useMemo(() => {
+        const stars: { x: number; y: number; size: number; opacity: number }[] = [];
+        let seed = 12345;
+        const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0xffffffff; };
+        for (let i = 0; i < 280; i++) {
+            stars.push({ x: rand(), y: rand(), size: rand() * 0.7 + 0.2, opacity: rand() * 0.28 + 0.07 });
+        }
+        return stars;
+    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -169,12 +194,38 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             // Apply zoom to scale
             const scale = height * 0.4 * zoom * (data.zoom || 1.0);
 
-            // Clear canvas with dark background
-            ctx.fillStyle = '#0a0a0b';
+            // Deep space radial gradient background
+            const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.75);
+            bgGrad.addColorStop(0,   '#060d20');
+            bgGrad.addColorStop(0.5, '#030a16');
+            bgGrad.addColorStop(1,   '#010306');
+            ctx.fillStyle = bgGrad;
             ctx.fillRect(0, 0, width, height);
 
+            // Subtle atmosphere glow at bottom edge
+            const atmGrad = ctx.createLinearGradient(0, height * 0.72, 0, height);
+            atmGrad.addColorStop(0, 'rgba(0,0,0,0)');
+            atmGrad.addColorStop(1, 'rgba(10,25,50,0.35)');
+            ctx.fillStyle = atmGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Background faint stars (screen-space, decorative)
+            ctx.globalCompositeOperation = 'screen';
+            bgStars.forEach(s => {
+                const sx = s.x * width;
+                const sy = s.y * height;
+                const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, s.size * 2.2);
+                gr.addColorStop(0, `rgba(200,215,255,${s.opacity})`);
+                gr.addColorStop(1, 'rgba(200,215,255,0)');
+                ctx.fillStyle = gr;
+                ctx.beginPath();
+                ctx.arc(sx, sy, s.size * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over';
+
             // Draw Milky Way Background
-            ctx.globalCompositeOperation = 'screen'; // Make overlapping parts brighter
+            ctx.globalCompositeOperation = 'screen';
 
             milkyWayParticles.forEach(p => {
                 const hor = equatorialToHorizontal(p.ra, p.dec, observerTime, observerLocation);
@@ -265,54 +316,68 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             // Store projected stars for hover detection
             projectedStarsRef.current = projectedStars;
 
-            // Draw constellation lines
+            // Draw constellation lines (gradient glow + thin core)
             if (data.constellations) {
-                ctx.strokeStyle = 'rgba(100, 150, 255, 0.6)';
-                ctx.lineWidth = 2;
-
                 data.constellations.forEach(constellation => {
                     constellation.lines.forEach(([startId, endId]) => {
                         const start = projectedStars.find(s => s.id === startId);
                         const end = projectedStars.find(s => s.id === endId);
+                        if (!start || !end || start.visible === false || end.visible === false) return;
 
-                        if (start && end && start.visible !== false && end.visible !== false) {
-                            ctx.beginPath();
-                            ctx.moveTo(start.canvasX + panOffset.x, start.canvasY + panOffset.y);
-                            ctx.lineTo(end.canvasX + panOffset.x, end.canvasY + panOffset.y);
-                            ctx.stroke();
-                        }
+                        const x1 = start.canvasX + panOffset.x;
+                        const y1 = start.canvasY + panOffset.y;
+                        const x2 = end.canvasX + panOffset.x;
+                        const y2 = end.canvasY + panOffset.y;
+
+                        // Glow line — brighter in the middle, fades at star endpoints
+                        const lineGrad = ctx.createLinearGradient(x1, y1, x2, y2);
+                        lineGrad.addColorStop(0,   'rgba(80, 140, 255, 0.08)');
+                        lineGrad.addColorStop(0.2,  'rgba(110, 170, 255, 0.6)');
+                        lineGrad.addColorStop(0.5,  'rgba(150, 205, 255, 0.85)');
+                        lineGrad.addColorStop(0.8,  'rgba(110, 170, 255, 0.6)');
+                        lineGrad.addColorStop(1,   'rgba(80, 140, 255, 0.08)');
+                        ctx.strokeStyle = lineGrad;
+                        ctx.lineWidth = 1.5;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+
+                        // Thin bright core on top
+                        ctx.strokeStyle = 'rgba(210, 235, 255, 0.22)';
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
                     });
                 });
             }
 
-            // Draw stars (filter by visibility in realtime mode)
+            // Draw stars with color temperature
             projectedStars.filter(star => star.visible !== false).forEach(star => {
                 const size = magnitudeToSize(star.mag) * 1.5;
                 const opacity = magnitudeToOpacity(star.mag);
-
-                // Apply pan offset
+                const color = getStarColor(star.mag);
                 const x = star.canvasX + panOffset.x;
                 const y = star.canvasY + panOffset.y;
 
-                // Star glow (larger and brighter)
-                const gradient = ctx.createRadialGradient(
-                    x, y, 0,
-                    x, y, size * 3
-                );
-                gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`);
-                gradient.addColorStop(0.3, `rgba(220, 230, 255, ${opacity * 0.8})`);
-                gradient.addColorStop(0.7, `rgba(150, 180, 255, ${opacity * 0.4})`);
-                gradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
-
-                ctx.fillStyle = gradient;
+                // Outer glow (color-tinted)
+                const glow = ctx.createRadialGradient(x, y, 0, x, y, size * 3.5);
+                glow.addColorStop(0,   hexToRgba(color, opacity * 0.9));
+                glow.addColorStop(0.3, hexToRgba(color, opacity * 0.5));
+                glow.addColorStop(0.7, hexToRgba(color, opacity * 0.15));
+                glow.addColorStop(1,   hexToRgba(color, 0));
+                ctx.fillStyle = glow;
                 ctx.beginPath();
-                ctx.arc(x, y, size * 3, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 3.5, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Star core (brighter)
-                ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, opacity * 1.2)})`;
+                // Bright white core
+                ctx.fillStyle = `rgba(255,255,255,${Math.min(1, opacity * 1.3)})`;
                 ctx.beginPath();
-                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 0.65, 0, Math.PI * 2);
                 ctx.fill();
             });
 
@@ -529,8 +594,6 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 setHoveredStar(null);
                 canvas.style.cursor = 'grab';
             }
-            // Container-relative coords for absolute-positioned tooltip
-            setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         }
     };
 
@@ -603,12 +666,22 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         tempCtx.drawImage(canvas, 0, 0);
 
+        // Build filename: 별자리이름_YYYYMMDD_HHMM.png
+        const constellationName = data.constellations?.[0]?.name?.[language]
+            ?? data.constellations?.[0]?.name?.en
+            ?? 'constellation';
+        const slug = constellationName.replace(/\s+/g, '-').replace(/[^\w가-힣-]/g, '');
+        const now = new Date();
+        const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+        const filename = `${slug}_${date}_${time}.png`;
+
         tempCanvas.toBlob(blob => {
             if (!blob) return;
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `constellation-${Date.now()}.png`;
+            a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
         });
@@ -730,33 +803,43 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     <i className="fa-solid fa-rotate-right text-sm"></i>
                 </button>
             </div>
+            {/* Star info panel — fixed bottom-left glassmorphism */}
+            <div className={`absolute bottom-3 left-3 z-20 transition-all duration-200 ${hoveredStar ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1 pointer-events-none'}`}>
+                {hoveredStar && (
+                    <div className="bg-black/55 backdrop-blur-xl rounded-2xl border border-white/10 px-4 py-3 shadow-2xl min-w-[185px]">
+                        <div className="flex items-center gap-2 mb-2.5">
+                            <div
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ background: getStarColor(hoveredStar.mag), boxShadow: `0 0 8px 2px ${getStarColor(hoveredStar.mag)}` }}
+                            />
+                            <p className="text-[13px] font-semibold text-white leading-tight truncate">
+                                {hoveredStar.name || '—'}
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between gap-6">
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">등급</span>
+                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.mag.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between gap-6">
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">RA</span>
+                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.ra.toFixed(2)}h</span>
+                            </div>
+                            <div className="flex justify-between gap-6">
+                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dec</span>
+                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.dec.toFixed(2)}°</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Zoom indicator */}
-            <div className="absolute bottom-3 left-3 z-20 px-2 h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
+            <div className="absolute bottom-3 right-14 z-20 px-2 h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
                 <span className="text-[10px] font-mono text-slate-300 leading-none">
                     {(zoom * 100).toFixed(0)}%
                 </span>
             </div>
-
-            {/* Tooltip */}
-            {
-                hoveredStar && (
-                    <div
-                        className="absolute z-30 pointer-events-none"
-                        style={{
-                            left: tooltipPos.x + 10,
-                            top: tooltipPos.y - 40
-                        }}
-                    >
-                        <div className="bg-black/90 backdrop-blur-sm rounded-lg border border-white/20 px-3 py-2 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <p className="text-xs font-bold text-white">{hoveredStar.name}</p>
-                            <p className="text-[10px] text-slate-400">Mag: {hoveredStar.mag.toFixed(2)}</p>
-                            <p className="text-[10px] text-slate-400">
-                                RA: {hoveredStar.ra.toFixed(2)}h, Dec: {hoveredStar.dec.toFixed(2)}°
-                            </p>
-                        </div>
-                    </div>
-                )
-            }
 
             {/* Loading overlay */}
             {
