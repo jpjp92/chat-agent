@@ -27,10 +27,13 @@ const useThemeMode = () => {
     return isDark;
 };
 
-const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 600, height = 300, language = 'ko' }) => {
+const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 600, height, language = 'ko' }) => {
+    // Adaptive height based on molecule complexity (SMILES length proxy)
+    const resolvedHeight = height ?? (smiles.length > 120 ? 460 : smiles.length > 60 ? 380 : 300);
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
     const isDark = useThemeMode();
@@ -47,18 +50,18 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     useEffect(() => {
         const options = {
             width: width,
-            height: height,
+            height: resolvedHeight,
             bondThickness: 2.0,
-            bondLength: 35.0,
+            bondLength: 37.0,
             shortBondLength: 0.85,
-            bondSpacing: 0.18 * 35.0,
+            bondSpacing: 0.18 * 37.0,
             atomVisualization: 'default',
             isometric: true,
             debug: false,
             terminalCarbons: true,
-            explicitHydrogens: true,
+            explicitHydrogens: false,
             overlapSensitivity: 0.42,
-            overlapResolutionIterations: 2,
+            overlapResolutionIterations: 8,
             compactDrawing: false,
             fontSizeLarge: 16,
             fontSizeSmall: 12,
@@ -85,7 +88,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             console.error('[ChemicalRenderer] Failed to init SvgDrawer:', e);
             setError('Renderer Init Failed');
         }
-    }, [width, height]);
+    }, [width, resolvedHeight]);
 
     // 2. 그리기 - isDark 의존성 추가
     useEffect(() => {
@@ -98,6 +101,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             svgRef.current.removeChild(svgRef.current.firstChild);
         }
 
+        setIsLoading(true);
         SmilesDrawer.parse(smiles, (tree: any) => {
             try {
                 drawer.draw(tree, svgRef.current, theme);
@@ -105,10 +109,13 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             } catch (drawErr: any) {
                 console.error('[ChemicalRenderer] Draw Error:', drawErr);
                 setError('Invalid Chemical Structure');
+            } finally {
+                setIsLoading(false);
             }
         }, (parseErr: any) => {
             console.error('[ChemicalRenderer] Parse Error:', parseErr);
             setError('Invalid SMILES Code');
+            setIsLoading(false);
         });
 
     }, [smiles, drawer, isDark]); // 테마 변경 시 다시 그리도록 isDark 추가
@@ -126,7 +133,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         // 또는 배경색을 포함하여 내보내기 위해 임시 캔버스를 사용합니다.
         const tempSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         tempSvg.setAttribute("width", width.toString());
-        tempSvg.setAttribute("height", height.toString());
+        tempSvg.setAttribute("height", resolvedHeight.toString());
 
         SmilesDrawer.parse(smiles, (tree: any) => {
             try {
@@ -143,9 +150,13 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                 const svgData = new XMLSerializer().serializeToString(tempSvg);
                 const svgBlob = new Blob(['<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + svgData], { type: "image/svg+xml;charset=utf-8" });
                 const svgUrl = URL.createObjectURL(svgBlob);
+                const now = new Date();
+                const date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+                const time = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+                const slug = (name || 'molecule').replace(/\s+/g, '-').replace(/[^\w가-힣-]/g, '');
                 const downloadLink = document.createElement("a");
                 downloadLink.href = svgUrl;
-                downloadLink.download = `${name || 'molecule'}.svg`;
+                downloadLink.download = `${slug}_${date}_${time}.svg`;
                 document.body.appendChild(downloadLink);
                 downloadLink.click();
                 document.body.removeChild(downloadLink);
@@ -160,30 +171,38 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
-                {/* Header */}
-                {(name || error) && (
-                    <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-transparent">
-                        <div className="flex items-start gap-2.5 min-w-0">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0 animate-pulse"></div>
-                            <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
-                                {name || (error ? t.error : t.structure)}
-                            </h3>
-                        </div>
-                        {!error && (
-                            <button
-                                onClick={handleDownload}
-                                className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
-                                title="Download SVG"
-                            >
-                                <i className="fa-solid fa-download text-xs"></i>
-                            </button>
-                        )}
+                {/* Header — always visible */}
+                <div className="px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-white/5 flex items-center justify-between gap-3 bg-slate-50/30 dark:bg-white/[0.04]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 animate-pulse"></div>
+                        <h3 className="text-[11px] sm:text-[13px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight truncate">
+                            {name || (error ? t.error : t.structure)}
+                        </h3>
                     </div>
-                )}
+                    {!error && (
+                        <button
+                            onClick={handleDownload}
+                            className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
+                            title="Download SVG"
+                        >
+                            <i className="fa-solid fa-download text-xs"></i>
+                        </button>
+                    )}
+                </div>
 
                 {/* Structure Area */}
-                <div className="p-8 flex flex-col items-center justify-center min-h-[200px] relative">
+                <div className="p-8 flex flex-col items-center justify-center min-h-[200px] relative" style={{ minHeight: `${Math.max(200, resolvedHeight * 0.6)}px` }}>
                     <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/5 via-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+                    {isLoading && !error && (
+                        <div className="absolute inset-0 flex items-center justify-center z-10">
+                            <div className="flex items-center gap-2.5 text-slate-400">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:0ms]"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:150ms]"></div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:300ms]"></div>
+                            </div>
+                        </div>
+                    )}
 
                     {error ? (
                         <div className="flex flex-col items-center gap-3 text-red-400 p-4">
@@ -197,7 +216,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                             <div className="w-full max-w-3xl">
                                 <svg
                                     ref={svgRef}
-                                    viewBox={`0 0 ${width} ${height}`}
+                                    viewBox={`0 0 ${width} ${resolvedHeight}`}
                                     width="100%"
                                     height="auto"
                                     preserveAspectRatio="xMidYMid meet"
@@ -209,7 +228,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                 </div>
 
                 {/* Info & Code Footer */}
-                <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 px-4 sm:px-5 py-3">
+                <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.04] px-4 sm:px-5 py-2">
                     <div className="flex items-center justify-between gap-2 sm:gap-4">
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
