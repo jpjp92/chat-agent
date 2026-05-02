@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as NGL from 'ngl';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -49,14 +49,56 @@ const useThemeMode = () => {
     return isDark;
 };
 
+// SequenceView는 컴포넌트 외부에 정의 — 부모 state 변경 시 unmount/remount 방지
+const SequenceView: React.FC<{
+    seq: string;
+    highlights?: Array<{ start: number; end: number; label: string; color?: string }>;
+    noSeqLabel: string;
+}> = ({ seq, highlights, noSeqLabel }) => {
+    if (!seq) return <div className="text-slate-400">{noSeqLabel}</div>;
+
+    return (
+        <div className="w-full overflow-x-auto custom-scrollbar">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center p-2">
+                {seq.split('').map((aa, idx) => {
+                    const color = AMINO_ACID_COLORS[aa.toUpperCase()] || AMINO_ACID_COLORS['default'];
+                    const isHighlighted = highlights?.some(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
+                    const highlight = highlights?.find(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
+
+                    return (
+                        <div key={idx} className="flex flex-col items-center group relative mb-2">
+                            <span className="text-[9px] text-slate-400 font-mono mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {idx + 1}
+                            </span>
+                            <motion.div
+                                whileHover={{ scale: 1.15, zIndex: 10 }}
+                                className={`w-7 h-9 sm:w-8 sm:h-10 flex items-center justify-center rounded-md font-mono font-bold text-white shadow-sm transition-all
+                                    ${isHighlighted ? 'ring-2 ring-offset-1 ring-emerald-500' : ''}`}
+                                style={{ backgroundColor: color }}
+                            >
+                                {aa}
+                            </motion.div>
+                            {isHighlighted && highlight && (
+                                <div className="absolute top-[-28px] left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none z-20">
+                                    {highlight.label}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) => {
     const stageRef = useRef<HTMLDivElement>(null);
     const nglStage = useRef<NGL.Stage | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const { type, title, data } = bioData;
+    const [isLoading, setIsLoading] = useState(type === 'pdb' && !!data?.pdbId);
     const [error, setError] = useState<string | null>(null);
     const [hoverInfo, setHoverInfo] = useState<{ x: number, y: number, text: any } | null>(null);
     const [isMobile, setIsMobile] = useState(false);
-    const { type, title, data } = bioData;
     const isDark = useThemeMode();
 
     const i18n = {
@@ -83,44 +125,14 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
     };
     const t = i18n[language] || i18n.en;
 
-    // 1D Sequence View Component
-    const SequenceView = () => {
-        const seq = data.sequence || "";
-        if (!seq) return <div className="text-slate-400">{t.noSeq}</div>;
-
-        return (
-            <div className="w-full overflow-x-auto custom-scrollbar">
-                <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center p-2">
-                    {seq.split('').map((aa, idx) => {
-                        const color = AMINO_ACID_COLORS[aa.toUpperCase()] || AMINO_ACID_COLORS['default'];
-                        const isHighlighted = data.highlights?.some(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
-                        const highlight = data.highlights?.find(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
-
-                        return (
-                            <div key={idx} className="flex flex-col items-center group relative mb-2">
-                                <span className="text-[9px] text-slate-400 font-mono mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {idx + 1}
-                                </span>
-                                <motion.div
-                                    whileHover={{ scale: 1.15, zIndex: 10 }}
-                                    className={`w-7 h-9 sm:w-8 sm:h-10 flex items-center justify-center rounded-md font-mono font-bold text-white shadow-sm transition-all
-                                        ${isHighlighted ? 'ring-2 ring-offset-1 ring-emerald-500' : ''}`}
-                                    style={{ backgroundColor: color }}
-                                >
-                                    {aa}
-                                </motion.div>
-                                {isHighlighted && highlight && (
-                                    <div className="absolute top-[-28px] left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none z-20">
-                                        {highlight.label}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
+    // 다크모드 변경 시 PDB 재로드 없이 배경색만 업데이트
+    useEffect(() => {
+        if (nglStage.current) {
+            nglStage.current.setParameters({
+                backgroundColor: isDark ? "#111112" : "#f8fafc"
+            });
+        }
+    }, [isDark]);
 
     // 3D PDB View Logic
     useEffect(() => {
@@ -182,25 +194,36 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
             }
         });
 
-        stage.loadFile(`rcsb://${data.pdbId}`).then((comp: any) => {
+        const onLoaded = (comp: any) => {
             comp.addRepresentation("cartoon", {
                 colorScheme: "residueindex",
                 quality: "high"
             });
-
-            // 로딩 완료 표시
             setIsLoading(false);
-
-            // 레이아웃 안정화 후 자동 정렬 (수동 보정 제거하여 시원한 뷰 확보)
             setTimeout(() => {
                 stage.handleResize();
                 comp.autoView();
             }, 600);
-        }).catch((err) => {
-            console.error("NGL Load Error:", err);
-            setError("Failed to load PDB structure");
-            setIsLoading(false);
-        });
+        };
+
+        // models.rcsb.org(bcif.gz) 1차 시도 → 실패 시 files.rcsb.org(cif) fallback
+        stage.loadFile(`rcsb://${data.pdbId}`)
+            .then(onLoaded)
+            .catch(() => {
+                console.warn(`[BioRenderer] models.rcsb.org failed, retrying via files.rcsb.org for ${data.pdbId}`);
+                return stage.loadFile(
+                    `https://files.rcsb.org/download/${data.pdbId}.cif`,
+                    { ext: 'cif' }
+                );
+            })
+            .then((comp: any) => {
+                if (comp) onLoaded(comp);
+            })
+            .catch((err) => {
+                console.error("[BioRenderer] Both RCSB endpoints failed:", err);
+                setError("RCSB 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.");
+                setIsLoading(false);
+            });
 
         const handleResize = () => stage.handleResize();
         window.addEventListener('resize', handleResize);
@@ -221,7 +244,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                 nglStage.current.signals.hovered.removeAll();
             }
         };
-    }, [type, data.pdbId, isDark]);
+    }, [type, data.pdbId]);
 
     // 컴포넌트 언마운트 시 WebGL 컨텍스트 해제
     useEffect(() => {
@@ -237,9 +260,13 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         if (type === 'pdb' && nglStage.current) {
             nglStage.current.makeImage({ factor: 2, antialias: true, trim: true }).then((blob: Blob) => {
                 const url = URL.createObjectURL(blob);
+                const now = new Date();
+                const date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+                const time = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+                const slug = (data.name || title || data.pdbId || 'structure').replace(/\s+/g, '-').replace(/[^\w가-힣-]/g, '');
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `${data.pdbId || 'structure'}.png`;
+                link.download = `${slug}_${date}_${time}.png`;
                 link.click();
                 URL.revokeObjectURL(url);
             });
@@ -248,7 +275,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
 
     return (
         <div className="w-full my-6 animate-in fade-in zoom-in-95 duration-1000 ease-out">
-            <div className={`rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden flex flex-col group transition-all duration-500`}>
+            <div className={`rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden flex flex-col group transition-all duration-500`}>
 
                 {type === 'pdb' ? (
                     /* Immersive 3D Layout */
@@ -361,7 +388,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                             </div>
                         </div>
                         <div className="p-4 sm:p-10 flex items-center justify-center min-h-[300px]">
-                            <SequenceView />
+                            <SequenceView seq={data.sequence || ""} highlights={data.highlights} noSeqLabel={t.noSeq} />
                         </div>
                     </>
                 )}

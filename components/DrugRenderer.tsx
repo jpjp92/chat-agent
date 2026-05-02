@@ -280,7 +280,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
                                     {data.name}
                                     {data.engName && (
-                                        <div className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">{data.engName}</div>
+                                        <div className="text-xs font-medium text-slate-400 dark:text-slate-400 mt-1">{data.engName}</div>
                                     )}
                                 </h2>
                             </div>
@@ -450,7 +450,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     {/* Efficacy Section */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
-                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{t.efficacy}</span>
+                            <span className="text-[11px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">{t.efficacy}</span>
                             <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

@@ -232,10 +232,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
 
     return (
         <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
-            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
+            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
-                <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-transparent">
+                <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-white/[0.04]">
                     <div className="flex items-start gap-2.5 min-w-0">
                         <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm mt-1.5 flex-shrink-0"></div>
                         <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
@@ -262,7 +262,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     </div>
 
                     {dataCount > 10 && (
-                        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-[#1e1e1f] to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     )}
                 </div>
             </div>

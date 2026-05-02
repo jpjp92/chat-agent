@@ -202,7 +202,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           {(!isCollapsed || isOpen) && (
             <div className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4 custom-scrollbar">
               <div className="flex items-center justify-between px-2 mb-2">
-                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest tabular-nums">{t.history}</h3>
+                <h3 className="text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest tabular-nums">{t.history}</h3>
               </div>
 
               {filteredSessions.map((session) => (
@@ -314,7 +314,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           {(!isCollapsed || isOpen) ? (
             <div className="relative" ref={dropdownRef}>
               {isLangMenuOpen && (
-                <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[60]">
+                <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[60]">
                   {languages.map((lang) => (
                     <button
                       key={lang.code}

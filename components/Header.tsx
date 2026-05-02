@@ -149,7 +149,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
             {/* Click Dropdown Menu */}
             {isModelMenuOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-[#2f2f2f] rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
+              <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
                 <div className="flex flex-col py-1">
                   <div onClick={() => { onModelChange('gemini-2.5-flash'); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
                     <div>

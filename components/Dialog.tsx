@@ -33,7 +33,7 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', 
 
             {/* Modal Container */}
             <div className="relative w-full max-w-xs animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 ease-out">
-                <div className="bg-white dark:bg-[#1e1e1f] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-200 dark:border-white/10 overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-200 dark:border-white/10 overflow-hidden">
                     <div className="p-5">
                         <div className="flex flex-col items-center text-center space-y-3">
                             {/* Icon */}

@@ -21,7 +21,7 @@ const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ language }) => {
                 <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
                     {currentWelcome.title}
                 </h1>
-                <p className="text-slate-400 dark:text-slate-500 text-base sm:text-2xl font-medium px-4">
+                <p className="text-slate-400 dark:text-slate-400 text-base sm:text-2xl font-medium px-4">
                     {currentWelcome.subtitle}
                 </p>
             </div>

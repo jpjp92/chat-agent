@@ -397,7 +397,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-2 animate-in slide-in-from-bottom-2 duration-300">
           {selectedAttachments.map((attachment, index) => (
             <div key={index} className="relative group">
-              <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-md bg-white dark:bg-[#1e1e1f]" style={{ height: '72px' }}>
+              <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-md bg-white dark:bg-slate-800/60" style={{ height: '72px' }}>
                 {attachment.mimeType.startsWith('image/') ? (
                   /* 이미지: 직사각형 가로형 */
                   <div className="flex h-full" style={{ width: '128px' }}>
@@ -503,7 +503,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
               overflowWrap: 'anywhere',
               wordBreak: 'break-all'
             }}
-            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-slate-800 dark:text-[#e3e3e3] placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
+            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
           />
         </div>
 
@@ -522,7 +522,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           <button
             type="submit"
             disabled={(!input.trim() && selectedAttachments.length === 0) || disabled}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-slate-700' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-white/20' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
               }`}
           >
             <i className="fa-solid fa-arrow-up text-base"></i>
