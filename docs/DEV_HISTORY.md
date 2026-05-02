@@ -6,7 +6,7 @@
 
 ## 최근 작업 로그
 
-- [DEV_260502.md](DEV_260502.md) — **전체 보안 검토** (IDOR-1·2·BUCKET·SSRF 4종 식별, POC 단계 IDOR·SSRF는 TODO 보류, BUCKET 화이트리스트 우선순위 1 재확인) / **PhysicsRenderer 삭제 + DiagramRenderer 4종 확장** (Matter.js 제거, `free_body`·`projectile`·`collision` 신규 추가, 공통 `arrow()` 헬퍼·`getTheme()` 다크모드 분리, `prompt.ts` `json:physics` → `json:diagram` 마이그레이션) / **세션 초기화 에러 화면 수정** (`handleReset`이 `clearStoredUser()` 호출로 `isAuthLoading=false+currentUser=null` 순간 렌더 → localStorage 직접 제거+reload로 교체, `useAuthSession` localStorage 파싱 실패 시 게스트 재생성 폴백 추가, `LoadingScreen` children prop 추가)
+- [DEV_260502.md](DEV_260502.md) — **전체 보안 검토** (IDOR-1·2·BUCKET·SSRF 4종) / **PhysicsRenderer 삭제 + DiagramRenderer 4종 확장** (Matter.js 제거, `free_body`·`projectile`·`collision` 신규) / **세션 초기화 에러 화면 수정** / **ConstellationRenderer UI 개선** (툴팁 좌표·호버 2x·지평선 선 버그 수정, 캔버스 500px·폰트 12px·pinch zoom·버튼 40px) / **별자리 JSON parse 수정** (sparse array repair, catch silent skip, prompt CRITICAL JSON RULES) / **시각화 intent maxOutputTokens 추가** (astronomy·biology 8192, chemistry·physics 4096)
 - [DEV_260501.md](DEV_260501.md) — **세션 타이틀 모델 경량화**: `SUMMARY_MODELS` 순서 변경 — `gemini-2.5-flash` → `gemini-2.5-flash-lite` primary. `thinkingBudget: 0` 이미 적용 중이라 품질 차이 없음, lite가 더 빠르고 quota 효율적. flash는 fallback 유지.
 - [DEV_260430.md](DEV_260430.md) — **YouTube 요약 처리 성능 개선** / **transcript 추출 전면 제거** (모든 방법 YouTube IP 차단 확인, `youtubei.js` 언인스톨, native video 단일 경로) / **YouTube native video thinkingBudget: 1024** (55.5s→35-40s, 60s Vercel 타임아웃 해소) / **세션 타이틀 생성 1·2·3차 개선**: 프롬프트 5단어→5~15단어, 마크다운 strip + URL strip, 첫 줄만 추출, maxOutputTokens 120→400, `thinkingBudget: 0`으로 thinking 비활성화(단어 중간 잘림 근본 해결)
 - [DEV_260429.md](DEV_260429.md) — **maxOutputTokens 인텐트별 분기** (PDF 16384 / 이미지 4096 / URL 8192 / YouTube 8192 / data_viz 8192 / 코드·일반 32768, 실측 검증 완료) / **PDF `hasDocumentContent` 플래그** (`fileData` 분기 감지로 `image_url` 분기 감지 실패 수정) / **응답 잘림 감지 UI** (generator.ts `cutOff` SSE 이벤트, chat.ts `done` 이벤트, useChatStream.ts `isCutOff` 플래그, ChatMessage.tsx amber 경고 배너) / **YouTube 요약 최적화** (트랜스크립트 20,000자 상한, native video maxTokens 오분기 수정, URL 칩 중복 수정, fetch-transcript timeout 25s→12s) / **모바일 SSE 안정성 강화** (AbortController + 25s activityMonitor, receivedDone 드롭 감지, Failed to fetch 재시도, MAX_TOKENS cutOff 이벤트 누락 수정) / **YouTube 멀티턴 미리보기 재등장 수정** (`isYoutubeFromPrompt` 플래그 도입, 2턴 native 영상 재전송 차단, groundingSources 재전송 차단 → 임베드 재렌더링 방지)
@@ -15,13 +15,17 @@
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
-### v4.66 (DiagramRenderer 4-Type Expansion + Security Review + Session Init Error Fix — 2026-05-02)
-- **PhysicsRenderer 삭제 → DiagramRenderer 4종 통합**: Matter.js 시뮬레이션(`PhysicsRenderer.tsx`) 제거. `DiagramRenderer`에 `free_body`(자유물체도)·`projectile`(포물선)·`collision`(충돌 전후) 3종 신규 추가, 기존 `inclined_plane` 포함 총 4종. 공통 `arrow()` 헬퍼·`getTheme()` 다크/라이트 분리. `ChatMessage.tsx` physics 블록 파서 제거.
-- **prompt.ts 마이그레이션**: `json:physics` 블록 전면 제거 → `json:diagram` 4종 타입 가이드로 대체. physics intent 포커스 `json:diagram` 단일 경로로 통합. 렌더러 수 7 → 6 반영.
-- **전체 보안 검토**: IDOR(auth.ts·sessions.ts), 임의 버킷 업로드(upload.ts·create-signed-url.ts), SSRF 리다이렉트 우회(fetch-url.ts·proxy-image.ts) 4종 식별. IDOR·SSRF는 POC 단계 보류로 TODO 백로그 등록. 근본 원인: service_role 키 + RLS 비활성화.
-- **세션 재설정 에러 화면 순간 표시 수정**: `handleReset`에서 `clearStoredUser()` 제거 → `localStorage.removeItem` 직접 호출 후 reload. `clearStoredUser()`의 `setCurrentUser(null)`이 reload 전에 렌더링돼 에러 화면이 0.1s 순간 표시되던 문제 해소.
-- **useAuthSession localStorage 폴백 강화**: JSON.parse 실패 시 else 블록 미진입 → `createGuestUser()` 헬퍼 분리로 파싱 실패 시 게스트 재생성 폴백. `.catch()` 핸들러에 `setCurrentUser(null)` 명시 추가.
-- **LoadingScreen children prop 추가**: 에러 상태에서 "다시 시도" 버튼 렌더링 지원. children 없을 때만 bounce 애니메이션 표시.
+### v4.66 (DiagramRenderer 4-Type + ConstellationRenderer UI + Security Review — 2026-05-02)
+- **PhysicsRenderer 삭제 → DiagramRenderer 4종 통합**: Matter.js 시뮬레이션(`PhysicsRenderer.tsx`) 제거. `DiagramRenderer`에 `free_body`·`projectile`·`collision` 3종 신규 추가, 기존 `inclined_plane` 포함 총 4종. 공통 `arrow()` 헬퍼·`getTheme()` 다크/라이트 분리. `ChatMessage.tsx` physics 블록 파서 제거.
+- **prompt.ts 마이그레이션**: `json:physics` → `json:diagram` 4종 타입 가이드 대체. 렌더러 수 7 → 6.
+- **ConstellationRenderer 버그 3종 수정**: ① 툴팁 좌표 `clientX/Y` → `rect` 차분(컨테이너 기준) ② 호버 감지 `* 2` 제거·threshold 15로 통일(CSS px ↔ 논리 px 불일치 해소) ③ 지평선 아래 별 연결선 `visible` 체크 추가.
+- **ConstellationRenderer UX 개선**: 캔버스 데스크톱 400→500px·모바일 375→420px / 별 이름 9→12px / 줌 버튼 28→40px / 모바일 pinch-to-zoom 추가 / `containerRef` dead code 제거 / state 선언 순서 정리.
+- **별자리 JSON parse 수정**: AI가 `[, , , ]` sparse array 생성 시 raw JSON 채팅 노출 문제 — parse 전 regex repair + catch silent skip 처리. `prompt.ts`에 CRITICAL JSON RULES 추가(빈 배열 금지, 물병자리 lines 예시).
+- **시각화 intent maxOutputTokens 분기 추가**: astronomy·biology 32768→8192, chemistry·physics 32768→4096 (`generator.ts`).
+- **전체 보안 검토**: IDOR(auth.ts·sessions.ts), 임의 버킷 업로드, SSRF 리다이렉트 4종 식별. POC 단계 보류 → TODO 백로그.
+- **세션 재설정 에러 화면 수정**: `handleReset` `clearStoredUser()` 제거 → localStorage 직접 제거+reload.
+- **useAuthSession localStorage 폴백 강화**: `createGuestUser()` 헬퍼 분리, JSON.parse 실패 시 게스트 재생성.
+- **LoadingScreen children prop 추가**: 에러 상태 "다시 시도" 버튼 지원.
 
 ### v4.65 (Session Title Model Lightweighting — 2026-05-01)
 - **타이틀 생성 모델 경량화**: `SUMMARY_MODELS` 순서 변경 — `gemini-2.5-flash` → `gemini-2.5-flash-lite` primary, flash는 fallback으로 이동. `thinkingBudget: 0` 적용 상태에서 두 모델 간 실질 품질 차이 없음. lite가 더 빠르고 quota 효율적.

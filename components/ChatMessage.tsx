@@ -440,7 +440,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
       // Add viz block
       try {
-        const jsonData = JSON.parse(match[2]);
+        // Repair common AI JSON mistakes before parsing:
+        // 1. sparse arrays [, , ,] → remove empty slots
+        // 2. trailing commas before ] or }
+        const repaired = match[2]
+          .replace(/,\s*(?=[,\]\}])/g, '')   // trailing / consecutive commas
+          .replace(/\[\s*,/g, '[')            // leading comma in array
+          .replace(/,\s*\]/g, ']');           // trailing comma before ]
+        const jsonData = JSON.parse(repaired);
         if (blockType === 'chart') {
           parts.push({ type: 'chart', data: jsonData });
         } else if (blockType === 'smiles') {
@@ -455,10 +462,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'drug', data: jsonData });
         }
       } catch (e) {
-        parts.push({
-          type: 'text',
-          content: match[0]
-        });
+        // Silently skip invalid viz blocks — don't dump raw JSON into the chat
       }
 
       lastIndex = blockRegex.lastIndex;

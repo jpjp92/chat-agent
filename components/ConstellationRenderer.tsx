@@ -39,7 +39,6 @@ const labels = {
 
 const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, language }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
     const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const currentLabels = labels[language] || labels.ko;
@@ -56,6 +55,9 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
 
     // Store projected star positions for hover detection
     const projectedStarsRef = useRef<Array<Star & { canvasX: number; canvasY: number; visible?: boolean }>>([]);
+    // Pinch-to-zoom tracking
+    const pinchStartDistRef = useRef<number | null>(null);
+    const pinchStartZoomRef = useRef<number>(1.0);
 
     // Zoom limits
     const MIN_ZOOM = 0.3;
@@ -70,13 +72,15 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         elevation: 0
     });
 
+    const [observerTime, setObserverTime] = useState(new Date());
+    const [isNight, setIsNight] = useState(true);
+
     // Time animation loop
     useEffect(() => {
         if (isPlaying) {
-            // Advance time by 1 hour every 300ms (faster animation)
             animationIntervalRef.current = setInterval(() => {
-                setObserverTime(prev => new Date(prev.getTime() + 3600000)); // +1 hour
-            }, 150); // Every 0.15 seconds
+                setObserverTime(prev => new Date(prev.getTime() + 3600000));
+            }, 150);
         } else {
             if (animationIntervalRef.current) {
                 clearInterval(animationIntervalRef.current);
@@ -90,8 +94,6 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             }
         };
     }, [isPlaying]);
-    const [observerTime, setObserverTime] = useState(new Date());
-    const [isNight, setIsNight] = useState(true);
 
     // Update night/day status when time or location changes
     useEffect(() => {
@@ -145,9 +147,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             if (!container) return;
 
             const isMobile = window.innerWidth < 640;
-            // Fixed dimensions: 800x400 for desktop, 500x375 for mobile (smaller for better fit)
             const width = isMobile ? 500 : 800;
-            const height = isMobile ? 375 : 400;
+            const height = isMobile ? 420 : 500;
 
             canvas.width = width * 2; // Retina support
             canvas.height = height * 2;
@@ -242,12 +243,11 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 const avgY = (minY + maxY) / 2;
 
                 // Calculate safe viewing area (avoid UI panels)
-                const headerHeight = 40; // Reduced for compact unified bar
-                const timeControlHeight = 0; // Now integrated in header
+                const headerHeight = 55; // header bar ~44px + 12px top offset
                 const bottomControlHeight = 80;
                 const padding = 20;
 
-                const safeTop = headerHeight + timeControlHeight + padding;
+                const safeTop = headerHeight + padding;
                 const safeBottom = height - bottomControlHeight - padding;
                 const safeHeight = safeBottom - safeTop;
                 const safeCenterY = safeTop + safeHeight / 2;
@@ -275,7 +275,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                         const start = projectedStars.find(s => s.id === startId);
                         const end = projectedStars.find(s => s.id === endId);
 
-                        if (start && end) {
+                        if (start && end && start.visible !== false && end.visible !== false) {
                             ctx.beginPath();
                             ctx.moveTo(start.canvasX + panOffset.x, start.canvasY + panOffset.y);
                             ctx.lineTo(end.canvasX + panOffset.x, end.canvasY + panOffset.y);
@@ -317,7 +317,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             });
 
             // Draw star labels with collision detection
-            ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
@@ -490,37 +490,32 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
     };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+
         if (isDragging) {
             setPanOffset({
                 x: e.clientX - dragStart.x,
                 y: e.clientY - dragStart.y
             });
         } else {
-            // Check for star hover using stored projected positions
-            const canvas = canvasRef.current;
-            if (!canvas) return;
+            // CSS-pixel coords match logical canvas coords (stars stored in logical space)
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) * 2; // Account for 2x scaling
-            const y = (e.clientY - rect.top) * 2;
-
-            // Find star at position
-            const threshold = 30; // pixels (accounting for 2x scale)
+            const threshold = 15;
             let foundStar: Star | null = null;
             let minDistance = threshold;
 
             projectedStarsRef.current.forEach(star => {
-                if (star.visible === false) return; // Skip stars below horizon
-
-                // Apply pan offset to star position for hover detection
+                if (star.visible === false) return;
                 const starScreenX = star.canvasX + panOffset.x;
                 const starScreenY = star.canvasY + panOffset.y;
-
                 const distance = Math.sqrt(
                     Math.pow(x - starScreenX, 2) +
                     Math.pow(y - starScreenY, 2)
                 );
-
                 if (distance < minDistance) {
                     minDistance = distance;
                     foundStar = star;
@@ -534,7 +529,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 setHoveredStar(null);
                 canvas.style.cursor = 'grab';
             }
-            setTooltipPos({ x: e.clientX, y: e.clientY });
+            // Container-relative coords for absolute-positioned tooltip
+            setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         }
     };
 
@@ -547,12 +543,19 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         setHoveredStar(null);
     };
 
-    // Touch support
+    // Touch support (drag + pinch-to-zoom)
     const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
         if (e.touches.length === 1) {
             const touch = e.touches[0];
             setIsDragging(true);
+            pinchStartDistRef.current = null;
             setDragStart({ x: touch.clientX - panOffset.x, y: touch.clientY - panOffset.y });
+        } else if (e.touches.length === 2) {
+            setIsDragging(false);
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            pinchStartDistRef.current = Math.sqrt(dx * dx + dy * dy);
+            pinchStartZoomRef.current = zoom;
         }
     };
 
@@ -563,11 +566,26 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 x: touch.clientX - dragStart.x,
                 y: touch.clientY - dragStart.y
             });
+        } else if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const ratio = dist / pinchStartDistRef.current;
+            setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinchStartZoomRef.current * ratio)));
         }
     };
 
-    const handleTouchEnd = () => {
-        setIsDragging(false);
+    const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        if (e.touches.length === 0) {
+            setIsDragging(false);
+            pinchStartDistRef.current = null;
+        } else if (e.touches.length === 1) {
+            // Pinch released to single finger — resume drag from current position
+            const touch = e.touches[0];
+            pinchStartDistRef.current = null;
+            setIsDragging(true);
+            setDragStart({ x: touch.clientX - panOffset.x, y: touch.clientY - panOffset.y });
+        }
     };
 
     const handleSnapshot = () => {
@@ -687,34 +705,34 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     <button
                         onClick={handleZoomIn}
                         disabled={zoom >= MAX_ZOOM}
-                        className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
+                        className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
                         title="Zoom in"
                     >
-                        <i className="fa-solid fa-plus text-xs"></i>
+                        <i className="fa-solid fa-plus text-sm"></i>
                     </button>
                     <div className="h-px bg-white/10"></div>
                     <button
                         onClick={handleZoomOut}
                         disabled={zoom <= MIN_ZOOM}
-                        className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
+                        className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
                         title="Zoom out"
                     >
-                        <i className="fa-solid fa-minus text-xs"></i>
+                        <i className="fa-solid fa-minus text-sm"></i>
                     </button>
                 </div>
 
                 {/* Reset button */}
                 <button
                     onClick={handleResetView}
-                    className="w-7 h-7 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
+                    className="w-10 h-10 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
                     title="Reset view"
                 >
-                    <i className="fa-solid fa-rotate-right text-xs"></i>
+                    <i className="fa-solid fa-rotate-right text-sm"></i>
                 </button>
             </div>
             {/* Zoom indicator */}
-            <div className="absolute bottom-3 left-3 z-20 w-8 h-4 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
-                <span className="text-[9px] font-mono text-slate-300 leading-none pb-[1px]">
+            <div className="absolute bottom-3 left-3 z-20 px-2 h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
+                <span className="text-[10px] font-mono text-slate-300 leading-none">
                     {(zoom * 100).toFixed(0)}%
                 </span>
             </div>

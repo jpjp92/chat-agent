@@ -176,10 +176,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
                     const resolvedMaxTokens = (() => {
                         if (hasDocumentContent) return 16384;               // PDF·문서 분석
-                        if (isYoutubeRequest) return 8192;                  // YouTube 요약 (transcript + native video 모두)
+                        if (isYoutubeRequest) return 8192;                  // YouTube 요약
                         if (hasMultimodalContent) return 4096;              // 이미지 분석
                         if (hasUrlContent) return 8192;                     // URL 요약
-                        if (state.intent === 'data_viz') return 8192;      // 차트 JSON
+                        if (state.intent === 'data_viz') return 8192;      // 차트 JSON + 설명
+                        if (state.intent === 'astronomy') return 8192;     // 별자리 JSON + 설명
+                        if (state.intent === 'biology') return 8192;       // PDB 구조 + 설명
+                        if (state.intent === 'chemistry') return 4096;     // SMILES + 설명
+                        if (state.intent === 'physics') return 4096;       // 다이어그램 JSON + 설명
                         return 32768;                                        // 코드·일반
                     })();
 

@@ -254,10 +254,15 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
 - OPTIONAL FIELDS:
   - "center": { "ra": number, "dec": number } for viewport centering
   - "zoom": number (1.0 = default, higher = closer)
+- CRITICAL JSON RULES:
+  - "lines" MUST contain actual [id, id] pairs. NEVER output empty arrays [], sparse arrays [,,], or placeholder values.
+  - If exact IAU lines are unknown, connect stars sequentially: [[0,1],[1,2],[2,3],...] or in a visually meaningful shape.
+  - The entire block MUST be valid JSON. Do NOT use trailing commas, comments, or undefined values.
 - EXAMPLE OUTPUT for "오리온자리 보여줘":
   \`\`\`json:constellation
   { "stars": [{ "id": 0, "ra": 5.919, "dec": 7.407, "mag": 0.42, "name": "Betelgeuse", "constellation": "ori" }, { "id": 1, "ra": 5.242, "dec": -8.201, "mag": 0.12, "name": "Rigel", "constellation": "ori" }, { "id": 2, "ra": 5.603, "dec": -1.202, "mag": 1.64, "name": "Bellatrix", "constellation": "ori" }, { "id": 3, "ra": 5.533, "dec": -0.299, "mag": 2.23, "name": "Mintaka", "constellation": "ori" }, { "id": 4, "ra": 5.533, "dec": -1.943, "mag": 1.69, "name": "Alnilam", "constellation": "ori" }, { "id": 5, "ra": 5.679, "dec": -1.942, "mag": 1.74, "name": "Alnitak", "constellation": "ori" }, { "id": 6, "ra": 5.415, "dec": -5.909, "mag": 2.06, "name": "Saiph", "constellation": "ori" }], "constellations": [{ "id": "ori", "name": { "ko": "오리온자리", "en": "Orion", "es": "Orión", "fr": "Orion" }, "lines": [[0, 2], [2, 3], [3, 4], [4, 5], [0, 3], [1, 3], [1, 6], [5, 6]] }] }
   \`\`\`
+- EXAMPLE lines for Aquarius (물병자리): [[1,0],[0,2],[2,3],[1,4]] — connect β→α→γ→δ, β→ε
 - PROACTIVE CONSTELLATION: When users ask about constellations, stars, or night sky, automatically generate a constellation visualization using the exact format shown above.
 
 [DRUG VISUALIZATION]
