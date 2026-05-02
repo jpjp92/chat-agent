@@ -1,6 +1,6 @@
 # Chat Agent with Gemini
 
-An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, and 7 interactive visualization renderers.
+An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, and 6 interactive visualization renderers.
 
 ---
 
@@ -19,15 +19,14 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
-### 1-3. Visualization Renderers (7)
+### 1-3. Visualization Renderers (6)
 
 | Renderer | Intent | Trigger | Library |
 |----------|--------|---------|---------|
 | 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 | MFDS API + pharm.or.kr |
 | 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
 | 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
-| ⚙️ Physics-Viz | `physics` | 역학 / 시뮬레이션 | Matter.js |
-| 📐 Diagram-Viz | `physics` | 경사면 힘 다이어그램 | Canvas 2D |
+| 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
 | ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas |
 | 📊 Chart-Viz | `data_viz` | 데이터 / 통계 | ApexCharts |
 
@@ -65,7 +64,7 @@ flowchart TB
         UI[Main UI & App State]
         subgraph Visualizers ["Visualization Modules"]
             Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
-            Phy["⚙️ Physics-Viz"] & Drug["💊 Drug-Viz"] & Charts["📊 Chart-Viz"]
+            Diagram["📐 Diagram-Viz"] & Drug["💊 Drug-Viz"] & Charts["📊 Chart-Viz"]
         end
     end
 
@@ -129,7 +128,7 @@ flowchart TB
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion |
-| Visualization | ApexCharts, smiles-drawer, NGL, matter-js, HTML5 Canvas |
+| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas |
 | Backend | Vercel Serverless Functions, LangGraph.js |
 | AI | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
 | Database | Supabase (PostgreSQL, Storage, Auth) |
@@ -177,7 +176,6 @@ flowchart TB
 │   ├── DrugRenderer.tsx        # Drug card
 │   ├── BioRenderer.tsx         # 3D protein structure
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
-│   ├── PhysicsRenderer.tsx     # Physics simulation
 │   ├── ConstellationRenderer.tsx
 │   ├── ChartRenderer.tsx
 │   ├── DiagramRenderer.tsx
@@ -193,7 +191,7 @@ flowchart TB
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
 │   ├── DEV_*.md                # Session work logs (latest: DEV_260426.md)
 │   ├── TODO.md                 # Roadmap
-│   └── REF_*.md                # Renderer test prompt guides
+│   └── Guide/REF_*.md          # Renderer test prompt guides
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
 └── types.ts                    # 공유 TypeScript 타입 정의
 ```

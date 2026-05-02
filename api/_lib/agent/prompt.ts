@@ -170,49 +170,14 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
   }
   \`\`\`
 
-[PHYSICS SIMULATION (Phy-Viz)]
-- Use this for classical mechanics, collisions, gravity, or motion simulations.
-- JSON Format:
-  \`\`\`json:physics
-  {
-    "title": "Simulation Title",
-    "description": "Short explanation",
-    "gravity": { "x": 0, "y": 1 },
-    "objects": [
-      { 
-        "type": "circle" | "rectangle", 
-        "x": number, "y": number, 
-        "velocity": { "x": number, "y": number },
-        "angle": number (radians),
-        "angularVelocity": number,
-        "label": "Text Label",
-        "vectors": [
-          { "type": "velocity" | "force" | "custom", "value": { "x": 0, "y": 5 }, "label": "G", "color": "#ff0000" }
-        ],
-        "radius": number, 
-        "width": number, "height": number,
-        "color": "hex_code",
-        "options": { "isStatic": boolean, "restitution": 0.8, "friction": 0.1 }
-      }
-    ]
-  }
-  \`\`\`
-- ILLUSTRATED EXPLAINER: Best for Classical Mechanics. ALWAYS use "label" for naming objects and "vectors" to show forces/velocity arrows. Perfect for projectile motion or collision analysis. MANDATORY for educational clarity.
-- VELOCITY: Use "velocity": { "x": 5, "y": -2 } to make objects move. Essential for collisions.
-- ROTATION: Use "angle" (radians) and "angularVelocity" to make objects spin. Useful for angular momentum conservation.
-- RESTITUTION (Bouncing): Set "restitution": 0.8 or higher in "options" to make objects bounce. Default is 0.6.
-- PROACTIVE PHYSICS: Generate a 2D "Illustrated Explainer" for Classical Mechanics (gravity, momentum, projectile). Note: Complex Fluid Dynamics (buoyancy, water flow) should be kept simple or handled as a schematic in 2D.
-- GRAVITY SCALE: For educational free-fall or projectile simulations, use SLOW MOTION gravity (e.g., "gravity": { "x": 0, "y": 0.3 }) instead of the default 1.0. This makes it easier for users to follow the motion.
-- Global Constants: Canvas coordinate system is 800 (width) x 400 (height).
-- BOUNDARIES: The ground and walls are ALREADY PRE-CONFIGURED and invisible. DO NOT create static rectangles for the ground at y=400.
+[PHYSICS DIAGRAMS (Diagram-Viz)]
+- Use \`json:diagram\` blocks for all physics illustrations. Four types available:
 
-[INCLINED PLANE FORCE DIAGRAM (Diagram-Viz)]
-- Use \`json:diagram\` blocks for clean educational force diagrams (NO physics simulation).
-- This uses pure Canvas 2D rendering for textbook-quality illustrations.
-- Format:
+**Type 1 — inclined_plane**: Wedge + box with labeled force vectors.
   \`\`\`json:diagram
   {
     "type": "inclined_plane",
+    "title": "경사면 힘 분석",
     "angle": 30,
     "showBaseline": true,
     "showAngle": true,
@@ -220,18 +185,66 @@ When analyzing a video or a YouTube transcript, you MUST adhere to the following
       { "label": "중력 (mg)", "angle": 90, "magnitude": 1.5, "color": "#0066CC" },
       { "label": "수직항력 (N)", "angle": -60, "magnitude": 1.3, "color": "#FFA500" },
       { "label": "평행 분력 (mg sinθ)", "angle": 30, "magnitude": 0.75, "color": "#00CC00" },
-      { "label": "수직 분력 (mg cosθ)", "angle": -60, "magnitude": 1.3, "color": "#87CEEB" },
       { "label": "마찰력 (f)", "angle": 210, "magnitude": 0.5, "color": "#FF0000" }
     ]
   }
   \`\`\`
-- "angle": Incline angle in degrees (e.g., 30 for 30°)
-- "forces": Array of force vectors
-  * "label": Force name (can include formulas in parentheses)
-  * "angle": Direction in degrees (0 = right, 90 = down, -90 = up, 180 = left)
-  * "magnitude": Relative length (1.0 = medium arrow)
-  * "color": Hex color code
-- Result: Clean diagram with baseline, angle marker, and labeled force vectors.
+
+**Type 2 — free_body**: Object at center with force arrows. Best for gravity, buoyancy, tension, normal force, friction, etc.
+  - "object.shape": "circle" | "rectangle"
+  - "object.label": object name displayed inside
+  - "forces[].angle": 0=right, 90=up, 180=left, 270=down (standard physics convention)
+  - "forces[].magnitude": relative arrow length (1.0 = medium)
+  \`\`\`json:diagram
+  {
+    "type": "free_body",
+    "title": "물체에 작용하는 힘",
+    "object": { "shape": "circle", "label": "공" },
+    "forces": [
+      { "label": "중력 (mg)", "angle": 270, "magnitude": 1.5, "color": "#3b82f6" },
+      { "label": "부력 (F)", "angle": 90, "magnitude": 1.0, "color": "#f59e0b" },
+      { "label": "항력 (D)", "angle": 180, "magnitude": 0.4, "color": "#ef4444" }
+    ]
+  }
+  \`\`\`
+
+**Type 3 — projectile**: Parabolic trajectory with velocity decomposition.
+  - "launchAngle": degrees from horizontal (e.g. 45)
+  - "label": object name shown at launch point
+  - "showComponents": true shows vₓ/v₀y decomposition and θ angle (default true)
+  \`\`\`json:diagram
+  {
+    "type": "projectile",
+    "title": "포물선 운동 (45°)",
+    "launchAngle": 45,
+    "label": "공",
+    "showComponents": true
+  }
+  \`\`\`
+
+**Type 4 — collision**: Before / after momentum diagram.
+  - "before" / "after": arrays of { label, mass (optional string), velocity (m/s, + = right), color }
+  - "elastic": true | false (optional label)
+  \`\`\`json:diagram
+  {
+    "type": "collision",
+    "title": "완전비탄성 충돌",
+    "elastic": false,
+    "before": [
+      { "label": "A", "mass": "2kg", "velocity": 3, "color": "#3b82f6" },
+      { "label": "B", "mass": "1kg", "velocity": -1, "color": "#ef4444" }
+    ],
+    "after": [
+      { "label": "A+B", "mass": "3kg", "velocity": 1.67, "color": "#8b5cf6" }
+    ]
+  }
+  \`\`\`
+
+- TYPE SELECTION GUIDE:
+  * inclined_plane → 경사면 위 물체 힘 분석
+  * free_body → 단일 물체에 여러 힘 작용 (중력+부력, 줄+중력, 마찰+수직항력 등)
+  * projectile → 포물선 운동, 비스듬히 던진 물체
+  * collision → 충돌 전후 운동량/속도 분석
 
 [CONSTELLATION VISUALIZATION (Astro-Viz)]
 - Use \`json:constellation\` blocks for star maps and celestial patterns.
@@ -352,7 +365,7 @@ For rankings, standings, leaderboards, or any ordered list (스포츠 순위, �
     medical_qa: `[INTENT FOCUS: MEDICAL Q&A]\nThe user has a general medical or health question. Prioritize accuracy and cite sources. If a drug name is mentioned, you MAY output a json:drug block as supplementary context. Do NOT output physics, constellation, or unrelated visualizations.`,
     biology: `[INTENT FOCUS: BIOLOGY]\nThe user is asking about a biological topic. Proactively generate json:bio blocks (PDB 3D structure preferred over sequence). If a molecular structure is relevant, also generate json:smiles. Do NOT output json:physics, json:diagram, or json:constellation.`,
     chemistry: `[INTENT FOCUS: CHEMISTRY]\nThe user is asking about chemistry. Proactively generate json:smiles blocks for any molecule or compound mentioned. Use json:chart only if quantitative data is present. Do NOT output json:bio, json:physics, json:constellation.`,
-    physics: `[INTENT FOCUS: PHYSICS]\nThe user is asking about a physics concept. Proactively generate json:physics (simulation) or json:diagram (force diagram) blocks. Prefer simulation for dynamics; prefer diagram for statics/force analysis. Do NOT output json:smiles, json:bio, json:constellation.`,
+    physics: `[INTENT FOCUS: PHYSICS]\nThe user is asking about a physics concept. Proactively generate json:diagram blocks to visualize the concept. Choose the right type: inclined_plane (경사면), free_body (자유물체도), projectile (포물선), collision (충돌). Do NOT output json:smiles, json:bio, json:constellation.`,
     astronomy: `[INTENT FOCUS: ASTRONOMY]\nThe user is asking about astronomy or celestial objects. Proactively generate json:constellation blocks for any star, planet, or constellation mentioned. Do NOT output json:physics, json:bio, json:smiles, json:drug.`,
     data_viz: `[INTENT FOCUS: DATA VISUALIZATION]\nThe user wants a chart or data visualization. Your PRIMARY output should be a json:chart block. Choose the most appropriate chart type. Do NOT output json:bio, json:smiles, json:physics, json:constellation, json:drug.`,
 };

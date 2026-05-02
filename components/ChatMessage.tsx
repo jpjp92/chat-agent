@@ -14,7 +14,6 @@ import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../se
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
 const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
 const BioRenderer = lazy(() => import('./BioRenderer'));
-const PhysicsRenderer = lazy(() => import('./PhysicsRenderer'));
 const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
 const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
 const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
@@ -420,8 +419,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'physics' | 'constellation' | 'diagram' | 'drug' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -448,8 +447,6 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'chemical', data: jsonData });
         } else if (blockType === 'bio') {
           parts.push({ type: 'bio', data: jsonData });
-        } else if (blockType === 'physics') {
-          parts.push({ type: 'physics', data: jsonData });
         } else if (blockType === 'constellation') {
           parts.push({ type: 'constellation', data: jsonData });
         } else if (blockType === 'diagram') {
@@ -472,14 +469,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         // Split text to show only complete parts
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|physics|constellation|diagram|drug)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -557,13 +554,6 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <Suspense key={idx} fallback={<LoadingFallback />}>
                 <BioRenderer bioData={part.data} language={language} />
-              </Suspense>
-            );
-          }
-          if (part.type === 'physics') {
-            return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <PhysicsRenderer physicsData={part.data} language={language} />
               </Suspense>
             );
           }
