@@ -184,8 +184,11 @@ const App: React.FC = () => {
   }, [hydratedUserProfile]);
 
   const handleReset = () => {
-    clearStoredUser();
-    window.location.reload(); // 새로고침하여 새로운 익명 사용자로 다시 시작
+    // React 상태 변경 없이 스토리지만 지우고 바로 reload
+    // clearStoredUser()를 먼저 호출하면 currentUser=null 리렌더가 reload보다 먼저 실행돼 에러 화면이 순간 표시됨
+    localStorage.removeItem('gemini_chat_user');
+    localStorage.removeItem('chat_sessions_cache_v1');
+    window.location.reload();
   };
   // Supabase 연동으로 인해 로컬스토리지 자동 저장은 비활성화하거나 유저 프로필만 남깁니다.
   useEffect(() => {
@@ -268,8 +271,16 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
+    const errMsg = language === 'es' ? 'Error de conexión.' : language === 'fr' ? 'Erreur de connexion.' : language === 'en' ? 'Connection failed.' : '연결에 실패했습니다.';
     return (
-      <LoadingScreen message={language === 'ko' ? '연결에 실패했습니다. 페이지를 새로고침 해주세요.' : language === 'es' ? 'Error de conexión. Por favor, recarga la página.' : language === 'fr' ? 'Erreur de connexion. Veuillez recharger la page.' : 'Connection failed. Please refresh the page.'} />
+      <LoadingScreen message={errMsg}>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-5 py-2 rounded-full bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition text-white text-sm font-medium shadow"
+        >
+          {language === 'es' ? 'Reintentar' : language === 'fr' ? 'Réessayer' : language === 'en' ? 'Retry' : '다시 시도'}
+        </button>
+      </LoadingScreen>
     );
   }
 

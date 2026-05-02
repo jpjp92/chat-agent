@@ -2,9 +2,10 @@ import React from 'react';
 
 interface LoadingScreenProps {
     message: string;
+    children?: React.ReactNode;
 }
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ message, children }) => {
     return (
         <div className="flex h-dvh items-center justify-center" style={{ background: document.documentElement.classList.contains('dark')
             ? 'linear-gradient(135deg, #141629 0%, #1a1f3c 50%, #141629 100%)'
@@ -17,15 +18,20 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
                     <div className="absolute inset-0 bg-primary-500 blur-2xl opacity-20 animate-pulse"></div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                    <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
-                        {message}
-                    </p>
-                    <div className="flex space-x-1 pt-2">
-                        <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                        <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                        <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></div>
+                <div className="flex flex-col items-center space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">
+                            {message}
+                        </p>
+                        {!children && (
+                            <div className="flex space-x-1 pt-2">
+                                <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></div>
+                            </div>
+                        )}
                     </div>
+                    {children}
                 </div>
             </div>
         </div>

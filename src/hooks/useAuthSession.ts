@@ -24,6 +24,22 @@ export const useAuthSession = () => {
   useEffect(() => {
     let isMounted = true;
 
+    const createGuestUser = async (): Promise<SupabaseUser | null> => {
+      const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const guestNickname = `사용자_${randomId}`;
+      try {
+        const { user: newUser, error } = await loginUser(guestNickname);
+        if (!error && newUser) {
+          localStorage.setItem('gemini_chat_user', JSON.stringify(newUser));
+          return newUser;
+        }
+        console.error('Auto-login error:', error);
+      } catch (error) {
+        console.error('Auto-login failed:', error);
+      }
+      return null;
+    };
+
     const initAuth = async () => {
       let user: SupabaseUser | null = null;
       const savedUser = localStorage.getItem('gemini_chat_user');
@@ -32,29 +48,16 @@ export const useAuthSession = () => {
         try {
           user = JSON.parse(savedUser);
         } catch (error) {
-          console.error('Failed to parse saved user:', error);
+          // 파싱 실패 → 손상된 캐시 제거 후 신규 게스트로 재시도
+          console.error('Failed to parse saved user, creating new guest:', error);
           localStorage.removeItem('gemini_chat_user');
+          user = await createGuestUser();
         }
       } else {
-        const randomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const guestNickname = `사용자_${randomId}`;
-
-        try {
-          const { user: newUser, error } = await loginUser(guestNickname);
-          if (!error && newUser) {
-            user = newUser;
-            localStorage.setItem('gemini_chat_user', JSON.stringify(newUser));
-          } else if (error) {
-            console.error('Auto-login error:', error);
-          }
-        } catch (error) {
-          console.error('Auto-login failed:', error);
-        }
+        user = await createGuestUser();
       }
 
-      if (!isMounted) {
-        return;
-      }
+      if (!isMounted) return;
 
       setCurrentUser(user);
       setIsAuthLoading(false);
@@ -63,6 +66,8 @@ export const useAuthSession = () => {
     initAuth().catch(error => {
       console.error('initAuth failed:', error);
       if (isMounted) {
+        // currentUser를 명시적으로 null로 확정해야 에러 화면이 표시됨
+        setCurrentUser(null);
         setIsAuthLoading(false);
       }
     });

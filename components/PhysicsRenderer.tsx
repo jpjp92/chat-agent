@@ -132,6 +132,12 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
         const offsetX = (width - (virtualWidth * scale)) / 2;
         const offsetY = height - (virtualHeight * scale);
 
+        // Template-based positioning for inclined planes (overrides AI coordinates)
+        // Computed once outside map to avoid O(n²) per-object rescanning
+        const isInclinedPlane = physicsData.objects.some(o =>
+            o.type === 'rectangle' && o.angle && Math.abs(o.angle - 0.524) < 0.2
+        );
+
         const bodies: Matter.Body[] = physicsData.objects.map(obj => {
             let body: Matter.Body;
             const options: Matter.IChamferableBodyDefinition = {
@@ -147,15 +153,6 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                 }
             };
 
-            // Template-based positioning for inclined planes (overrides AI coordinates)
-            const isInclinedPlane = physicsData.objects.some(o =>
-                o.type === 'rectangle' && o.angle && Math.abs(o.angle - 0.524) < 0.2
-            );
-
-            if (isInclinedPlane) {
-                console.log('🔧 Inclined plane template detected!', physicsData.objects);
-            }
-
             let x = (obj.x * scale) + offsetX;
             let y = (obj.y * scale) + offsetY;
 
@@ -164,15 +161,11 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                 const isPlane = (obj.width || 0) > 100;
 
                 if (isPlane) {
-                    // Inclined plane: use virtual coordinates
                     x = (450 * scale) + offsetX;
                     y = (320 * scale) + offsetY;
-                    console.log('📐 Plane template applied:', { virtual: [450, 320], actual: [x, y] });
                 } else {
-                    // Sliding box: use virtual coordinates
                     x = (300 * scale) + offsetX;
                     y = (235 * scale) + offsetY;
-                    console.log('📦 Box template applied:', { virtual: [300, 235], actual: [x, y] });
                 }
             }
 
@@ -208,7 +201,7 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
             mouseAny.element.removeEventListener("DOMMouseScroll", mouseAny.mousewheel);
         }
 
-        Matter.Composite.add(engine.world, [...bodies, ground, leftWall, rightWall, mouseConstraint]);
+        Matter.Composite.add(engine.world, [...bodies, ground, leftWall, rightWall, ceiling, mouseConstraint]);
 
         // Apply Initial States
         physicsData.objects.forEach((obj, idx) => {
@@ -317,7 +310,10 @@ const PhysicsRenderer: React.FC<PhysicsRendererProps> = ({ physicsData, language
                     context.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
                     // Stagger labels to prevent overlap in dense layouts (like Newton's Cradle)
                     const staggerOffset = (idx % 2 === 0) ? 20 : 45;
-                    context.fillText(obj.label, x, y - (obj.radius || 20) * scale - staggerOffset);
+                    const halfSize = obj.type === 'circle'
+                        ? (obj.radius || 20)
+                        : (obj.height || 40) / 2;
+                    context.fillText(obj.label, x, y - halfSize * scale - staggerOffset);
                 }
             });
 

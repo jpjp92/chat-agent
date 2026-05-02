@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260502.md](DEV_260502.md) — **전체 보안 검토** (IDOR-1·2·BUCKET·SSRF 4종 식별, POC 단계 IDOR·SSRF는 TODO 보류, BUCKET 화이트리스트 우선순위 1 재확인) / **PhysicsRenderer 버그 3건 수정** (`ceiling` 월드 미추가→천장 이탈 버그, 사각형 라벨 수직 위치 오류, `isInclinedPlane` O(n²)→O(n), 디버그 로그 3건 제거) / **세션 초기화 에러 화면 수정** (`handleReset`이 `clearStoredUser()` 호출로 `isAuthLoading=false+currentUser=null` 순간 렌더 → localStorage 직접 제거+reload로 교체, `useAuthSession` localStorage 파싱 실패 시 게스트 재생성 폴백 추가, `LoadingScreen` children prop 추가)
 - [DEV_260501.md](DEV_260501.md) — **세션 타이틀 모델 경량화**: `SUMMARY_MODELS` 순서 변경 — `gemini-2.5-flash` → `gemini-2.5-flash-lite` primary. `thinkingBudget: 0` 이미 적용 중이라 품질 차이 없음, lite가 더 빠르고 quota 효율적. flash는 fallback 유지.
 - [DEV_260430.md](DEV_260430.md) — **YouTube 요약 처리 성능 개선** / **transcript 추출 전면 제거** (모든 방법 YouTube IP 차단 확인, `youtubei.js` 언인스톨, native video 단일 경로) / **YouTube native video thinkingBudget: 1024** (55.5s→35-40s, 60s Vercel 타임아웃 해소) / **세션 타이틀 생성 1·2·3차 개선**: 프롬프트 5단어→5~15단어, 마크다운 strip + URL strip, 첫 줄만 추출, maxOutputTokens 120→400, `thinkingBudget: 0`으로 thinking 비활성화(단어 중간 잘림 근본 해결)
 - [DEV_260429.md](DEV_260429.md) — **maxOutputTokens 인텐트별 분기** (PDF 16384 / 이미지 4096 / URL 8192 / YouTube 8192 / data_viz 8192 / 코드·일반 32768, 실측 검증 완료) / **PDF `hasDocumentContent` 플래그** (`fileData` 분기 감지로 `image_url` 분기 감지 실패 수정) / **응답 잘림 감지 UI** (generator.ts `cutOff` SSE 이벤트, chat.ts `done` 이벤트, useChatStream.ts `isCutOff` 플래그, ChatMessage.tsx amber 경고 배너) / **YouTube 요약 최적화** (트랜스크립트 20,000자 상한, native video maxTokens 오분기 수정, URL 칩 중복 수정, fetch-transcript timeout 25s→12s) / **모바일 SSE 안정성 강화** (AbortController + 25s activityMonitor, receivedDone 드롭 감지, Failed to fetch 재시도, MAX_TOKENS cutOff 이벤트 누락 수정) / **YouTube 멀티턴 미리보기 재등장 수정** (`isYoutubeFromPrompt` 플래그 도입, 2턴 native 영상 재전송 차단, groundingSources 재전송 차단 → 임베드 재렌더링 방지)
@@ -13,6 +14,13 @@
 - [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** / **날씨 이모지 테이블 누락 수정** / **MFDS 미등재 약품 검색 폴백 개선** / **MFDS 폴백 출처 칩 미표시 수정 3단계** / **소스 칩 스트리밍 완료 후 표시** / **첨부파일 UX 전면 개선** (자세한 내용은 DEV_260426.md 켜럼 수정 1~4 참조) / **이미지 썸네일 aspect-ratio 16/9 컨테이너** (`max-w-[220px]`, 폴백 컨테이너 크기 고정, 아이콘 축소) / **이미지 항상 Supabase 업로드** (크기 무관 `chat-imgs` 버킷 업로드 후 URL DB 저장 → 히스토리 미리보기 복원, `useChatStream.ts`)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
+
+### v4.66 (Security Review + PhysicsRenderer Bugfix + Session Init Error Fix — 2026-05-02)
+- **전체 보안 검토**: IDOR(auth.ts·sessions.ts), 임의 버킷 업로드(upload.ts·create-signed-url.ts), SSRF 리다이렉트 우회(fetch-url.ts·proxy-image.ts) 4종 식별. IDOR·SSRF는 POC 단계 보류로 TODO 백로그 등록. 근본 원인: service_role 키 + RLS 비활성화.
+- **PhysicsRenderer 버그 수정**: `ceiling` 바디 Composite.add 누락(천장 이탈) / 사각형 라벨 수직 위치 `radius||20` → `height/2` 분기 / `isInclinedPlane` map 내 O(n²) → 외부 O(n) / 디버그 console.log 3건 제거.
+- **세션 재설정 에러 화면 순간 표시 수정**: `handleReset`에서 `clearStoredUser()` 제거 → `localStorage.removeItem` 직접 호출 후 reload. `clearStoredUser()`의 `setCurrentUser(null)`이 reload 전에 렌더링돼 에러 화면이 0.1s 순간 표시되던 문제 해소.
+- **useAuthSession localStorage 폴백 강화**: JSON.parse 실패 시 else 블록 미진입 → `createGuestUser()` 헬퍼 분리로 파싱 실패 시 게스트 재생성 폴백. `.catch()` 핸들러에 `setCurrentUser(null)` 명시 추가.
+- **LoadingScreen children prop 추가**: 에러 상태에서 "다시 시도" 버튼 렌더링 지원. children 없을 때만 bounce 애니메이션 표시.
 
 ### v4.65 (Session Title Model Lightweighting — 2026-05-01)
 - **타이틀 생성 모델 경량화**: `SUMMARY_MODELS` 순서 변경 — `gemini-2.5-flash` → `gemini-2.5-flash-lite` primary, flash는 fallback으로 이동. `thinkingBudget: 0` 적용 상태에서 두 모델 간 실질 품질 차이 없음. lite가 더 빠르고 quota 효율적.

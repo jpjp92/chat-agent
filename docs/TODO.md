@@ -139,8 +139,23 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 ### 보안 (중장기)
 - [ ] `xlsx` 대안 패키지 검토 (fix 없는 Prototype Pollution·ReDoS)
-- [ ] IDOR (`sessions.ts`) — Supabase RLS 정책 검증
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
+
+#### 인증 시스템 도입 후 처리 (POC 단계 보류)
+
+> **전제**: nickname 기반 → Supabase Auth 계정 기반으로 마이그레이션 완료 후 일괄 처리.
+> 현재 `SUPABASE_KEY`가 `service_role` JWT이므로 RLS가 전면 비활성화된 상태 — 아래 항목들의 근본 원인.
+
+- [ ] **IDOR-1** `api/auth.ts:52` — PATCH 핸들러에 소유권 검증 추가
+  - 현재: 누구든 임의 UUID로 타 사용자 `display_name`·`avatar_url` 수정 가능
+  - 수정: Auth JWT 검증 후 `authenticatedUserId === id` 확인
+- [ ] **IDOR-2** `api/sessions.ts:10-53` — 세션 접근 전 소유자 확인 추가
+  - 현재: 세션 ID만 알면 타 사용자 대화 전체 열람·삭제·수정 가능 (GET/DELETE/PATCH 전부)
+  - 수정: 각 작업 전 `user_id === authenticatedUser` 검증
+- [ ] **SSRF-1** `api/fetch-url.ts:76`, `api/proxy-image.ts:73` — 리다이렉트 추적 차단
+  - 현재: hostname 블록리스트 적용 후 `fetch()`가 302 리다이렉트를 자동 추적 → `169.254.169.254` 우회 가능
+  - 수정: `{ redirect: 'error' }` 옵션 추가 또는 Location 헤더마다 블록리스트 재검증
+- [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
 - [ ] `api/chat.ts` normalizer / stream-events / persistence 분리
@@ -170,4 +185,4 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 ---
 
-_최종 수정: 2026-04-25_
+_최종 수정: 2026-05-02_
