@@ -34,7 +34,10 @@ const AMINO_ACID_COLORS: Record<string, string> = {
 
 // 다크모드 감지 훅
 const useThemeMode = () => {
-    const [isDark, setIsDark] = React.useState(false);
+    const [isDark, setIsDark] = React.useState(() => {
+        if (typeof document === 'undefined') return false;
+        return document.documentElement.classList.contains('dark');
+    });
 
     useEffect(() => {
         const checkDarkMode = () => {
@@ -94,6 +97,7 @@ const SequenceView: React.FC<{
 const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) => {
     const stageRef = useRef<HTMLDivElement>(null);
     const nglStage = useRef<NGL.Stage | null>(null);
+    const disposeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { type, title, data } = bioData;
     const [isLoading, setIsLoading] = useState(type === 'pdb' && !!data?.pdbId);
     const [error, setError] = useState<string | null>(null);
@@ -138,9 +142,11 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
     useEffect(() => {
         if (type !== 'pdb' || !data.pdbId || !stageRef.current) return;
 
+        let cancelled = false;
+
         setIsLoading(true);
         setError(null);
-        setHoverInfo(null); // 새로운 데이터 로드 시 기존 호버 정보 초기화
+        setHoverInfo(null);
 
         if (!nglStage.current) {
             nglStage.current = new NGL.Stage(stageRef.current, {
@@ -195,14 +201,23 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         });
 
         const onLoaded = (comp: any) => {
+            if (cancelled || !stageRef.current) return;
             comp.addRepresentation("cartoon", {
                 colorScheme: "residueindex",
                 quality: "high"
             });
-            setIsLoading(false);
             setTimeout(() => {
+                if (cancelled || !stageRef.current) return;
                 stage.handleResize();
-                comp.autoView();
+                comp.autoView(0);
+                // spinner 제거 후 render: backdrop-blur가 WebGL 렌더링 방해하지 않도록 순서 조정
+                if (!cancelled) setIsLoading(false);
+                requestAnimationFrame(() => {
+                    if (cancelled) return;
+                    stage.handleResize();
+                    (stage as any).viewer?.render?.(false);
+                    (stage as any).viewer?.requestRender?.();
+                });
             }, 600);
         };
 
@@ -210,16 +225,17 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         stage.loadFile(`rcsb://${data.pdbId}`)
             .then(onLoaded)
             .catch(() => {
-                console.warn(`[BioRenderer] models.rcsb.org failed, retrying via files.rcsb.org for ${data.pdbId}`);
+                if (cancelled) return Promise.resolve(null);
                 return stage.loadFile(
                     `https://files.rcsb.org/download/${data.pdbId}.cif`,
                     { ext: 'cif' }
                 );
             })
             .then((comp: any) => {
-                if (comp) onLoaded(comp);
+                if (comp && !cancelled) onLoaded(comp);
             })
             .catch((err) => {
+                if (cancelled) return;
                 console.error("[BioRenderer] Both RCSB endpoints failed:", err);
                 setError("RCSB 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.");
                 setIsLoading(false);
@@ -236,6 +252,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         }
 
         return () => {
+            cancelled = true;
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('resize', checkMobile);
             window.removeEventListener('mousemove', updateMousePos);
@@ -246,13 +263,21 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         };
     }, [type, data.pdbId]);
 
-    // 컴포넌트 언마운트 시 WebGL 컨텍스트 해제
+    // React StrictMode double-invoke에서 Stage가 불필요하게 dispose되지 않도록
+    // setTimeout(0) 패턴: double-invoke 시 re-mount가 cleanup 후 즉시 실행되어 타이머를 취소함
     useEffect(() => {
+        if (disposeTimer.current !== null) {
+            clearTimeout(disposeTimer.current);
+            disposeTimer.current = null;
+        }
         return () => {
-            if (nglStage.current) {
-                nglStage.current.dispose();
-                nglStage.current = null;
-            }
+            disposeTimer.current = setTimeout(() => {
+                if (nglStage.current) {
+                    nglStage.current.dispose();
+                    nglStage.current = null;
+                }
+                disposeTimer.current = null;
+            }, 0);
         };
     }, []);
 
@@ -303,7 +328,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                         </div>
 
                         {/* Immersive Canvas Area */}
-                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112] pt-10 pb-16">
+                        <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112]">
                             {isLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f8fafc]/80 dark:bg-[#111112]/80 z-10 backdrop-blur-md">
                                     <div className="relative">
@@ -321,7 +346,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                     <span className="text-sm font-bold leading-relaxed">{error}</span>
                                 </div>
                             ) : (
-                                <div ref={stageRef} className="w-full h-full cursor-grab active:cursor-grabbing" style={{ opacity: isLoading ? 0 : 1 }} />
+                                <div ref={stageRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
                             )}
 
                             {/* Custom Premium Tooltip */}

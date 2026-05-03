@@ -9,7 +9,6 @@ import { searchPill } from "../pill-logic.js";
 export const searchWebTool = tool(
     async ({ query }) => {
         try {
-            console.log(`[Agent Tool] searchWebTool called with query: ${query}`);
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 8000);
             let res: Response;
@@ -27,7 +26,6 @@ export const searchWebTool = tool(
                 clearTimeout(timeoutId);
             }
             const text = await res.text();
-            console.log(`[DDG Debug] raw HTML sample (first 600 chars):\n${text.slice(0, 600)}`);
             const snippets: string[] = [];
             const urls: { title: string; url: string }[] = [];
 
@@ -114,7 +112,6 @@ export const searchWebTool = tool(
 export const identifyPillTool = tool(
     async ({ imprint_front, imprint_back, color, shape }) => {
         try {
-            console.log(`[Agent Tool] identifyPillTool called with:`, { imprint_front, imprint_back, color, shape });
 
             const result = await searchPill({
                 imprint_front,

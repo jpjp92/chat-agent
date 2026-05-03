@@ -317,7 +317,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               : Array.isArray(rawOutput?.content)
               ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('')
               : '';
-            console.log(`[Chat API] on_tool_end "${event.name}" output type: ${typeof rawOutput}, length: ${toolOutput.length}, hasUrls: ${toolOutput.includes('[WEB_SOURCE_URLS]')}`);
             const urlBlockMatch = toolOutput.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
             if (urlBlockMatch) {
               let addedNew = false;
@@ -342,7 +341,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (msgType === 'tool') {
                 const content = typeof msg.content === 'string' ? msg.content : '';
                 const urlBlockMatch = content.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
-                console.log(`[Chat API] LangGraph end — ToolMessage len: ${content.length}, hasUrls: ${content.includes('[WEB_SOURCE_URLS]')}`);
                 if (urlBlockMatch) {
                   let addedNew = false;
                   urlBlockMatch[1].split('\n').forEach((line: string) => {

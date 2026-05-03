@@ -111,7 +111,6 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         const response = await model.invoke([message]);
         const text = typeof response.content === "string" ? response.content.trim() : "";
 
-        console.log(`[Vision Imprint] ${sideLabel} extracted: "${text}"`);
 
         if (!text || text === '없음') return null;
         return text;
@@ -130,7 +129,6 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
 export const searchDrugInfoTool = tool(
     async ({ drug_name }) => {
         try {
-            console.log(`[Agent Tool] searchDrugInfoTool called for: ${drug_name}`);
 
             // MFDS Search Helper
             const fetchMFDS = async (nameToSearch: string) => {
@@ -151,7 +149,6 @@ export const searchDrugInfoTool = tool(
 
             // Strategy 1: Spaceless original input (Works for "딜라트렌정25mg")
             let searchName = drug_name.replace(/\s/g, '');
-            console.log(`[Agent Tool] MFDS Strategy 1 (Spaceless): ${searchName}`);
             let items = await fetchMFDS(searchName);
 
             if (!Array.isArray(items) || items.length === 0) {
@@ -164,7 +161,6 @@ export const searchDrugInfoTool = tool(
                         .replace(/(?<![가-힣])g(?!가)/gi, '그램');
                 };
                 searchName = normalizeForMFDS(drug_name);
-                console.log(`[Agent Tool] MFDS Strategy 2 (Translated): ${searchName}`);
                 items = await fetchMFDS(searchName);
             }
 
@@ -176,13 +172,11 @@ export const searchDrugInfoTool = tool(
                     .replace(/마이크로그램/g, '마이크로그람')
                     .replace(/그램/g, '그람');
                 if (oldSpelling !== searchName) {
-                    console.log(`[Agent Tool] MFDS Strategy 3 (Old spelling): ${oldSpelling}`);
                     items = await fetchMFDS(oldSpelling);
                 }
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                console.log(`[Agent Tool] MFDS returned no results for "${drug_name}". Trying Google Search → DuckDuckGo fallback.`);
                 const notFoundPrefix = `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 없습니다 (파스·연고·크림·시럽 등 비알약 제형이거나 미등재).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 검색 결과를 바탕으로 성분·효능·용법을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n`;
 
                 // 1st: Google Search grounding (most reliable)
@@ -213,7 +207,6 @@ export const searchDrugInfoTool = tool(
             });
 
             if (needsVision) {
-                console.log(`[Agent Tool] "마크" detected — running Gemini Vision imprint extraction...`);
                 // Process items in parallel for speed
                 await Promise.all(items.map(async (item: any) => {
                     if (!item.ITEM_IMAGE) return;

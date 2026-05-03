@@ -7,7 +7,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         if (method === 'POST') {
             const { nickname } = req.body;
-            console.log('[Auth API] Received nickname:', nickname);
             if (!nickname) {
                 return res.status(400).json({ error: 'Nickname is required' });
             }

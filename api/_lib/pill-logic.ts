@@ -10,7 +10,6 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
         const normalized = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         const primaryQueries = new Set<string>([imprint_front, normalized].filter(Boolean));
 
-        console.log(`[Pill Logic] Primary search queries: ${[...primaryQueries].join(', ')}`);
         for (const q of primaryQueries) {
             const pages = await Promise.all([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
             pages.flat().forEach(r => { if (r.idx) allResultsMap.set(r.idx, r); });
@@ -21,7 +20,6 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
         if (normalized.length >= 2 && normalized.length <= 4) {
             const mid = Math.floor(normalized.length / 2);
             const variants = ['H', 'P', 'A', 'M'].map(ch => normalized.slice(0, mid) + ch + normalized.slice(mid));
-            console.log(`[Pill Logic] Running variant search: ${variants.join(', ')}`);
             for (const v of variants) {
                 const pages = await Promise.all([1, 2, 3, 4, 5].map(page => fetchPage(v, page)));
                 pages.flat().forEach(r => { if (r.idx) allResultsMap.set(r.idx, r); });
@@ -29,7 +27,6 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
         }
 
         const results = Array.from(allResultsMap.values());
-        console.log(`[Pill Logic] Total unique results before filter: ${results.length}`);
 
         return filterResults(results, { imprint_front, imprint_back, color, shape });
     } catch (error) {
@@ -204,7 +201,6 @@ function filterResults(results: any[], criteria: { imprint_front: string, imprin
     const normTarget = normalize(imprint_front);
     const normBackTarget = normalize(imprint_back || '');
 
-    console.log(`[Pill Logic] Filtering results for: ${normTarget} (Back: ${normBackTarget}), Color: ${color}, Shape: ${shape}`);
 
     // 1단계: 완전 일치 (각인 + 색상 + 모양)
     const exactMatches = results.filter(r => {

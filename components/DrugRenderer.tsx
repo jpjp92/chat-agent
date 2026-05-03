@@ -229,7 +229,6 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     const { publicUrl, pillVisual } = await response.json();
                     setSyncedUrl(publicUrl);
                     if (pillVisual) {
-                        console.log('[DrugRenderer] Server extracted pill visual:', pillVisual);
                         setServerPillVisual(pillVisual);
                     }
                     setImageError(false);
