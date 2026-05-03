@@ -432,6 +432,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         let textPart = content.substring(lastIndex, match.index);
         // Process for numeric ranges (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
+        // Close unclosed bold markers during streaming
+        if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
+          textPart += '**';
+        }
         parts.push({
           type: 'text',
           content: textPart

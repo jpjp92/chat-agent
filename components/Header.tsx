@@ -127,7 +127,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
   return (
     <header className="mx-3 mt-3 mb-1 sticky top-3 z-40">
-      <div className="bg-white/70 dark:bg-white/[0.07] backdrop-blur-xl rounded-full border border-white/60 dark:border-white/[0.12] shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-between px-4 sm:px-5 md:pl-1 py-1.5">
+      <div className="bg-white/70 dark:bg-white/[0.07] backdrop-blur-xl rounded-full border border-indigo-200/50 dark:border-white/[0.12] shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-between px-4 sm:px-5 md:pl-1 py-1.5">
         <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onMenuClick}

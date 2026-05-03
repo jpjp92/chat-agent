@@ -455,7 +455,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1.5 rounded-[28px] sm:rounded-[32px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[52px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1 rounded-[28px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
@@ -471,17 +471,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           className="hidden"
         />
 
-        <div className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 mb-0.5 ml-0.5">
+        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 mb-0.5 ml-0.5">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
           >
-            <i className="fa-solid fa-paperclip text-lg"></i>
+            <i className="fa-solid fa-paperclip text-lg sm:text-base"></i>
           </button>
         </div>
 
-        <div className="min-w-0 w-full flex items-center py-1 overflow-hidden">
+        <div className="min-w-0 w-full flex items-center overflow-hidden">
           <textarea
             ref={textareaRef}
             value={input}
@@ -512,7 +512,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             <button
               type="button"
               onClick={toggleListening}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
                 }`}
             >
               <i className={`fa-solid ${isListening ? 'fa-microphone' : 'fa-microphone-lines'} text-sm`}></i>
@@ -522,10 +522,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           <button
             type="submit"
             disabled={(!input.trim() && selectedAttachments.length === 0) || disabled}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-white/20' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-white/20' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
               }`}
           >
-            <i className="fa-solid fa-arrow-up text-base"></i>
+            <i className="fa-solid fa-arrow-up text-base sm:text-sm"></i>
           </button>
         </div>
       </form>

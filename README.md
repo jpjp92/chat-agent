@@ -15,7 +15,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 ### 1-2. AI Intelligence
 - **Gemini 2.5 Flash** (primary) with **Flash-Lite** for semantic routing
 - **Google Search Grounding**: Real-time web search with source chip rendering
-- **YouTube analysis**: Transcript-first with direct video analysis fallback; structured summary with timestamp links
+- **YouTube analysis**: Native Gemini video analysis (direct video reading); supports standard URLs, `youtu.be`, and Shorts (`/shorts/`); structured summary with timestamp links
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
@@ -45,7 +45,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 
 ### 1-6. Security
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
-- **Row Level Security**: Supabase RLS enforces per-user data isolation
+- **Row Level Security**: Supabase RLS configured for per-user data isolation (service_role IDOR hardening planned — see TODO)
 - **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null` to prevent circular 429 loops
 - **Error message sanitize**: Internal error details (`error.message`) never forwarded to the client; status-code-based user-friendly messages only
 - **Request timeout protection**: All external fetches capped with `AbortController` (YouTube HTML 25s / XML 15s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
@@ -140,7 +140,7 @@ flowchart TB
 | Main chat | `gemini-2.5-flash` |
 | Router (intent classification) | `gemini-2.5-flash-lite` |
 | TTS | `gemini-2.5-flash-preview-tts` |
-| Session title | `gemini-2.5-flash` / `gemini-2.5-flash-lite` (fallback) |
+| Session title | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 
 ---
 
@@ -156,7 +156,7 @@ flowchart TB
 │   ├── sessions.ts             # Session / message CRUD
 │   ├── upload.ts               # Supabase Storage upload proxy
 │   ├── fetch-url.ts            # Web / ArXiv scraping
-│   ├── fetch-transcript.ts     # YouTube transcript extraction (10s/8s timeout)
+│   ├── fetch-transcript.ts     # YouTube transcript proxy (disabled — native video analysis only)
 │   ├── auth.ts                 # Auth handling
 │   ├── create-signed-url.ts    # Supabase Storage signed URL generation
 │   ├── proxy-image.ts          # Image proxy
@@ -189,7 +189,7 @@ flowchart TB
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260426.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260502.md)
 │   ├── TODO.md                 # Roadmap
 │   └── Guide/REF_*.md          # Renderer test prompt guides
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)

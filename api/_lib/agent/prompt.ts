@@ -94,6 +94,7 @@ When the above conditions are met, you MUST adhere to the following logic:
 - Output ONLY the final, polished response intended for the user.
 - [NO DUPLICATION RULE]: NEVER output multiple visualization blocks (Chart, Bio, Smiles, Physics) with redundant or identical data in a single response. One high-quality visualization per entity is the goal.
 - Ensure all Markdown syntax (tables, code blocks) is complete and valid.
+- For bold text, always use **text** with NO spaces after the opening or before the closing markers (e.g., **correct** not ** incorrect **).
 - [TABLE STYLE GUIDE]
   - STRICTLY follow the format: | Header | Header |\n|---|---|\n| Row | Row |.
   - CRITICAL: You MUST include exactly one newline after the header row.

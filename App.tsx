@@ -288,22 +288,23 @@ const App: React.FC = () => {
     <div
       className="flex h-screen h-dvh w-full text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans"
       style={{ background: isDark
-        ? 'linear-gradient(135deg, #141629 0%, #1a1f3c 50%, #141629 100%)'
+        ? 'radial-gradient(ellipse at top left, #1a2b5c 0%, transparent 60%), radial-gradient(ellipse at bottom right, #0f1e3d 0%, transparent 55%), linear-gradient(160deg, #080d1a 0%, #0f1830 100%)'
         : 'linear-gradient(135deg, #f0f2ff 0%, #eef2ff 40%, #e6fff7 100%)'
       }}
     >
-      {/* Ambient blobs */}
+      {/* Ambient orbs */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
         {isDark ? (
           <>
-            <div className="absolute -top-32 right-0 w-[600px] h-[600px] rounded-full blur-3xl" style={{background:'#6366f1', opacity:0.25}} />
-            <div className="absolute bottom-0 -left-24 w-[500px] h-[500px] rounded-full blur-3xl" style={{background:'#a78bfa', opacity:0.15}} />
+            <div className="orb w-[520px] h-[520px] -top-20 -left-24" style={{background:'oklch(0.45 0.18 240)', opacity:0.45, animationDelay:'0s'}} />
+            <div className="orb w-[640px] h-[640px] -bottom-48 -right-36" style={{background:'oklch(0.5 0.16 270)', opacity:0.32, animationDelay:'-7s'}} />
+            <div className="orb w-[400px] h-[400px]" style={{background:'oklch(0.42 0.2 210)', opacity:0.25, top:'40%', left:'55%', animationDelay:'-13s'}} />
           </>
         ) : (
           <>
-            <div className="absolute -top-32 right-0 w-[600px] h-[600px] bg-indigo-100/50 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 -left-24 w-[500px] h-[500px] bg-sky-100/40 rounded-full blur-3xl" />
-            <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-violet-100/30 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+            <div className="orb w-[600px] h-[600px] -top-32 right-0" style={{background:'#c7d2fe', opacity:0.4, animationDelay:'0s'}} />
+            <div className="orb w-[500px] h-[500px] bottom-0 -left-24" style={{background:'#bae6fd', opacity:0.32, animationDelay:'-8s'}} />
+            <div className="orb w-[400px] h-[400px]" style={{background:'#ddd6fe', opacity:0.25, top:'50%', left:'50%', animationDelay:'-15s'}} />
           </>
         )}
       </div>

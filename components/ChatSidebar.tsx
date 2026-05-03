@@ -136,7 +136,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       <aside className={`fixed md:relative inset-y-0 left-0 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col md:p-3
         ${isOpen ? 'translate-x-0 p-0' : '-translate-x-full md:translate-x-0'} 
         ${isCollapsed ? 'md:w-[84px]' : 'w-[260px] sm:w-[272px]'}`}>
-        <div className="h-full flex flex-col bg-white/60 dark:bg-white/[0.07] backdrop-blur-2xl border-r border-slate-200/60 dark:border-white/0 md:border md:border-white/60 md:dark:border-white/[0.12] md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
+        <div className="h-full flex flex-col bg-white/60 dark:bg-white/[0.07] backdrop-blur-2xl border-r border-indigo-200/40 dark:border-white/0 md:border md:border-indigo-200/50 md:dark:border-white/[0.12] md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
 
         {/* Header Action Part */}
         <div className={`flex items-center pt-4 pb-2 shrink-0 ${isCollapsed ? 'flex-col items-center gap-4 px-0' : 'justify-between pl-4 pr-4'}`}>
@@ -216,7 +216,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   }}
                   className={`group relative flex items-center px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200
                     ${currentSessionId === session.id
-                      ? 'bg-indigo-100/80 dark:bg-white/[0.13] text-indigo-700 dark:text-white font-bold'
+                      ? 'bg-indigo-100/80 dark:bg-white/[0.13] text-indigo-700 dark:text-white font-bold dark:ring-1 dark:ring-indigo-500/30 dark:shadow-[0_0_16px_rgba(99,102,241,0.22)]'
                       : 'hover:bg-slate-200/60 dark:hover:bg-white/[0.07] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
