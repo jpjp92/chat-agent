@@ -28,39 +28,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
 
         if (isYoutube) {
-            // OEmbed: 8초 timeout
+            // OEmbed + 페이지 description 병렬 fetch
+            // allSettled: 한쪽 실패해도 다른 쪽 결과 유지 (독립 폴백)
             const oembedController = new AbortController();
+            const pageController = new AbortController();
             const oembedTimeout = setTimeout(() => oembedController.abort(), 8000);
-            let oData: any = {};
-            try {
-                const oRes = await fetch(
+            const pageTimeout = setTimeout(() => pageController.abort(), 10000);
+
+            const [oembedResult, pageResult] = await Promise.allSettled([
+                fetch(
                     `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
                     { signal: oembedController.signal }
-                );
-                if (oRes.ok) oData = await oRes.json();
-            } catch (e) {
+                ),
+                fetch(targetUrl, { signal: pageController.signal }),
+            ]);
+            clearTimeout(oembedTimeout);
+            clearTimeout(pageTimeout);
+
+            let oData: any = {};
+            if (oembedResult.status === 'fulfilled' && oembedResult.value.ok) {
+                try { oData = await oembedResult.value.json(); } catch {}
+            } else {
                 console.warn('[fetch-url] YouTube oembed timeout or failed');
-            } finally {
-                clearTimeout(oembedTimeout);
             }
 
-            // 페이지 description: 10초 timeout
-            const pageController = new AbortController();
-            const pageTimeout = setTimeout(() => pageController.abort(), 10000);
             let description = "";
-            try {
-                const pageRes = await fetch(targetUrl, { signal: pageController.signal });
-                if (pageRes.ok) {
-                    const text = await pageRes.text();
+            if (pageResult.status === 'fulfilled' && pageResult.value.ok) {
+                try {
+                    const text = await pageResult.value.text();
                     const descMatch =
                         text.match(/<meta\s+(?:name|property)="[^"]*?description"\s+content="([^"]+)"/i) ||
                         text.match(/<meta\s+content="([^"]+)"\s+(?:name|property)="[^"]*?description"/i);
                     if (descMatch) description = descMatch[1];
-                }
-            } catch (e) {
+                } catch {}
+            } else {
                 console.warn('[fetch-url] YouTube page fetch timeout or failed');
-            } finally {
-                clearTimeout(pageTimeout);
             }
 
             return res.status(200).json({

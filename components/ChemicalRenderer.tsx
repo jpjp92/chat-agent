@@ -27,9 +27,53 @@ const useThemeMode = () => {
     return isDark;
 };
 
+const PUBCHEM_NAME_URL = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name';
+const PUBCHEM_SMILES_URL = 'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles';
+
+async function fetchPubChemSmiles(drugName: string, fallbackSmiles?: string): Promise<string | null> {
+    // Step 1: 이름으로 조회
+    // 한국어 혼합명 처리: "아스피린 (Aspirin)" → "Aspirin" 추출
+    const engMatch = drugName.match(/\(([A-Za-z][^)]+)\)/);
+    const queryName = engMatch?.[1]?.trim() ?? drugName;
+
+    try {
+        const res = await fetch(
+            `${PUBCHEM_NAME_URL}/${encodeURIComponent(queryName)}/property/SMILES,MolecularFormula/JSON`,
+            { signal: AbortSignal.timeout(5000) }
+        );
+        if (res.ok) {
+            const data = await res.json();
+            const smiles = data?.PropertyTable?.Properties?.[0]?.SMILES;
+            if (smiles) return smiles;
+        }
+    } catch {}
+
+    // Step 2: 이름 조회 실패 시 LLM SMILES 구조로 직접 검증
+    if (!fallbackSmiles) return null;
+    try {
+        const res = await fetch(
+            `${PUBCHEM_SMILES_URL}/property/SMILES,MolecularFormula/JSON`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `smiles=${encodeURIComponent(fallbackSmiles)}`,
+                signal: AbortSignal.timeout(6000),
+            }
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.PropertyTable?.Properties?.[0]?.SMILES ?? null;
+    } catch {
+        return null;
+    }
+}
+
 const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width = 600, height, language = 'ko' }) => {
+    const [activeSmiles, setActiveSmiles] = useState(smiles);
+    const [smilesSource, setSmilesSource] = useState<'llm' | 'pubchem'>('llm');
+
     // Adaptive height based on molecule complexity (SMILES length proxy)
-    const resolvedHeight = height ?? (smiles.length > 120 ? 460 : smiles.length > 60 ? 380 : 300);
+    const resolvedHeight = height ?? (activeSmiles.length > 120 ? 460 : activeSmiles.length > 60 ? 380 : 300);
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -39,12 +83,24 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     const isDark = useThemeMode();
 
     const i18n = {
-        ko: { smiles: 'SMILES', copy: '복사', copied: '복사됨', structure: '분자 구조', error: '오류' },
-        en: { smiles: 'SMILES', copy: 'COPY', copied: 'COPIED', structure: 'Molecular Structure', error: 'Error' },
-        es: { smiles: 'SMILES', copy: 'COPIAR', copied: 'COPIADO', structure: 'Estructura Molecular', error: 'Error' },
-        fr: { smiles: 'SMILES', copy: 'COPIER', copied: 'COPIÉ', structure: 'Structure Moléculaire', error: 'Erreur' }
+        ko: { smiles: 'SMILES', copy: '복사', copied: '복사됨', structure: '분자 구조', error: '오류', pubchem: 'PubChem 검증', llm: 'AI 생성' },
+        en: { smiles: 'SMILES', copy: 'COPY', copied: 'COPIED', structure: 'Molecular Structure', error: 'Error', pubchem: 'PubChem verified', llm: 'AI generated' },
+        es: { smiles: 'SMILES', copy: 'COPIAR', copied: 'COPIADO', structure: 'Estructura Molecular', error: 'Error', pubchem: 'Verificado PubChem', llm: 'Generado por IA' },
+        fr: { smiles: 'SMILES', copy: 'COPIER', copied: 'COPIÉ', structure: 'Structure Moléculaire', error: 'Erreur', pubchem: 'Vérifié PubChem', llm: 'Généré par IA' }
     };
     const t = i18n[language] || i18n.en;
+
+    // PubChem 조회: name이 있을 때 LLM SMILES를 PubChem 검증 SMILES로 교체 시도
+    useEffect(() => {
+        if (!name) return;
+        let cancelled = false;
+        fetchPubChemSmiles(name, smiles).then(pubSmiles => {
+            if (cancelled || !pubSmiles) return;
+            setActiveSmiles(pubSmiles);
+            setSmilesSource('pubchem');
+        });
+        return () => { cancelled = true; };
+    }, [name]);
 
     // 1. SvgDrawer 초기화
     useEffect(() => {
@@ -92,7 +148,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
 
     // 2. 그리기 - isDark 의존성 추가
     useEffect(() => {
-        if (!drawer || !svgRef.current || !smiles) return;
+        if (!drawer || !svgRef.current || !activeSmiles) return;
 
         const theme = isDark ? 'dark' : 'light';
 
@@ -102,7 +158,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         }
 
         setIsLoading(true);
-        SmilesDrawer.parse(smiles, (tree: any) => {
+        SmilesDrawer.parse(activeSmiles, (tree: any) => {
             try {
                 drawer.draw(tree, svgRef.current, theme);
                 setError(null);
@@ -118,24 +174,22 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
             setIsLoading(false);
         });
 
-    }, [smiles, drawer, isDark]); // 테마 변경 시 다시 그리도록 isDark 추가
+    }, [activeSmiles, drawer, isDark]);
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(smiles);
+        navigator.clipboard.writeText(activeSmiles);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
     const handleDownload = () => {
-        if (!svgRef.current || !smiles || !drawer) return;
+        if (!svgRef.current || !activeSmiles || !drawer) return;
 
-        // 원활한 문서 활용을 위해 다운로드용 SVG는 항상 'light' 테마(검은색 선)로 다시 그려서 내보냅니다.
-        // 또는 배경색을 포함하여 내보내기 위해 임시 캔버스를 사용합니다.
         const tempSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         tempSvg.setAttribute("width", width.toString());
         tempSvg.setAttribute("height", resolvedHeight.toString());
 
-        SmilesDrawer.parse(smiles, (tree: any) => {
+        SmilesDrawer.parse(activeSmiles, (tree: any) => {
             try {
                 // 다운로드용은 항상 투명 배경 대신 흰색 배경을 넣거나, 라이트 테마로 그립니다.
                 drawer.draw(tree, tempSvg, 'light');
@@ -178,6 +232,15 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                         <h3 className="text-[11px] sm:text-[13px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight truncate">
                             {name || (error ? t.error : t.structure)}
                         </h3>
+                        {name && (
+                            <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${
+                                smilesSource === 'pubchem'
+                                    ? 'bg-blue-500/10 text-blue-500 dark:text-blue-400'
+                                    : 'bg-slate-500/10 text-slate-400'
+                            }`}>
+                                {smilesSource === 'pubchem' ? t.pubchem : t.llm}
+                            </span>
+                        )}
                     </div>
                     {!error && (
                         <button
@@ -256,7 +319,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                         <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
                             <div className="p-4 bg-white dark:bg-black/40 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-inner select-all">
                                 <code className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all leading-relaxed block max-h-[120px] overflow-y-auto custom-scrollbar">
-                                    {smiles}
+                                    {activeSmiles}
                                 </code>
                             </div>
                         </div>

@@ -265,23 +265,11 @@ export const useChatStream = ({
         webContext += '\n[ARXIV_PDF_LINK_QUEUED]';
         setLoadingStatus(null);
       } else if (isYoutube) {
-        try {
-          setLoadingStatus(statusMessages.checkingYoutube);
-          const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?)|(shorts\/))\??v?=?([^#&?]*).*/;
-          const match = regExp.exec(url);
-          const videoId = match && match[8].length === 11 ? match[8] : null;
-
-          const metadata = await fetchUrlContent(url);
-          setLoadingStatus(statusMessages.watchingVideo);
-          webContext += `\n\n${metadata}`;
-
-          youtubeContextUrl = url;
-          setTimeout(() => setLoadingStatus(null), 3000);
-        } catch (urlError: any) {
-          console.error('[useChatStream] YouTube fetch error:', urlError);
-          setLoadingStatus(null);
-          urlFetchError = true;
-        }
+        // fetch-url.ts 호출 제거: Gemini가 fileData로 영상을 직접 분석하므로 중복
+        // 제목/채널/description 텍스트 사전 수집 불필요 → 8~10초 절감
+        setLoadingStatus(statusMessages.watchingVideo);
+        youtubeContextUrl = url;
+        setTimeout(() => setLoadingStatus(null), 3000);
       } else if (isPdf) {
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
