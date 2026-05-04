@@ -71,6 +71,7 @@ const App: React.FC = () => {
     renameSession,
   } = useChatSessions({
     userId: currentUser?.id ?? null,
+    language,
     onError: (message) => showToast(message, 'error'),
   });
 
@@ -79,6 +80,7 @@ const App: React.FC = () => {
   const i18n = {
     ko: {
       profileUpdated: "프로필 변경 완료",
+      profileUpdateFailed: "프로필 변경에 실패했습니다. 다시 시도해주세요.",
       uploadFailed: "업로드 실패",
       renameFailed: "이름 변경 실패",
       analyzingImage: "이미지를 분석 중입니다...",
@@ -95,6 +97,7 @@ const App: React.FC = () => {
     },
     en: {
       profileUpdated: "Profile updated",
+      profileUpdateFailed: "Failed to update profile. Please try again.",
       uploadFailed: "Upload failed",
       renameFailed: "Rename failed",
       analyzingImage: "Analyzing image...",
@@ -111,6 +114,7 @@ const App: React.FC = () => {
     },
     es: {
       profileUpdated: "Perfil actualizado",
+      profileUpdateFailed: "Error al actualizar el perfil. Por favor, inténtelo de nuevo.",
       uploadFailed: "Error de subida",
       renameFailed: "Error al renombrar",
       analyzingImage: "Analizando imagen...",
@@ -127,6 +131,7 @@ const App: React.FC = () => {
     },
     fr: {
       profileUpdated: "Profil à jour",
+      profileUpdateFailed: "Échec de la mise à jour du profil. Veuillez réessayer.",
       uploadFailed: "Échec d'envoi",
       renameFailed: "Échec du renommage",
       analyzingImage: "Analyse de l'image...",
@@ -233,7 +238,7 @@ const App: React.FC = () => {
       setUserProfile(profile);
       // showToast(t.profileUpdated, "success");
     } catch (e: any) {
-      showToast(e.message, "error");
+      showToast(t.profileUpdateFailed, "error");
     }
   };
 

@@ -8,7 +8,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const { text } = req.body;
-    if (!text) return res.status(400).json({ error: 'Text is required' });
+    if (!text || typeof text !== 'string') return res.status(400).json({ error: 'Text is required' });
+    if (text.length > 10000) return res.status(400).json({ error: 'Text too long' });
 
     if (API_KEYS.length === 0) {
         return res.status(500).json({ error: 'No API keys found in server environment.' });

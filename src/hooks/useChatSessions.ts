@@ -4,8 +4,42 @@ import { ChatSession, Message, Role } from '../../types';
 
 interface UseChatSessionsOptions {
   userId: number | null;
+  language?: string;
   onError?: (message: string) => void;
 }
+
+const SESSION_ERRORS: Record<string, Record<string, string>> = {
+  createSession: {
+    ko: '세션 생성에 실패했습니다. 다시 시도해주세요.',
+    en: 'Failed to create session. Please try again.',
+    es: 'Error al crear la sesión. Por favor, inténtelo de nuevo.',
+    fr: 'Échec de la création de la session. Veuillez réessayer.',
+  },
+  loadSessions: {
+    ko: '세션 목록을 불러오지 못했습니다.',
+    en: 'Failed to load sessions.',
+    es: 'Error al cargar las sesiones.',
+    fr: 'Échec du chargement des sessions.',
+  },
+  loadMessages: {
+    ko: '메시지를 불러오지 못했습니다.',
+    en: 'Failed to load session messages.',
+    es: 'Error al cargar los mensajes.',
+    fr: 'Échec du chargement des messages.',
+  },
+  deleteSession: {
+    ko: '세션 삭제에 실패했습니다.',
+    en: 'Failed to delete session.',
+    es: 'Error al eliminar la sesión.',
+    fr: 'Échec de la suppression de la session.',
+  },
+  renameSession: {
+    ko: '세션 이름 변경에 실패했습니다.',
+    en: 'Failed to rename session.',
+    es: 'Error al renombrar la sesión.',
+    fr: 'Échec du renommage de la session.',
+  },
+};
 
 const EXT_MIME: Record<string, string> = {
   pdf:  'application/pdf',
@@ -79,14 +113,15 @@ const writeSessionsCache = (sessions: ChatSession[]) => {
   } catch {}
 };
 
-export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => {
+export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOptions) => {
   // Hydrate from localStorage cache for instant render; API refresh happens in background
   const [sessions, setSessions] = useState<ChatSession[]>(() => readSessionsCache());
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
-  const reportError = (error: unknown, fallback: string) => {
-    const message = error instanceof Error ? error.message : fallback;
-    onError?.(message);
+  const lang = (['ko', 'en', 'es', 'fr'].includes(language ?? '')) ? language! : 'ko';
+
+  const reportError = (key: keyof typeof SESSION_ERRORS) => {
+    onError?.(SESSION_ERRORS[key][lang]);
   };
 
   const createNewSession = async (targetUserId?: number) => {
@@ -98,7 +133,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
     try {
       const { session, error } = await createSession(resolvedUserId);
       if (error || !session) {
-        throw new Error(error || 'Failed to create session');
+        throw new Error(error || 'create_session_failed');
       }
 
       const newSession: ChatSession = {
@@ -116,7 +151,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
       setCurrentSessionId(newSession.id);
       return newSession;
     } catch (error) {
-      reportError(error, 'Failed to create session');
+      reportError('createSession');
       return null;
     }
   };
@@ -145,7 +180,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
       await createNewSession(resolvedUserId);
     } catch (error) {
       console.error('Failed to load sessions', error);
-      reportError(error, 'Failed to load sessions');
+      reportError('loadSessions');
     }
   };
 
@@ -180,7 +215,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
         setSessions(prev => prev.map(item => (item.id === id ? { ...item, messages: mappedMessages } : item)));
       }
     } catch (error) {
-      reportError(error, 'Failed to load session messages');
+      reportError('loadMessages');
     }
   };
 
@@ -197,7 +232,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
         await createNewSession();
       }
     } catch (error) {
-      reportError(error, 'Failed to delete session');
+      reportError('deleteSession');
     }
   };
 
@@ -211,7 +246,7 @@ export const useChatSessions = ({ userId, onError }: UseChatSessionsOptions) => 
       });
     } catch (error) {
       console.error('Failed to rename session', error);
-      reportError(error, 'Failed to rename session');
+      reportError('renameSession');
     }
   };
 

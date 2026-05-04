@@ -3,13 +3,6 @@ import { Role, Message, MessageAttachment, Language, GroundingSource } from "../
 let currentAudioSource: AudioBufferSourceNode | null = null;
 let sharedAudioContext: AudioContext | null = null;
 
-const ERROR_MESSAGES: Record<Language, string> = {
-  ko: "현재 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
-  en: "Too many requests. Please try again in a moment.",
-  es: "Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.",
-  fr: "Trop de requêtes. Veuillez réessayer dans un instant."
-};
-
 /**
  * 사용자 정보 (Supabase 연동)
  */

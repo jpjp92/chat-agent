@@ -24,6 +24,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error('[Pill Search] Error:', error);
-        return res.status(500).json({ error: 'Failed to search pill database', message: error.message });
+        return res.status(500).json({ error: 'Failed to search pill database' });
     }
 }

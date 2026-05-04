@@ -21,6 +21,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
+        const ALLOWED_BUCKETS = ['chat-imgs', 'chat-videos', 'chat-docs'];
+        if (!ALLOWED_BUCKETS.includes(bucket)) {
+            return res.status(400).json({ error: 'Invalid bucket' });
+        }
+
         // 1. Base64 데이터를 Buffer로 변환
         const base64Data = fileData.includes(',') ? fileData.split(',')[1] : fileData;
         const buffer = Buffer.from(base64Data, 'base64');
@@ -64,6 +69,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error('[Upload API] Error:', error);
-        return res.status(500).json({ error: error.message || 'Internal Server Error', details: error });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }

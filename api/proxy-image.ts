@@ -50,8 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const targetUrl = new URL(finalUrl);
 
-        // Block SSRF: localhost, loopback, AWS/GCP metadata server, link-local
-        const blockedHost = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|169\.254\.\d+\.\d+|::1)$/i.test(targetUrl.hostname);
+        // Block SSRF: localhost, loopback, private ranges, AWS/GCP metadata, link-local, IPv6 private
+        const blockedHost = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i.test(targetUrl.hostname);
         if (blockedHost) return res.status(400).json({ error: 'URL not allowed' });
 
         let referer = targetUrl.origin + '/';

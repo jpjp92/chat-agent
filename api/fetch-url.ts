@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Note: redirect-based bypass is a known limitation of hostname-only checks
     try {
         const { hostname } = new URL(url);
-        const blocked = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|169\.254\.\d+\.\d+|::1)$/i.test(hostname);
+        const blocked = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i.test(hostname);
         if (blocked) return res.status(400).json({ error: 'URL not allowed' });
     } catch {
         return res.status(400).json({ error: 'Invalid URL' });
@@ -142,6 +142,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ content: content.trim().slice(0, 17000) });
     } catch (error: any) {
         console.warn('[fetch-url] Failed:', error.message);
-        return res.status(200).json({ content: `[FETCH_ERROR: ${error.message}]` });
+        return res.status(200).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
     }
 }

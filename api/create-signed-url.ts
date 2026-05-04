@@ -12,6 +12,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'fileName and bucket are required' });
   }
 
+  const ALLOWED_BUCKETS = ['chat-imgs', 'chat-videos', 'chat-docs'];
+  if (!ALLOWED_BUCKETS.includes(bucket)) {
+    return res.status(400).json({ error: 'Invalid bucket' });
+  }
+
   if (!supabaseAdmin) {
     return res.status(500).json({ error: 'Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.' });
   }
@@ -47,6 +52,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('[SignedURL API] Failed to create signed URL:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

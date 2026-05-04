@@ -283,7 +283,7 @@ export const searchDrugInfoTool = tool(
 
         } catch (e: any) {
             console.error("[Agent Tool] searchDrugInfoTool error:", e);
-            return `식약처 API 조회 중 네트워크 오류가 발생했습니다: ${e.message}`;
+            return '식약처 API 조회 중 네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
         }
     },
     {

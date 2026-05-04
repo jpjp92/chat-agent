@@ -130,6 +130,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`[Sync] Fetching external image from: ${finalUrl}`);
         const targetUrl = new URL(finalUrl);
+
+        // SSRF 방어: 허용된 의약품 이미지 도메인만 접근 허용
+        const ALLOWED_DRUG_HOSTS = ['nedrug.mfds.go.kr', 'pstatic.net', 'connectdi.com', 'terms.naver.com', 'health.kr'];
+        const isAllowedHost = ALLOWED_DRUG_HOSTS.some(h => targetUrl.hostname === h || targetUrl.hostname.endsWith('.' + h));
+        if (!isAllowedHost) {
+            console.warn(`[Sync] Blocked SSRF attempt to: ${targetUrl.hostname}`);
+            resolveInflight!(null);
+            inflightRequests.delete(fileName!);
+            return res.status(400).json({ error: 'URL not allowed' });
+        }
+
         let referer = targetUrl.origin + '/';
         if (targetUrl.hostname.includes('pstatic.net') || targetUrl.hostname.includes('naver.com')) {
             referer = 'https://terms.naver.com/';
@@ -367,11 +378,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         try { resolveInflight?.(null); } catch {}
         try { inflightRequests.delete(fileName); } catch {}
-        return res.status(500).json({
-            error: 'Internal Server Error during image sync',
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 }
 
