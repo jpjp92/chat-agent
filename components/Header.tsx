@@ -27,12 +27,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       cancel: "취소",
       reset: "초기화",
       changePhoto: "이미지 변경",
-      photoDesc: "정사각형 이미지, 최대 2MB",
+      photoDesc: "정사각형 이미지, 최대 10MB",
       placeholder: "이름을 입력하세요",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "빠르고 균형 잡힌 응답",
       model25LiteDesc: "가볍고 빠른 한국어 최적화",
+      sizeError: "용량 초과 (최대 10MB)",
     },
     en: {
       displayName: "Display Name",
@@ -40,12 +41,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       cancel: "Cancel",
       reset: "Reset",
       changePhoto: "Change Photo",
-      photoDesc: "Square image, max 2MB",
+      photoDesc: "Square image, max 10MB",
       placeholder: "Enter your name",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Fast and balanced responses",
       model25LiteDesc: "Light and efficient for daily tasks",
+      sizeError: "File too large (Max 10MB)",
     },
     es: {
       displayName: "Nombre",
@@ -53,12 +55,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       cancel: "Cancelar",
       reset: "Reiniciar",
       changePhoto: "Cambiar foto",
-      photoDesc: "Imagen cuadrada, máx 2MB",
+      photoDesc: "Imagen cuadrada, máx 10MB",
       placeholder: "Introduce tu nombre",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Respuestas rápidas y equilibradas",
       model25LiteDesc: "Ligero y eficiente para tareas diarias",
+      sizeError: "Archivo muy grande (Máx 10MB)",
     },
     fr: {
       displayName: "Nom",
@@ -66,12 +69,13 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       cancel: "Annuler",
       reset: "Réinitialiser",
       changePhoto: "Changer la photo",
-      photoDesc: "Image carrée, max 2Mo",
+      photoDesc: "Image carrée, max 10Mo",
       placeholder: "Entrez votre nom",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Réponses rapides et équilibrées",
       model25LiteDesc: "Léger et efficace au quotidien",
+      sizeError: "Fichier trop lourd (Max 10Mo)",
     }
   };
 
@@ -109,7 +113,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 10 * 1024 * 1024) {
         showToast(t.sizeError, "error");
         return;
       }
@@ -195,12 +199,12 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       {isModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center pb-[22dvh] px-4">
           <div
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300"
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-md animate-in fade-in duration-300"
             onClick={() => setIsModalOpen(false)}
           ></div>
 
           <div className="relative w-full max-w-xs animate-in slide-in-from-bottom-12 duration-500 ease-out">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-2xl rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-white/50 dark:border-white/10 overflow-hidden">
               <div className="p-4 space-y-4">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
 
@@ -218,7 +222,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl px-4 py-3 cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                        onClick={toggleDarkMode}>
                     <div className="flex items-center gap-3 text-slate-700 dark:text-slate-200 font-bold text-sm">
                       <i className={`fa-solid ${isDarkMode ? 'fa-moon text-indigo-400' : 'fa-sun text-amber-500'} text-lg w-5 text-center`}></i>
@@ -235,14 +239,14 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                       type="text"
                       value={tempProfile.name}
                       onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-slate-800 dark:text-white text-base tabular-nums tracking-tight"
+                      className="w-full bg-black/5 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary-500/30 focus:bg-white/50 dark:focus:bg-black/40 transition-all font-bold text-slate-800 dark:text-white text-base tabular-nums tracking-tight"
                       placeholder={t.placeholder}
                     />
                   </div>
 
                   <div className="flex gap-2">
-                    <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-sm shadow-lg active:scale-95 transition-all">{t.save}</button>
-                    <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-sm active:scale-95 transition-all">{t.cancel}</button>
+                    <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-black text-sm shadow-lg active:scale-95 transition-all">{t.save}</button>
+                    <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold text-sm active:scale-95 transition-all">{t.cancel}</button>
                   </div>
 
                   {onReset && (
@@ -251,7 +255,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                         onReset();
                         setIsModalOpen(false);
                       }}
-                      className="w-full py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-100 dark:hover:bg-red-500/20 active:scale-95 transition-all border border-red-200/50 dark:border-red-500/20"
+                      className="w-full py-2.5 rounded-xl bg-red-500/10 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-500/20 dark:hover:bg-red-500/20 active:scale-95 transition-all border border-red-500/20 dark:border-red-500/20"
                     >
                       <i className="fa-solid fa-rotate mr-2"></i>
                       {t.reset}

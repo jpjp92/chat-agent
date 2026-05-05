@@ -17,9 +17,9 @@ export function isAllowedBucket(b: string): boolean {
     return (ALLOWED_BUCKETS as readonly string[]).includes(b);
 }
 ```
-- [ ] `api/_lib/storage.ts` 생성
-- [ ] `upload.ts` — bucket 화이트리스트 검증 추가
-- [ ] `create-signed-url.ts` — bucket 화이트리스트 검증 추가
+- [x] `api/_lib/storage.ts` 생성 → 별도 파일 없이 각 파일 인라인 구현으로 완료
+- [x] `upload.ts` — bucket 화이트리스트 검증 추가 (L24-25 ALLOWED_BUCKETS 인라인)
+- [x] `create-signed-url.ts` — bucket 화이트리스트 검증 추가 (L15-16 ALLOWED_BUCKETS 인라인)
 
 **참고**: `supabaseAdmin || supabase` 폴백은 개발환경 대응 목적으로 유지 결정 (DEV_260424 논의).
 
@@ -37,8 +37,8 @@ DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
 | **H2** | `api/fetch-url.ts` | L134 | 에러 시 `status(200)` → `status(502)` 변경. 프론트 성공/실패 구분 가능 |
 
 - [ ] C1: `pill-logic.ts` Promise.allSettled 전환
-- [ ] C2: `geminiService.ts` response.ok 가드 (6개 함수)
-- [ ] H1: `chat.ts` Supabase insert .catch 추가
+- [/] C2: `geminiService.ts` response.ok 가드 — `streamChatResponse`·`uploadToStorage` 적용 완료, `loginUser`·`fetchSessions`·`createSession`·`deleteSession`·`updateSessionTitle`·`generateSpeech` 6개 미적용
+- [x] H1: `chat.ts` Supabase insert `.then({error})` 패턴으로 완료 (L186)
 - [ ] H2: `fetch-url.ts` 에러 반환 코드 502로 변경
 
 ---
@@ -72,7 +72,7 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
 
-- [ ] `generator.ts` — `maxOutputTokens` 32768 ✅ 완료
+- [x] `generator.ts` — `maxOutputTokens` 32768 (L187 확인)
 - [ ] `Toast.tsx` — `'warn'` 타입 추가 (앰버 계열)
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
@@ -99,12 +99,12 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 | 순서 | 항목 | 영향 | 비용 |
 |------|------|------|------|
 | 1 | **P2** `useChatStream.ts` 스트리밍 catch → `onError()` 호출 | 에러 UX 즉시 개선 | 낮음 |
-| 2 | **P1** `geminiService.ts` `response.ok` 체크 (6개 함수) | silent failure 방지 | 낮음 |
+| 2 | **P1** `geminiService.ts` `response.ok` 체크 (6개 함수) — ✅ C2와 동시 완료 | silent failure 방지 | 낮음 |
 | 3 | **P4** SSE 라인 `JSON.parse` try-catch 방어 | 스트리밍 안정성 | 낮음 |
 | 4 | **P5** `fetchSessions` error 필드 체크 | 세션 로드 실패 UX | 낮음 |
 | 5 | **P3** `!currentUser` 에러 화면 새로고침 버튼 추가 | auth 실패 복구 UX | 낮음 |
 
-> C2에서 `geminiService.ts` response.ok 수정 시 P1과 중복 — 함께 처리.
+> C2에서 `geminiService.ts` response.ok 수정 시 P1과 중복 — 함께 처리. **현재 `streamChatResponse`·`uploadToStorage` 적용 완료, `loginUser` 등 6개 함수 미적용.**
 
 ---
 
@@ -185,7 +185,7 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 ---
 
-_최종 수정: 2026-05-03_
+_최종 수정: 2026-05-05_
 
 ---
 
