@@ -172,6 +172,12 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     if (hasUrlContent) {
                         useGoogleSearch = false;
                     }
+                    // medical_qa: 이미지 없는 경우 Google Search 강제 활성화
+                    // LLM 내부 지식 의존 → 실시간 의학 정보 + 출처 기반 답변으로 개선
+                    // (이미지가 있으면 Gemini API 제약상 Search 불가 → hasMultimodalContent/historyHasImage 조건 유지)
+                    if (state.intent === 'medical_qa' && !hasMultimodalContent && !historyHasImage) {
+                        useGoogleSearch = true;
+                    }
 
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
                     const resolvedMaxTokens = (() => {
@@ -184,6 +190,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         if (state.intent === 'biology') return 8192;       // PDB 구조 + 설명
                         if (state.intent === 'chemistry') return 4096;     // SMILES + 설명
                         if (state.intent === 'physics') return 4096;       // 다이어그램 JSON + 설명
+                        if (state.intent === 'medical_qa') return 8192;    // 의학 Q&A + 출처
                         return 32768;                                        // 코드·일반
                     })();
 
@@ -198,9 +205,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Streaming SDK call — emits chunks to client in real-time
                     // YouTube native video: disable thinking entirely to stay within Vercel 60s
                     // Video download + processing already takes 30-50s; thinking adds 10-20s more
+                    // medical_qa: cap at 3,000 tokens — sufficient for Google Search result analysis
+                    //             without incurring the full default budget (~8k~16k tokens)
                     const thinkingConfig = (isYoutubeRequest && hasVideoData)
                         ? { thinkingBudget: 0 }
+                        : state.intent === 'medical_qa'
+                        ? { thinkingBudget: 3000 }
                         : undefined;
+
 
                     const sdkStream = await genai.models.generateContentStream({
                         model: resolvedModel,

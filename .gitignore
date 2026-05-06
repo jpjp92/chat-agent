@@ -75,3 +75,14 @@ docs/superpowers/plans/2026-05-04-security-bucket-whitelist.md
 docs/superpowers/specs/2026-05-04-security-bucket-whitelist-design.md
 scripts/test-bucket-security.ts
 scripts/test-pubchem.js
+scripts/card-preview.html
+scripts/test-apis.mjs
+scripts/test-arxiv.mjs
+scripts/test-culture.mjs
+scripts/test-drug.mjs
+scripts/test-drugstore.mjs
+scripts/test-hospital.mjs
+scripts/test-law-api.ts
+scripts/test-law.mjs
+scripts/test-pubmed.mjs
+scripts/test-school.mjs

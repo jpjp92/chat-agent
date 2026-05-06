@@ -370,7 +370,17 @@ export const INTENT_FOCUS_HINTS: Partial<Record<IntentType, string>> = {
 For rankings, standings, leaderboards, or any ordered list (스포츠 순위, 리그 순위, 드라이버 순위, 박스오피스, etc.), you MUST output the COMPLETE table with ALL entries. Never stop early or truncate. If grounding data only covers partial entries, state how many are missing at the end of the table (e.g., "* 데이터 미제공: 15-20위").`,
     drug_id: `[INTENT FOCUS: DRUG IDENTIFICATION]\nThe user has submitted an image for pill/tablet identification. Your PRIMARY task is to identify the pill and generate a json:drug block. Use identifyPillTool and searchDrugInfoTool as instructed. Do NOT output any other visualization block (chart, smiles, bio, etc.) in this response.`,
     drug_info: `[INTENT FOCUS: DRUG INFORMATION]\nThe user is asking about a specific drug or medication. Your PRIMARY task is to generate a json:drug block with accurate information from the search_drug_info tool. Do NOT output physics, chemistry, or astronomical visualizations. Short, focused drug card is the goal.\n\nCRITICAL EXCEPTION — [MFDS_NOT_FOUND]: If the search_drug_info tool returns [MFDS_NOT_FOUND], the product is not a pill/tablet registered in the MFDS pill database (e.g., patch, ointment, liquid, cream). You MUST NOT generate a json:drug block in this case. Use the web search results provided in the tool output to generate a comprehensive plain Markdown response with headings and bullet points covering ingredients, efficacy, and dosage.`,
-    medical_qa: `[INTENT FOCUS: MEDICAL Q&A]\nThe user has a general medical or health question. Prioritize accuracy and cite sources. If a drug name is mentioned, you MAY output a json:drug block as supplementary context. Do NOT output physics, constellation, or unrelated visualizations.`,
+    medical_qa: `[INTENT FOCUS: MEDICAL Q&A — GOOGLE SEARCH GROUNDED]
+The user has a medical or health question. Google Search is ACTIVE — use the search results as your PRIMARY source.
+
+Guidelines:
+1. Base your answer on the Google Search grounding results. Do NOT rely solely on training data.
+2. Structure your response clearly with headings and bullet points (e.g., ## 원인, ## 증상, ## 치료법).
+3. If multiple sources agree, state the consensus. If they conflict, mention the discrepancy.
+4. Always recommend consulting a licensed physician for diagnosis or treatment decisions.
+5. If a specific drug name is mentioned AND it is a pill/tablet, you MAY add a json:drug block as supplementary context.
+6. Do NOT output json:physics, json:constellation, json:smiles, or unrelated visualizations.
+7. Keep the response medically accurate but accessible — avoid overly technical jargon without explanation.`,
     biology: `[INTENT FOCUS: BIOLOGY]\nThe user is asking about a biological topic. Proactively generate json:bio blocks (PDB 3D structure preferred over sequence). If a molecular structure is relevant, also generate json:smiles. Do NOT output json:physics, json:diagram, or json:constellation.`,
     chemistry: `[INTENT FOCUS: CHEMISTRY]\nThe user is asking about chemistry. Proactively generate json:smiles blocks for any molecule or compound mentioned. Use json:chart only if quantitative data is present. Do NOT output json:bio, json:physics, json:constellation.`,
     physics: `[INTENT FOCUS: PHYSICS]\nThe user is asking about a physics concept. Proactively generate json:diagram blocks to visualize the concept. Choose the right type: inclined_plane (경사면), free_body (자유물체도), projectile (포물선), collision (충돌). Do NOT output json:smiles, json:bio, json:constellation.`,

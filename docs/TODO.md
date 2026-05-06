@@ -185,7 +185,186 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 ---
 
-_최종 수정: 2026-05-05_
+_최종 수정: 2026-05-06_
+
+---
+
+## 🌐 외부 API 통합 계획 (2026-05-06 수립)
+
+> **현황**: 7개 API 키 발급 및 연결 테스트 완료. 약국·병원 카드 디자인(v2) 프리뷰 완성.  
+> **목표**: LLM 단독 답변 한계를 실시간 공공데이터로 보완 — 구조화된 카드 UI 렌더링.
+
+---
+
+### 🏗️ 전체 시스템 연동 구조
+
+```
+사용자 메시지
+    ↓
+router.ts — intent 분류
+    ├─ "pharmacy_search"  → PharmacyTool   → 서울 약국 API   → PharmacyRenderer
+    ├─ "hospital_search"  → HospitalTool   → 서울 병원 API   → HospitalRenderer
+    ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
+    ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
+    ├─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
+    ├─ "law_search"       → LawTool        → 국가법령 API     → LawRenderer
+    └─ "drug_info" (기존) → DrugTool       → 의약품 API      → DrugRenderer (✅ 운영중)
+```
+
+**공통 패턴** (각 Tool 동일):
+1. `tools.ts` — LangChain tool 정의 (API 호출 + 응답 파싱)
+2. `generator.ts` — LANGCHAIN_INTENTS 추가 + allTools 분기
+3. `router.ts` — intent 감지 패턴 추가
+4. `ChatMessage.tsx` — `json:<type>` 블록 파서 추가
+5. `components/<Type>Renderer.tsx` — 카드 UI 컴포넌트
+
+---
+
+### 📦 API별 상세 구현 계획
+
+#### ① 서울 약국 + 병원 (우선순위 ★★★)
+
+> 키: `DRUG_STORE_KEY`, `HOSPITAL_KEY` (.env 등록 완료)  
+> 카드 디자인: `scripts/card-preview.html` v2 확정  
+> 포함 정보: 이름·주소·전화·운영시간(전 요일+공휴일)·GPS→카카오지도·[병원] 진료과목·응급실
+
+**신규 파일**
+- [ ] `api/_lib/agent/tools/pharmacy-tool.ts` — 서울 약국 API 호출 + 구 필터링 + 영업상태 계산
+- [ ] `api/_lib/agent/tools/hospital-tool.ts` — 서울 병원 API 호출 + 종류별 통계 + 응급실 여부
+- [ ] `components/PharmacyRenderer.tsx` — 약국 카드 (단일/목록 모드)
+- [ ] `components/HospitalRenderer.tsx` — 병원 카드 (단일/목록 모드)
+
+**기존 파일 수정**
+- [ ] `api/_lib/agent/state.ts` — `"pharmacy_search"`, `"hospital_search"` intent 추가
+- [ ] `api/_lib/agent/nodes/router.ts` — 감지 패턴 추가
+  ```
+  pharmacy: "약국", "약국 찾아", "근처 약국", "강남구 약국"
+  hospital: "병원", "병원 찾아", "응급실", "진료", "강남구 병원"
+  ```
+- [ ] `api/_lib/agent/nodes/generator.ts` — LANGCHAIN_INTENTS + allTools 분기
+- [ ] `api/_lib/agent/prompt.ts` — intent hint 추가
+- [ ] `components/ChatMessage.tsx` — `json:pharmacy`, `json:hospital` 블록 파서
+
+**응답 JSON 포맷** (`json:pharmacy` 블록):
+```json
+{
+  "mode": "list",
+  "district": "강남구",
+  "total": 11,
+  "items": [{
+    "name": "365강남역약국",
+    "address": "서울 강남구 강남대로 지하396",
+    "phone": "02-554-5628",
+    "hours": { "mon":"09:00~20:00", "tue":"07:30~23:00", "holiday":"10:00~14:00" },
+    "status": "open",
+    "lat": 37.498095, "lng": 127.027610
+  }]
+}
+```
+
+---
+
+#### ② arXiv + PubMed 논문 검색 (우선순위 ★★★)
+
+> 키: `NCBI_KEY` (.env 등록 완료), arXiv는 키 불필요  
+> 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
+
+**신규 파일**
+- [ ] `api/_lib/agent/tools/paper-tool.ts`
+  - arXiv: Atom XML 파싱 → 제목·저자·초록·PDF링크
+  - PubMed: esearch(ID) → esummary(메타) → efetch(초록) 3단계 파이프라인
+  - 쿼리에 "의학", "medical", "clinical" 포함 시 PubMed 우선, 나머지는 arXiv
+- [ ] `components/PaperRenderer.tsx` — 논문 카드 (제목·저자·초록·링크)
+
+**기존 파일 수정**
+- [ ] `state.ts` — `"paper_search"` intent 추가
+- [ ] `router.ts` — 감지 패턴: `"논문"`, `"arXiv"`, `"PubMed"`, `"공학논문"`, `"의학논문"`
+- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
+
+---
+
+#### ③ 서울 문화행사 (우선순위 ★★)
+
+> 키: `CULTURE_API_KEY` (.env 등록 완료)  
+> 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
+
+**신규 파일**
+- [ ] `api/_lib/agent/tools/culture-tool.ts`
+  - 구 필터링 + 오늘 이후 행사만 우선 정렬
+  - `MAIN_IMG` → 썸네일 카드
+- [ ] `components/CultureRenderer.tsx` — 행사 카드 (이미지+날짜+장소)
+
+**기존 파일 수정**
+- [ ] `state.ts` — `"culture_event"` intent 추가
+- [ ] `router.ts` — 감지 패턴: `"문화행사"`, `"행사"`, `"전시"`, `"강남구 행사"`
+- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
+
+---
+
+#### ④ 학교기본정보 NEIS (우선순위 ★★)
+
+> 키: `EDU_KEY` (.env 등록 완료)  
+> 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
+
+**신규 파일**
+- [ ] `api/_lib/agent/tools/school-tool.ts`
+  - 파라미터: `SCHUL_NM`(학교명), `LCTN_SC_NM`(시도), `SCHUL_KND_SC_NM`(종류)
+  - NEIS 응답구조: `schoolInfo[0].head` + `schoolInfo[1].row`
+- [ ] `components/SchoolRenderer.tsx`
+
+**기존 파일 수정**
+- [ ] `state.ts` — `"school_search"` intent 추가
+- [ ] `router.ts` — 감지 패턴: `"학교"`, `"초등학교"`, `"중학교"`, `"고등학교"`, `"○○중"`
+- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
+
+---
+
+#### ⑤ 국가법령정보 (우선순위 ★★)
+
+> OC: `jpjp9202` (키 없이 URL 파라미터로 사용)  
+> 2단계: 법령 검색(lawSearch) → 조문 조회(lawService)  
+> 활용: LLM 할루시네이션 없는 원문 기반 법령 답변
+
+**신규 파일**
+- [ ] `api/_lib/agent/tools/law-tool.ts`
+  - 1단계: `lawSearch` → 법령ID 획득
+  - 2단계: `lawService` → 조문 배열 파싱
+  - 사용자 질문과 관련 조문만 추출 → context 주입
+- [ ] `components/LawRenderer.tsx` — 법령 카드 (법령명·시행일·조문 accordion)
+
+**기존 파일 수정**
+- [ ] `state.ts` — `"law_search"` intent 추가
+- [ ] `router.ts` — 감지 패턴: `"법"`, `"법률"`, `"조항"`, `"규정"`, `"○○법 몇조"`
+- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
+- [ ] `.env` — `LAW_OC=jpjp9202` 추가
+
+---
+
+### 📋 구현 순서 (우선순위)
+
+```
+Phase 1 — 즉시 착수 (카드 디자인 확정됨):
+  ① 서울 약국 Tool + PharmacyRenderer
+  ② 서울 병원 Tool + HospitalRenderer
+
+Phase 2 — 학술 정보:
+  ③ arXiv + PubMed Tool + PaperRenderer
+
+Phase 3 — 생활 정보:
+  ④ 서울 문화행사 Tool + CultureRenderer
+  ⑤ NEIS 학교정보 Tool + SchoolRenderer
+
+Phase 4 — 전문 정보:
+  ⑥ 국가법령 Tool + LawRenderer
+```
+
+### ⚠️ 공통 주의사항
+
+- **서울시 API (약국/병원/문화행사)**: 전체 건수(5k~22k)에서 구 단위 클라이언트 필터 → 최대 100건씩 페이지 로드, 구 특정 시 500건으로 증가
+- **arXiv timeout**: `AbortSignal.timeout(6000)` + 실패 시 `"arXiv 서버 응답 없음, 잠시 후 재시도"` fallback
+- **PubMed 3단계**: esearch → esummary → efetch 순서 필수, `NCBI_KEY` 없으면 rate-limit 10 req/s
+- **NEIS 응답 파싱**: `data.schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 (구조 중첩)
+- **법령 API**: `lawSearch` 결과가 1건이면 배열이 아닌 객체로 반환 → `[].flat()` 처리 필수
 
 ---
 
