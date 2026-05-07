@@ -84,6 +84,20 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
   const toggleExpand = (i: number) =>
     setExpandedIdx(prev => prev === i ? null : i);
 
+  const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>, phone: string) => {
+    e.stopPropagation();
+    // 모바일 기기인지 판별
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) {
+      // PC에서는 tel: 링크 이동 차단 후 번호 복사 및 알림
+      e.preventDefault();
+      navigator.clipboard.writeText(phone).catch(() => {});
+      window.dispatchEvent(new CustomEvent('custom-toast', {
+        detail: { message: `📞 전화번호: ${phone}`, type: 'success' }
+      }));
+    }
+  };
+
   return (
     <div className="my-4 w-full">
       {/* Header */}
@@ -162,7 +176,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                       {p.phone && (
                         <a
                           href={`tel:${p.phone}`}
-                          onClick={e => e.stopPropagation()}
+                          onClick={e => handlePhoneClick(e, p.phone)}
                           className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-500 text-slate-500 dark:text-slate-400 transition-colors"
                           title={p.phone}
                         >

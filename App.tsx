@@ -270,6 +270,15 @@ const App: React.FC = () => {
     setToast({ message, type });
   };
 
+  useEffect(() => {
+    const handleCustomToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{message: string, type: 'error' | 'success' | 'info'}>;
+      setToast(customEvent.detail);
+    };
+    window.addEventListener('custom-toast', handleCustomToast);
+    return () => window.removeEventListener('custom-toast', handleCustomToast);
+  }, []);
+
 
   if (isAuthLoading) {
     return (
