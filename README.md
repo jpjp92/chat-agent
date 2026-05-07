@@ -66,6 +66,7 @@ flowchart TB
         subgraph Visualizers ["Visualization Modules"]
             Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
             Diagram["📐 Diagram-Viz"] & Drug["💊 Drug-Viz"] & Charts["📊 Chart-Viz"]
+            Pharmacy["🏥 Pharmacy-Viz"]
         end
     end
 
@@ -115,7 +116,6 @@ flowchart TB
 | `drug_id` | Vision → LangChain + Tools | gemini-2.5-flash |
 | `drug_info` | LangChain + Tools | gemini-2.5-flash |
 | `pharmacy_search` | LangChain + Tools | gemini-2.5-flash |
-| `hospital_search` | LangChain + Tools (WIP) | gemini-2.5-flash |
 | `medical_qa` | SDK + Google Search | gemini-2.5-flash |
 | `biology` | SDK + Google Search | gemini-2.5-flash |
 | `chemistry` | SDK + Google Search | gemini-2.5-flash |
@@ -169,6 +169,7 @@ flowchart TB
 │       │   ├── graph.ts        # StateGraph definition
 │       │   ├── nodes/          # router / vision / generator
 │       │   ├── drug-info-tool.ts  # MFDS + pharm.or.kr + Vision imprint (timeouts)
+│       │   ├── pharmacy-tool.ts   # 전국 약국 공공데이터 API 통신 (1000건 병합)
 │       │   ├── tools.ts        # identifyPillTool, searchWebTool (DDG 8s timeout)
 │       │   ├── prompt.ts
 │       │   └── state.ts
