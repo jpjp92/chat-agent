@@ -15,6 +15,7 @@ interface ChatSidebarProps {
   showConfirmDialog: (title: string, message: string, onConfirm: () => void, type?: 'danger' | 'info') => void;
   isCollapsed?: boolean;
   toggleCollapse?: () => void;
+  isLoadingSessions?: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -30,7 +31,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onNewSession,
   onDeleteSession,
   onRenameSession,
-  showConfirmDialog
+  showConfirmDialog,
+  isLoadingSessions = false,
 }) => {
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -205,7 +207,46 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest tabular-nums">{t.history}</h3>
               </div>
 
-              {filteredSessions.map((session) => (
+              {/* Session skeleton while loading from DB */}
+              {isLoadingSessions && sessions.length === 0 ? (
+                <div className="space-y-1 mt-1">
+                  <style>{`
+                    @keyframes sidebarShimmer {
+                      0%   { background-position: -300px 0; }
+                      100% { background-position:  300px 0; }
+                    }
+                    /* 라이트 모드: slate 계열로 shimmer */
+                    .sidebar-shimmer {
+                      background: linear-gradient(
+                        90deg,
+                        rgba(148,163,184,0.15) 25%,
+                        rgba(148,163,184,0.35) 50%,
+                        rgba(148,163,184,0.15) 75%
+                      );
+                      background-size: 300px 100%;
+                      animation: sidebarShimmer 1.4s infinite linear;
+                    }
+                    /* 다크 모드: white 계열로 shimmer */
+                    .dark .sidebar-shimmer {
+                      background: linear-gradient(
+                        90deg,
+                        rgba(255,255,255,0.04) 25%,
+                        rgba(255,255,255,0.12) 50%,
+                        rgba(255,255,255,0.04) 75%
+                      );
+                      background-size: 300px 100%;
+                      animation: sidebarShimmer 1.4s infinite linear;
+                    }
+                  `}</style>
+                  {[0.9, 0.7, 1, 0.75, 0.85].map((w, i) => (
+                    <div key={i} className="flex items-center px-4 py-2.5 rounded-full" style={{ animationDelay: `${i * 0.08}s` }}>
+                      <div className="w-3.5 h-3.5 rounded-full sidebar-shimmer mr-3 shrink-0" style={{ animationDelay: `${i * 0.08}s` }} />
+                      <div className="h-3 rounded-full sidebar-shimmer" style={{ width: `${w * 100}%`, animationDelay: `${i * 0.08 + 0.05}s` }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                filteredSessions.map((session) => (
                 <div
                   key={session.id}
                   onClick={() => {
@@ -304,7 +345,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+              )}
             </div>
           )}
         </div>

@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyInvalid, API_KEYS } from "../../config.js";
 import { identifyPillTool, searchWebTool } from "../tools.js";
 import { searchDrugInfoTool } from "../drug-info-tool.js";
+import { pharmacyTool } from "../pharmacy-tool.js";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt.js";
 
@@ -46,9 +47,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         }
 
         // Intent routing:
-        // LangChain path — intents that need custom tools (drug_id, drug_info)
+        // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         const resolvedModel = state.model || "gemini-2.5-flash";
@@ -401,6 +402,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     topK: 40,
                     // Drug card JSON is compact — 8192 is sufficient and reduces Vercel 60s timeout risk
                     maxOutputTokens: 8192,
+                    maxRetries: 0,
                 });
 
                 let allTools: any[] = [];
@@ -408,9 +410,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     allTools = [identifyPillTool, searchWebTool];
                 } else if (state.intent === "drug_info") {
                     allTools = [searchDrugInfoTool, searchWebTool];
+                } else if (state.intent === "pharmacy_search") {
+                    allTools = [pharmacyTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
+
+                // Fast-pass: Bypass final LLM generation if pharmacyTool has already executed
+                const lastMsg = state.messages[state.messages.length - 1];
+                if (state.intent === "pharmacy_search" && lastMsg._getType() === "tool" && lastMsg.name === "pharmacyTool") {
+                    console.log('[LangGraph] Fast-passing pharmacyTool: Bypassing final LLM generation');
+                    return { messages: [new AIMessage("")] };
+                }
 
                 // LangChain does not support fileData content parts — strip them for compatibility.
                 // Medical intent images are pre-processed by the vision node (text extracted),

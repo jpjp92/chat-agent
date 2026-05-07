@@ -11,6 +11,7 @@ interface ChatAreaProps {
     language: Language;
     isTyping: boolean;
     loadingStatus: string | null;
+    isLoadingHistory?: boolean;
     onEdit: (content: string) => void;
 }
 

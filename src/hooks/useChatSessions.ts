@@ -117,6 +117,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
   // Hydrate from localStorage cache for instant render; API refresh happens in background
   const [sessions, setSessions] = useState<ChatSession[]>(() => readSessionsCache());
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 
   const lang = (['ko', 'en', 'es', 'fr'].includes(language ?? '')) ? language! : 'ko';
 
@@ -162,6 +164,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       return;
     }
 
+    setIsLoadingSessions(true);
     try {
       const { sessions: dbSessions } = await fetchSessions(resolvedUserId);
 
@@ -181,6 +184,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     } catch (error) {
       console.error('Failed to load sessions', error);
       reportError('loadSessions');
+    } finally {
+      setIsLoadingSessions(false);
     }
   };
 
@@ -204,6 +209,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       return;
     }
 
+    setIsLoadingMessages(true);
     try {
       const { messages, error } = await fetchSessionMessages(id);
       if (error) {
@@ -216,6 +222,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       }
     } catch (error) {
       reportError('loadMessages');
+    } finally {
+      setIsLoadingMessages(false);
     }
   };
 
@@ -255,6 +263,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     setSessions,
     currentSessionId,
     setCurrentSessionId,
+    isLoadingMessages,
+    isLoadingSessions,
     currentSession: sessions.find(session => session.id === currentSessionId),
     loadUserSessions,
     createNewSession,

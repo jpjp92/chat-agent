@@ -19,11 +19,12 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
-### 1-3. Visualization Renderers (6)
+### 1-3. Visualization Renderers (7)
 
 | Renderer | Intent | Trigger | Library |
 |----------|--------|---------|---------|
-| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 | MFDS API + pharm.or.kr |
+| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 | MFDS API + ConnectDI |
+| 🏥 Pharmacy-Viz | `pharmacy_search` | 약국 위치 탐색 | 공공데이터포털 전국 약국 API |
 | 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
 | 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
 | 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
@@ -92,9 +93,9 @@ flowchart TB
 
     subgraph StateGraph ["LangGraph.js StateGraph"]
         StateNode[("AgentState")]
-        RouterNode{{"🧭 Semantic Router\n(9 Intents)"}}
+        RouterNode{{"🧭 Semantic Router\n(10+ Intents)"}}
         Vision["👁️ Vision Node\n(Pill image analysis)"]
-        Tools["🛠️ Tool Executor\n(MFDS / pharm.or.kr / DDG)"]
+        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / DDG)"]
         Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
@@ -103,7 +104,7 @@ flowchart TB
     User --> StateNode --> RouterNode
     RouterNode -- "drug_id (pill+image)" --> Vision --> Generator
     RouterNode -- "all other intents" --> Generator
-    Generator -- "tool_calls (drug_id/drug_info)" --> Tools --> Generator
+    Generator -- "tool_calls (drug_info/pharmacy)" --> Tools --> Generator
     Generator --> Output
 ```
 
@@ -113,6 +114,8 @@ flowchart TB
 |--------|------|-------|
 | `drug_id` | Vision → LangChain + Tools | gemini-2.5-flash |
 | `drug_info` | LangChain + Tools | gemini-2.5-flash |
+| `pharmacy_search` | LangChain + Tools | gemini-2.5-flash |
+| `hospital_search` | LangChain + Tools (WIP) | gemini-2.5-flash |
 | `medical_qa` | SDK + Google Search | gemini-2.5-flash |
 | `biology` | SDK + Google Search | gemini-2.5-flash |
 | `chemistry` | SDK + Google Search | gemini-2.5-flash |
@@ -174,6 +177,7 @@ flowchart TB
 ├── components/                 # UI components
 │   ├── ChatMessage.tsx         # Markdown + visualization block parser
 │   ├── DrugRenderer.tsx        # Drug card
+│   ├── PharmacyRenderer.tsx    # National pharmacy card
 │   ├── BioRenderer.tsx         # 3D protein structure
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
 │   ├── ConstellationRenderer.tsx
@@ -207,8 +211,19 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_service_role_key
 API_KEY=your_gemini_key_1
 API_KEY2=your_gemini_key_2
+
+# Drug Search APIs
 MFDS_API_ENDPOINT=your_mfds_endpoint
 MFDS_API_KEY=your_mfds_key
+DRUG_API_KEY=your_drug_api_key
+
+# Public Info APIs
+PHARM_KEY=your_national_pharmacy_api_key
+HOSPITAL_KEY=your_hospital_api_key
+EDU_KEY=your_neis_school_api_key
+NCBI_KEY=your_pubmed_api_key
+CULTURE_API_KEY=your_culture_event_key
+GEMINI_IMAGEN=your_imagen_api_key
 ```
 
 ### 5-2. Install & run

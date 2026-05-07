@@ -42,6 +42,8 @@ export const routerNode = async (state: AgentStateType) => {
 
     // Fallback heuristic function
     const heuristicCheck = (): IntentType => {
+        if (textContent.includes("약국")) return "pharmacy_search";
+        if (textContent.includes("병원") || textContent.includes("의원") || textContent.includes("응급실")) return "hospital_search";
         if (medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent)) {
             return hasImage ? "drug_id" : "drug_info";
         }
@@ -67,16 +69,18 @@ export const routerNode = async (state: AgentStateType) => {
     if (apiKey) {
         try {
             const ai = new GoogleGenAI({ apiKey });
-            const prompt = `Classify the strictly main intent of the user message into one of these 9 categories:
-- "drug_id"    : pill/tablet image identification (user has an image AND asks to identify it)
-- "drug_info"  : text-based drug name lookup, dosage, side effects, ingredients
-- "medical_qa" : general medical or health question (symptoms, diseases, treatments, anatomy)
-- "biology"    : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
-- "chemistry"  : chemistry, molecular structure, chemical reaction, element, compound, SMILES
-- "physics"    : physics simulation, mechanics, force, motion, gravity, collision, electricity
-- "astronomy"  : constellation, star, planet, galaxy, universe, space observation
-- "data_viz"   : data analysis, statistics, chart, graph, visualization of numbers/trends
-- "general"    : everything else (code, writing, general chat, web search, video summary, etc.)\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general"}`;
+            const prompt = `Classify the strictly main intent of the user message into one of these 11 categories:
+- "drug_id"         : pill/tablet image identification (user has an image AND asks to identify it)
+- "drug_info"       : text-based drug name lookup, dosage, side effects, ingredients
+- "medical_qa"      : general medical or health question (symptoms, diseases, treatments, anatomy)
+- "pharmacy_search" : finding a pharmacy location, operating hours, night/holiday pharmacy (in Seoul)
+- "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
+- "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
+- "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
+- "physics"         : physics simulation, mechanics, force, motion, gravity, collision, electricity
+- "astronomy"       : constellation, star, planet, galaxy, universe, space observation
+- "data_viz"        : data analysis, statistics, chart, graph, visualization of numbers/trends
+- "general"         : everything else (code, writing, general chat, web search, video summary, etc.)\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general"}`;
 
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-lite',
@@ -86,7 +90,7 @@ export const routerNode = async (state: AgentStateType) => {
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }

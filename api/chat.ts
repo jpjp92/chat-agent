@@ -333,6 +333,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
               if (addedNew) sendEvent({ sources: allSources });
             }
+          } else if (event.event === "on_tool_end" && event.name === "pharmacyTool") {
+            const rawOutput = data?.output;
+            const toolOutput: string = typeof rawOutput === 'string'
+              ? rawOutput
+              : typeof rawOutput?.content === 'string'
+              ? rawOutput.content
+              : Array.isArray(rawOutput?.content)
+              ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('')
+              : '';
+              
+            const jsonMatch = toolOutput.match(/```json:pharmacy\n[\s\S]*?\n```/);
+            if (jsonMatch) {
+              console.log('[Chat API] Fast-passing pharmacyTool output directly to stream');
+              const jsonBlock = "\n" + jsonMatch[0] + "\n\n";
+              fullAiResponse += jsonBlock;
+              sendEvent({ text: jsonBlock });
+            }
           } else if (event.event === "on_tool_end" && (event.name === "search_web" || event.name === "search_drug_info")) {
             // Extract [WEB_SOURCE_URLS] block from searchWebTool / searchDrugInfoTool output and push to sources
             // search_drug_info embeds web search results (incl. [WEB_SOURCE_URLS]) when MFDS returns no results

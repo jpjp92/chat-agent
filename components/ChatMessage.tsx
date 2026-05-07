@@ -17,6 +17,7 @@ const BioRenderer = lazy(() => import('./BioRenderer'));
 const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
 const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
 const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
+const PharmacyRenderer = lazy(() => import('./PharmacyRenderer').then(module => ({ default: module.PharmacyRenderer })));
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
@@ -419,8 +420,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -464,6 +465,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'diagram', data: jsonData });
         } else if (blockType === 'drug') {
           parts.push({ type: 'drug', data: jsonData });
+        } else if (blockType === 'pharmacy') {
+          parts.push({ type: 'pharmacy', data: jsonData });
         }
       } catch (e) {
         // Silently skip invalid viz blocks — don't dump raw JSON into the chat
@@ -477,14 +480,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
-        // Split text to show only complete parts
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -586,6 +588,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               </Suspense>
             );
           }
+          if (part.type === 'pharmacy') {
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <PharmacyRenderer data={part.data} />
+              </Suspense>
+            );
+          }
           if (part.type === 'chart_loading') {
             return (
               <div key={idx} className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
@@ -612,9 +621,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     );
   };
 
+  // Force a fixed-width container for pharmacy cards so width never varies with content length
+  const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*pharmacy/i);
+  const outerMaxWidth = hasPharmacyBlock
+    ? 'w-[98%] sm:w-[90%] max-w-[98%] sm:max-w-[90%]'
+    : 'max-w-[95%] sm:max-w-[85%]';
+
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-8 group animate-in fade-in duration-500`}>
-      <div className={`flex max-w-[95%] sm:max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 sm:gap-4`}>
+      <div className={`flex ${outerMaxWidth} ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 sm:gap-4`}>
 
         {!isUser && (
           <div className="flex-shrink-0 mt-1">

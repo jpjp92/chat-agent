@@ -10,6 +10,8 @@ export type IntentType =
     | "physics"      // 물리 (역학, 시뮬레이션)
     | "astronomy"    // 천문 (별자리, 행성, 우주)
     | "data_viz"     // 데이터/통계 (차트, 그래프)
+    | "pharmacy_search" // 약국 위치/영업시간 탐색 (서울 한정)
+    | "hospital_search" // 병원 위치/영업시간 탐색 (서울 한정)
     | "general";     // 나머지 모든 것
 
 /**

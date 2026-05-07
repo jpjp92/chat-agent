@@ -65,6 +65,8 @@ const App: React.FC = () => {
     currentSessionId,
     setCurrentSessionId,
     currentSession,
+    isLoadingMessages,
+    isLoadingSessions,
     createNewSession,
     selectSession,
     removeSession,
@@ -319,6 +321,7 @@ const App: React.FC = () => {
         language={language}
         isOpen={isSidebarOpen}
         isCollapsed={isSidebarCollapsed}
+        isLoadingSessions={isLoadingSessions}
         onClose={() => setIsSidebarOpen(false)}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onLanguageChange={handleLanguageChange}
@@ -343,19 +346,42 @@ const App: React.FC = () => {
 
 
         <main className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar flex flex-col">
-          <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto flex flex-col">
-            {(!currentSession || currentSession.messages.length === 0) && (
-              <WelcomeMessage language={language} />
+          <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto flex flex-col relative">
+
+            {/* Loading overlay — dims welcome msg & past messages, shows spinner */}
+            {isLoadingMessages && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in duration-300">
+                {/* Spinner */}
+                <div className="flex flex-col items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-full"
+                    style={{
+                      background: 'conic-gradient(from 0deg, transparent 0%, rgba(99,102,241,0.15) 40%, #6366f1 100%)',
+                      animation: 'spin 0.9s linear infinite',
+                      WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+                      mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+                    }}
+                  />
+                </div>
+              </div>
             )}
 
-            <ChatArea
-              messages={currentSession?.messages || []}
-              userProfile={userProfile}
-              language={language}
-              isTyping={isTyping}
-              loadingStatus={loadingStatus}
-              onEdit={handleEditMessage}
-            />
+            {/* Content — dims when loading */}
+            <div className={`flex-1 flex flex-col transition-all duration-300 ${isLoadingMessages ? 'opacity-25 blur-[1.5px] pointer-events-none select-none' : 'opacity-100 blur-0'}`}>
+              {(!currentSession || currentSession.messages.length === 0) && (
+                <WelcomeMessage language={language} />
+              )}
+
+              <ChatArea
+                messages={currentSession?.messages || []}
+                userProfile={userProfile}
+                language={language}
+                isTyping={isTyping}
+                loadingStatus={loadingStatus}
+                isLoadingHistory={isLoadingMessages}
+                onEdit={handleEditMessage}
+              />
+            </div>
           </div>
         </main>
 
