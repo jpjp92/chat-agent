@@ -41,9 +41,9 @@ const fmt = (t: string) => t && t.length === 4 ? `${t.slice(0, 2)}:${t.slice(2)}
 const range = (s: string, c: string) => s ? `${fmt(s)}~${fmt(c)}` : '휴무';
 
 export const pharmacyTool = tool(
-    async ({ sido, sigungu, current_time_kst }: { sido: string; sigungu?: string; current_time_kst?: string }) => {
+    async ({ sido, sigungu, keyword, current_time_kst }: { sido: string; sigungu?: string; keyword?: string; current_time_kst?: string }) => {
         try {
-            console.log(`[PharmacyTool] LLM Parsed - 시도: ${sido}, 시군구: ${sigungu || '(없음)'}`);
+            console.log(`[PharmacyTool] LLM Parsed - 시도: ${sido}, 시군구: ${sigungu || '(없음)'}, 키워드: ${keyword || '(없음)'}`);
 
             // 현재 시간 계산
             const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
@@ -79,9 +79,18 @@ export const pharmacyTool = tool(
                 allItems = allItems.concat(res2.items);
             }
 
-            const locationLabel = `${sido} ${sigungu || ''}`.trim();
+            // 키워드(동, 약국명 등) 필터링
+            if (keyword) {
+                const kw = keyword.toLowerCase().trim();
+                allItems = allItems.filter(p => 
+                    (p.dutyName && p.dutyName.toLowerCase().includes(kw)) || 
+                    (p.dutyAddr && p.dutyAddr.toLowerCase().includes(kw))
+                );
+            }
+
+            const locationLabel = `${sido} ${sigungu || ''} ${keyword || ''}`.trim();
             if (allItems.length === 0) {
-                return JSON.stringify({ result: `${locationLabel} 지역의 약국 정보를 찾을 수 없습니다.`, data: [] });
+                return `${locationLabel} 지역의 약국 정보를 찾을 수 없습니다. [지시사항]: 제공된 search_web 툴을 사용하여 해당 지역의 영업 중인 약국을 검색한 후, 사용자에게 텍스트로 친절하게 안내해 주세요.`;
             }
 
             // 영업중 우선 정렬, 상위 20개 선택
@@ -138,6 +147,7 @@ export const pharmacyTool = tool(
         schema: z.object({
             sido: z.string().describe("약국이 위치한 '시/도'의 공식 명칭 (예: 서울특별시, 경기도, 전북특별자치도, 강원특별자치도 등). 사용자가 '전주 덕진구'나 '동탄'처럼 시/도를 생략해도, 올바른 공식 시/도 명칭을 유추해서 반드시 입력해야 합니다."),
             sigungu: z.string().optional().describe("약국이 위치한 '시/군/구'의 명칭. **[주의]** '전주시 덕진구', '수원시 영통구'처럼 '시'와 '구'가 합쳐진 지명인 경우, 앞의 '시'를 반드시 제외하고 '덕진구', '영통구' 처럼 최종 '구' 단위만 입력해야 합니다! (예: '창원시 성산구' -> '성산구', '전주 완산구' -> '완산구')"),
+            keyword: z.string().optional().describe("사용자가 특정한 동 이름(예: '중화산동'), 약국 이름(예: '종로약국'), 또는 세부 주소를 명시한 경우 그 키워드를 입력하세요. 없으면 생략합니다."),
             current_time_kst: z.string().optional().describe("한국 표준시 기준 현재 요일 및 시간 (예: 월요일 14:30). 영업중 여부 판단에 사용됩니다."),
         }),
     }

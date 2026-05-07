@@ -411,16 +411,19 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 } else if (state.intent === "drug_info") {
                     allTools = [searchDrugInfoTool, searchWebTool];
                 } else if (state.intent === "pharmacy_search") {
-                    allTools = [pharmacyTool];
+                    allTools = [pharmacyTool, searchWebTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
 
-                // Fast-pass: Bypass final LLM generation if pharmacyTool has already executed
+                // Fast-pass: Bypass final LLM generation if pharmacyTool has successfully executed
                 const lastMsg = state.messages[state.messages.length - 1];
                 if (state.intent === "pharmacy_search" && lastMsg._getType() === "tool" && lastMsg.name === "pharmacyTool") {
-                    console.log('[LangGraph] Fast-passing pharmacyTool: Bypassing final LLM generation');
-                    return { messages: [new AIMessage("")] };
+                    const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                    if (toolContent.includes('```json:pharmacy')) {
+                        console.log('[LangGraph] Fast-passing pharmacyTool: Bypassing final LLM generation');
+                        return { messages: [new AIMessage("")] };
+                    }
                 }
 
                 // LangChain does not support fileData content parts — strip them for compatibility.
