@@ -4,27 +4,6 @@
 
 ---
 
-## 🔴 우선순위 1 — 보안 (즉시)
-
-### bucket 화이트리스트 — `upload.ts`, `create-signed-url.ts`
-
-클라이언트가 `bucket` 파라미터를 직접 제어 → service_role 키로 임의 버킷 접근 가능. 코드 5줄로 해소.
-
-**구현 계획** (`api/_lib/storage.ts` 신규):
-```ts
-export const ALLOWED_BUCKETS = ['chat-videos', 'chat-imgs', 'chat-docs'] as const;
-export function isAllowedBucket(b: string): boolean {
-    return (ALLOWED_BUCKETS as readonly string[]).includes(b);
-}
-```
-- [x] `api/_lib/storage.ts` 생성 → 별도 파일 없이 각 파일 인라인 구현으로 완료
-- [x] `upload.ts` — bucket 화이트리스트 검증 추가 (L24-25 ALLOWED_BUCKETS 인라인)
-- [x] `create-signed-url.ts` — bucket 화이트리스트 검증 추가 (L15-16 ALLOWED_BUCKETS 인라인)
-
-**참고**: `supabaseAdmin || supabase` 폴백은 개발환경 대응 목적으로 유지 결정 (DEV_260424 논의).
-
----
-
 ## 🔴 우선순위 2 — 에러처리 묶음 (C1·C2·H1·H2)
 
 DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
@@ -38,33 +17,9 @@ DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
 
 - [ ] C1: `pill-logic.ts` Promise.allSettled 전환
 - [/] C2: `geminiService.ts` response.ok 가드 — `streamChatResponse`·`uploadToStorage` 적용 완료, `loginUser`·`fetchSessions`·`createSession`·`deleteSession`·`updateSessionTitle`·`generateSpeech` 6개 미적용
-- [x] H1: `chat.ts` Supabase insert `.then({error})` 패턴으로 완료 (L186)
 - [ ] H2: `fetch-url.ts` 에러 반환 코드 502로 변경
 
----
 
-## 🟡 우선순위 3 — 이미지 멀티턴 근본 수정 (I4·I5)
-
-I6(`historyHasImage` Google Search 오염 방지)은 완료됐으나 근본 원인 미수정.
-
-| # | 파일 | 내용 |
-|---|------|------|
-| **I4** | `api/chat.ts` L49 | `isRecent` 조건에 이미지 메시지 예외 추가 — 이미지 포함 메시지는 history에서 탈락 방지 |
-| **I5** | `src/hooks/useChatStream.ts` L121 | inline base64 임계값 3MB → 1MB — 1MB 초과 이미지는 Supabase URL로 전달, body 경량화 |
-
-```ts
-// I4: api/chat.ts
-const msgHasImage = msgAttachments.some((a: any) => a.mimeType?.startsWith('image/'));
-const isRecent = msgHasImage || index >= array.length - 3;
-
-// I5: useChatStream.ts
-if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
-```
-
-- [ ] I4: `api/chat.ts` isRecent 이미지 예외 추가
-- [ ] I5: `useChatStream.ts` inline 임계값 1MB로 축소
-
----
 
 ## 🟡 우선순위 4 — 기능 개선
 
@@ -72,7 +27,6 @@ if (!isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
 
-- [x] `generator.ts` — `maxOutputTokens` 32768 (L187 확인)
 - [ ] `Toast.tsx` — `'warn'` 타입 추가 (앰버 계열)
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
@@ -222,42 +176,39 @@ router.ts — intent 분류
 
 ### 📦 API별 상세 구현 계획
 
-#### ① 서울 약국 + 병원 (우선순위 ★★★)
+#### ① 병원 검색 (우선순위 ★★★)
 
-> 키: `DRUG_STORE_KEY`, `HOSPITAL_KEY` (.env 등록 완료)  
+> 키: `HOSPITAL_KEY` (.env 등록 완료)  
 > 카드 디자인: `scripts/card-preview.html` v2 확정  
 > 포함 정보: 이름·주소·전화·운영시간(전 요일+공휴일)·GPS→카카오지도·[병원] 진료과목·응급실
 
 **신규 파일**
-- [ ] `api/_lib/agent/tools/pharmacy-tool.ts` — 서울 약국 API 호출 + 구 필터링 + 영업상태 계산
 - [ ] `api/_lib/agent/tools/hospital-tool.ts` — 서울 병원 API 호출 + 종류별 통계 + 응급실 여부
-- [ ] `components/PharmacyRenderer.tsx` — 약국 카드 (단일/목록 모드)
 - [ ] `components/HospitalRenderer.tsx` — 병원 카드 (단일/목록 모드)
 
 **기존 파일 수정**
-- [ ] `api/_lib/agent/state.ts` — `"pharmacy_search"`, `"hospital_search"` intent 추가
+- [ ] `api/_lib/agent/state.ts` — `"hospital_search"` intent 추가
 - [ ] `api/_lib/agent/nodes/router.ts` — 감지 패턴 추가
   ```
-  pharmacy: "약국", "약국 찾아", "근처 약국", "강남구 약국"
   hospital: "병원", "병원 찾아", "응급실", "진료", "강남구 병원"
   ```
 - [ ] `api/_lib/agent/nodes/generator.ts` — LANGCHAIN_INTENTS + allTools 분기
 - [ ] `api/_lib/agent/prompt.ts` — intent hint 추가
-- [ ] `components/ChatMessage.tsx` — `json:pharmacy`, `json:hospital` 블록 파서
+- [ ] `components/ChatMessage.tsx` — `json:hospital` 블록 파서
 
-**응답 JSON 포맷** (`json:pharmacy` 블록):
+응답 JSON 포맷 (`json:hospital` 블록):
 ```json
 {
-  "mode": "list",
-  "district": "강남구",
-  "total": 11,
-  "items": [{
-    "name": "365강남역약국",
-    "address": "서울 강남구 강남대로 지하396",
-    "phone": "02-554-5628",
-    "hours": { "mon":"09:00~20:00", "tue":"07:30~23:00", "holiday":"10:00~14:00" },
-    "status": "open",
-    "lat": 37.498095, "lng": 127.027610
+  "query": "강남구 병원",
+  "count": 1,
+  "hospitals": [{
+    "name": "강남세브란스병원",
+    "address": "서울 강남구 언주로 211",
+    "phone": "1599-6114",
+    "hours_today": "09:00~17:00",
+    "is_open_now": true,
+    "hours": { "mon":"09:00~17:00", "holiday":"휴무" },
+    "lat": 37.4928, "lon": 127.0463
   }]
 }
 ```
@@ -344,8 +295,7 @@ router.ts — intent 분류
 
 ```
 Phase 1 — 즉시 착수 (카드 디자인 확정됨):
-  ① 서울 약국 Tool + PharmacyRenderer
-  ② 서울 병원 Tool + HospitalRenderer
+  ① 병원 Tool + HospitalRenderer
 
 Phase 2 — 학술 정보:
   ③ arXiv + PubMed Tool + PaperRenderer

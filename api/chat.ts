@@ -82,8 +82,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (msg.role === 'assistant') return new AIMessage(msg.content);
           
           const isRecent = index >= array.length - 3;
-          const parts: any[] = [{ type: "text", text: msg.content || "" }];
           const msgAttachments = msg.attachments || (msg.attachment ? [msg.attachment] : []);
+          
+          const parts: any[] = [{ type: "text", text: msg.content || "" }];
           
           for (const att of msgAttachments) {
             if (att.data && att.mimeType) {

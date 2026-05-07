@@ -131,8 +131,8 @@ export const useChatStream = ({
 
           // 이미지: 크기 무관하게 항상 Supabase 업로드 (히스토리 미리보기 복원을 위해)
           // 비디오: 항상 업로드 (크기 이슈)
-          // 문서: 3MB 미만 base64 inline 허용
-          if (!isImage && !isVideo && estimatedSize < (3 * 1024 * 1024) && isBase64) {
+          // 문서: 1MB 미만 base64 inline 허용 (Vercel payload 4.5MB 제한 우회)
+          if (!isImage && !isVideo && estimatedSize < (1 * 1024 * 1024) && isBase64) {
             finalAttachments.push(attachment);
             continue;
           }
