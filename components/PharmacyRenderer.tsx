@@ -102,11 +102,6 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
             </p>
           </div>
         </div>
-        {totalPages > 1 && (
-          <span className="text-[11px] text-slate-400 font-medium tabular-nums">
-            {page + 1} / {totalPages}
-          </span>
-        )}
       </div>
 
       {data.summary && (
@@ -196,9 +191,9 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
 
               {/* Accordion: weekday grid */}
               {hasHours && isExpanded && (
-                <div className="px-4 sm:px-5 pb-4 pt-1 border-t border-white/5 dark:border-white/[0.04]">
-                  <p className="text-[9px] font-black text-slate-400/50 uppercase tracking-widest mb-2">주간 · 공휴일 운영시간</p>
-                  <div className="grid grid-cols-8 gap-1 text-center">
+                <div className="px-2 sm:px-5 pb-4 pt-1 border-t border-white/5 dark:border-white/[0.04]">
+                  <p className="text-[9px] font-black text-slate-400/50 uppercase tracking-widest mb-2 px-2 sm:px-0">주간 · 공휴일 운영시간</p>
+                  <div className="grid grid-cols-8 gap-0.5 sm:gap-1 text-center">
                     {DAY_LABELS.map(({ key, label, color }) => {
                       const val = p.hours![key as keyof PharmacyHours];
                       const isToday = key === todayKey;
@@ -206,10 +201,10 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                       const [start, end] = val && val !== '휴무' ? val.split('~') : ['', ''];
                       return (
                         <div key={key} className="space-y-1">
-                          <span className={`text-[9px] font-bold ${isToday ? 'text-emerald-400' : color || 'text-slate-500'}`}>
+                          <span className={`text-[8.5px] font-bold whitespace-nowrap tracking-tighter ${isToday ? 'text-emerald-400' : color || 'text-slate-500'}`}>
                             {label}{isToday ? ' ●' : ''}
                           </span>
-                          <div className={`rounded-lg py-1 px-0.5 ${
+                          <div className={`rounded-md sm:rounded-lg py-1 px-0 flex flex-col items-center justify-center min-h-[32px] ${
                             isToday
                               ? 'bg-emerald-500/15 border border-emerald-500/30'
                               : isOff
@@ -217,11 +212,11 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                                 : 'bg-white/[0.03] border border-white/[0.06]'
                           }`}>
                             {isOff ? (
-                              <p className="text-[8px] font-bold text-slate-600">휴무</p>
+                              <p className="text-[7.5px] sm:text-[8px] font-bold text-slate-600 tracking-tighter">휴무</p>
                             ) : (
                               <>
-                                <p className={`text-[8px] font-black ${isToday ? 'text-emerald-300' : 'text-slate-300'}`}>{start}</p>
-                                <p className={`text-[8px] ${isToday ? 'text-emerald-400/60' : 'text-slate-600'}`}>~{end}</p>
+                                <p className={`text-[7.5px] sm:text-[8.5px] font-black tracking-tighter leading-none whitespace-nowrap ${isToday ? 'text-emerald-300' : 'text-slate-300'}`}>{start}</p>
+                                <p className={`text-[7.5px] sm:text-[8px] tracking-tighter leading-none mt-0.5 whitespace-nowrap ${isToday ? 'text-emerald-400/60' : 'text-slate-600'}`}>~{end}</p>
                               </>
                             )}
                           </div>

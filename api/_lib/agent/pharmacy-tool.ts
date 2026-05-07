@@ -52,32 +52,26 @@ export const pharmacyTool = tool(
             const todayIdx = dayMap[weekday];
             const curTime = parseInt(now.toTimeString().slice(0, 5).replace(':', ''));
 
-            // 1, 2페이지(총 200건) 병렬 조회로 지연 시간 단축
+            // API는 '전주시 완산구' 처럼 시와 구가 결합된 형태를 인식하지 못함 (0건 반환).
+            // 띄어쓰기가 있다면 무조건 마지막 단어('완산구')만 추출하여 사용.
+            let cleanSigungu = sigungu?.trim();
+            if (cleanSigungu && cleanSigungu.includes(' ')) {
+                const parts = cleanSigungu.split(/\s+/);
+                cleanSigungu = parts[parts.length - 1];
+                console.log(`[PharmacyTool] sigungu 변환: ${sigungu} -> ${cleanSigungu} (API 인식 오류 방지)`);
+            }
+
+            // 1페이지에 최대 1000건을 한 번에 조회하여 넓은 구역(예: 전주시 전체)도 누락 없이 커버
             const baseQs = {
                 ...(sido ? { Q0: sido } : {}),
-                ...(sigungu ? { Q1: sigungu } : {}),
-                numOfRows: '100',
+                ...(cleanSigungu ? { Q1: cleanSigungu } : {}),
+                numOfRows: '1000',
+                pageNo: '1',
             };
-            const url1 = `https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${PHARM_KEY}&${new URLSearchParams({ ...baseQs, pageNo: '1' })}`;
-            const url2 = `https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${PHARM_KEY}&${new URLSearchParams({ ...baseQs, pageNo: '2' })}`;
+            const url = `https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${PHARM_KEY}&${new URLSearchParams(baseQs)}`;
 
-            // Promise.allSettled로 하나가 실패해도 다른 하나의 결과를 살림
-            const responses = await Promise.allSettled([httpsGet(url1), httpsGet(url2)]);
-
-            let allItems: any[] = [];
-            let totalCount = 0;
-
-            if (responses[0].status === 'fulfilled') {
-                const res1 = parseXmlItems(responses[0].value);
-                allItems = allItems.concat(res1.items);
-                totalCount = res1.totalCount;
-            }
-
-            // 전체 데이터가 100건을 초과할 때만 2페이지 결과 병합 (중복 방지)
-            if (responses[1].status === 'fulfilled' && totalCount > 100) {
-                const res2 = parseXmlItems(responses[1].value);
-                allItems = allItems.concat(res2.items);
-            }
+            const xmlResponse = await httpsGet(url);
+            let { items: allItems } = parseXmlItems(xmlResponse);
 
             // 키워드(동, 약국명 등) 필터링
             if (keyword) {
@@ -93,11 +87,21 @@ export const pharmacyTool = tool(
                 return `${locationLabel} 지역의 약국 정보를 찾을 수 없습니다. [지시사항]: 제공된 search_web 툴을 사용하여 해당 지역의 영업 중인 약국을 검색한 후, 사용자에게 텍스트로 친절하게 안내해 주세요.`;
             }
 
-            // 영업중 우선 정렬, 상위 20개 선택
+            // 영업중 및 주말/공휴일 영업 여부에 따른 가중치 점수 부여
             const pharmacies = allItems.map((p: any) => {
                 const s = p[`dutyTime${todayIdx}s`] || '';
                 const c = p[`dutyTime${todayIdx}c`] || '';
                 const isOpen = s && c ? (curTime >= parseInt(s) && curTime <= parseInt(c)) : false;
+
+                const hasSat = !!p.dutyTime6s;
+                const hasSun = !!p.dutyTime7s;
+                const hasHol = !!p.dutyTime8s;
+
+                let score = 0;
+                if (isOpen) score += 100;       // 1순위: 현재 영업중 (압도적 가중치)
+                if (hasSun || hasHol) score += 20; // 2순위: 일/공휴일 지킴이 약국
+                if (hasSat) score += 10;        // 3순위: 토요일 영업 약국
+
                 return {
                     name: p.dutyName,
                     address: p.dutyAddr,
@@ -106,6 +110,7 @@ export const pharmacyTool = tool(
                     lon: parseFloat(p.wgs84Lon) || 0,
                     hours_today: range(s, c),
                     is_open_now: isOpen,
+                    score: score,
                     hours: {
                         mon: range(p.dutyTime1s, p.dutyTime1c),
                         tue: range(p.dutyTime2s, p.dutyTime2c),
@@ -119,9 +124,9 @@ export const pharmacyTool = tool(
                 };
             });
 
-            // 영업중 먼저, 그 다음 가나다순
+            // 점수 내림차순 (영업중 > 일휴일 > 토요일) -> 동점 시 가나다순 정렬
             pharmacies.sort((a, b) => {
-                if (a.is_open_now !== b.is_open_now) return a.is_open_now ? -1 : 1;
+                if (a.score !== b.score) return b.score - a.score;
                 return a.name.localeCompare(b.name, 'ko');
             });
 
@@ -146,7 +151,7 @@ export const pharmacyTool = tool(
 이 툴은 \`\`\`json:pharmacy 로 시작하는 완전한 마크다운 블록을 반환합니다. 당신(LLM)은 툴이 반환한 텍스트를 절대로 수정하거나 요약하지 말고, 그대로 화면에 출력해야만 프론트엔드 UI 카드가 정상 작동합니다. 환각(거짓 정보)을 만들어내지 마세요.`,
         schema: z.object({
             sido: z.string().describe("약국이 위치한 '시/도'의 공식 명칭 (예: 서울특별시, 경기도, 전북특별자치도, 강원특별자치도 등). 사용자가 '전주 덕진구'나 '동탄'처럼 시/도를 생략해도, 올바른 공식 시/도 명칭을 유추해서 반드시 입력해야 합니다."),
-            sigungu: z.string().optional().describe("약국이 위치한 '시/군/구'의 명칭. **[주의]** '전주시 덕진구', '수원시 영통구'처럼 '시'와 '구'가 합쳐진 지명인 경우, 앞의 '시'를 반드시 제외하고 '덕진구', '영통구' 처럼 최종 '구' 단위만 입력해야 합니다! (예: '창원시 성산구' -> '성산구', '전주 완산구' -> '완산구')"),
+            sigungu: z.string().optional().describe("약국이 위치한 '시/군/구'의 명칭. **[주의]** '전주시 덕진구', '수원시 영통구'처럼 '시'와 '구'가 합쳐진 지명인 경우, 앞의 '시'를 제외하고 '덕진구' 처럼 최종 '구' 단위만 입력하세요. 단, 사용자가 '구'를 언급하지 않고 '전주', '수원' 등 '시'만 말한 경우에는 해당 시 이름 전체(예: '전주시', '수원시')를 입력하세요."),
             keyword: z.string().optional().describe("사용자가 특정한 동 이름(예: '중화산동'), 약국 이름(예: '종로약국'), 또는 세부 주소를 명시한 경우 그 키워드를 입력하세요. 없으면 생략합니다."),
             current_time_kst: z.string().optional().describe("한국 표준시 기준 현재 요일 및 시간 (예: 월요일 14:30). 영업중 여부 판단에 사용됩니다."),
         }),

@@ -87,3 +87,5 @@ scripts/test-law.mjs
 scripts/test-pubmed.mjs
 scripts/test-school.mjs
 scripts/test-pharmacy-national.mjs
+out.txt
+test_pharm.cjs
