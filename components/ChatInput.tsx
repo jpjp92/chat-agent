@@ -16,6 +16,34 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_ATTACHMENTS = 3;
 
+// 이미지를 최대 1920px / JPEG 85%로 압축 — Vercel 4.5MB 페이로드 제한 대응
+// GIF는 Canvas 변환 시 애니메이션 프레임 소실로 원본 유지
+const compressImage = (dataUrl: string, mimeType: string): Promise<string> => {
+  if (mimeType === 'image/gif') return Promise.resolve(dataUrl);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX_DIM = 1920;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#FFFFFF'; // PNG 투명도 → 흰 배경 처리
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
+
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast, editValue }) => {
   const [input, setInput] = useState('');
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
@@ -314,11 +342,17 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       console.error("Text extraction failed:", err);
     }
 
+    const isImage = file.type.startsWith('image/');
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
+      const rawDataUrl = reader.result as string;
+      const data = isImage ? await compressImage(rawDataUrl, file.type) : rawDataUrl;
+      const mimeType = isImage && file.type !== 'image/gif'
+        ? 'image/jpeg'
+        : (file.type || (file.name.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'));
       const newAttachment: MessageAttachment = {
-        data: reader.result as string,
-        mimeType: file.type || (file.name.endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream'),
+        data,
+        mimeType,
         fileName: file.name,
         fileSize: file.size,
         extractedText: extractedText || undefined

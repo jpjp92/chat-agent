@@ -183,7 +183,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           session_id,
           role: 'user',
           content: prompt,
-          attachment_url: mainAttachment?.data && mainAttachment.data.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null)
+          attachment_url: mainAttachment?.storageUrl
+            || (mainAttachment?.data && mainAttachment.data.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null))
         }).then(({ error }) => {
           if (error) console.error('[Chat API] User message save error:', error);
         });

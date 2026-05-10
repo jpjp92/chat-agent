@@ -146,7 +146,10 @@ export const useChatStream = ({
             mimeType: attachment.mimeType,
           }, bucket);
 
-          finalAttachments.push({ ...attachment, data: uploadResult.url });
+          finalAttachments.push(isImage
+            ? { ...attachment, storageUrl: uploadResult.url }
+            : { ...attachment, data: uploadResult.url }
+          );
         }
       } catch (error: any) {
         console.error('Upload error:', error);

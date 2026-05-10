@@ -13,6 +13,7 @@ export interface MessageAttachment {
   fileName?: string;
   fileSize?: number; // bytes — for display in chat history cards
   extractedText?: string; // Client-side extracted text (for docx, txt, etc.)
+  storageUrl?: string; // Uploaded URL for persistence while keeping inline data for current analysis
 }
 
 export type SourceType = 'web' | 'video' | 'pdf' | 'image' | 'text';
