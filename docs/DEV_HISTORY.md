@@ -8,6 +8,9 @@
 
 - [DEV_260507.md](DEV_260507.md) — **문서 업로드 500 에러 원천 차단** (useChatStream 문서 inline 한계 3MB→1MB 축소, Vercel 4.5MB 페이로드 한계 우회) / **멀티모달 구글 검색 딜레마(Wontfix) 확정** (이미지를 기억하면 Grounding이 영구 차단되는 Gemini 태생적 한계 분석 → 3턴 후 텍스트 변환 유지로 검색 기능 복구 최우선화) / **README 및 TODO 최신화** (Pharmacy-Viz 아키텍처 등재, 완료 부채 청소, 병원 연동 로드맵 단일화)
 - [DEV_260505.md](DEV_260505.md) — **프로필 설정 이미지 UI/UX 개선** (용량 2MB→10MB 상향, 누락된 `sizeError` 다국어 메시지 딕셔너리 추가, 토스트 말줄임표 잘림 방지 짧은 문구 적용) / **프로필 모달 글래스모피즘 적용** (컨테이너 `backdrop-blur-2xl` 적용, 반투명 유리 테두리 질감 추가, 버튼 및 입력창 반투명 레이어링으로 메인 헤더와 디자인 일관성 확보)
+- [DEV_260507.md](DEV_260507.md) — **대용량 문서 500 에러 원천 차단** (문서 인라인 Base64 임계값 3MB→1MB, 1MB+ 즉시 Supabase `chat-docs` 업로드 → Vercel 4.5MB 제한 영구 회피) / **이미지 멀티턴 메모리 Wontfix** (Gemini API 멀티모달+Grounding 동시 활성화 불가 기술 한계 확인, 이미지 기억 보존 시 Google Search 영구 봉인 → 실용성 우선 폐기) / **약국 UI 마무리** (토스트 메시지 간소화, PharmacyRenderer 데스크톱 전화번호 UX 점검) / **README 최신화** (Pharmacy-Viz 정식 등재, `hospital_search` WIP 항목 삭제, Mermaid 구조도 업데이트) / **TODO 백로그 정리** (구현 완료 항목 삭제, Hospital Phase 1로 명확화)
+- [DEV_260506.md](DEV_260506.md) — **외부 API 통합 기획 확정** (약국/병원/arXiv+PubMed/문화행사/NEIS/법령 6종, API 키 7개 발급·테스트 완료) / **PharmacyTool 완전 구현** — 13개 최적화: ① LangGraph `on_tool_end` Direct Injection으로 LLM 스트리밍 우회(10~15초 단축) ② LangChain `maxRetries: 0`으로 429 Hang 차단 ③ 공공데이터 1000건 단일 호출(병렬→단일 전환, 전국 약국 누락 방지) ④ `sigungu` 띄어쓰기 Sanitize(공공데이터 0건 버그 우회) ⑤ `keyword` 파라미터 동·약국명 클라이언트 필터 ⑥ 0건 시 `searchWebTool` 폴백 ⑦ 3단계 가중치 정렬(영업중+100·일요일/공휴일+20·토요일+10) ⑧ 모바일/데스크톱 전화번호 분기(`tel:` vs 클립보드 Toast) ⑨ Toast 멀티라인 고도화 ⑩ 모바일 영업시간 그리드 반응형 튜닝 ⑪ Zod 스키마 `sido`/`sigungu` 분리 ⑫ Token Minification으로 스트림 파싱 크래시 해소 ⑬ 의도 분류 프롬프트 의도+예시+NOT 패턴 3요소 구조 / **Intent 현황 문서화** (11종 분류 전체 흐름 정리)
+- [DEV_260505.md](DEV_260505.md) — **프로필 이미지 업로드 용량 2MB→10MB** (`Header.tsx`, 안내 문구 4개 언어 일괄 수정) / **`sizeError` 다국어 누락 수정** (i18n 딕셔너리에 `sizeError` 키 4개 언어 추가, Toast 간결 포맷: `"용량 초과 (최대 10MB)"`) / **프로필 모달 글래스모피즘 적용** (배경 `bg-white/80 dark:bg-slate-900/60 backdrop-blur-2xl`, 테두리 `border-white/50`, 오버레이 `backdrop-blur-md`, 버튼·입력창 `bg-black/5 dark:bg-white/5`)
 - [DEV_260504.md](DEV_260504.md) — **보안 강화 7종** (SSRF 블록리스트 확장 `fetch-url`·`proxy-image`, `sync-drug-image` SSRF 화이트리스트 신규, 임의 버킷 접근 차단 `create-signed-url`·`upload`, 내부 에러 객체 노출 차단 6파일, AI 컨텍스트 에러 노출 차단 `fetch-url`·`drug-info-tool`, `speech.ts` 타입 검증, CSP 헤더 추가) / **에러 메시지 다국어화 4종** (`chat.ts` LLM 에러 `CHAT_ERRORS` 맵 4언어, `geminiService` `ERROR_MESSAGES` dead code 제거, `useChatSessions` `SESSION_ERRORS` 5종×4언어 + `reportError` 단순화, `App.tsx` `profileUpdateFailed` 4언어 + `useChatSessions` language 연동) / **성능 최적화 2종** (YouTube OEmbed + page fetch 직렬→`Promise.allSettled` 병렬 최악 18초→10초, YouTube 분석 시 `fetchUrlContent` 제거로 API 호출 블로킹 해소 전체 38~50초→30~40초) / **PubChem SMILES 검증 통합** (`ChemicalRenderer.tsx` 2단계 조회 — 이름 GET + SMILES POST 검증, 한국어 혼합명 영어 추출, `activeSmiles`·`smilesSource` 상태, "PubChem 검증"/"AI 생성" 소스 뱃지, 비동기 백그라운드 업데이트로 초기 렌더링 블로킹 없음)
 - [DEV_260502.md](DEV_260502.md) — **ChatInput 컴팩트 리사이즈 + 모바일 정렬 수정** / **라이트 모드 글래스모피즘 일관성 개선** (패널 테두리 인디고 tint, subtitle 대비) / **다크모드 글래스모피즘 UI 개선** (radial-gradient 레이어링, animated orb 3개, sidebar active glow) / **YouTube Shorts URL 매칭 수정** (`ytRegex`에 `shorts\/` 추가, native video 분석 활성화) / **전체 보안 검토** (IDOR-1·2·BUCKET·SSRF 4종) / **PhysicsRenderer 삭제 + DiagramRenderer 4종 확장** (Matter.js 제거, `free_body`·`projectile`·`collision` 신규) / **세션 초기화 에러 화면 수정** / **ConstellationRenderer UI 개선** (툴팁 좌표·호버 2x·지평선 선 버그 수정, 캔버스 500px·폰트 12px·pinch zoom·버튼 40px) / **별자리 JSON parse 수정** (sparse array repair, catch silent skip, prompt CRITICAL JSON RULES) / **시각화 intent maxOutputTokens 추가** (astronomy·biology 8192, chemistry·physics 4096) / **ConstellationRenderer 비주얼 리디자인** (Deep Space 방사형 그라디언트 배경·대기 glow·bgStars 280개·별 색온도·그라디언트 연결선·Glassmorphism 고정 info panel) / **ChemicalRenderer UI 개선** (헤더 항상 표시·1줄 레이아웃·isLoading 오버레이·헤더·푸터 색상 통일·다운로드 파일명) / **복잡 분자 겹침 수정** (`explicitHydrogens: false`, `overlapResolutionIterations: 8`, `bondLength: 37`, 적응형 높이 `resolvedHeight`) / **BioRenderer RCSB 폴백** (`models.rcsb.org` 503 → `files.rcsb.org` 2차 fallback 체인) / **BioRenderer 다운로드 파일명** (`${slug}_${date}_${time}.png` 규칙 통일) / **BioRenderer UI 안정화** (`SequenceView` 컴포넌트 외부 이동·`isLoading` 조건부 초기값·`isDark` effect 분리·PDB 재로드 deps 수정·`useMemo` 정리) / **BioRenderer React StrictMode double-invoke 수정** (`cancelled` 플래그 + `setTimeout(0)` dispose 보호 패턴 — Stage 파괴 방지, render 순서 변경) / **console.log 정리** (tools·chat·auth·pill-logic·drug-info-tool·DrugRenderer verbose 로그 제거)
 - [DEV_260501.md](DEV_260501.md) — **세션 타이틀 모델 경량화**: `SUMMARY_MODELS` 순서 변경 — `gemini-2.5-flash` → `gemini-2.5-flash-lite` primary. `thinkingBudget: 0` 이미 적용 중이라 품질 차이 없음, lite가 더 빠르고 quota 효율적. flash는 fallback 유지.
@@ -17,6 +20,36 @@
 - [DEV_260426.md](DEV_260426.md) — **스트리밍 중 `**` 볼드 마커 dangling 수정** / **날씨 이모지 테이블 누락 수정** / **MFDS 미등재 약품 검색 폴백 개선** / **MFDS 폴백 출처 칩 미표시 수정 3단계** / **소스 칩 스트리밍 완료 후 표시** / **첨부파일 UX 전면 개선** (자세한 내용은 DEV_260426.md 켜럼 수정 1~4 참조) / **이미지 썸네일 aspect-ratio 16/9 컨테이너** (`max-w-[220px]`, 폴백 컨테이너 크기 고정, 아이콘 축소) / **이미지 항상 Supabase 업로드** (크기 무관 `chat-imgs` 버킷 업로드 후 URL DB 저장 → 히스토리 미리보기 복원, `useChatStream.ts`)
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
+
+### v4.75 (Document Payload Fix + Image Memory Wontfix + Cleanup — 2026-05-07)
+- **대용량 문서 500 에러 차단**: `useChatStream.ts` 문서 인라인 Base64 임계값 3MB → 1MB로 하향. 1MB 이상은 Supabase `chat-docs` 버킷 업로드 후 URL만 전송 → Vercel 4.5MB 페이로드 제한 초과 `500 Internal Server Error` 영구 해소.
+- **이미지 멀티턴 메모리 Wontfix**: Gemini API는 프롬프트 내 멀티모달 데이터(이미지) 존재 시 Google Search Grounding 강제 차단. 이미지를 계속 기억하게 하면 세션 전체에서 실시간 검색 봉인 → 실용성 판단으로 폐기. 관련 코드 원상 복구.
+- **약국 UI 마무리**: 데스크톱 전화번호 복사 토스트 메시지 간소화. `PharmacyRenderer` UX 최종 점검.
+- **README + docs 최신화**: Pharmacy-Viz 모듈 정식 등재 (7종 렌더러 완성), Mermaid 구조도·Project Structure 업데이트, `hospital_search` WIP 항목 삭제.
+- **TODO 백로그 정리**: 구현 완료 항목 일괄 삭제, 외부 API 통합 계획 Phase 1을 Hospital로 명확화.
+
+### v4.74 (PharmacyTool Full Implementation — 2026-05-06)
+- **외부 API 통합 기획 확정**: 약국·병원·arXiv+PubMed·서울 문화행사·NEIS 학교·국가법령 6종 로드맵 수립. API 키 7개 발급·테스트 완료.
+- **Intent 분류 설계 고도화**: `pharmacy_search`·`hospital_search` 추가. LLM 프롬프트 "의도+예시+NOT 패턴" 3요소 구조로 충돌 케이스 해결 (예: "두통약 파는 약국" → `pharmacy_search` vs "두통약 성분" → `drug_info`).
+- **PharmacyTool 13개 최적화**:
+  - **Direct Injection**: `on_tool_end` 이벤트에서 Tool 결과 SSE 직접 주입, LLM 스트리밍 생성 10~15초 우회.
+  - **maxRetries: 0**: LangChain 내부 지수 백오프 차단 → 429 발생 시 즉시 Round Robin 키 교체.
+  - **1000건 단일 호출**: `Promise.allSettled` 200건 → `numOfRows=1000` 단일 호출로 대도시 약국 누락 방지.
+  - **sigungu Sanitize**: 띄어쓰기 포함 시 공공데이터 0건 버그 → `split(/\s+/)` 마지막 단어 추출 방어막.
+  - **keyword 파라미터**: Zod 스키마에 추가, 동·약국명 클라이언트 필터로 세밀 검색.
+  - **0건 폴백**: API 결과 없을 시 `searchWebTool` DuckDuckGo 자동 전환.
+  - **가중치 정렬**: 영업중+100·일요일/공휴일+20·토요일+10 점수 내림차순.
+  - **전화번호 분기**: 모바일 `tel:` 다이얼러, 데스크톱 클립보드 복사+Toast 커스텀 이벤트.
+  - **Toast 멀티라인**: `whitespace-pre-wrap break-words`·`rounded-2xl`·`max-w-[320px]` 확장.
+  - **모바일 영업시간 그리드**: `text-[7.5px]`·`tracking-tighter`·`whitespace-nowrap` 극한 튜닝.
+  - **Zod 스키마**: `sido`·`sigungu` 분리, 행정구역 LLM 파싱 고도화.
+  - **Token Minification**: JSON.stringify 들여쓰기 제거 → GoogleGenAI SDK 스트림 파싱 크래시 해소.
+  - **Anti-Hallucination**: "반환된 텍스트를 토씨 하나 틀리지 말고 그대로 출력" 프롬프트 강제.
+
+### v4.73 (Profile Image Upload + Modal Glassmorphism — 2026-05-05)
+- **프로필 이미지 용량 상향**: `Header.tsx` 파일 크기 검증 2MB → 10MB. 모달 내 안내 문구 4개 언어 일괄 수정.
+- **`sizeError` 다국어 누락 수정**: `i18n` 딕셔너리에 `sizeError` 키 4개 언어 추가. 기존 `undefined` Toast → `"용량 초과 (최대 10MB)"` 등 간결 포맷.
+- **프로필 모달 글래스모피즘**: 배경 `bg-white/80 dark:bg-slate-900/60 backdrop-blur-2xl`, 테두리 `border-white/50 dark:border-white/10`, 오버레이 `backdrop-blur-md`, 버튼·입력창 `bg-black/5 dark:bg-white/5` 적용.
 
 ### v4.72 (Security Hardening + i18n Error Handling — 2026-05-04)
 - **SSRF 방어 강화**: `fetch-url.ts`·`proxy-image.ts` 블록리스트에 RFC 1918 전 대역(`10.x`, `172.16-31.x`, `192.168.x`) 및 IPv6 사설 대역(`fc`, `fd`, `fe80`) 추가. `sync-drug-image.ts` 최초 SSRF 방어 적용 — 화이트리스트 방식(`nedrug.mfds.go.kr`, `pstatic.net`, `connectdi.com`, `terms.naver.com`, `health.kr`).
