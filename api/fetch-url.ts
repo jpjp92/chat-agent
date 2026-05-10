@@ -144,6 +144,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ content: content.trim().slice(0, 17000) });
     } catch (error: any) {
         console.warn('[fetch-url] Failed:', error.message);
-        return res.status(200).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
+        return res.status(502).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
     }
 }

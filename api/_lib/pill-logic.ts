@@ -11,8 +11,8 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
         const primaryQueries = new Set<string>([imprint_front, normalized].filter(Boolean));
 
         for (const q of primaryQueries) {
-            const pages = await Promise.all([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
-            pages.flat().forEach(r => { if (r.idx) allResultsMap.set(r.idx, r); });
+            const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
+            settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
         }
 
         // 2차 검색: 2~4자 각인이면 항상 중간 문자 삽입 변형 검색 실행
@@ -21,8 +21,8 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
             const mid = Math.floor(normalized.length / 2);
             const variants = ['H', 'P', 'A', 'M'].map(ch => normalized.slice(0, mid) + ch + normalized.slice(mid));
             for (const v of variants) {
-                const pages = await Promise.all([1, 2, 3, 4, 5].map(page => fetchPage(v, page)));
-                pages.flat().forEach(r => { if (r.idx) allResultsMap.set(r.idx, r); });
+                const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(v, page)));
+                settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
             }
         }
 

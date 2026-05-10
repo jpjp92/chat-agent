@@ -12,6 +12,7 @@ export const loginUser = async (nickname: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nickname })
   });
+  if (!response.ok) throw new Error(`Auth failed: ${response.status}`);
   return response.json();
 };
 
@@ -22,6 +23,7 @@ export const updateRemoteUserProfile = async (userId: number, profile: { display
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: userId, ...profile })
   });
+  if (!response.ok) throw new Error(`Profile update failed: ${response.status}`);
   return response.json();
 };
 
@@ -74,6 +76,7 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
  */
 export const fetchSessions = async (userId: number) => {
   const response = await fetch(`/api/sessions?user_id=${userId}`);
+  if (!response.ok) throw new Error(`Failed to fetch sessions: ${response.status}`);
   return response.json();
 };
 
@@ -83,6 +86,7 @@ export const createSession = async (userId: number, title?: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId, title })
   });
+  if (!response.ok) throw new Error(`Failed to create session: ${response.status}`);
   return response.json();
 };
 
@@ -97,6 +101,7 @@ export const deleteSession = async (sessionId: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
   });
+  if (!response.ok) throw new Error(`Failed to delete session: ${response.status}`);
   return response.json();
 };
 
@@ -106,6 +111,7 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, title })
   });
+  if (!response.ok) throw new Error(`Failed to update session title: ${response.status}`);
   return response.json();
 };
 
@@ -214,6 +220,9 @@ export const streamChatResponse = async (
     }
   }, 5000);
 
+  let receivedAnyText = false;
+  let receivedDone = false;
+
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const response = await fetch('/api/chat', {
@@ -240,8 +249,6 @@ export const streamChatResponse = async (
 
     const decoder = new TextDecoder();
     let buffer = "";
-    let receivedAnyText = false;
-    let receivedDone = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -307,6 +314,7 @@ export const generateSpeech = async (text: string): Promise<Uint8Array> => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text })
   });
+  if (!response.ok) throw new Error(`Speech generation failed: ${response.status}`);
   const data = await response.json();
   if (data.error) throw new Error(data.error);
   return decodeBase64(data.data);

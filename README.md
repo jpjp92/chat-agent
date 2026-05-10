@@ -196,7 +196,8 @@ flowchart TB
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
 │   ├── DEV_*.md                # Session work logs (latest: DEV_260502.md)
 │   ├── TODO.md                 # Roadmap
-│   └── Guide/REF_*.md          # Renderer test prompt guides
+│   ├── Guide/REF_*.md          # Renderer test prompt guides
+│   └── Guide/ERROR_HANDLING.md # 에러 처리 전체 구조 (7-layer map)
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
 └── types.ts                    # 공유 TypeScript 타입 정의
 ```

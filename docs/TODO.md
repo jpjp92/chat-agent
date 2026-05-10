@@ -4,23 +4,7 @@
 
 ---
 
-## 🔴 우선순위 1 — 에러처리 묶음 (C1·C2·H2)
-
-DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
-
-| # | 파일 | 위치 | 내용 |
-|---|------|------|------|
-| **C1** | `api/_lib/pill-logic.ts` | L15-27 | `Promise.all` → `Promise.allSettled` + 실패 항목 fallback. 단일 타임아웃 시 전체 약 검색 크래시 방지 |
-| **C2** | `services/geminiService.ts` | L22, 84, 93 | `generateSpeech` 등 `response.ok` 가드 누락. 인증·API 실패 시 앱 크래시 방지 |
-| **H2** | `api/fetch-url.ts` | L134 | 에러 시 `status(200)` → `status(502)` 변경. 프론트 성공/실패 구분 가능 |
-
-- [ ] C1: `pill-logic.ts` Promise.allSettled 전환
-- [/] C2: `geminiService.ts` response.ok 가드 — `streamChatResponse`·`uploadToStorage` 적용 완료, `loginUser`·`fetchSessions`·`createSession`·`deleteSession`·`updateSessionTitle`·`generateSpeech` 6개 미적용
-- [ ] H2: `fetch-url.ts` 에러 반환 코드 502로 변경
-
-
-
-## 🟡 우선순위 2 — 기능 개선
+## 🟡 우선순위 1 — 기능 개선
 
 ### 멀티턴 경고·차단
 
@@ -47,20 +31,7 @@ DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
 
 ---
 
-## 🟢 우선순위 3 — 예외처리 (P1, P3~P5) — DEV_260406 식별
-
-| 순서 | 항목 | 영향 | 비용 |
-|------|------|------|------|
-| 1 | **P1** `geminiService.ts` `response.ok` 체크 (6개 함수) — ✅ C2와 동시 완료 | silent failure 방지 | 낮음 |
-| 2 | **P4** SSE 라인 `JSON.parse` try-catch 방어 | 스트리밍 안정성 | 낮음 |
-| 3 | **P5** `fetchSessions` error 필드 체크 | 세션 로드 실패 UX | 낮음 |
-| 4 | **P3** `!currentUser` 에러 화면 새로고침 버튼 추가 | auth 실패 복구 UX | 낮음 |
-
-> C2에서 `geminiService.ts` response.ok 수정 시 P1과 중복 — 함께 처리. **현재 `streamChatResponse`·`uploadToStorage` 적용 완료, `loginUser` 등 6개 함수 미적용.**
-
----
-
-## 🟢 우선순위 4 — 성능 (Lighthouse)
+## 🟢 우선순위 2 — 성능 (Lighthouse)
 
 현재 점수: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04 측정)
 
@@ -137,7 +108,7 @@ DEV_260423에서 식별, 성격이 비슷해 한 번에 처리.
 
 ---
 
-_최종 수정: 2026-05-10_
+_최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종(P1·P3·P4·P5) 완료로 우선순위 1·3 섹션 제거. DEV_HISTORY.md v4.76 등재._
 
 ---
 
