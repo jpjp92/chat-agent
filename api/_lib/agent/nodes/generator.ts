@@ -5,6 +5,7 @@ import { getNextApiKey, markKeyRateLimited, markKeyInvalid, API_KEYS } from "../
 import { identifyPillTool, searchWebTool } from "../tools.js";
 import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { pharmacyTool } from "../pharmacy-tool.js";
+import { hospitalTool } from "../hospital-tool.js";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt.js";
 
@@ -49,7 +50,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         const resolvedModel = state.model || "gemini-2.5-flash";
@@ -412,16 +413,25 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     allTools = [searchDrugInfoTool, searchWebTool];
                 } else if (state.intent === "pharmacy_search") {
                     allTools = [pharmacyTool, searchWebTool];
+                } else if (state.intent === "hospital_search") {
+                    allTools = [hospitalTool, searchWebTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
 
-                // Fast-pass: Bypass final LLM generation if pharmacyTool has successfully executed
+                // Fast-pass: Bypass final LLM generation if pharmacyTool / hospitalTool has successfully executed
                 const lastMsg = state.messages[state.messages.length - 1];
                 if (state.intent === "pharmacy_search" && lastMsg._getType() === "tool" && lastMsg.name === "pharmacyTool") {
                     const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
                     if (toolContent.includes('```json:pharmacy')) {
                         console.log('[LangGraph] Fast-passing pharmacyTool: Bypassing final LLM generation');
+                        return { messages: [new AIMessage("")] };
+                    }
+                }
+                if (state.intent === "hospital_search" && lastMsg._getType() === "tool" && lastMsg.name === "hospitalTool") {
+                    const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                    if (toolContent.includes('```json:hospital')) {
+                        console.log('[LangGraph] Fast-passing hospitalTool: Bypassing final LLM generation');
                         return { messages: [new AIMessage("")] };
                     }
                 }

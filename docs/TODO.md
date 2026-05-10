@@ -108,7 +108,7 @@
 
 ---
 
-_최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종(P1·P3·P4·P5) 완료로 우선순위 1·3 섹션 제거. DEV_HISTORY.md v4.76 등재._
+_최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종(P1·P3·P4·P5) 완료. HospitalTool + HospitalRenderer 구현 완료 (v4.77). DEV_HISTORY.md 업데이트._
 
 ---
 
@@ -125,8 +125,8 @@ _최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종
 사용자 메시지
     ↓
 router.ts — intent 분류
-    ├─ "pharmacy_search"  → PharmacyTool   → 서울 약국 API   → PharmacyRenderer
-    ├─ "hospital_search"  → HospitalTool   → 서울 병원 API   → HospitalRenderer
+    ├─ "pharmacy_search"  → PharmacyTool   → 전국 약국 API (공공데이터포털) → PharmacyRenderer ✅
+    ├─ "hospital_search"  → HospitalTool   → 전국 병원 API (HIRA)         → HospitalRenderer ✅
     ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
     ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
     ├─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
@@ -145,42 +145,11 @@ router.ts — intent 분류
 
 ### 📦 API별 상세 구현 계획
 
-#### ① 병원 검색 (우선순위 ★★★)
+#### ① 병원 검색 ✅ 완료 (2026-05-10)
 
-> 키: `HOSPITAL_KEY` (.env 등록 완료)  
-> 카드 디자인: `scripts/card-preview.html` v2 확정  
-> 포함 정보: 이름·주소·전화·운영시간(전 요일+공휴일)·GPS→카카오지도·[병원] 진료과목·응급실
-
-**신규 파일**
-- [ ] `api/_lib/agent/tools/hospital-tool.ts` — 서울 병원 API 호출 + 종류별 통계 + 응급실 여부
-- [ ] `components/HospitalRenderer.tsx` — 병원 카드 (단일/목록 모드)
-
-**기존 파일 수정**
-- [ ] `api/_lib/agent/state.ts` — `"hospital_search"` intent 추가
-- [ ] `api/_lib/agent/nodes/router.ts` — 감지 패턴 추가
-  ```
-  hospital: "병원", "병원 찾아", "응급실", "진료", "강남구 병원"
-  ```
-- [ ] `api/_lib/agent/nodes/generator.ts` — LANGCHAIN_INTENTS + allTools 분기
-- [ ] `api/_lib/agent/prompt.ts` — intent hint 추가
-- [ ] `components/ChatMessage.tsx` — `json:hospital` 블록 파서
-
-응답 JSON 포맷 (`json:hospital` 블록):
-```json
-{
-  "query": "강남구 병원",
-  "count": 1,
-  "hospitals": [{
-    "name": "강남세브란스병원",
-    "address": "서울 강남구 언주로 211",
-    "phone": "1599-6114",
-    "hours_today": "09:00~17:00",
-    "is_open_now": true,
-    "hours": { "mon":"09:00~17:00", "holiday":"휴무" },
-    "lat": 37.4928, "lon": 127.0463
-  }]
-}
-```
+> API: 건강보험심사평가원 `hospInfoServicev2/getHospBasisList` — `PHARM_KEY` 공용  
+> 구현: `hospital-tool.ts` (sidoCd/sgguCd 숫자 코드 매핑, native fetch), `HospitalRenderer.tsx` (인디고 테마, 종별 뱃지, 의사수 정렬)  
+> 특이사항: B551182 백엔드는 https 모듈 타임아웃 → native fetch 필수 / sgguCd 전국 코드표 내장 / `CITY_TO_SIDO` fallback (LLM이 "전주시"를 sido로 넘기는 경우 처리) / `dong_name` 파라미터로 읍면동 addr 텍스트 필터
 
 ---
 
@@ -263,8 +232,8 @@ router.ts — intent 분류
 ### 📋 구현 순서 (우선순위)
 
 ```
-Phase 1 — 즉시 착수 (카드 디자인 확정됨):
-  ① 병원 Tool + HospitalRenderer
+Phase 1 — 완료 ✅:
+  ① 병원 Tool + HospitalRenderer (2026-05-10)
 
 Phase 2 — 학술 정보:
   ③ arXiv + PubMed Tool + PaperRenderer

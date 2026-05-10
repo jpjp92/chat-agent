@@ -1,6 +1,6 @@
 # Chat Agent with Gemini
 
-An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, and 6 interactive visualization renderers.
+An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, and 8 interactive visualization renderers.
 
 ---
 
@@ -19,12 +19,13 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
-### 1-3. Visualization Renderers (7)
+### 1-3. Visualization Renderers (8)
 
 | Renderer | Intent | Trigger | Library |
 |----------|--------|---------|---------|
 | 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 | MFDS API + ConnectDI |
 | 🏥 Pharmacy-Viz | `pharmacy_search` | 약국 위치 탐색 | 공공데이터포털 전국 약국 API |
+| 🏨 Hospital-Viz | `hospital_search` | 병원·의원 위치 탐색 | 건강보험심사평가원 병원정보서비스 API |
 | 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
 | 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
 | 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
@@ -66,7 +67,7 @@ flowchart TB
         subgraph Visualizers ["Visualization Modules"]
             Astro["✨ Astro-Viz"] & Bio["🧬 Bio-Viz"] & Chem["🧪 Chem-Viz"]
             Diagram["📐 Diagram-Viz"] & Drug["💊 Drug-Viz"] & Charts["📊 Chart-Viz"]
-            Pharmacy["🏥 Pharmacy-Viz"]
+            Pharmacy["🏥 Pharmacy-Viz"] & Hospital["🏨 Hospital-Viz"]
         end
     end
 
@@ -96,7 +97,7 @@ flowchart TB
         StateNode[("AgentState")]
         RouterNode{{"🧭 Semantic Router\n(10+ Intents)"}}
         Vision["👁️ Vision Node\n(Pill image analysis)"]
-        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / DDG)"]
+        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / Hospital / DDG)"]
         Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
@@ -105,7 +106,7 @@ flowchart TB
     User --> StateNode --> RouterNode
     RouterNode -- "drug_id (pill+image)" --> Vision --> Generator
     RouterNode -- "all other intents" --> Generator
-    Generator -- "tool_calls (drug_info/pharmacy)" --> Tools --> Generator
+    Generator -- "tool_calls (drug_info/pharmacy/hospital)" --> Tools --> Generator
     Generator --> Output
 ```
 
@@ -116,6 +117,7 @@ flowchart TB
 | `drug_id` | Vision → LangChain + Tools | gemini-2.5-flash |
 | `drug_info` | LangChain + Tools | gemini-2.5-flash |
 | `pharmacy_search` | LangChain + Tools | gemini-2.5-flash |
+| `hospital_search` | LangChain + Tools | gemini-2.5-flash |
 | `medical_qa` | SDK + Google Search | gemini-2.5-flash |
 | `biology` | SDK + Google Search | gemini-2.5-flash |
 | `chemistry` | SDK + Google Search | gemini-2.5-flash |
@@ -169,7 +171,8 @@ flowchart TB
 │       │   ├── graph.ts        # StateGraph definition
 │       │   ├── nodes/          # router / vision / generator
 │       │   ├── drug-info-tool.ts  # MFDS + pharm.or.kr + Vision imprint (timeouts)
-│       │   ├── pharmacy-tool.ts   # 전국 약국 공공데이터 API 통신 (1000건 병합)
+│       │   ├── pharmacy-tool.ts   # 전국 약국 공공데이터 API (1000건, 영업시간 정렬)
+│       │   ├── hospital-tool.ts   # HIRA 전국 병원정보 API (sidoCd/sgguCd 코드 매핑)
 │       │   ├── tools.ts        # identifyPillTool, searchWebTool (DDG 8s timeout)
 │       │   ├── prompt.ts
 │       │   └── state.ts
@@ -179,6 +182,7 @@ flowchart TB
 │   ├── ChatMessage.tsx         # Markdown + visualization block parser
 │   ├── DrugRenderer.tsx        # Drug card
 │   ├── PharmacyRenderer.tsx    # National pharmacy card
+│   ├── HospitalRenderer.tsx    # National hospital card (HIRA)
 │   ├── BioRenderer.tsx         # 3D protein structure
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
 │   ├── ConstellationRenderer.tsx
@@ -220,8 +224,7 @@ MFDS_API_KEY=your_mfds_key
 DRUG_API_KEY=your_drug_api_key
 
 # Public Info APIs
-PHARM_KEY=your_national_pharmacy_api_key
-HOSPITAL_KEY=your_hospital_api_key
+PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용
 EDU_KEY=your_neis_school_api_key
 NCBI_KEY=your_pubmed_api_key
 CULTURE_API_KEY=your_culture_event_key

@@ -335,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               });
               if (addedNew) sendEvent({ sources: allSources });
             }
-          } else if (event.event === "on_tool_end" && event.name === "pharmacyTool") {
+          } else if (event.event === "on_tool_end" && (event.name === "pharmacyTool" || event.name === "hospitalTool")) {
             const rawOutput = data?.output;
             const toolOutput: string = typeof rawOutput === 'string'
               ? rawOutput
@@ -345,9 +345,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('')
               : '';
               
-            const jsonMatch = toolOutput.match(/```json:pharmacy\n[\s\S]*?\n```/);
+            const blockType = event.name === "hospitalTool" ? "hospital" : "pharmacy";
+            const jsonMatch = toolOutput.match(new RegExp(`\`\`\`json:${blockType}\\n[\\s\\S]*?\\n\`\`\``));
             if (jsonMatch) {
-              console.log('[Chat API] Fast-passing pharmacyTool output directly to stream');
+              console.log(`[Chat API] Fast-passing ${event.name} output directly to stream`);
               const jsonBlock = "\n" + jsonMatch[0] + "\n\n";
               fullAiResponse += jsonBlock;
               sendEvent({ text: jsonBlock });
