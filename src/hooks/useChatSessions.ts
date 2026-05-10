@@ -191,10 +191,10 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
   useEffect(() => {
     if (!userId) {
-      setSessions([]);
+      // userId null = auth 초기화 중인 transient 상태.
+      // sessions는 localStorage 캐시 hydration 값을 유지해 세션 목록 깜빡임 방지.
+      // 실제 유저 리셋은 호출부에서 window.location.reload()로 처리.
       setCurrentSessionId(null);
-      // Do NOT clear cache when userId is null — this is transient auth-loading state.
-      // Cache is only cleared on explicit user reset (handled by caller via window.location.reload).
       return;
     }
 
