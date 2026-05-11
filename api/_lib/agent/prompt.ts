@@ -388,6 +388,7 @@ Guidelines:
     data_viz: `[INTENT FOCUS: DATA VISUALIZATION]\nThe user wants a chart or data visualization. Your PRIMARY output should be a json:chart block. Choose the most appropriate chart type. Do NOT output json:bio, json:smiles, json:physics, json:constellation, json:drug.`,
     pharmacy_search: `[INTENT FOCUS: PHARMACY SEARCH]\nThe user is looking for a pharmacy. You MUST call the pharmacyTool immediately with the extracted sido and sigungu. Do NOT answer from memory. Do NOT say you cannot help. Output the tool result exactly as returned — do not modify or summarize it.`,
     hospital_search: `[INTENT FOCUS: HOSPITAL SEARCH]\nThe user is looking for a hospital or clinic. You MUST call the hospitalTool immediately with the extracted sido_name and optional sigungu_name / hospital_type. Do NOT answer from memory. Do NOT say you cannot help. Output the tool result exactly as returned — do not modify or summarize it.`,
+    vet_search: `[INTENT FOCUS: VETERINARY HOSPITAL SEARCH]\nThe user is looking for an animal hospital or veterinary clinic. You MUST call the vetTool immediately with the extracted sido, sigungu, and optional dong_name. Do NOT answer from memory. Do NOT say you cannot help. Output the tool result exactly as returned — do not modify or summarize it.`,
 };
 
 /**

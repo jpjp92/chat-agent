@@ -6,6 +6,7 @@
 
 ## 최근 작업 로그
 
+- [DEV_260511.md](DEV_260511.md) — **Vet-Viz 전국 동물병원 검색 구현** (행정안전부 `1741000/animal_hospitals/info` API, `returnType=JSON` 직접 수신, `cond[ROAD_NM_ADDR::LIKE]` 텍스트 주소 검색, 영업중 필터 0건 시 전체 재조회, EPSG:5174 좌표 WGS84 불가 → 카카오지도 텍스트 검색, VetRenderer 틸 테마·🐾·영업상태 배지) + **버그 3종**: `LANGCHAIN_INTENTS` `vet_search` 누락(SDK 경로 오분기) / serviceKey URLSearchParams 이중 인코딩 → Unauthorized / `chat.ts` `on_tool_end` vetTool 핸들러 누락 → empty response 에러
 - [DEV_260510.md](DEV_260510.md) — **Hospital-Viz 전국 병원 검색 구현** (HIRA `hospInfoServicev2` API, sidoCd/sgguCd 전국 코드표, CITY_TO_SIDO fallback, dong_name 필터, HospitalRenderer 인디고 카드, fast-pass 직접 스트림) + **에러처리 4종 완료 (C1·C2·H2·B1) + 이미지 분석 복구 2종 (I1·I2) + 모바일 버그 1종 (S1)** + **`docs/Guide/ERROR_HANDLING.md` 에러 처리 전체 구조 문서화** (7-layer 맵: API 키 관리·백엔드 엔드포인트·LangGraph 에이전트·SSE 프로토콜·geminiService·훅 레이어·UI 컴포넌트, 백로그 취약점 현황 포함): `pill-logic.ts` 1차·2차 약 검색 `Promise.all` → `Promise.allSettled` 전환(단일 페이지 타임아웃 시 전체 크래시 방지) / `geminiService.ts` 7개 함수(`loginUser`·`updateRemoteUserProfile`·`fetchSessions`·`createSession`·`deleteSession`·`updateSessionTitle`·`generateSpeech`) `response.ok` 가드 추가 — 비정상 HTTP 응답의 `.json()` SyntaxError 크래시 방지, `deleteSession`·`updateSessionTitle` 실패 시 silent UI 업데이트 bug도 함께 수정 / `fetch-url.ts` catch 블록 `status(200)` → `status(502)` — HTTP 레이어에서 에러 판별 가능, 프론트 호환성 영향 없음(JSON body 유지) / `streamChatResponse` `receivedAnyText`·`receivedDone` 변수 `try` 블록 내부 → 함수 스코프로 이동 — 네트워크 드롭 시 catch 블록 `ReferenceError` 수정, amber 배너 경로 정상화 / **이미지 분석 전면 불가 버그 수정**: 이미지 업로드 후 `attachment.data`가 Supabase URL로 교체되어 Gemini `fileData` 경로를 타던 구조 → `data` 는 원본 base64 유지, Supabase URL은 `storageUrl`에 분리 저장 — `types.ts` `MessageAttachment.storageUrl` 추가, `useChatStream.ts` 이미지 분기 수정, `api/chat.ts` DB 저장 시 `storageUrl` 우선 사용
 - [DEV_260507.md](DEV_260507.md) — **문서 업로드 500 에러 원천 차단** (useChatStream 문서 inline 한계 3MB→1MB 축소, Vercel 4.5MB 페이로드 한계 우회) / **멀티모달 구글 검색 딜레마(Wontfix) 확정** (이미지를 기억하면 Grounding이 영구 차단되는 Gemini 태생적 한계 분석 → 3턴 후 텍스트 변환 유지로 검색 기능 복구 최우선화) / **README 및 TODO 최신화** (Pharmacy-Viz 아키텍처 등재, 완료 부채 청소, 병원 연동 로드맵 단일화)
 - [DEV_260505.md](DEV_260505.md) — **프로필 설정 이미지 UI/UX 개선** (용량 2MB→10MB 상향, 누락된 `sizeError` 다국어 메시지 딕셔너리 추가, 토스트 말줄임표 잘림 방지 짧은 문구 적용) / **프로필 모달 글래스모피즘 적용** (컨테이너 `backdrop-blur-2xl` 적용, 반투명 유리 테두리 질감 추가, 버튼 및 입력창 반투명 레이어링으로 메인 헤더와 디자인 일관성 확보)
@@ -22,8 +23,15 @@
 - [DEV_260425.md](DEV_260425.md) — **npm audit fix** (22건 → 17건, 잔여 --force 불가) / **maxOutputTokens 8192 → 32768** (`generator.ts` 3곳, Vercel 60s 타임아웃 주의) / **보안 헤더 4종** (`vercel.json`, CSP 보류) / **SSRF hostname 차단** (`fetch-url.ts`, `proxy-image.ts`, 169.254.x.x·localhost)
 - [DEV_260424.md](DEV_260424.md) — **SDK 스트리밍 인라인 인용 `[N]` 미제거 수정** (청크·fallback sendEvent 전 strip 추가, LangChain 경로와 정규식 통일) / **새 세션 첫 질의 스피너 미표시 수정** (`prevSessionIdRef`로 null→id 전환 시 useEffect 리셋 skip, B1 수정 부작용 해소) / **TS 에러 2건** (`activeSessionId ?? undefined`, `activeSessionId!`) / **보안 취약점 전체 현황 검토** (CRITICAL C1 IDOR·C2 supabase폴백, HIGH npm audit 22건, MEDIUM SSRF·bucket·보안헤더 등)
 
+### v4.78 (Vet-Viz — 2026-05-11)
+- **VetTool 구현**: 행정안전부 `1741000/animal_hospitals/info` API 연동. `VET_KEY` 별도 (PHARM_KEY와 동일 공공데이터 포털 키, ⚠️ 만료 2028-05-10). `returnType=JSON` 지원으로 XML 파싱 불필요. `cond[ROAD_NM_ADDR::LIKE]` 텍스트 주소 검색 — 약국 API(Q0/Q1)와 유사 패턴. native fetch + AbortController(20s). 영업중(`SALS_STTS_CD=01`) 필터 → 0건 시 전체 상태로 자동 재조회. 가나다순 정렬, top 10 반환.
+- **좌표계 제약**: 응답 좌표가 EPSG:5174(Bessel 중부원점TM)로 WGS84 변환 없이 Kakao 지도 좌표 링크 불가 → 병원명+주소 텍스트 기반 카카오지도 검색 URL 사용.
+- **VetRenderer 신규**: 틸/에메랄드 테마 (🐾, 병원 인디고·약국 에메랄드 대비 차별화). 영업상태 배지 (영업중 틸·휴업 앰버·폐업 슬레이트). 인허가일자 표시. 전화·카카오지도(텍스트 검색) 버튼. 5개씩 페이지네이션.
+- **통합 연결**: `graph.ts` ToolNode 등록, `generator.ts` LANGCHAIN_INTENTS 추가·fast-pass·allTools 분기, `state.ts` `vet_search` IntentType 추가, `router.ts` 유효 intent 목록·휴리스틱("동물병원"/"수의사") 추가, `prompt.ts` INTENT_FOCUS_HINTS 추가, `ChatMessage.tsx` `json:vet` 블록 파서·VetRenderer 등록, `chat.ts` `on_tool_end` 핸들러 추가.
+- **버그 3종 수정**: ① `LANGCHAIN_INTENTS` `vet_search` 누락 → SDK(Google Search) 경로 오분기 ② serviceKey `URLSearchParams` 이중 인코딩(`%2F`→`%252F`) → `Unauthorized` ③ `chat.ts` `on_tool_end` vetTool 핸들러 누락 → fast-pass 후 빈 SSE → `LLM returned empty response.` 에러 루프
+
 ### v4.77 (Hospital-Viz — 2026-05-10)
-- **HospitalTool 구현**: 건강보험심사평가원 `hospInfoServicev2/getHospBasisList` API 연동. `PHARM_KEY` 공용 사용. B551182 백엔드가 Node.js `https` 모듈 타임아웃 발생 → native fetch + AbortController(20s) 방식 (약국 API와 정반대). 전국 sidoCd(17개 시도) + sgguCd(서울 25개 + 전국 주요 시군구) 코드표 내장, 의사수 내림차순 + 가나다 정렬, top 10 반환.
+- **HospitalTool 구현**: 건강보험심사평가원 `hospInfoServicev2/getHospBasisList` API 연동. `PHARM_KEY` 공용 사용. ⚠️ **API 키 만료일: 2028-05-07** (재신청 필요) B551182 백엔드가 Node.js `https` 모듈 타임아웃 발생 → native fetch + AbortController(20s) 방식 (약국 API와 정반대). 전국 sidoCd(17개 시도) + sgguCd(서울 25개 + 전국 주요 시군구) 코드표 내장, 의사수 내림차순 + 가나다 정렬, top 10 반환.
 - **CITY_TO_SIDO fallback**: LLM이 `sido_name`에 "전주시"·"청주시" 등 기초자치단체명을 넘기는 경우 상위 도(道) 코드로 자동 변환. `findSgguCd` suffix matching 보완 — "전주시 덕진구" 공백 포함 입력 시 마지막 토큰("덕진구")으로 재탐색.
 - **dong_name 파라미터**: HIRA API에 읍면동 필터 파라미터 없음 → sgguCd로 API 조회 후 `addr` 텍스트로 클라이언트 필터. "덕진구 금암동 병원" 같은 동 단위 검색 지원.
 - **HospitalRenderer 신규**: 인디고 테마 (약국 에메랄드 대비). 종별 뱃지 색상 구분 (상급종합 보라·종합병원 인디고·병원 파랑·의원 슬레이트). 의사수·개원일·주소 표시. 전화·카카오지도·홈페이지 액션 버튼. 5개씩 페이지네이션.
@@ -49,6 +57,7 @@
 
 ### v4.74 (PharmacyTool Full Implementation — 2026-05-06)
 - **외부 API 통합 기획 확정**: 약국·병원·arXiv+PubMed·서울 문화행사·NEIS 학교·국가법령 6종 로드맵 수립. API 키 7개 발급·테스트 완료.
+- **⚠️ API 키 만료일**: 국립중앙의료원 전국 약국 정보 조회 서비스 **2028-05-06**, 건강보험심사평가원 병원정보서비스 **2028-05-07** — 만료 전 재신청 필요.
 - **Intent 분류 설계 고도화**: `pharmacy_search`·`hospital_search` 추가. LLM 프롬프트 "의도+예시+NOT 패턴" 3요소 구조로 충돌 케이스 해결 (예: "두통약 파는 약국" → `pharmacy_search` vs "두통약 성분" → `drug_info`).
 - **PharmacyTool 13개 최적화**:
   - **Direct Injection**: `on_tool_end` 이벤트에서 Tool 결과 SSE 직접 주입, LLM 스트리밍 생성 10~15초 우회.

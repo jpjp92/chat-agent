@@ -8,6 +8,7 @@ import { identifyPillTool, searchWebTool } from "./tools.js";
 import { searchDrugInfoTool } from "./drug-info-tool.js";
 import { pharmacyTool } from "./pharmacy-tool.js";
 import { hospitalTool } from "./hospital-tool.js";
+import { vetTool } from "./vet-tool.js";
 
 /**
  * Compiles the LangGraph StateGraph instance.
@@ -16,7 +17,7 @@ import { hospitalTool } from "./hospital-tool.js";
 export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
 
     const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent);
-    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool]);
+    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool]);
 
     // 2. Define Conditional Routing
     // Evaluates if the generator LLM decided to invoke a tool

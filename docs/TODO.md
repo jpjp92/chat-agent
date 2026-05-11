@@ -108,7 +108,7 @@
 
 ---
 
-_최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종(P1·P3·P4·P5) 완료. HospitalTool + HospitalRenderer 구현 완료 (v4.77). DEV_HISTORY.md 업데이트._
+_최종 수정: 2026-05-11 — VetTool + VetRenderer 구현 완료 (v4.78). 버그 3종 수정 (LANGCHAIN_INTENTS 누락·이중인코딩·on_tool_end 핸들러 누락)._
 
 ---
 
@@ -127,6 +127,7 @@ _최종 수정: 2026-05-10 — 에러처리 3종(C1·C2·H2) + 예외처리 4종
 router.ts — intent 분류
     ├─ "pharmacy_search"  → PharmacyTool   → 전국 약국 API (공공데이터포털) → PharmacyRenderer ✅
     ├─ "hospital_search"  → HospitalTool   → 전국 병원 API (HIRA)         → HospitalRenderer ✅
+    ├─ "vet_search"       → VetTool        → 전국 동물병원 API (행정안전부) → VetRenderer ✅
     ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
     ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
     ├─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer

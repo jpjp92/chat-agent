@@ -43,6 +43,7 @@ export const routerNode = async (state: AgentStateType) => {
     // Fallback heuristic function
     const heuristicCheck = (): IntentType => {
         if (textContent.includes("약국")) return "pharmacy_search";
+        if (textContent.includes("동물병원") || textContent.includes("동물 병원") || textContent.includes("동물의원") || textContent.includes("동물 의료") || textContent.includes("동물의료") || textContent.includes("수의사") || textContent.includes("수의과")) return "vet_search";
         if (textContent.includes("병원") || textContent.includes("의원") || textContent.includes("응급실")) return "hospital_search";
         if (medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent)) {
             return hasImage ? "drug_id" : "drug_info";
@@ -75,6 +76,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "medical_qa"      : general medical or health question (symptoms, diseases, treatments, anatomy)
 - "pharmacy_search" : finding a pharmacy location, operating hours, night/holiday pharmacy (in Seoul)
 - "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
+- "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
 - "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
 - "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
 - "physics"         : physics simulation, mechanics, force, motion, gravity, collision, electricity
@@ -90,7 +92,7 @@ export const routerNode = async (state: AgentStateType) => {
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }
