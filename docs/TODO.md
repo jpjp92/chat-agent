@@ -43,11 +43,12 @@
 - [ ] 세션 전환 중 `isLoadingMessages` 스켈레톤
 
 **번들 최적화**
-- [ ] `react-markdown` lazy loading (~247KB 절감)
 - [ ] FontAwesome CDN → `@fortawesome/fontawesome-svg-core` 전환 (18KB + 100ms)
 - [ ] `framer-motion` 실사용 여부 확인 (~50KB gzip)
 - [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 적용 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
+
+> 완료 확인: `ChatArea.tsx`에서 `ChatMessage`를 lazy load해 `react-markdown` / `react-syntax-highlighter` / `rehype-katex`가 초기 번들에서 분리됨.
 
 > **CSP 적용 전제**: KaTeX·FontAwesome 자체 호스팅 완료 후 inline style 의존성 제거 → CSP 도입 가능
 
@@ -108,7 +109,7 @@
 
 ---
 
-_최종 수정: 2026-05-11 — VetTool + VetRenderer 구현 완료 (v4.78). 버그 3종 수정 (LANGCHAIN_INTENTS 누락·이중인코딩·on_tool_end 핸들러 누락)._
+_최종 수정: 2026-05-11 — TODO/코드 대조. VetTool + VetRenderer 구현 완료 (v4.78), Vet 에러 보완 5종 반영, `react-markdown` lazy loading 완료 확인._
 
 ---
 
@@ -154,7 +155,15 @@ router.ts — intent 분류
 
 ---
 
-#### ② arXiv + PubMed 논문 검색 (우선순위 ★★★)
+#### ② 동물병원 검색 ✅ 완료 (2026-05-11)
+
+> API: 행정안전부 `1741000/animal_hospitals/info` — `VET_KEY`  
+> 구현: `vet-tool.ts` (`returnType=JSON`, 도로명주소 LIKE 검색, 영업중 우선 조회 후 전체 상태 fallback), `VetRenderer.tsx` (틸/에메랄드 테마, 영업상태 배지, 인허가일자, 전화·카카오지도 텍스트 검색)  
+> 특이사항: 검색 조건 없는 전국 첫 페이지 노출 차단 / VET_KEY 누락 가드 / HTTP·JSON·API 오류 분리 / 병원명 단독 검색 fallback / `펫` 단독 키워드 라우터 과매칭 축소
+
+---
+
+#### ③ arXiv + PubMed 논문 검색 (우선순위 ★★★)
 
 > 키: `NCBI_KEY` (.env 등록 완료), arXiv는 키 불필요  
 > 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
@@ -173,7 +182,7 @@ router.ts — intent 분류
 
 ---
 
-#### ③ 서울 문화행사 (우선순위 ★★)
+#### ④ 서울 문화행사 (우선순위 ★★)
 
 > 키: `CULTURE_API_KEY` (.env 등록 완료)  
 > 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
@@ -191,7 +200,7 @@ router.ts — intent 분류
 
 ---
 
-#### ④ 학교기본정보 NEIS (우선순위 ★★)
+#### ⑤ 학교기본정보 NEIS (우선순위 ★★)
 
 > 키: `EDU_KEY` (.env 등록 완료)  
 > 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
@@ -209,7 +218,7 @@ router.ts — intent 분류
 
 ---
 
-#### ⑤ 국가법령정보 (우선순위 ★★)
+#### ⑥ 국가법령정보 (우선순위 ★★)
 
 > OC: `jpjp9202` (키 없이 URL 파라미터로 사용)  
 > 2단계: 법령 검색(lawSearch) → 조문 조회(lawService)  
@@ -235,6 +244,7 @@ router.ts — intent 분류
 ```
 Phase 1 — 완료 ✅:
   ① 병원 Tool + HospitalRenderer (2026-05-10)
+  ② 동물병원 Tool + VetRenderer (2026-05-11)
 
 Phase 2 — 학술 정보:
   ③ arXiv + PubMed Tool + PaperRenderer
