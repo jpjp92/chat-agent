@@ -6,10 +6,26 @@
 
 ## 🟡 우선순위 1 — 기능 개선
 
+### 프롬프트 언어 혼합 정리
+
+날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어/범위 불일치 정리.
+
+- [ ] `prompt.ts` — URL summary placeholder 문구 언어별 분리
+- [ ] `prompt.ts` — YouTube fallback 안내 문장 언어별 분리
+- [ ] `prompt.ts` — `getPillWarnFallback` 다국어화
+- [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
+- [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용 검토
+- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리하는 Phase P-B 설계
+
 ### 모바일 초기 세션 공백 수정
 
 앱 시작 직후 쿼리 입력 시 입력값은 사라지지만 세션에 메시지가 붙지 않는 레이스 방지.
 
+- [ ] `App.tsx` — 앱 루트 Error Boundary 추가로 모바일 흰 화면 대신 복구 UI 표시
+- [ ] `ChatArea.tsx` — `ChatMessage` lazy chunk 로드 실패 시 재시도/fallback 경로 검토
+- [ ] 모바일 uncaught error / unhandled rejection 로그 수집 경로 추가
+- [ ] `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락되는 경로 보정
+- [ ] `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback 검토
 - [ ] `ChatInput.tsx` — `onSend` 완료/수락 전 입력값·첨부 상태를 비우지 않도록 변경
 - [ ] `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 조기 return 대신 사용자 알림 + 입력 보존 경로 추가
 - [ ] `useChatSessions.ts` — DB 세션 목록 로드 후 유효한 `currentSessionId` 자동 선택
@@ -112,7 +128,7 @@
 
 ---
 
-_최종 수정: 2026-05-12 — 모바일 초기 세션 공백 이슈 수정 항목 추가. 모델 레지스트리 Phase A+B 완료 및 타입/build 검증 성공._
+_최종 수정: 2026-05-12 — 프롬프트 언어 혼합 정리 계획 추가. 모바일 초기 세션 공백 이슈 수정 항목 추가. 날씨 응답 언어별 포맷 분리 완료. 모델 레지스트리 Phase A+B 완료 및 타입/build 검증 성공._
 
 ---
 

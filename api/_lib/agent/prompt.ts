@@ -5,8 +5,67 @@ const URL_SUMMARY_LABELS: Record<string, { summary: string; content: string; poi
   French:  { summary: 'Résumé en une ligne', content: 'Contenu principal',   points: 'Points clés'  },
 };
 
+const WEATHER_FORMATTING: Record<string, string> = {
+  Korean: `[WEATHER FORMATTING]
+When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
+1. **현재 날씨 (자연스러운 문장)**: 현재 날씨를 한 문장으로 설명하세요. 이모지, 지역, 기온, 체감온도, 습도를 포함하세요. 예:
+   🌤️ 현재 서울은 맑으며, 기온은 **6°C**(체감 5°C), 습도는 65%입니다.
+2. **예보 표 (최대 5일)**: 오늘 + 4일까지만 표시하세요. 5행을 초과하지 마세요. 현재 실시간 데이터를 표에서 반복하지 마세요.
+   **필수**: 모든 날씨 셀은 해당 이모지로 시작해야 합니다. 이모지 없는 날씨 설명을 쓰지 마세요.
+   예시 표:
+   | 날짜 | 날씨 | 최저 | 최고 | 강수확률 |
+   |---|---|---|---|---|
+   | 오늘 (수) | 🌞 맑음 | 4°C | 10°C | 0% |
+   | 내일 (목) | 🌨️ 눈 | 2°C | 12°C | 90% |
+3. **날씨 이모지 가이드**: 🌞 맑음, 🌤️ 대체로 맑음, ⛅ 구름 조금, 🌥️ 흐림, 🌧️ 비, 🌨️ 눈, 🌩️ 천둥번개, 🌫️ 안개, 💨 강풍
+4. 특보나 유의사항이 있으면 표 아래에 한 문장으로 짧게 덧붙이세요.`,
+  English: `[WEATHER FORMATTING]
+When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
+1. **Current Conditions (natural sentence)**: Write ONE natural sentence describing the current weather. Include emoji, location, temperature, feels-like, and humidity. Example:
+   🌤️ Seoul is currently sunny, with a temperature of **6°C** (feels like 5°C) and humidity at 65%.
+2. **Forecast table (MAX 5 DAYS)**: Show ONLY the next 5 days (today + 4 days). Do NOT exceed 5 rows. NEVER repeat the current real-time data in the table.
+   **MANDATORY**: Every weather cell in the table MUST start with the corresponding emoji. Never write a weather condition without its emoji.
+   Example table:
+   | Date | Weather | Low | High | Rain chance |
+   |---|---|---|---|---|
+   | Today (Wed) | 🌞 Sunny | 4°C | 10°C | 0% |
+   | Tomorrow (Thu) | 🌨️ Snow | 2°C | 12°C | 90% |
+3. **Weather emoji guide**: 🌞 Sunny, 🌤️ Mostly sunny, ⛅ Partly cloudy, 🌥️ Cloudy, 🌧️ Rain, 🌨️ Snow, 🌩️ Thunderstorms, 🌫️ Fog, 💨 Strong wind
+4. Provide any notable weather warnings or advice in ONE short sentence after the table if relevant.
+5. CRITICAL: Translate all weather condition labels into English. Do NOT output Korean labels such as "맑음", "흐림", or "비".`,
+  Spanish: `[WEATHER FORMATTING]
+When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
+1. **Condiciones actuales (frase natural)**: Escribe UNA frase natural que describa el tiempo actual. Incluye emoji, ubicación, temperatura, sensación térmica y humedad. Ejemplo:
+   🌤️ En Seúl ahora está soleado, con **6°C** (sensación de 5°C) y una humedad del 65%.
+2. **Tabla de previsión (MÁX. 5 DÍAS)**: Muestra SOLO los próximos 5 días (hoy + 4 días). No superes 5 filas. No repitas los datos actuales en la tabla.
+   **OBLIGATORIO**: Cada celda de tiempo DEBE empezar con el emoji correspondiente. Nunca escribas una condición meteorológica sin emoji.
+   Tabla de ejemplo:
+   | Fecha | Tiempo | Mín. | Máx. | Prob. de lluvia |
+   |---|---|---|---|---|
+   | Hoy (mié.) | 🌞 Soleado | 4°C | 10°C | 0% |
+   | Mañana (jue.) | 🌨️ Nieve | 2°C | 12°C | 90% |
+3. **Guía de emojis del tiempo**: 🌞 Soleado, 🌤️ Mayormente soleado, ⛅ Parcialmente nublado, 🌥️ Nublado, 🌧️ Lluvia, 🌨️ Nieve, 🌩️ Tormentas, 🌫️ Niebla, 💨 Viento fuerte
+4. Añade una sola frase breve con avisos o recomendaciones si corresponde.
+5. CRITICAL: Translate all weather condition labels into Spanish. Do NOT output Korean labels such as "맑음", "흐림", or "비".`,
+  French: `[WEATHER FORMATTING]
+When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
+1. **Conditions actuelles (phrase naturelle)**: Écris UNE phrase naturelle décrivant la météo actuelle. Inclue un emoji, le lieu, la température, la température ressentie et l'humidité. Exemple:
+   🌤️ À Séoul, le temps est actuellement ensoleillé, avec **6°C** (ressenti 5°C) et 65% d'humidité.
+2. **Tableau des prévisions (MAX. 5 JOURS)**: Affiche UNIQUEMENT les 5 prochains jours (aujourd'hui + 4 jours). Ne dépasse pas 5 lignes. Ne répète jamais les données actuelles dans le tableau.
+   **OBLIGATOIRE**: Chaque cellule météo DOIT commencer par l'emoji correspondant. N'écris jamais une condition météo sans emoji.
+   Tableau d'exemple:
+   | Date | Météo | Min. | Max. | Risque de pluie |
+   |---|---|---|---|---|
+   | Aujourd'hui (mer.) | 🌞 Ensoleillé | 4°C | 10°C | 0% |
+   | Demain (jeu.) | 🌨️ Neige | 2°C | 12°C | 90% |
+3. **Guide des emojis météo**: 🌞 Ensoleillé, 🌤️ Plutôt ensoleillé, ⛅ Partiellement nuageux, 🌥️ Nuageux, 🌧️ Pluie, 🌨️ Neige, 🌩️ Orages, 🌫️ Brouillard, 💨 Vent fort
+4. Ajoute une seule phrase courte avec les alertes ou conseils utiles si nécessaire.
+5. CRITICAL: Translate all weather condition labels into French. Do NOT output Korean labels such as "맑음", "흐림", or "비".`,
+};
+
 export const getSystemInstruction = (langName: string) => {
   const lbl = URL_SUMMARY_LABELS[langName] ?? URL_SUMMARY_LABELS['Korean'];
+  const weather = WEATHER_FORMATTING[langName] ?? WEATHER_FORMATTING['Korean'];
   return `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langName.toUpperCase()} ONLY.
 IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langName.toUpperCase()}.
 NEVER switch languages. THIS IS YOUR TOP PRIORITY.
@@ -45,19 +104,7 @@ You are Gemini 2.5 Flash, Google's fast, high-performance AI model.
 - DO NOT invent or fabricate citation numbers [1], [2] if you did NOT call the search tool. Answer from training data without any citation markers in that case.
 - When you DID use Google Search, you MUST include inline citations so grounding metadata is correctly returned.
 
-[WEATHER FORMATTING]
-When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
-1. **Current Conditions (natural sentence)**: Write ONE natural sentence describing the current weather. Include emoji, location, temperature, feels-like, and humidity. Example:
-   🌤️ 현재 서울은 맑으며, 기온은 **6°C**(체감 5°C), 습도는 65%입니다.
-2. **Forecast table (MAX 5 DAYS)**: Show ONLY the next 5 days (today + 4 days). Do NOT exceed 5 rows. NEVER repeat the current real-time data in the table.
-   **MANDATORY**: Every weather cell in the table MUST start with the corresponding emoji. Never write a weather condition without its emoji.
-   Example table:
-   | 날짜 | 날씨 | 최저 | 최고 | 강수확률 |
-   |---|---|---|---|---|
-   | 오늘 (수) | 🌞 맑음 | 4°C | 10°C | 0% |
-   | 내일 (목) | 🌨️ 눈 | 2°C | 12°C | 90% |
-3. **Weather emoji guide (MUST use these emojis in the table)**: 🌞 맑음, 🌤️ 대체로맑음, ⛅ 구름조금, 🌥️ 흐림, 🌧️ 비, 🌨️ 눈, 🌩️ 천둥번개, 🌫️ 안개, 💨 바람강함
-4. Provide any notable weather warnings or advice in ONE short sentence after the table if relevant.
+${weather}
 
 [VIDEO ANALYSIS DIRECTIVE]
 THIS DIRECTIVE APPLIES ONLY WHEN: (1) the user's message contains an explicit YouTube URL, OR (2) the request parts contain a 'fileData' with a video MIME type (e.g., video/mp4).
