@@ -14,15 +14,17 @@ import { UserProfile, Language, MessageAttachment } from './types';
 import { useAuthSession } from './src/hooks/useAuthSession';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
+import { DEFAULT_CHAT_MODEL, isChatModelId, type ChatModelId } from './src/lib/models';
 // katex CSS is imported inside ChatMessage.tsx (lazy chunk) to avoid bloating the critical CSS
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('ko');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-flash-lite'>(
-    (localStorage.getItem('preferred_model') as 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') || 'gemini-2.5-flash'
-  );
+  const [selectedModel, setSelectedModel] = useState<ChatModelId>(() => {
+    const storedModel = localStorage.getItem('preferred_model');
+    return isChatModelId(storedModel) ? storedModel : DEFAULT_CHAT_MODEL;
+  });
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
   useEffect(() => {
@@ -213,6 +215,11 @@ const App: React.FC = () => {
     setIsSidebarOpen(false);
   };
 
+  const handleModelChange = (model: ChatModelId) => {
+    setSelectedModel(model);
+    localStorage.setItem('preferred_model', model);
+  };
+
   const handleDeleteSession = async (id: string) => {
     await removeSession(id);
   };
@@ -350,7 +357,7 @@ const App: React.FC = () => {
           onReset={handleReset}
           language={language}
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onModelChange={handleModelChange}
         />
 
 

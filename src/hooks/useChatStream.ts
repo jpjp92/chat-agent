@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createSession, fetchUrlContent, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
+import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
 
 interface ChatStreamMessages {
@@ -21,7 +22,7 @@ interface UseChatStreamOptions {
   setCurrentSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   currentUser: SupabaseUser | null;
   language: Language;
-  selectedModel: 'gemini-2.5-flash' | 'gemini-2.5-flash-lite';
+  selectedModel: ChatModelId;
   statusMessages: ChatStreamMessages;
   onError: (message: string) => void;
 }

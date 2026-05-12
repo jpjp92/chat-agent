@@ -3,6 +3,7 @@ import { supabase } from './_lib/supabase.js';
 import { API_KEYS } from './_lib/config.js';
 import { getSystemInstruction } from './_lib/agent/prompt.js';
 import { compileAgentGraph } from './_lib/agent/graph.js';
+import { DEFAULT_CHAT_MODEL } from './_lib/models.js';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 
 export const config = {
@@ -197,7 +198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let finalModel = model;
       if (!finalModel) {
         // Always use standard model — lite had stability issues with native video analysis
-        finalModel = "gemini-2.5-flash";
+        finalModel = DEFAULT_CHAT_MODEL;
       }
 
       const initialState = {

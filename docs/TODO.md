@@ -6,6 +6,17 @@
 
 ## 🟡 우선순위 1 — 기능 개선
 
+### 모바일 초기 세션 공백 수정
+
+앱 시작 직후 쿼리 입력 시 입력값은 사라지지만 세션에 메시지가 붙지 않는 레이스 방지.
+
+- [ ] `ChatInput.tsx` — `onSend` 완료/수락 전 입력값·첨부 상태를 비우지 않도록 변경
+- [ ] `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 조기 return 대신 사용자 알림 + 입력 보존 경로 추가
+- [ ] `useChatSessions.ts` — DB 세션 목록 로드 후 유효한 `currentSessionId` 자동 선택
+- [ ] `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
+- [ ] `useChatStream.ts` — 새 세션 생성 직후 stale `sessions` 참조 제거
+- [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
+
 ### 멀티턴 경고·차단
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
@@ -14,14 +25,6 @@
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
 - [ ] `ChatArea.tsx` — 차단 배너 + 새 채팅 버튼
-
-### 모델명 상수화 (Phase A)
-
-현재 모델명 문자열 9곳 하드코딩. `api/_lib/models.ts` 단일 파일 관리.
-
-- [ ] `api/_lib/models.ts` 생성 (`MODELS.FLASH`, `MODELS.LITE`, `MODELS.TTS`)
-- [ ] `src/lib/models.ts` 생성 (프론트엔드 전용)
-- [ ] `router.ts`, `vision.ts`, `generator.ts`, `drug-info-tool.ts`, `state.ts`, `chat.ts`, `speech.ts`, `summarize-title.ts` import 교체
 
 ### React Error Boundary (M4)
 
@@ -109,7 +112,7 @@
 
 ---
 
-_최종 수정: 2026-05-11 — TODO/코드 대조. VetTool + VetRenderer 구현 완료 (v4.78), Vet 에러 보완 5종 반영, `react-markdown` lazy loading 완료 확인._
+_최종 수정: 2026-05-12 — 모바일 초기 세션 공백 이슈 수정 항목 추가. 모델 레지스트리 Phase A+B 완료 및 타입/build 검증 성공._
 
 ---
 
@@ -396,7 +399,8 @@ api/_lib/providers/
 
 #### M3 — 모델 레지스트리 (`api/_lib/models.ts`)
 
-TODO 우선순위 4에 이미 등록된 "모델명 상수화(Phase A)"를 멀티 프로바이더로 확장.
+기본 Gemini 모델 문자열 중앙화는 완료됨 (`api/_lib/models.ts`, `src/lib/models.ts`).  
+아래 항목은 멀티 프로바이더 확장 시 필요한 metadata registry로 남겨둔다.
 
 ```ts
 export const MODELS = {
@@ -417,8 +421,8 @@ export const MODELS = {
 } as const;
 ```
 
-- [ ] `api/_lib/models.ts` 생성 — 위 레지스트리 + 타입 정의
-- [ ] `src/lib/models.ts` 프론트엔드용 (표시명, 아이콘, 설명 포함)
+- [ ] `api/_lib/models.ts` — provider / capability metadata 확장
+- [ ] `src/lib/models.ts` — Gemini / OpenAI / ImageGen 그룹 표시 metadata 확장
 
 ---
 
@@ -770,10 +774,12 @@ if (part.type === 'image-gen') {
 
 유저가 채팅 중 모델을 바꿀 수 있는 UI.
 
-- [ ] `ChatInput.tsx` 또는 `Header.tsx` — 모델 선택 드롭다운
-- [ ] `src/lib/models.ts` — 표시용 모델 목록 (그룹별: Gemini / OpenAI / ImageGen)
-- [ ] `useChatStream.ts` — 선택 모델을 API 요청에 포함
-- [ ] `App.tsx` — 선택 모델 state 관리, 세션별 모델 기억
+- [x] `Header.tsx` — Gemini Flash / Flash-Lite 모델 선택 드롭다운
+- [x] `src/lib/models.ts` — 현재 운영 Gemini 모델 목록
+- [x] `useChatStream.ts` — 선택 모델을 API 요청에 포함
+- [x] `App.tsx` — 선택 모델 state 관리 + `preferred_model` 저장
+- [ ] `src/lib/models.ts` — 멀티 프로바이더 그룹 표시(Gemini / OpenAI / ImageGen)
+- [ ] `App.tsx` — 세션별 모델 기억
 
 ---
 
@@ -781,11 +787,11 @@ if (part.type === 'image-gen') {
 
 ```
 선행 필수 (구조):
-  M1 프로바이더 추상화 → M2 API 키 확장 → M3 모델 레지스트리
+  M3 기본 모델 레지스트리 완료 → M1 프로바이더 추상화 → M2 API 키 확장 → M3 metadata 확장
 
 단기 (기능):
-  M3 완료 후 Gemini 신모델(3.0-flash, 3.1-flash-lite) 즉시 추가 가능
-  M6 프론트 모델 선택 UI
+  Gemini 신모델(3.0-flash, 3.1-flash-lite) 추가 검토
+  M6 세션별 모델 기억
 
 중기 (복잡):
   M4 OpenAI content 매핑 + OpenAI 모델 실제 연결

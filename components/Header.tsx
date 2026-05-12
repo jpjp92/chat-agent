@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Language } from '../types';
+import { CHAT_MODEL_OPTIONS, type ChatModelId } from '../src/lib/models';
 
 interface HeaderProps {
   userProfile: UserProfile;
@@ -8,8 +9,8 @@ interface HeaderProps {
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
   onReset?: () => void;
   language: Language;
-  selectedModel: 'gemini-2.5-flash' | 'gemini-2.5-flash-lite';
-  onModelChange: (model: 'gemini-2.5-flash' | 'gemini-2.5-flash-lite') => void;
+  selectedModel: ChatModelId;
+  onModelChange: (model: ChatModelId) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language, selectedModel, onModelChange }) => {
@@ -80,6 +81,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   };
 
   const t = i18n[language] || i18n.ko;
+  const selectedModelOption = CHAT_MODEL_OPTIONS.find(option => option.id === selectedModel) ?? CHAT_MODEL_OPTIONS[0];
 
   useEffect(() => {
     if (document.documentElement.classList.contains('dark')) {
@@ -146,7 +148,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
               className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200"
             >
               <span className="text-base sm:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">
-                {selectedModel === 'gemini-2.5-flash' ? t.model25Flash : t.model25FlashLite}
+                {t[selectedModelOption.labelKey]}
               </span>
               <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-indigo-400/70 dark:text-indigo-400/60 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
             </button>
@@ -155,20 +157,15 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
             {isModelMenuOpen && (
               <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
                 <div className="flex flex-col py-1">
-                  <div onClick={() => { onModelChange('gemini-2.5-flash'); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
-                    <div>
-                      <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash</div>
-                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25FlashDesc}</div>
+                  {CHAT_MODEL_OPTIONS.map(option => (
+                    <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                      <div>
+                        <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">{t[option.labelKey]}</div>
+                        <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t[option.descriptionKey]}</div>
+                      </div>
+                      {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
                     </div>
-                    {selectedModel === 'gemini-2.5-flash' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
-                  </div>
-                  <div onClick={() => { onModelChange('gemini-2.5-flash-lite'); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
-                    <div>
-                      <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">Gemini 2.5 Flash-Lite</div>
-                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t.model25LiteDesc}</div>
-                    </div>
-                    {selectedModel === 'gemini-2.5-flash-lite' && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
-                  </div>
+                  ))}
                 </div>
               </div>
             )}

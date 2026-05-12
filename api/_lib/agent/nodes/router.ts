@@ -2,10 +2,11 @@ import { AgentStateType, IntentType } from "../state.js";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited } from "../../config.js";
+import { ROUTER_MODEL } from "../../models.js";
 
 /**
  * Router Node
- * Uses a lightweight LLM (gemini-2.5-flash-lite) to classify user intent into 9 categories.
+ * Uses a lightweight LLM to classify user intent into 9 categories.
  * Injects last assistant message as context for follow-up intent continuity.
  * Falls back to keyword heuristics if the LLM fails.
  */
@@ -85,7 +86,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "general"         : everything else (code, writing, general chat, web search, video summary, etc.)\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general"}`;
 
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite',
+                model: ROUTER_MODEL,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: { temperature: 0, responseMimeType: "application/json" }
             });

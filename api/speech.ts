@@ -1,6 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
+import { SERVER_MODELS } from './_lib/models.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -21,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
             const ai = new GoogleGenAI({ apiKey });
             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-preview-tts',
+                model: SERVER_MODELS.TTS,
                 contents: [{ parts: [{ text: text.slice(0, 2000) }] }],
                 config: {
                     responseModalities: ["AUDIO"],

@@ -1,5 +1,6 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
+import { DEFAULT_CHAT_MODEL } from "../models.js";
 
 export type IntentType =
     | "drug_id"      // 알약 이미지 식별 요청
@@ -65,7 +66,7 @@ export const GraphState = Annotation.Root({
     // The selected language model to be used by the generator node
     model: Annotation<string>({
         reducer: (x, y) => y ?? x,
-        default: () => "gemini-2.5-flash",
+        default: () => DEFAULT_CHAT_MODEL,
     }),
 
     // The client's local timezone to display the correct time.

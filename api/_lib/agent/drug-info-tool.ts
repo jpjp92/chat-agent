@@ -4,6 +4,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { getNextApiKey } from "../config.js";
+import { DEFAULT_CHAT_MODEL } from "../models.js";
 import { searchWebTool } from "./tools.js";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
@@ -19,7 +20,7 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
     try {
         const genai = new GoogleGenAI({ apiKey });
         const response = await genai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: DEFAULT_CHAT_MODEL,
             contents: [{ role: 'user', parts: [{ text: `${drugName} 의약품의 성분, 효능, 용법, 용량, 주의사항을 알려주세요.` }] }],
             config: {
                 tools: [{ googleSearch: {} }],
@@ -87,7 +88,7 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         const contentType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
         const model = new ChatGoogleGenerativeAI({
-            model: "gemini-2.5-flash",
+            model: DEFAULT_CHAT_MODEL,
             apiKey: apiKey,
             temperature: 0.1,
         });

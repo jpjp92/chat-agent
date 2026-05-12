@@ -2,6 +2,7 @@ import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyInvalid, API_KEYS } from "../../config.js";
+import { DEFAULT_CHAT_MODEL } from "../../models.js";
 import { identifyPillTool, searchWebTool } from "../tools.js";
 import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { pharmacyTool } from "../pharmacy-tool.js";
@@ -54,7 +55,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
-        const resolvedModel = state.model || "gemini-2.5-flash";
+        const resolvedModel = state.model || DEFAULT_CHAT_MODEL;
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).

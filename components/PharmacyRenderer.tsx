@@ -29,11 +29,11 @@ interface PharmacyRendererProps {
 const PAGE_SIZE = 5;
 
 const DAY_LABELS = [
-  { key: 'mon', label: '월' },
-  { key: 'tue', label: '화' },
-  { key: 'wed', label: '수' },
-  { key: 'thu', label: '목' },
-  { key: 'fri', label: '금' },
+  { key: 'mon', label: '월', color: undefined },
+  { key: 'tue', label: '화', color: undefined },
+  { key: 'wed', label: '수', color: undefined },
+  { key: 'thu', label: '목', color: undefined },
+  { key: 'fri', label: '금', color: undefined },
   { key: 'sat', label: '토', color: 'text-blue-400' },
   { key: 'sun', label: '일', color: 'text-red-400' },
   { key: 'holiday', label: '공휴', color: 'text-amber-400' },

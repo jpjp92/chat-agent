@@ -14,6 +14,8 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 
 ### 1-2. AI Intelligence
 - **Gemini 2.5 Flash** (primary) with **Flash-Lite** for semantic routing
+- **Centralized model registry**: Server model IDs live in `api/_lib/models.ts`; frontend selectable chat models live in `src/lib/models.ts`
+- **Model selector**: Header dropdown switches between Gemini 2.5 Flash and Flash-Lite, with `preferred_model` persisted locally
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **YouTube analysis**: Native Gemini video analysis (direct video reading); supports standard URLs, `youtu.be`, and Shorts (`/shorts/`); structured summary with timestamp links
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
@@ -142,12 +144,18 @@ flowchart TB
 
 ### 3-1. Model Usage
 
+Model IDs are centralized to avoid scattered string literals:
+
+- Server runtime: `api/_lib/models.ts`
+- Frontend selection UI: `src/lib/models.ts`
+
 | Purpose | Model |
 |---------|-------|
-| Main chat | `gemini-2.5-flash` |
-| Router (intent classification) | `gemini-2.5-flash-lite` |
-| TTS | `gemini-2.5-flash-preview-tts` |
-| Session title | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
+| Main chat default | `DEFAULT_CHAT_MODEL` → `gemini-2.5-flash` |
+| User-selectable chat models | `CHAT_MODEL_OPTIONS` → `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
+| Router (intent classification) | `ROUTER_MODEL` → `gemini-2.5-flash-lite` |
+| TTS | `SERVER_MODELS.TTS` → `gemini-2.5-flash-preview-tts` |
+| Session title | `SUMMARY_MODELS` → `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 
 ---
 
@@ -169,6 +177,7 @@ flowchart TB
 │   ├── proxy-image.ts          # Image proxy
 │   └── _lib/                   # Shared utilities (excluded from Vercel function count)
 │       ├── config.ts           # API key pool, markKeyRateLimited / markKeyInvalid
+│       ├── models.ts           # Server model registry (chat / router / TTS / title)
 │       ├── agent/              # LangGraph agent
 │       │   ├── graph.ts        # StateGraph definition
 │       │   ├── nodes/          # router / vision / generator
@@ -194,6 +203,8 @@ flowchart TB
 │   ├── DiagramRenderer.tsx
 │   └── ...
 ├── src/
+│   ├── lib/
+│   │   └── models.ts           # Frontend chat model registry + Header options
 │   └── hooks/                  # Custom React hooks (App.tsx 오케스트레이션 분리)
 │       ├── useAuthSession.ts   # Auth init, localStorage restore, 익명 로그인
 │       ├── useChatSessions.ts  # Session CRUD, 메시지 lazy load
@@ -202,7 +213,7 @@ flowchart TB
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260502.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260512.md)
 │   ├── TODO.md                 # Roadmap
 │   ├── Guide/REF_*.md          # Renderer test prompt guides
 │   └── Guide/ERROR_HANDLING.md # 에러 처리 전체 구조 (7-layer map)
@@ -247,4 +258,3 @@ npm run dev
 
 > Detailed changelog: [docs/DEV_HISTORY.md](docs/DEV_HISTORY.md)  
 > Developed by **jpjp92** — Powered by Google Gemini & Supabase
-

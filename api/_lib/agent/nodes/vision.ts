@@ -1,6 +1,7 @@
 import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey, markKeyRateLimited, API_KEYS } from "../../config.js";
+import { DEFAULT_CHAT_MODEL } from "../../models.js";
 import { HumanMessage } from "@langchain/core/messages";
 
 /**
@@ -56,7 +57,7 @@ Return ONLY a JSON object in this exact format, no other text:
     while (attempt < MAX_ATTEMPTS) {
         try {
             const model = new ChatGoogleGenerativeAI({
-                model: "gemini-2.5-flash",
+                model: DEFAULT_CHAT_MODEL,
                 apiKey: apiKey,
                 temperature: 0.1,
             });

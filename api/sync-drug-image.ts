@@ -18,6 +18,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Declare outside try so catch/finally can access for cleanup
     let fileName: string | undefined;
     let resolveInflight: ((v: { publicUrl: string; pillVisual: any } | null) => void) | undefined;
+    const completeInflight = (value: { publicUrl: string; pillVisual: any } | null) => {
+        resolveInflight?.(value);
+        if (fileName) inflightRequests.delete(fileName);
+    };
 
     try {
         console.log(`[Sync] original url: ${url}`);
@@ -177,15 +181,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[Sync] MFDS unavailable, attempting ConnectDI fallback for "${drug_name}"...`);
                 const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
                 if (fallbackResult) {
-                    resolveInflight!(fallbackResult);
-                    inflightRequests.delete(fileName!);
+                    completeInflight(fallbackResult);
                     return res.status(200).json(fallbackResult);
                 }
                 console.warn(`[Sync] ConnectDI fallback also failed for "${drug_name}"`);
             }
 
-            resolveInflight(null);
-            inflightRequests.delete(fileName);
+            completeInflight(null);
             return res.status(externalResponse.status).json({
                 error: 'External image not found',
                 message: `The provided image URL returned a ${externalResponse.status}`
@@ -303,15 +305,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     const scrapedPayload = { ...result, pillVisual };
-                    resolveInflight(scrapedPayload);
-                    inflightRequests.delete(fileName);
+                    completeInflight(scrapedPayload);
                     return res.status(200).json(scrapedPayload);
                 }
             }
 
             console.warn(`[Sync] No valid pill photo found on ${isNaverEntry ? 'Naver' : 'ConnectDI'} page.`);
-            resolveInflight(null);
-            inflightRequests.delete(fileName);
+            completeInflight(null);
             return res.status(404).json({ error: 'No image found on page' });
         }
 
@@ -325,15 +325,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[Sync] MFDS returned HTML (maintenance page?), attempting ConnectDI fallback for "${drug_name}"...`);
                 const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
                 if (fallbackResult) {
-                    resolveInflight!(fallbackResult);
-                    inflightRequests.delete(fileName!);
+                    completeInflight(fallbackResult);
                     return res.status(200).json(fallbackResult);
                 }
                 console.warn(`[Sync] ConnectDI fallback failed for "${drug_name}" (HTML response case)`);
             }
 
-            resolveInflight!(null);
-            inflightRequests.delete(fileName!);
+            completeInflight(null);
             return res.status(422).json({ error: 'URL did not return an image', contentType });
         }
 
@@ -352,8 +350,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const directPayload = { ...result, pillVisual };
-        resolveInflight(directPayload);
-        inflightRequests.delete(fileName);
+        completeInflight(directPayload);
         return res.status(200).json(directPayload);
 
     } catch (error: any) {
@@ -367,8 +364,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const fallbackResult = await tryConnectDIFallback(drug_name, fileName, imprint_front, imprint_back);
                 if (fallbackResult) {
                     console.log(`[Sync] ConnectDI fallback succeeded after network error`);
-                    resolveInflight?.(fallbackResult);
-                    inflightRequests.delete(fileName);
+                    completeInflight(fallbackResult);
                     return res.status(200).json(fallbackResult);
                 }
             } catch (fallbackErr) {
@@ -376,8 +372,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        try { resolveInflight?.(null); } catch {}
-        try { inflightRequests.delete(fileName); } catch {}
+        try { completeInflight(null); } catch {}
         return res.status(500).json({ error: 'Internal server error' });
     }
 }

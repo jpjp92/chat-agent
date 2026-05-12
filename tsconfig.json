@@ -15,5 +15,14 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": [
+    "App.tsx",
+    "index.tsx",
+    "types.ts",
+    "components/**/*.tsx",
+    "src/**/*.ts",
+    "services/**/*.ts",
+    "api/**/*.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
 }
