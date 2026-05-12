@@ -58,10 +58,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const rafRef = useRef<number | null>(null);
 
   const i18n = {
-    fr: { placeholder: "Demandez n'importe quoi", sizeError: "Trop lourd (Max 100Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers" },
+    fr: { placeholder: "Posez une question", sizeError: "Trop lourd (Max 100Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers" },
     ko: { placeholder: "무엇이든 물어보세요", sizeError: "용량 초과 (최대 100MB)", typeError: "지원하지 않는 파일", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개 파일만 첨부 가능" },
     en: { placeholder: "Ask anything", sizeError: "Too large (Max 100MB)", typeError: "Unsupported file", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Max 3 files" },
-    es: { placeholder: "Pregunta lo que quieras", sizeError: "Muy grande (Máx 100MB)", typeError: "Archivo no soportado", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máx 3 archivos" }
+    es: { placeholder: "Haz una pregunta", sizeError: "Muy grande (Máx 100MB)", typeError: "Archivo no soportado", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máx 3 archivos" }
   };
 
   const t = i18n[language] || i18n.ko;

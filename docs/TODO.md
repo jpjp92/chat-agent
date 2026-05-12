@@ -67,8 +67,6 @@
 - [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 적용 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
 
-> 완료 확인: `ChatArea.tsx`에서 `ChatMessage`를 lazy load해 `react-markdown` / `react-syntax-highlighter` / `rehype-katex`가 초기 번들에서 분리됨.
-
 > **CSP 적용 전제**: KaTeX·FontAwesome 자체 호스팅 완료 후 inline style 의존성 제거 → CSP 도입 가능
 
 ---
@@ -128,7 +126,7 @@
 
 ---
 
-_최종 수정: 2026-05-12 — 프롬프트 언어 혼합 정리 계획 추가. 모바일 초기 세션 공백 이슈 수정 항목 추가. 날씨 응답 언어별 포맷 분리 완료. 모델 레지스트리 Phase A+B 완료 및 타입/build 검증 성공._
+_최종 수정: 2026-05-12 — 모델 확장 후보를 GPT-5 계열 중심으로 정리. 완료 항목은 DEV_HISTORY로 이관하고 TODO에서 제거. ChatInput 프랑스어·스페인어 placeholder 길이 조정. 프롬프트 언어 혼합 정리 계획 추가. 모바일 초기 세션 공백 이슈 수정 항목 추가._
 
 ---
 
@@ -145,14 +143,10 @@ _최종 수정: 2026-05-12 — 프롬프트 언어 혼합 정리 계획 추가. 
 사용자 메시지
     ↓
 router.ts — intent 분류
-    ├─ "pharmacy_search"  → PharmacyTool   → 전국 약국 API (공공데이터포털) → PharmacyRenderer ✅
-    ├─ "hospital_search"  → HospitalTool   → 전국 병원 API (HIRA)         → HospitalRenderer ✅
-    ├─ "vet_search"       → VetTool        → 전국 동물병원 API (행정안전부) → VetRenderer ✅
     ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
     ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
     ├─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
-    ├─ "law_search"       → LawTool        → 국가법령 API     → LawRenderer
-    └─ "drug_info" (기존) → DrugTool       → 의약품 API      → DrugRenderer (✅ 운영중)
+    └─ "law_search"       → LawTool        → 국가법령 API     → LawRenderer
 ```
 
 **공통 패턴** (각 Tool 동일):
@@ -166,23 +160,7 @@ router.ts — intent 분류
 
 ### 📦 API별 상세 구현 계획
 
-#### ① 병원 검색 ✅ 완료 (2026-05-10)
-
-> API: 건강보험심사평가원 `hospInfoServicev2/getHospBasisList` — `PHARM_KEY` 공용  
-> 구현: `hospital-tool.ts` (sidoCd/sgguCd 숫자 코드 매핑, native fetch), `HospitalRenderer.tsx` (인디고 테마, 종별 뱃지, 의사수 정렬)  
-> 특이사항: B551182 백엔드는 https 모듈 타임아웃 → native fetch 필수 / sgguCd 전국 코드표 내장 / `CITY_TO_SIDO` fallback (LLM이 "전주시"를 sido로 넘기는 경우 처리) / `dong_name` 파라미터로 읍면동 addr 텍스트 필터
-
----
-
-#### ② 동물병원 검색 ✅ 완료 (2026-05-11)
-
-> API: 행정안전부 `1741000/animal_hospitals/info` — `VET_KEY`  
-> 구현: `vet-tool.ts` (`returnType=JSON`, 도로명주소 LIKE 검색, 영업중 우선 조회 후 전체 상태 fallback), `VetRenderer.tsx` (틸/에메랄드 테마, 영업상태 배지, 인허가일자, 전화·카카오지도 텍스트 검색)  
-> 특이사항: 검색 조건 없는 전국 첫 페이지 노출 차단 / VET_KEY 누락 가드 / HTTP·JSON·API 오류 분리 / 병원명 단독 검색 fallback / `펫` 단독 키워드 라우터 과매칭 축소
-
----
-
-#### ③ arXiv + PubMed 논문 검색 (우선순위 ★★★)
+#### ① arXiv + PubMed 논문 검색 (우선순위 ★★★)
 
 > 키: `NCBI_KEY` (.env 등록 완료), arXiv는 키 불필요  
 > 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
@@ -201,7 +179,7 @@ router.ts — intent 분류
 
 ---
 
-#### ④ 서울 문화행사 (우선순위 ★★)
+#### ② 서울 문화행사 (우선순위 ★★)
 
 > 키: `CULTURE_API_KEY` (.env 등록 완료)  
 > 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
@@ -219,7 +197,7 @@ router.ts — intent 분류
 
 ---
 
-#### ⑤ 학교기본정보 NEIS (우선순위 ★★)
+#### ③ 학교기본정보 NEIS (우선순위 ★★)
 
 > 키: `EDU_KEY` (.env 등록 완료)  
 > 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
@@ -237,7 +215,7 @@ router.ts — intent 분류
 
 ---
 
-#### ⑥ 국가법령정보 (우선순위 ★★)
+#### ④ 국가법령정보 (우선순위 ★★)
 
 > OC: `jpjp9202` (키 없이 URL 파라미터로 사용)  
 > 2단계: 법령 검색(lawSearch) → 조문 조회(lawService)  
@@ -261,19 +239,15 @@ router.ts — intent 분류
 ### 📋 구현 순서 (우선순위)
 
 ```
-Phase 1 — 완료 ✅:
-  ① 병원 Tool + HospitalRenderer (2026-05-10)
-  ② 동물병원 Tool + VetRenderer (2026-05-11)
+Phase 1 — 학술 정보:
+  ① arXiv + PubMed Tool + PaperRenderer
 
-Phase 2 — 학술 정보:
-  ③ arXiv + PubMed Tool + PaperRenderer
+Phase 2 — 생활 정보:
+  ② 서울 문화행사 Tool + CultureRenderer
+  ③ NEIS 학교정보 Tool + SchoolRenderer
 
-Phase 3 — 생활 정보:
-  ④ 서울 문화행사 Tool + CultureRenderer
-  ⑤ NEIS 학교정보 Tool + SchoolRenderer
-
-Phase 4 — 전문 정보:
-  ⑥ 국가법령 Tool + LawRenderer
+Phase 3 — 전문 정보:
+  ④ 국가법령 Tool + LawRenderer
 ```
 
 ### ⚠️ 공통 주의사항
@@ -368,16 +342,12 @@ Phase 4 — 전문 정보:
 
 | 모델 | 프로바이더 | 타입 | 주요 특징 |
 |------|-----------|------|----------|
-| `gemini-2.0-flash` | Google | Chat | 빠른 속도, 저비용 (현재 2.5-flash-lite 대체 후보) |
-| `gemini-2.5-flash-preview-image-generation` | Google | Chat+ImageGen | 텍스트→이미지 생성 지원 (채팅 중 이미지 출력) |
 | `gemini-3.0-flash` (preview) | Google | Chat | 최신 플래그십, 멀티모달 강화 |
 | `gemini-3.1-flash-lite` (preview) | Google | Chat | 초경량, 라우터·분류용 후보 |
 | `imagen-4` | Google | ImageGen 전용 | 고품질 이미지 생성 — chat 아님, 별도 endpoint |
-| `gpt-4o` | OpenAI | Chat | 멀티모달 (vision), tool use, 높은 추론 품질 |
-| `gpt-4o-mini` | OpenAI | Chat | 저비용, 빠른 응답 — 라우터·요약용 후보 |
-| `gpt-4.1` | OpenAI | Chat | 코딩·지시 이행 특화 |
-| `gpt-4.1-mini` | OpenAI | Chat | gpt-4.1 경량 버전 |
-| `o4-mini` | OpenAI | Reasoning | 추론 특화 (thinking 모드) |
+| `gpt-5.2` | OpenAI | Chat/Reasoning | 고성능 일반·코딩·추론 후보 |
+| `gpt-5-mini` | OpenAI | Chat | 비용/속도 균형형 후보 |
+| `gpt-5.4-mini` | OpenAI | Chat | 경량 최신 모델 후보 |
 
 ---
 
@@ -425,13 +395,10 @@ export const MODELS = {
   FLASH_LITE:   { id: 'gemini-2.5-flash-lite', provider: 'gemini', vision: false, tools: false, search: false },
   FLASH_3:      { id: 'gemini-3.0-flash',    provider: 'gemini', vision: true,  tools: true,  search: true  },
   FLASH_3_LITE: { id: 'gemini-3.1-flash-lite', provider: 'gemini', vision: false, tools: false, search: false },
-  IMG_GEN:      { id: 'gemini-2.5-flash-preview-image-generation', provider: 'gemini', imageGen: true },
   // OpenAI
-  GPT4O:        { id: 'gpt-4o',        provider: 'openai', vision: true,  tools: true,  search: false },
-  GPT4O_MINI:   { id: 'gpt-4o-mini',   provider: 'openai', vision: true,  tools: true,  search: false },
-  GPT41:        { id: 'gpt-4.1',       provider: 'openai', vision: true,  tools: true,  search: false },
-  GPT41_MINI:   { id: 'gpt-4.1-mini',  provider: 'openai', vision: true,  tools: true,  search: false },
-  O4_MINI:      { id: 'o4-mini',       provider: 'openai', vision: false, tools: true,  search: false },
+  GPT52:        { id: 'gpt-5.2',       provider: 'openai', vision: true,  tools: true,  search: false },
+  GPT5_MINI:    { id: 'gpt-5-mini',    provider: 'openai', vision: true,  tools: true,  search: false },
+  GPT54_MINI:   { id: 'gpt-5.4-mini',  provider: 'openai', vision: true,  tools: true,  search: false },
   // Image Generation
   IMAGEN4:      { id: 'imagen-4',      provider: 'gemini', imageGen: true },
 } as const;
@@ -788,12 +755,8 @@ if (part.type === 'image-gen') {
 
 #### M6 — 프론트엔드 모델 선택 UI
 
-유저가 채팅 중 모델을 바꿀 수 있는 UI.
+유저가 채팅 중 모델을 바꿀 수 있는 UI의 잔여 확장.
 
-- [x] `Header.tsx` — Gemini Flash / Flash-Lite 모델 선택 드롭다운
-- [x] `src/lib/models.ts` — 현재 운영 Gemini 모델 목록
-- [x] `useChatStream.ts` — 선택 모델을 API 요청에 포함
-- [x] `App.tsx` — 선택 모델 state 관리 + `preferred_model` 저장
 - [ ] `src/lib/models.ts` — 멀티 프로바이더 그룹 표시(Gemini / OpenAI / ImageGen)
 - [ ] `App.tsx` — 세션별 모델 기억
 
