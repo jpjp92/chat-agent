@@ -6,16 +6,20 @@
 
 ## 🟡 우선순위 1 — 기능 개선
 
-### 프롬프트 언어 혼합 정리
+### 다음 작업 우선순위
 
-날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어/범위 불일치 정리.
+1. 모바일 초기 세션 공백 마무리
+2. 프롬프트 언어 혼합 정리
+3. 멀티턴 경고·차단
+4. LCP / 초기 로딩 개선
+5. 외부 API 확장 또는 동물병원 상세정보 선택형 보강
 
-- [ ] `prompt.ts` — URL summary placeholder 문구 언어별 분리
-- [ ] `prompt.ts` — YouTube fallback 안내 문장 언어별 분리
-- [ ] `prompt.ts` — `getPillWarnFallback` 다국어화
-- [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
-- [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용 검토
-- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리하는 Phase P-B 설계
+판단 기준:
+- 모바일 첫 입력 공백은 실제 사용자 장애이므로 최우선.
+- 프롬프트 언어 혼합은 응답 품질과 다국어 일관성에 직접 영향.
+- 멀티턴 경고·차단은 컨텍스트 폭주와 비용/품질 저하를 줄이는 운영 안정화 항목.
+- LCP 개선은 인증/세션 초기화 흐름과 맞물리므로 모바일 안정화 후 진행.
+- 동물병원 상세정보 보강과 신규 외부 API는 core flow 안정화 이후 기능 확장으로 처리.
 
 ### 모바일 초기 세션 공백 수정
 
@@ -31,6 +35,17 @@
 - [ ] `useChatSessions.ts` — DB 세션 목록 로드 후 유효한 `currentSessionId` 자동 선택
 - [ ] `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
 - [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
+
+### 프롬프트 언어 혼합 정리
+
+날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어/범위 불일치 정리.
+
+- [ ] `prompt.ts` — URL summary placeholder 문구 언어별 분리
+- [ ] `prompt.ts` — YouTube fallback 안내 문장 언어별 분리
+- [ ] `prompt.ts` — `getPillWarnFallback` 다국어화
+- [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
+- [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용 검토
+- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리하는 Phase P-B 설계
 
 ### 멀티턴 경고·차단
 
