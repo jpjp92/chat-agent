@@ -11,6 +11,7 @@ interface Vet {
 
 interface VetData {
   query: string;
+  notice?: string;
   count: number;
   vets: Vet[];
 }
@@ -67,6 +68,12 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
           </p>
         </div>
       </div>
+
+      {data.notice && (
+        <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200">
+          {data.notice}
+        </div>
+      )}
 
       {/* Cards */}
       <div className="flex flex-col gap-2 w-full">

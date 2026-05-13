@@ -46,6 +46,21 @@ function extractItems(data: any): any[] {
     return Array.isArray(raw) ? raw : [raw];
 }
 
+type AddressField = 'ROAD_NM_ADDR' | 'LOTNO_ADDR';
+
+function uniqueNonEmpty(values: Array<string | undefined>) {
+    return [...new Set(values.map(v => v?.trim()).filter((v): v is string => !!v))];
+}
+
+function getDongKeywords(dongName?: string) {
+    if (!dongName) return [];
+    const baseName = dongName.replace(/동$/, '').trim();
+    return uniqueNonEmpty([
+        dongName,
+        baseName.length >= 2 ? baseName : undefined,
+    ]);
+}
+
 export const vetTool = tool(
     async ({ sido, sigungu, dong_name, hospital_name }: {
         sido?: string;
@@ -54,46 +69,113 @@ export const vetTool = tool(
         hospital_name?: string;
     }) => {
         try {
-            // 시도 + 시군구 + 동 조합으로 주소 LIKE 쿼리 생성
-            const addrParts = [sido, sigungu, dong_name].filter(Boolean);
-            const addrQuery = addrParts.join(' ').trim();
+            const cleanSido = sido?.trim();
+            let cleanSigungu = sigungu?.trim();
+            const cleanDongName = dong_name?.trim();
             const cleanHospitalName = hospital_name?.trim();
 
-            console.log(`[VetTool] addr="${addrQuery}" name="${cleanHospitalName || ''}"`);
+            // 공공데이터 주소 LIKE는 "전주시 덕진구"처럼 복합 시군구가 들어오면 0건이 나기 쉬움.
+            // 약국/병원 도구와 동일하게 마지막 구 단위로 정규화한다.
+            if (cleanSigungu && cleanSigungu.includes(' ')) {
+                const parts = cleanSigungu.split(/\s+/);
+                cleanSigungu = parts[parts.length - 1];
+                console.log(`[VetTool] sigungu 변환: ${sigungu} -> ${cleanSigungu}`);
+            }
+
+            const areaAddrQuery = [cleanSido, cleanSigungu].filter(Boolean).join(' ').trim();
+            const fullAddrQuery = [cleanSido, cleanSigungu, cleanDongName].filter(Boolean).join(' ').trim();
+            const locationLabel = [cleanSido, cleanSigungu, cleanDongName, cleanHospitalName].filter(Boolean).join(' ').trim();
+            const dongKeywords = getDongKeywords(cleanDongName);
+
+            console.log(`[VetTool] area="${areaAddrQuery}" dong="${cleanDongName || ''}" name="${cleanHospitalName || ''}"`);
 
             if (!VET_KEY) {
                 return `동물병원 API 키가 설정되어 있지 않습니다. [지시사항]: VET_KEY 환경변수 설정이 필요하다고 사용자에게 안내해 주세요.`;
             }
 
-            if (!addrQuery && !cleanHospitalName) {
+            if (!areaAddrQuery && !cleanDongName && !cleanHospitalName) {
                 return `동물병원을 검색하려면 지역명이나 병원명이 필요합니다. [지시사항]: 사용자에게 시/군/구 또는 동 이름을 포함해 다시 요청해 달라고 짧게 안내해 주세요.`;
             }
 
-            const buildUrl = (withStatus: boolean) => {
+            const buildUrl = (withStatus: boolean, address?: { field: AddressField; query: string }) => {
                 // serviceKey는 이미 URL 인코딩된 값이므로 URLSearchParams 바깥에서 직접 삽입
                 // URLSearchParams에 넣으면 이중 인코딩(%2F → %252F)이 발생해 Unauthorized 오류
                 const qs = new URLSearchParams();
                 qs.set('pageNo', '1');
-                qs.set('numOfRows', '100');
+                qs.set('numOfRows', '300');
                 qs.set('returnType', 'JSON');
-                if (addrQuery) qs.set('cond[ROAD_NM_ADDR::LIKE]', addrQuery);
+                if (address?.query) qs.set(`cond[${address.field}::LIKE]`, address.query);
                 if (cleanHospitalName) qs.set('cond[BPLC_NM::LIKE]', cleanHospitalName);
                 if (withStatus) qs.set('cond[SALS_STTS_CD::EQ]', '01');
                 return `https://apis.data.go.kr/1741000/animal_hospitals/info?serviceKey=${VET_KEY}&${qs}`;
             };
 
-            const openData = await fetchJson(buildUrl(true));
-            assertApiSuccess(openData);
-            let items = extractItems(openData);
+            const fetchItems = async (field?: AddressField, query?: string) => {
+                const address = field && query ? { field, query } : undefined;
+                const openData = await fetchJson(buildUrl(true, address));
+                assertApiSuccess(openData);
+                let rows = extractItems(openData);
 
-            // 영업중 0건 → 전체 상태(휴업 포함)로 재조회
-            if (items.length === 0 && (addrQuery || cleanHospitalName)) {
-                const allStatusData = await fetchJson(buildUrl(false));
-                assertApiSuccess(allStatusData);
-                items = extractItems(allStatusData);
+                // 영업중 0건 → 전체 상태(휴업 포함)로 재조회
+                if (rows.length === 0 && (query || cleanHospitalName || cleanDongName)) {
+                    const allStatusData = await fetchJson(buildUrl(false, address));
+                    assertApiSuccess(allStatusData);
+                    rows = extractItems(allStatusData);
+                }
+
+                return rows;
+            };
+
+            const fetchFirstNonEmpty = async (field: AddressField, queries: string[]) => {
+                for (const query of queries) {
+                    const rows = await fetchItems(field, query);
+                    if (rows.length > 0) {
+                        if (query !== queries[0]) console.log(`[VetTool] ${field} fallback query="${query}"`);
+                        return rows;
+                    }
+                }
+                return [];
+            };
+
+            const roadQueries = uniqueNonEmpty([
+                areaAddrQuery,
+                cleanSigungu,
+                cleanDongName,
+            ]);
+            let items = roadQueries.length > 0
+                ? await fetchFirstNonEmpty('ROAD_NM_ADDR', roadQueries)
+                : await fetchItems();
+            let notice = '';
+
+            if (cleanDongName) {
+                const matchesDong = (h: any) =>
+                    dongKeywords.some(keyword =>
+                        `${h.ROAD_NM_ADDR || ''} ${h.LOTNO_ADDR || ''}`.toLowerCase().includes(keyword.toLowerCase())
+                    );
+                const dongFiltered = items.filter(matchesDong);
+
+                if (dongFiltered.length > 0) {
+                    items = dongFiltered;
+                } else {
+                    const lotnoQueries = uniqueNonEmpty([
+                        fullAddrQuery,
+                        [cleanSigungu, cleanDongName].filter(Boolean).join(' '),
+                        cleanDongName,
+                        ...dongKeywords.map(keyword => [cleanSigungu, keyword].filter(Boolean).join(' ')),
+                        ...dongKeywords,
+                    ]);
+                    const lotnoItems = await fetchFirstNonEmpty('LOTNO_ADDR', lotnoQueries);
+                    const lotnoFiltered = lotnoItems.filter(matchesDong);
+
+                    if (lotnoFiltered.length > 0) {
+                        items = lotnoFiltered;
+                    } else if (items.length > 0 && areaAddrQuery) {
+                        notice = `${cleanDongName} 동 단위 일치 결과가 없어 ${areaAddrQuery} 범위 결과를 표시합니다.`;
+                    } else {
+                        items = [];
+                    }
+                }
             }
-
-            const locationLabel = [sido, sigungu, dong_name, cleanHospitalName].filter(Boolean).join(' ').trim();
 
             if (items.length === 0) {
                 return `${locationLabel || '해당 지역'} 동물병원 정보를 찾을 수 없습니다. [지시사항]: 제공된 search_web 툴을 사용하여 해당 지역의 동물병원을 검색한 후, 사용자에게 텍스트로 친절하게 안내해 주세요.`;
@@ -119,6 +201,7 @@ export const vetTool = tool(
 
             const jsonPayload = JSON.stringify({
                 query: locationLabel,
+                notice,
                 count: top10.length,
                 vets: top10
             });
