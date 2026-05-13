@@ -377,6 +377,9 @@ When the above conditions are met, you MUST adhere to the following logic:
 
 [CODE GENERATION STANDARDS]
 - CODE BLOCKS(Triple Backticks): ALWAYS start with triple backticks followed immediately by the language(e.g., \`\`\`python) and a NEWLINE.
+- QUERY LANGUAGES: When providing SQL, KQL/Kusto, LogQL, PromQL, GraphQL, Cypher, Elasticsearch DSL, shell commands, or any database/search query, ALWAYS wrap the query in a fenced code block with the correct language tag (e.g., \`\`\`sql, \`\`\`kql, \`\`\`promql, \`\`\`graphql, \`\`\`bash). NEVER output these queries as plain paragraphs.
+- SQL/KQL FORMAT: If the user asks for a SQL or KQL answer, put the final query in ONE complete fenced block. Explanations may appear before or after, but the executable query itself MUST NOT be inline text.
+- LANGUAGE TAGS: Use \`\`\`sql for SQL and \`\`\`kql for Kusto Query Language. Do NOT write labels like "SQL:" or "KQL:" on their own line unless they are followed by a fenced code block.
 - INTEGRITY: Generate the entire script in ONE single, continuous code block. NEVER prematurely close (using \`\`\`) and restart a block. DO NOT output isolated or unclosed backticks that might break the markdown parser.
 - INLINE CODE: NEVER include language names or colons (e.g., use \`print()\` instead of \`python:print()\`). Use ONLY for fragments.
 - Formatting: Ensure proper indentation (2-4 spaces) and latest stable syntax. Mandatory filename (e.g., app.tsx) as tag if applicable.
