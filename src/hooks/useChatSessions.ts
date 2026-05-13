@@ -113,6 +113,26 @@ const writeSessionsCache = (sessions: ChatSession[]) => {
   } catch {}
 };
 
+const mergeSessionsPreservingLocalMessages = (localSessions: ChatSession[], dbSessions: ChatSession[]) => {
+  const localById = new Map(localSessions.map(session => [session.id, session]));
+  const dbIds = new Set(dbSessions.map(session => session.id));
+
+  const mergedDbSessions = dbSessions.map(dbSession => {
+    const localSession = localById.get(dbSession.id);
+    if (!localSession) return dbSession;
+
+    return {
+      ...dbSession,
+      title: localSession.title !== 'New Chat' ? localSession.title : dbSession.title,
+      messages: localSession.messages.length > 0 ? localSession.messages : dbSession.messages,
+      lastActiveDoc: localSession.lastActiveDoc ?? dbSession.lastActiveDoc,
+    };
+  });
+
+  const localOnlySessions = localSessions.filter(session => !dbIds.has(session.id));
+  return [...localOnlySessions, ...mergedDbSessions];
+};
+
 export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOptions) => {
   // Hydrate from localStorage cache for instant render; API refresh happens in background
   const [sessions, setSessions] = useState<ChatSession[]>(() => readSessionsCache());
@@ -175,8 +195,11 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
           messages: [],
           createdAt: new Date(session.created_at).getTime(),
         }));
-        setSessions(mappedSessions);
-        writeSessionsCache(mappedSessions);
+        setSessions(prev => {
+          const updated = mergeSessionsPreservingLocalMessages(prev, mappedSessions);
+          writeSessionsCache(updated);
+          return updated;
+        });
         return;
       }
 

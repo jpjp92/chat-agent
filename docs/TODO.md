@@ -30,7 +30,6 @@
 - [ ] `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 조기 return 대신 사용자 알림 + 입력 보존 경로 추가
 - [ ] `useChatSessions.ts` — DB 세션 목록 로드 후 유효한 `currentSessionId` 자동 선택
 - [ ] `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
-- [ ] `useChatStream.ts` — 새 세션 생성 직후 stale `sessions` 참조 제거
 - [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
 
 ### 멀티턴 경고·차단
