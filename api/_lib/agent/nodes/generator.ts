@@ -160,12 +160,12 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         )
                     );
 
-                    // Disable Google Search when the full article text is already provided
-                    // to prevent the LLM from using a brief Google snippet instead of the full content.
-                    // Only disable if there's actual non-empty content after the tag.
-                    const urlContentMatch = state.webContent.match(/\[URL_CONTENT:[^\]]+\]\n([\s\S]+)/);
-                    // 300자 미만이면 JS 렌더링 실패로 간주 → Google Search fallback 허용
-                    const hasUrlContent = !!(urlContentMatch && urlContentMatch[1].trim().length >= 300);
+                    // URL_CONTENT 태그 존재 여부로 Google Search 비활성 여부를 결정.
+                    // 이전에는 내용 길이 >= 300 조건을 사용했으나, Vercel(해외 IP)에서
+                    // 한국 뉴스 사이트(Naver 등)가 짧은 HTML을 반환하면 Google Search가 활성화되어
+                    // 전혀 다른 기사를 요약하는 문제가 발생. URL이 제공된 이상 해당 URL 기반으로만 요약해야 함.
+                    // [URL_CONTENT:...] 태그 자체가 "URL fetch 시도 완료" 신호이므로 길이 체크 제거.
+                    const hasUrlContent = state.webContent.includes('[URL_CONTENT:');
 
                     let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
                     // 1턴: transcript 또는 native video 있으면 Search 비활성 (영상 자체가 컨텍스트)
