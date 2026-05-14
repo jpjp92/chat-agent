@@ -2,11 +2,13 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 
 function isBlockedOrChallenge(html: string, status: number) {
     const lower = html.toLowerCase();
+    // 'cloudflare' 단독 체크는 Cloudflare CDN 사용 정상 사이트에서 오탐 발생 가능.
+    // 실제 challenge 페이지 특이 패턴(cf-chl, challenge-platform, checking your browser 등)으로만 판별.
     return status === 403
         || lower.includes('just a moment')
         || lower.includes('cf-chl')
-        || lower.includes('cloudflare')
-        || lower.includes('challenge-platform');
+        || lower.includes('challenge-platform')
+        || (lower.includes('cloudflare') && (lower.includes('checking your browser') || lower.includes('enable javascript and cookies')));
 }
 
 function extractReadableContent(html: string) {
