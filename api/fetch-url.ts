@@ -69,7 +69,7 @@ async function fetchJinaReaderContent(targetUrl: string) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-        const readerUrl = `https://r.jina.ai/http://${targetUrl}`;
+        const readerUrl = `https://r.jina.ai/${targetUrl}`;
         const response = await fetch(readerUrl, {
             signal: controller.signal,
             headers: {
