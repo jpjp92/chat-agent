@@ -2,10 +2,11 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 
 function isBlockedOrChallenge(html: string, status: number) {
     const lower = html.toLowerCase();
-    // 'cloudflare' 단독 체크는 Cloudflare CDN 사용 정상 사이트에서 오탐 발생 가능.
-    // 실제 challenge 페이지 특이 패턴(cf-chl, challenge-platform, checking your browser 등)으로만 판별.
+    // Cloudflare challenge 페이지 특이 패턴으로만 판별.
+    // 'just a moment' 전체 포함 체크는 본문에 해당 문구가 있는 정상 사이트에서 오탐 가능 → <title> 한정.
+    // 'cloudflare' 단독 체크는 CDN 사용 정상 사이트에서 오탐 가능 → 'checking your browser'와 AND 조합.
     return status === 403
-        || lower.includes('just a moment')
+        || !!html.match(/<title[^>]*>\s*just a moment/i)
         || lower.includes('cf-chl')
         || lower.includes('challenge-platform')
         || (lower.includes('cloudflare') && (lower.includes('checking your browser') || lower.includes('enable javascript and cookies')));
@@ -183,16 +184,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } finally {
                 clearTimeout(timeout);
             }
-
-            if (content.length < 300) {
-                try {
-                    content = await fetchJinaReaderContent(targetUrl);
-                } catch (readerError: any) {
-                    console.warn('[fetch-url] Jina Reader fallback skipped:', readerError.message);
-                }
-            }
+            // 직접 fetch 성공 시 내용 길이와 무관하게 그대로 사용.
+            // og:title + og:description만으로도 요약에 충분하며, Jina fallback이 캐시된 엉뚱한 기사를
+            // 반환할 위험이 있으므로 짧은 내용 보완 목적의 Jina 호출은 제거.
         } catch (directError: any) {
-            console.warn('[fetch-url] Direct fetch fallback to Jina Reader:', directError.message);
+            // 직접 fetch 완전 실패(타임아웃, 연결 오류, 차단) 시에만 Jina Reader 사용.
+            console.warn('[fetch-url] Direct fetch failed, fallback to Jina Reader:', directError.message);
             content = await fetchJinaReaderContent(targetUrl);
         }
 
