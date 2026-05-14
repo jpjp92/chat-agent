@@ -1,94 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
-function isBlockedOrChallenge(html: string, status: number) {
-    const lower = html.toLowerCase();
-    // Cloudflare challenge 페이지 특이 패턴으로만 판별.
-    // 'just a moment' 전체 포함 체크는 본문에 해당 문구가 있는 정상 사이트에서 오탐 가능 → <title> 한정.
-    // 'cloudflare' 단독 체크는 CDN 사용 정상 사이트에서 오탐 가능 → 'checking your browser'와 AND 조합.
-    return status === 403
-        || !!html.match(/<title[^>]*>\s*just a moment/i)
-        || lower.includes('cf-chl')
-        || lower.includes('challenge-platform')
-        || (lower.includes('cloudflare') && (lower.includes('checking your browser') || lower.includes('enable javascript and cookies')));
-}
-
-function extractReadableContent(html: string) {
-    // 메타 정보 추출 (og:title, og:description — 본문 보조용)
-    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
-                 || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)?.[1]
-                 || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]
-                 || '';
-    const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
-                || html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1]
-                || '';
-
-    // 노이즈 제거: script, style, nav, header, footer, aside, iframe, noscript
-    let cleaned = html
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-        .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
-
-    // 본문 추출 우선순위: <article> → <main> → class/id 패턴 → 전체
-    // <article>/<main>은 명확한 닫는 태그가 있으므로 그대로 사용.
-    // div/section 기반 패턴은 중첩 div 문제로 인해 닫는 태그 매칭 대신
-    // 열리는 태그 이후 전체를 가져오는 방식으로 처리.
-    const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
-                       || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-
-    // div/section: (열리는태그)(이후 전체) — group[2]가 본문
-    const divMatch = !semanticMatch && (
-        cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
-        || cleaned.match(/(<(?:div|section)[^>]*id=["'](?:article[-_]view|article[-_]content|article[-_]body|newsview|news[-_]view|read[-_]content)[^"']*["'][^>]*>)([\s\S]+)/i)
-    );
-
-    const bodyHtml = semanticMatch
-        ? (semanticMatch[1] || semanticMatch[0])
-        : divMatch
-        ? divMatch[2]
-        : cleaned;
-
-    const bodyText = bodyHtml
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/\[\d+\]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 15000);
-
-    // og 메타 + 본문 조합
-    let content = '';
-    if (ogTitle) content += `제목: ${ogTitle.trim()}\n`;
-    if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
-    content += bodyText;
-
-    return content.trim().slice(0, 17000);
-}
-
-async function fetchJinaReaderContent(targetUrl: string) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    try {
-        const readerUrl = `https://r.jina.ai/${targetUrl}`;
-        const response = await fetch(readerUrl, {
-            signal: controller.signal,
-            headers: {
-                'Accept': 'text/plain, text/markdown, */*',
-            },
-        });
-        const text = await response.text();
-        if (!response.ok) throw new Error(`Jina Reader failed with status ${response.status}`);
-        const content = text.replace(/\s+/g, ' ').trim().slice(0, 17000);
-        if (content.length < 300) throw new Error('Jina Reader returned too little content');
-        return content;
-    } finally {
-        clearTimeout(timeout);
-    }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -159,39 +70,104 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        let content = '';
+        // 일반 URL: 10초 timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        let html: string;
+        let directFetchBlocked = false;
         try {
-            // 일반 URL: 10초 timeout
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10000);
-            try {
-                const response = await fetch(targetUrl, {
-                    signal: controller.signal,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-                    }
-                });
-                const status = response.status;
-                const html = await response.text();
-
-                if (!response.ok || isBlockedOrChallenge(html, status)) {
-                    throw new Error(`Direct fetch blocked or failed with status ${status}`);
+            const response = await fetch(targetUrl, {
+                signal: controller.signal,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
                 }
-
-                content = extractReadableContent(html);
-            } finally {
-                clearTimeout(timeout);
+            });
+            html = await response.text();
+            // Cloudflare challenge 감지: 403 또는 <title>Just a moment...</title>
+            // 다른 패턴(cf-chl, challenge-platform 등)은 정상 사이트에서 오탐 가능하여 제외.
+            if (!response.ok || html.match(/<title[^>]*>\s*just a moment/i)) {
+                directFetchBlocked = true;
             }
-            // 직접 fetch 성공 시 내용 길이와 무관하게 그대로 사용.
-            // og:title + og:description만으로도 요약에 충분하며, Jina fallback이 캐시된 엉뚱한 기사를
-            // 반환할 위험이 있으므로 짧은 내용 보완 목적의 Jina 호출은 제거.
-        } catch (directError: any) {
-            // 직접 fetch 완전 실패(타임아웃, 연결 오류, 차단) 시에만 Jina Reader 사용.
-            console.warn('[fetch-url] Direct fetch failed, fallback to Jina Reader:', directError.message);
-            content = await fetchJinaReaderContent(targetUrl);
+        } finally {
+            clearTimeout(timeout);
         }
+
+        // Cloudflare 차단 감지 시 Jina Reader로 폴백
+        if (directFetchBlocked) {
+            console.warn('[fetch-url] Direct fetch blocked, fallback to Jina Reader');
+            const readerUrl = `https://r.jina.ai/${targetUrl}`;
+            const jinaController = new AbortController();
+            const jinaTimeout = setTimeout(() => jinaController.abort(), 20000);
+            try {
+                const jinaRes = await fetch(readerUrl, {
+                    signal: jinaController.signal,
+                    headers: { 'Accept': 'text/plain, text/markdown, */*' },
+                });
+                const jinaText = await jinaRes.text();
+                if (jinaRes.ok && jinaText.trim().length >= 100) {
+                    return res.status(200).json({ content: jinaText.replace(/\s+/g, ' ').trim().slice(0, 17000) });
+                }
+            } catch (jinaError: any) {
+                console.warn('[fetch-url] Jina Reader failed:', jinaError.message);
+            } finally {
+                clearTimeout(jinaTimeout);
+            }
+            return res.status(502).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
+        }
+
+        // 메타 정보 추출 (og:title, og:description — 본문 보조용)
+        const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
+                     || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)?.[1]
+                     || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]
+                     || '';
+        const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
+                    || html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1]
+                    || '';
+
+        // 노이즈 제거: script, style, nav, header, footer, aside, iframe, noscript
+        let cleaned = html
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+            .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
+
+        // 본문 추출 우선순위: <article> → <main> → class/id 패턴 → 전체
+        // <article>/<main>은 명확한 닫는 태그가 있으므로 그대로 사용.
+        // div/section 기반 패턴은 중첩 div 문제로 인해 닫는 태그 매칭 대신
+        // 열리는 태그 이후 전체를 가져오는 방식으로 처리.
+        const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
+                           || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+
+        // div/section: (열리는태그)(이후 전체) — group[2]가 본문
+        const divMatch = !semanticMatch && (
+            cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
+            || cleaned.match(/(<(?:div|section)[^>]*id=["'](?:article[-_]view|article[-_]content|article[-_]body|newsview|news[-_]view|read[-_]content)[^"']*["'][^>]*>)([\s\S]+)/i)
+        );
+
+        const bodyHtml = semanticMatch
+            ? (semanticMatch[1] || semanticMatch[0])
+            : divMatch
+            ? divMatch[2]
+            : cleaned;
+
+        const bodyText = bodyHtml
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/\[\d+\]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 15000);
+
+        // og 메타 + 본문 조합
+        let content = '';
+        if (ogTitle) content += `제목: ${ogTitle.trim()}\n`;
+        if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
+        content += bodyText;
 
         return res.status(200).json({ content: content.trim().slice(0, 17000) });
     } catch (error: any) {
