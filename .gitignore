@@ -89,3 +89,4 @@ scripts/test-school.mjs
 scripts/test-pharmacy-national.mjs
 out.txt
 test_pharm.cjs
+scripts/test-url-extract.mjs

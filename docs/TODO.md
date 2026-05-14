@@ -15,26 +15,29 @@
 5. 외부 API 확장 또는 동물병원 상세정보 선택형 보강
 
 판단 기준:
-- 모바일 첫 입력 공백은 실제 사용자 장애이므로 최우선.
+- 모바일 첫 입력 공백은 현재 재현 빈도가 낮아졌지만, 재발 시 사용자 장애가 크므로 최소 방어만 우선 검토.
 - 프롬프트 언어 혼합은 응답 품질과 다국어 일관성에 직접 영향.
 - 멀티턴 경고·차단은 컨텍스트 폭주와 비용/품질 저하를 줄이는 운영 안정화 항목.
 - LCP 개선은 인증/세션 초기화 흐름과 맞물리므로 모바일 안정화 후 진행.
 - 동물병원 상세정보 보강과 신규 외부 API는 core flow 안정화 이후 기능 확장으로 처리.
 
-### 모바일 초기 세션 공백 수정
+### 모바일 초기 세션 공백 최소 방어
 
-앱 시작 직후 쿼리 입력 시 입력값은 사라지지만 세션에 메시지가 붙지 않는 레이스 방지.
+현재는 `loadUserSessions()` 병합 보정 이후 재현 빈도가 낮아진 상태. 당장 큰 구조 변경은 보류하고, 빈 화면으로 보이는 상황을 줄이는 최소 개선만 후보로 유지.
 
-- [ ] `App.tsx` — 앱 루트 Error Boundary 추가로 모바일 흰 화면 대신 복구 UI 표시
-- [ ] `ChatArea.tsx` — `ChatMessage` lazy chunk 로드 실패 시 재시도/fallback 경로 검토
-- [ ] 모바일 uncaught error / unhandled rejection 로그 수집 경로 추가
-- [ ] `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락되는 경로 보정
-- [ ] `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback 검토
-- [ ] `ChatInput.tsx` — `onSend` 완료/수락 전 입력값·첨부 상태를 비우지 않도록 변경
-- [ ] `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 조기 return 대신 사용자 알림 + 입력 보존 경로 추가
-- [ ] `useChatSessions.ts` — DB 세션 목록 로드 후 유효한 `currentSessionId` 자동 선택
-- [ ] `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
+- [ ] `useChatSessions.ts` — `currentSessionId`가 있지만 `sessions` 배열에서 찾지 못할 때 유효 세션으로 자동 복구
+- [ ] `ChatArea.tsx` — `Suspense fallback={null}` 대신 메시지 skeleton/fallback 표시 검토
 - [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
+
+후순위 보류:
+- `App.tsx` — 앱 루트 Error Boundary 추가
+- `ChatArea.tsx` — `ChatMessage` lazy chunk 로드 실패 재시도
+- 모바일 uncaught error / unhandled rejection 로그 수집
+- `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락 보정
+- `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback
+- `ChatInput.tsx` — `onSend` 완료/수락 전 입력값·첨부 상태 보존
+- `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 사용자 알림 + 입력 보존
+- `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
 
 ### 프롬프트 언어 혼합 정리
 
