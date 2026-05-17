@@ -8,6 +8,7 @@ import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { pharmacyTool } from "../pharmacy-tool.js";
 import { hospitalTool } from "../hospital-tool.js";
 import { vetTool } from "../vet-tool.js";
+import { lawTool } from "../law-tool.js";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt.js";
 
@@ -52,7 +53,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         const resolvedModel = state.model || DEFAULT_CHAT_MODEL;
@@ -419,6 +420,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     allTools = [hospitalTool, searchWebTool];
                 } else if (state.intent === "vet_search") {
                     allTools = [vetTool, searchWebTool];
+                } else if (state.intent === "law_search") {
+                    allTools = [lawTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
@@ -443,6 +446,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
                     if (toolContent.includes('```json:vet')) {
                         console.log('[LangGraph] Fast-passing vetTool: Bypassing final LLM generation');
+                        return { messages: [new AIMessage("")] };
+                    }
+                }
+                if (state.intent === "law_search" && lastMsg._getType() === "tool" && lastMsg.name === "lawTool") {
+                    const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                    if (toolContent.includes('```json:law')) {
+                        console.log('[LangGraph] Fast-passing lawTool: Bypassing final LLM generation');
                         return { messages: [new AIMessage("")] };
                     }
                 }

@@ -43,6 +43,7 @@ export const routerNode = async (state: AgentStateType) => {
 
     // Fallback heuristic function
     const heuristicCheck = (): IntentType => {
+        if (/(법령|법률|법안|조항|제\d+\s*조|몇\s*조|도로교통법|교통법|소방법|소방기본법|민법|형법|상법|근로기준법|근로법|개인정보\s*보호법|개인정보법|판례|헌재|행정규칙|고시|법령해석)/.test(textContent)) return "law_search";
         if (textContent.includes("약국")) return "pharmacy_search";
         if (textContent.includes("동물병원") || textContent.includes("동물 병원") || textContent.includes("동물의원") || textContent.includes("동물 의료") || textContent.includes("동물의료") || textContent.includes("수의사") || textContent.includes("수의과")) return "vet_search";
         if (textContent.includes("병원") || textContent.includes("의원") || textContent.includes("응급실")) return "hospital_search";
@@ -71,13 +72,14 @@ export const routerNode = async (state: AgentStateType) => {
     if (apiKey) {
         try {
             const ai = new GoogleGenAI({ apiKey });
-            const prompt = `Classify the strictly main intent of the user message into one of these 11 categories:
+            const prompt = `Classify the strictly main intent of the user message into one of these 12 categories:
 - "drug_id"         : pill/tablet image identification (user has an image AND asks to identify it)
 - "drug_info"       : text-based drug name lookup, dosage, side effects, ingredients
 - "medical_qa"      : general medical or health question (symptoms, diseases, treatments, anatomy)
 - "pharmacy_search" : finding a pharmacy location, operating hours, night/holiday pharmacy (in Seoul)
 - "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
+- "law_search"      : Korean law/statute lookup, article text, legal provisions, law lists, legal interpretation requests
 - "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
 - "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
 - "physics"         : physics simulation, mechanics, force, motion, gravity, collision, electricity
@@ -93,7 +95,7 @@ export const routerNode = async (state: AgentStateType) => {
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }

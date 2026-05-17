@@ -14,6 +14,7 @@ export type IntentType =
     | "pharmacy_search" // 약국 위치/영업시간 탐색 (서울 한정)
     | "hospital_search" // 병원 위치/영업시간 탐색 (서울 한정)
     | "vet_search"    // 동물병원 위치 탐색 (전국)
+    | "law_search"    // 국가법령정보 조회
     | "general";     // 나머지 모든 것
 
 /**

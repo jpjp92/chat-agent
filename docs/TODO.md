@@ -191,8 +191,7 @@ _최종 수정: 2026-05-15 — SSRF 리다이렉트 차단을 우선순위 0으�
 router.ts — intent 분류
     ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
     ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
-    ├─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
-    └─ "law_search"       → LawTool        → 국가법령 API     → LawRenderer
+    └─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
 ```
 
 **공통 패턴** (각 Tool 동일):
@@ -261,27 +260,6 @@ router.ts — intent 분류
 
 ---
 
-#### ④ 국가법령정보 (우선순위 ★★)
-
-> OC: `jpjp9202` (키 없이 URL 파라미터로 사용)  
-> 2단계: 법령 검색(lawSearch) → 조문 조회(lawService)  
-> 활용: LLM 할루시네이션 없는 원문 기반 법령 답변
-
-**신규 파일**
-- [ ] `api/_lib/agent/tools/law-tool.ts`
-  - 1단계: `lawSearch` → 법령ID 획득
-  - 2단계: `lawService` → 조문 배열 파싱
-  - 사용자 질문과 관련 조문만 추출 → context 주입
-- [ ] `components/LawRenderer.tsx` — 법령 카드 (법령명·시행일·조문 accordion)
-
-**기존 파일 수정**
-- [ ] `state.ts` — `"law_search"` intent 추가
-- [ ] `router.ts` — 감지 패턴: `"법"`, `"법률"`, `"조항"`, `"규정"`, `"○○법 몇조"`
-- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
-- [ ] `.env` — `LAW_OC=jpjp9202` 추가
-
----
-
 ### 📋 구현 순서 (우선순위)
 
 ```
@@ -291,9 +269,6 @@ Phase 1 — 학술 정보:
 Phase 2 — 생활 정보:
   ② 서울 문화행사 Tool + CultureRenderer
   ③ NEIS 학교정보 Tool + SchoolRenderer
-
-Phase 3 — 전문 정보:
-  ④ 국가법령 Tool + LawRenderer
 ```
 
 ### ⚠️ 공통 주의사항
@@ -302,7 +277,18 @@ Phase 3 — 전문 정보:
 - **arXiv timeout**: `AbortSignal.timeout(6000)` + 실패 시 `"arXiv 서버 응답 없음, 잠시 후 재시도"` fallback
 - **PubMed 3단계**: esearch → esummary → efetch 순서 필수, `NCBI_KEY` 없으면 rate-limit 10 req/s
 - **NEIS 응답 파싱**: `data.schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 (구조 중첩)
-- **법령 API**: `lawSearch` 결과가 1건이면 배열이 아닌 객체로 반환 → `[].flat()` 처리 필수
+> 국가법령정보 현행 법령 MVP(`law_search` + LawRenderer)는 2026-05-17 구현 완료. 상세는 `DEV_260517.md`와 `Guide/LAW_API_TEST.md` 참고.
+
+### ⚖️ 국가법령정보 후속 확장
+
+현행 법령 목록/본문/조항호목 조회는 완료. 아래는 별도 intent 또는 `law_search` 확장으로 처리할 후속 범위.
+
+- [ ] 판례/헌재결정례/행정심판례 검색 (`case_search` 계열 intent 분리 검토)
+- [ ] 행정규칙·자치법규·고시 조회 지원
+- [ ] 법령해석례·중앙부처 1차 해석 조회 지원
+- [ ] 법령 연혁·신구법·3단 비교·변경이력 카드 확장
+- [ ] 법령용어/일상용어/관련법령 지식베이스 검색 보강
+- [ ] 별표·서식 목록 조회 및 원문 링크 카드 확장
 
 ---
 

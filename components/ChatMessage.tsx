@@ -20,6 +20,7 @@ const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ defau
 const PharmacyRenderer = lazy(() => import('./PharmacyRenderer').then(module => ({ default: module.PharmacyRenderer })));
 const HospitalRenderer = lazy(() => import('./HospitalRenderer').then(module => ({ default: module.HospitalRenderer })));
 const VetRenderer = lazy(() => import('./VetRenderer').then(module => ({ default: module.VetRenderer })));
+const LawRenderer = lazy(() => import('./LawRenderer').then(module => ({ default: module.LawRenderer })));
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
@@ -422,8 +423,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -473,6 +474,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'hospital', data: jsonData });
         } else if (blockType === 'vet') {
           parts.push({ type: 'vet', data: jsonData });
+        } else if (blockType === 'law') {
+          parts.push({ type: 'law', data: jsonData });
         }
       } catch (e) {
         // Silently skip invalid viz blocks — don't dump raw JSON into the chat
@@ -486,13 +489,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -612,6 +615,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <Suspense key={idx} fallback={<LoadingFallback />}>
                 <VetRenderer data={part.data} />
+              </Suspense>
+            );
+          }
+          if (part.type === 'law') {
+            return (
+              <Suspense key={idx} fallback={<LoadingFallback />}>
+                <LawRenderer data={part.data} />
               </Suspense>
             );
           }
