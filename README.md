@@ -45,7 +45,8 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 
 ### 1-5. ⚖️ Law-Viz — Korean Statute Cards
 - **Hybrid lookup**: `lawSearch.do?target=law` for candidate laws, then `lawService.do?target=law` for body/article text.
-- **Article links**: Body/article cards include per-article source links using `MST` + `JO` so users can open the official text directly.
+- **Hybrid intent parsing**: Router only selects `law_search`; `lawTool` then uses Gemini 2.5 Flash to normalize `{mode, law_name, article_no, query}` before Open API calls.
+- **Article links**: Body/article cards include per-article public source links so users can open the official text directly without exposing `LAW_OC`.
 - **Readable result views**: List results use compact cards, while article cards are collapsible and fixed-width; both paginate in groups of 5.
 - **Colloquial law names**: Common aliases such as `소방법`, `교통법`, `개인정보법`, and `근로법` are normalized to official search candidates.
 

@@ -1,11 +1,26 @@
 import { tool } from "@langchain/core/tools";
+import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import { getNextApiKey, markKeyRateLimited } from "../config.js";
+import { SERVER_MODELS } from "../models.js";
 
 const LAW_BASE_URL = "https://www.law.go.kr/DRF";
 const FETCH_TIMEOUT_MS = 15000;
 const FETCH_MAX_ATTEMPTS = 3;
 
 type LawSearchItem = Record<string, any>;
+type LawToolInput = {
+    query: string;
+    law_name?: string;
+    article_no?: string;
+    mode?: "list" | "body" | "article";
+};
+type LawQueryPlan = Required<Pick<LawToolInput, "query">> & {
+    law_name?: string;
+    article_no?: string;
+    mode: "list" | "body" | "article";
+    confidence?: number;
+};
 type NormalizedClause = {
     number: string;
     text: string;
@@ -110,6 +125,90 @@ function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function interpretLawQuery(input: LawToolInput): Promise<LawQueryPlan> {
+    const fallback = buildFallbackLawPlan(input);
+    const apiKey = getNextApiKey();
+    if (!apiKey) return fallback;
+
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: SERVER_MODELS.FLASH,
+            contents: [{
+                role: "user",
+                parts: [{
+                    text: `You are a Korean law query parser for the Korean National Law Information Center.
+
+Return ONLY JSON. Do not answer the legal question.
+
+Task:
+- Extract the official Korean statute search candidate into law_name.
+- Choose mode:
+  - "list": the user asks for related laws, law list, candidates, 법안/법령 목록.
+  - "article": the user asks for a specific article number such as 제44조, 44조, 제5조의2.
+  - "body": the user asks to explain/summarize/overview a specific statute or find provisions by topic without a specific article number.
+- Extract article_no only when a specific article number appears.
+- Keep query as the original user query, except remove obvious filler if the user only provided a law name plus 설명/요약/알려줘.
+- Normalize colloquial names:
+  - 소방법 -> 소방기본법 unless the user clearly asks broad 소방 related laws.
+  - 교통법 -> 도로교통법.
+  - 개인정보법/개인정보보호법 -> 개인정보 보호법.
+  - 근로법 -> 근로기준법.
+
+Examples:
+User: "개인정보 보호법 설명해줘"
+JSON: {"mode":"body","law_name":"개인정보 보호법","article_no":"","query":"개인정보 보호법","confidence":0.95}
+User: "소방법 관련법안 찾아줘"
+JSON: {"mode":"list","law_name":"소방기본법","article_no":"","query":"소방법 관련법안 찾아줘","confidence":0.8}
+User: "도로교통법 제44조 알려줘"
+JSON: {"mode":"article","law_name":"도로교통법","article_no":"제44조","query":"도로교통법 제44조","confidence":0.98}
+User: "도로교통법 신호위반 조항"
+JSON: {"mode":"body","law_name":"도로교통법","article_no":"","query":"도로교통법 신호위반 조항","confidence":0.9}
+
+Input tool args:
+${JSON.stringify(input)}`
+                }]
+            }],
+            config: { temperature: 0, responseMimeType: "application/json" },
+        });
+
+        const parsed = JSON.parse(response.text || "{}");
+        return normalizeLawPlan(parsed, fallback);
+    } catch (error: any) {
+        const isRateLimit = error?.status === 429 || String(error?.message || "").includes("429") || String(error?.message || "").includes("RESOURCE_EXHAUSTED");
+        if (isRateLimit) markKeyRateLimited(apiKey);
+        console.warn("[LawTool] Gemini query interpretation failed; using fallback plan:", error?.status || error?.message || error);
+        return fallback;
+    }
+}
+
+function buildFallbackLawPlan(input: LawToolInput): LawQueryPlan {
+    const mode = input.article_no ? "article" : (input.mode || "list");
+    return {
+        query: input.query,
+        law_name: input.law_name || "",
+        article_no: input.article_no || "",
+        mode,
+        confidence: 0,
+    };
+}
+
+function normalizeLawPlan(raw: any, fallback: LawQueryPlan): LawQueryPlan {
+    const parsedMode = raw?.mode === "list" || raw?.mode === "body" || raw?.mode === "article"
+        ? raw.mode
+        : fallback.mode;
+    const articleNo = String(raw?.article_no || fallback.article_no || "").trim();
+    const mode = articleNo ? "article" : parsedMode;
+
+    return {
+        query: String(raw?.query || fallback.query || "").trim() || fallback.query,
+        law_name: String(raw?.law_name || fallback.law_name || "").trim(),
+        article_no: articleNo,
+        mode,
+        confidence: typeof raw?.confidence === "number" ? raw.confidence : fallback.confidence,
+    };
+}
+
 async function searchLaws(query: string, display = 5): Promise<LawSearchItem[]> {
     const data = await fetchJson("lawSearch.do", {
         target: "law",
@@ -139,11 +238,14 @@ async function searchLawCandidates(query: string, display = 5): Promise<LawSearc
 function buildSearchQueries(query: string): string[] {
     const normalized = query.trim();
     const compacted = normalized
-        .replace(/관련\s*법안|관련\s*법령|주요\s*조항|전체\s*조항|본문|내용|정리|알려줘|보여줘|찾아줘/g, " ")
+        .replace(/관련\s*법안|관련\s*법령|주요\s*조항|전체\s*조항|본문|내용|정리|설명|해설|요약|알려\s*줘|알려\s*주세요|보여\s*줘|보여\s*주세요|찾아\s*줘|찾아\s*주세요|해\s*줘|해\s*주세요|해\s*달라|해\s*달라고/g, " ")
         .replace(/\s+/g, " ")
         .trim();
     const queries = [normalized, compacted];
 
+    if (normalized.includes("개인정보 보호법") || normalized.includes("개인정보보호법")) {
+        queries.push("개인정보 보호법");
+    }
     if (normalized.includes("소방법")) {
         queries.push("소방기본법", "소방");
     }
@@ -369,15 +471,11 @@ function buildToolResponse(payload: any): string {
 }
 
 export const lawTool = tool(
-    async ({ query, law_name, article_no, mode }: {
-        query: string;
-        law_name?: string;
-        article_no?: string;
-        mode?: "list" | "body" | "article";
-    }) => {
+    async ({ query, law_name, article_no, mode }: LawToolInput) => {
         try {
-            const resolvedMode = article_no ? "article" : (mode || "list");
-            const searchQuery = law_name || query;
+            const plan = await interpretLawQuery({ query, law_name, article_no, mode });
+            const resolvedMode = plan.mode;
+            const searchQuery = plan.law_name || plan.query;
 
             const laws = await searchLawCandidates(searchQuery, resolvedMode === "list" ? 10 : 5);
             if (laws.length === 0) {
@@ -393,23 +491,23 @@ export const lawTool = tool(
                 });
             }
 
-            const selected = laws.find((law) => law.법령명한글 === law_name || law.법령명한글 === query) || laws[0];
+            const selected = laws.find((law) => law.법령명한글 === plan.law_name || law.법령명한글 === plan.query) || laws[0];
             const detail = await fetchLawDetail({
-                lawName: selected.법령명한글 || law_name || searchQuery,
+                lawName: selected.법령명한글 || plan.law_name || searchQuery,
                 mst: selected.법령일련번호,
                 lawId: selected.법령ID,
-                articleNo: article_no,
+                articleNo: plan.article_no,
             });
 
             const articles = resolvedMode === "article"
                 ? detail.articles.slice(0, 1)
-                : scoreArticles(detail.articles, query, detail.law.name);
+                : scoreArticles(detail.articles, plan.query, detail.law.name);
 
             return buildToolResponse({
-                query,
+                query: plan.query,
                 mode: resolvedMode,
                 law: detail.law,
-                articleNo: article_no || "",
+                articleNo: plan.article_no || "",
                 articles,
             });
         } catch (error: any) {
