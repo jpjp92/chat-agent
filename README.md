@@ -151,6 +151,8 @@ flowchart TB
 | AI | Gemini 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
 | Database | Supabase (PostgreSQL, Storage, Auth) |
 
+> Next.js migration plan: [docs/Guide/NEXTJS_MIGRATION_PLAN.md](docs/Guide/NEXTJS_MIGRATION_PLAN.md)
+
 ### 3-1. Model Usage
 
 Model IDs are centralized to avoid scattered string literals:

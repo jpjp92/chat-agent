@@ -145,6 +145,7 @@
 - [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
+- [ ] Vite → Next.js 전환 플랜 검토 — `docs/Guide/NEXTJS_MIGRATION_PLAN.md`
 - [ ] `api/chat.ts` normalizer / stream-events / persistence 분리
 - [ ] `geminiService.ts` 에러 계약 통일 (Result 패턴)
 - [ ] `attachment` + `attachments` 필드 단일화
