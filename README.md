@@ -21,7 +21,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash**, combining **Supabas
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator nodes with intent-based path routing
 
-### 1-3. Visualization Renderers (8)
+### 1-3. Visualization Renderers (9)
 
 | Renderer | Intent | Trigger | Library |
 |----------|--------|---------|---------|
@@ -100,7 +100,7 @@ flowchart TB
         StateNode[("AgentState")]
         RouterNode{{"🧭 Semantic Router\n(10+ Intents)"}}
         Vision["👁️ Vision Node\n(Pill image analysis)"]
-        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / Hospital / DDG)"]
+        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / Hospital / Vet / DDG)"]
         Generator["📝 Generator Node\n(Gemini LLM)"]
     end
 
@@ -213,7 +213,7 @@ Model IDs are centralized to avoid scattered string literals:
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260512.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260514.md)
 │   ├── TODO.md                 # Roadmap
 │   ├── Guide/REF_*.md          # Renderer test prompt guides
 │   └── Guide/ERROR_HANDLING.md # 에러 처리 전체 구조 (7-layer map)

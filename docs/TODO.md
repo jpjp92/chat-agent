@@ -4,9 +4,29 @@
 
 ---
 
+## 🔴 우선순위 0 — 운영/보안 즉시 수정
+
+### SSRF 리다이렉트 차단
+
+현재 `api/fetch-url.ts`, `api/proxy-image.ts`는 최초 URL hostname 블록리스트는 적용하지만, `fetch()` 기본 동작이 302/301 리다이렉트를 자동 추적한다. 공격자가 허용된 외부 URL에서 `169.254.169.254` 등 내부 주소로 리다이렉트시키면 최초 검사 이후 우회 가능성이 남는다.
+
+- [ ] `api/fetch-url.ts` — 일반 URL fetch에 `redirect: 'manual'` 또는 `redirect: 'error'` 적용
+- [ ] `api/fetch-url.ts` — YouTube page fetch에도 동일한 리다이렉트 정책 적용 검토
+- [ ] `api/proxy-image.ts` — 외부 이미지 fetch에 리다이렉트 차단 적용
+- [ ] 공통 helper 검토 — URL hostname/IP 차단 로직 중복을 줄이고 Location 재검증 가능하게 정리
+- [ ] 회귀 검증 — 정상 URL 요약, Jina fallback, 프록시 이미지 로딩, 리다이렉트 차단 케이스 확인
+
+판단 기준:
+- 공개 배포 상태에서는 사용자 입력 URL을 서버가 직접 fetch하므로 기능 개선보다 먼저 닫아야 할 리스크.
+- IDOR 계열은 Supabase Auth/RLS 전환과 맞물리지만, SSRF 리다이렉트 차단은 현재 구조에서 독립적으로 작게 수정 가능.
+
+---
+
 ## 🟡 우선순위 1 — 기능 개선
 
 ### 다음 작업 우선순위
+
+> 우선순위 0의 SSRF 리다이렉트 차단을 먼저 처리한 뒤 진행.
 
 1. 모바일 초기 세션 공백 마무리
 2. 프롬프트 언어 혼합 정리
@@ -119,9 +139,9 @@
 - [ ] **IDOR-2** `api/sessions.ts:10-53` — 세션 접근 전 소유자 확인 추가
   - 현재: 세션 ID만 알면 타 사용자 대화 전체 열람·삭제·수정 가능 (GET/DELETE/PATCH 전부)
   - 수정: 각 작업 전 `user_id === authenticatedUser` 검증
-- [ ] **SSRF-1** `api/fetch-url.ts:76`, `api/proxy-image.ts:73` — 리다이렉트 추적 차단
+- [ ] **SSRF-1** `api/fetch-url.ts`, `api/proxy-image.ts` — 리다이렉트 추적 차단
   - 현재: hostname 블록리스트 적용 후 `fetch()`가 302 리다이렉트를 자동 추적 → `169.254.169.254` 우회 가능
-  - 수정: `{ redirect: 'error' }` 옵션 추가 또는 Location 헤더마다 블록리스트 재검증
+  - 수정: 우선순위 0으로 격상. `{ redirect: 'error' }` 또는 Location 헤더 재검증으로 별도 선처리
 - [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
@@ -133,8 +153,8 @@
 
 ### 시각화 카드 전체화면 팝업
 - [ ] `expandedViz` state + `VisualizationModal` Portal (`App.tsx`)
-- [ ] ESC 키 닫기, `onExpand` prop (ChatMessage.tsx 7종 렌더러)
-- [ ] `isExpanded` prop (BioRenderer.tsx), `isPaused` prop (PhysicsRenderer.tsx)
+- [ ] ESC 키 닫기, `onExpand` prop (ChatMessage.tsx 현재 렌더러 전체)
+- [ ] `isExpanded` prop (BioRenderer.tsx), `isPaused` prop (DiagramRenderer.tsx)
 
 ### 데이터 & 시각화
 - [ ] CSV/XLSX 파싱 고도화 (대용량 행 제한·샘플링, 다중 시트)
@@ -152,13 +172,13 @@
 
 ---
 
-_최종 수정: 2026-05-12 — 모델 확장 후보를 GPT-5 계열 중심으로 정리. 완료 항목은 DEV_HISTORY로 이관하고 TODO에서 제거. ChatInput 프랑스어·스페인어 placeholder 길이 조정. 프롬프트 언어 혼합 정리 계획 추가. 모바일 초기 세션 공백 이슈 수정 항목 추가._
+_최종 수정: 2026-05-15 — SSRF 리다이렉트 차단을 우선순위 0으로 격상. 모바일 초기 세션 공백 최소 방어는 기능 개선 1순위로 유지. 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
 
 ---
 
 ## 🌐 외부 API 통합 계획 (2026-05-06 수립)
 
-> **현황**: 7개 API 키 발급 및 연결 테스트 완료. 약국·병원 카드 디자인(v2) 프리뷰 완성.  
+> **전제**: 외부 API 키는 환경변수로 주입하고, 구조화된 카드 UI 패턴은 기존 약국·병원 구현을 재사용한다.  
 > **목표**: LLM 단독 답변 한계를 실시간 공공데이터로 보완 — 구조화된 카드 UI 렌더링.
 
 ---
@@ -188,7 +208,7 @@ router.ts — intent 분류
 
 #### ① arXiv + PubMed 논문 검색 (우선순위 ★★★)
 
-> 키: `NCBI_KEY` (.env 등록 완료), arXiv는 키 불필요  
+> 키: `NCBI_KEY`, arXiv는 키 불필요  
 > 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
 
 **신규 파일**
@@ -207,7 +227,7 @@ router.ts — intent 분류
 
 #### ② 서울 문화행사 (우선순위 ★★)
 
-> 키: `CULTURE_API_KEY` (.env 등록 완료)  
+> 키: `CULTURE_API_KEY`  
 > 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
 
 **신규 파일**
@@ -225,7 +245,7 @@ router.ts — intent 분류
 
 #### ③ 학교기본정보 NEIS (우선순위 ★★)
 
-> 키: `EDU_KEY` (.env 등록 완료)  
+> 키: `EDU_KEY`  
 > 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
 
 **신규 파일**
@@ -364,16 +384,16 @@ Phase 3 — 전문 정보:
 
 ---
 
-### 추가 예정 모델 목록
+### 추가 검토 후보 모델 목록
 
 | 모델 | 프로바이더 | 타입 | 주요 특징 |
 |------|-----------|------|----------|
-| `gemini-3.0-flash` (preview) | Google | Chat | 최신 플래그십, 멀티모달 강화 |
+| `gemini-3.0-flash` (preview) | Google | Chat | 차기 플래그십 후보, 멀티모달 강화 |
 | `gemini-3.1-flash-lite` (preview) | Google | Chat | 초경량, 라우터·분류용 후보 |
 | `imagen-4` | Google | ImageGen 전용 | 고품질 이미지 생성 — chat 아님, 별도 endpoint |
 | `gpt-5.2` | OpenAI | Chat/Reasoning | 고성능 일반·코딩·추론 후보 |
 | `gpt-5-mini` | OpenAI | Chat | 비용/속도 균형형 후보 |
-| `gpt-5.4-mini` | OpenAI | Chat | 경량 최신 모델 후보 |
+| `gpt-5.4-mini` | OpenAI | Chat | 경량 모델 후보 |
 
 ---
 
@@ -409,10 +429,9 @@ api/_lib/providers/
 
 ---
 
-#### M3 — 모델 레지스트리 (`api/_lib/models.ts`)
+#### M3 — 모델 메타데이터 레지스트리 (`api/_lib/models.ts`)
 
-기본 Gemini 모델 문자열 중앙화는 완료됨 (`api/_lib/models.ts`, `src/lib/models.ts`).  
-아래 항목은 멀티 프로바이더 확장 시 필요한 metadata registry로 남겨둔다.
+멀티 프로바이더 확장 시 필요한 provider / capability metadata registry를 추가한다.
 
 ```ts
 export const MODELS = {
@@ -792,7 +811,7 @@ if (part.type === 'image-gen') {
 
 ```
 선행 필수 (구조):
-  M3 기본 모델 레지스트리 완료 → M1 프로바이더 추상화 → M2 API 키 확장 → M3 metadata 확장
+  M1 프로바이더 추상화 → M2 API 키 확장 → M3 metadata 확장
 
 단기 (기능):
   Gemini 신모델(3.0-flash, 3.1-flash-lite) 추가 검토
