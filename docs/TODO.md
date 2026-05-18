@@ -371,16 +371,21 @@ Phase 2 — 생활 정보:
 
 ---
 
-### 추가 검토 후보 모델 목록
+### 추가 연동 타겟 모델 목록
 
-| 모델 | 프로바이더 | 타입 | 주요 특징 |
-|------|-----------|------|----------|
-| `gemini-3.0-flash` (preview) | Google | Chat | 차기 플래그십 후보, 멀티모달 강화 |
-| `gemini-3.1-flash-lite` (preview) | Google | Chat | 초경량, 라우터·분류용 후보 |
-| `imagen-4` | Google | ImageGen 전용 | 고품질 이미지 생성 — chat 아님, 별도 endpoint |
-| `gpt-5.2` | OpenAI | Chat/Reasoning | 고성능 일반·코딩·추론 후보 |
-| `gpt-5-mini` | OpenAI | Chat | 비용/속도 균형형 후보 |
-| `gpt-5.4-mini` | OpenAI | Chat | 경량 모델 후보 |
+| 모델 | 프로바이더 | 타입 | 주요 특징 | Rate Limit (RPM / TPM) |
+|------|-----------|------|----------|-------------------------|
+| `gemini-2.5-flash` | Google | Chat | 주력 멀티모달 (영상 분석 포함) | 1K RPM / 1M TPM |
+| `gemini-2.5-flash-lite` | Google | Chat | 고속 라우팅용 | 4K RPM / 4M TPM |
+| `gemini-3.1-flash-lite` | Google | Chat | 초경량, 라우터·분류용 후보 | 4K RPM / 4M TPM |
+| `gpt-5.2` | OpenAI | Chat/Reasoning | 고성능 추론 | 500 RPM / 500K TPM |
+| `gpt-5-mini` | OpenAI | Chat | 비용/속도 균형형 | 500 RPM / 500K TPM |
+| `gpt-5.4-mini` | OpenAI | Chat | 경량 모델 | 500 RPM / 200K TPM |
+| `claude-4.6-sonnet` | Anthropic | Chat | 고성능 추론 | 50 RPM / 30K TPM |
+| `claude-4.5-haiku` | Anthropic | Chat | 경량/고속 | 50 RPM / 50K TPM |
+
+> **Rate Limit 및 확장 기획 상세**: `docs/DEV_260518.md` 참조
+> (특히 Claude는 50 RPM으로 제한이 엄격하며, 멀티모달 생성 모델(TTS, Imagen)은 10 RPM이므로 큐(Queue)/백오프 관리가 필수적임)
 
 ---
 
