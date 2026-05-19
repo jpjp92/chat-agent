@@ -1,5 +1,44 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+const isAccessChallengeContent = (content: string) => {
+    const normalized = content.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!normalized) return false;
+
+    return (
+        /<title[^>]*>\s*just a moment/i.test(content) ||
+        normalized.includes('title: just a moment') ||
+        normalized.includes('performing security verification') ||
+        normalized.includes('requires captcha') ||
+        normalized.includes('requiring captcha') ||
+        normalized.includes('target url returned error 403') ||
+        normalized.includes('this website uses a security service to protect against') ||
+        normalized.includes('please make sure you are authorized to access this page')
+    );
+};
+
+const fetchViaJina = async (targetUrl: string): Promise<string | null> => {
+    const readerUrl = `https://r.jina.ai/${targetUrl}`;
+    const jinaController = new AbortController();
+    const jinaTimeout = setTimeout(() => jinaController.abort(), 12000);
+    const headers: Record<string, string> = { 'Accept': 'text/plain, text/markdown, */*' };
+    if (process.env.JINA_API_KEY) {
+        headers['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`;
+    }
+    try {
+        const jinaRes = await fetch(readerUrl, { signal: jinaController.signal, headers });
+        const jinaText = await jinaRes.text();
+        const normalized = jinaText.replace(/\s+/g, ' ').trim();
+        if (jinaRes.ok && normalized.length >= 100 && !isAccessChallengeContent(jinaText)) {
+            return normalized.slice(0, 17000);
+        }
+        return null;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(jinaTimeout);
+    }
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -85,9 +124,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             });
             html = await response.text();
-            // Cloudflare challenge 감지: 403 또는 <title>Just a moment...</title>
-            // 다른 패턴(cf-chl, challenge-platform 등)은 정상 사이트에서 오탐 가능하여 제외.
-            if (!response.ok || html.match(/<title[^>]*>\s*just a moment/i)) {
+            // Cloudflare/security challenge 감지: 실제 문서가 아니면 Jina fallback으로 넘긴다.
+            if (!response.ok || isAccessChallengeContent(html)) {
                 directFetchBlocked = true;
             }
         } finally {
@@ -96,24 +134,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Cloudflare 차단 감지 시 Jina Reader로 폴백
         if (directFetchBlocked) {
-            console.warn('[fetch-url] Direct fetch blocked, fallback to Jina Reader');
-            const readerUrl = `https://r.jina.ai/${targetUrl}`;
-            const jinaController = new AbortController();
-            const jinaTimeout = setTimeout(() => jinaController.abort(), 20000);
-            try {
-                const jinaRes = await fetch(readerUrl, {
-                    signal: jinaController.signal,
-                    headers: { 'Accept': 'text/plain, text/markdown, */*' },
-                });
-                const jinaText = await jinaRes.text();
-                if (jinaRes.ok && jinaText.trim().length >= 100) {
-                    return res.status(200).json({ content: jinaText.replace(/\s+/g, ' ').trim().slice(0, 17000) });
-                }
-            } catch (jinaError: any) {
-                console.warn('[fetch-url] Jina Reader failed:', jinaError.message);
-            } finally {
-                clearTimeout(jinaTimeout);
+            console.warn(`[fetch-url] Direct fetch blocked, fallback to Jina Reader${process.env.JINA_API_KEY ? ' (with API key)' : ''}`);
+            const jinaContent = await fetchViaJina(targetUrl);
+            if (jinaContent) {
+                return res.status(200).json({ content: jinaContent });
             }
+            console.warn('[fetch-url] Jina Reader failed');
             return res.status(502).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
         }
 
@@ -136,16 +162,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // <article>/<main>은 명확한 닫는 태그가 있으므로 그대로 사용.
         // div/section 기반 패턴은 중첩 div 문제로 인해 닫는 태그 매칭 대신
         // 열리는 태그 이후 전체를 가져오는 방식으로 처리.
-        const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
-                           || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+        const wikidocsPageMatch = cleaned.match(/<div[^>]*class=["'][^"']*\bpage-content\b[^"']*["'][^>]*>([\s\S]*?)<\/div>\s*<div[^>]*class=["'][^"']*\bmuted\b/i);
+
+        const semanticMatch = !wikidocsPageMatch && (
+            cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
+            || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
+        );
 
         // div/section: (열리는태그)(이후 전체) — group[2]가 본문
-        const divMatch = !semanticMatch && (
+        const divMatch = !wikidocsPageMatch && !semanticMatch && (
             cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
             || cleaned.match(/(<(?:div|section)[^>]*id=["'](?:article[-_]view|article[-_]content|article[-_]body|newsview|news[-_]view|read[-_]content)[^"']*["'][^>]*>)([\s\S]+)/i)
         );
 
-        const bodyHtml = semanticMatch
+        const bodyHtml = wikidocsPageMatch
+            ? wikidocsPageMatch[1]
+            : semanticMatch
             ? (semanticMatch[1] || semanticMatch[0])
             : divMatch
             ? divMatch[2]
@@ -162,6 +194,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .replace(/\s+/g, ' ')
             .trim()
             .slice(0, 15000);
+
+        // direct fetch 성공해도 본문이 너무 짧으면 (봇 차단 감지 미스 등) Jina로 재시도
+        if (bodyText.length < 200) {
+            console.warn('[fetch-url] Body too short after extraction, fallback to Jina Reader');
+            const jinaContent = await fetchViaJina(targetUrl);
+            if (jinaContent) {
+                return res.status(200).json({ content: jinaContent });
+            }
+        }
 
         // og 메타 + 본문 조합
         let content = '';

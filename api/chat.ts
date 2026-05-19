@@ -225,6 +225,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       try {
         let fullAiResponse = '';
+        const exactUrlFetchFailedMatch = enrichedWebContent.match(/\[URL_FETCH_FAILED: ([^\]\n]+)\]/);
+        if (exactUrlFetchFailedMatch) {
+          const failedUrl = exactUrlFetchFailedMatch[1];
+          const exactUrlFailureMessages: Record<string, string> = {
+            ko: `해당 URL의 원문을 가져오지 못했습니다: ${failedUrl}\n\n이 URL은 보안 확인, CAPTCHA, 접근 제한 등으로 서버에서 본문을 읽을 수 없습니다. 정확한 요약이 필요하면 페이지 본문을 붙여넣거나 접근 가능한 원문 URL을 제공해주세요.`,
+            en: `I could not retrieve the exact content of this URL: ${failedUrl}\n\nThe page appears to be blocked by security verification, CAPTCHA, or access restrictions. Please paste the page text or provide an accessible source URL for an exact summary.`,
+            es: `No pude obtener el contenido exacto de esta URL: ${failedUrl}\n\nLa página parece estar bloqueada por verificación de seguridad, CAPTCHA o restricciones de acceso. Pegue el texto de la página o proporcione una URL accesible para un resumen exacto.`,
+            fr: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée par une vérification de sécurité, un CAPTCHA ou des restrictions d'accès. Collez le texte de la page ou fournissez une URL accessible pour un résumé exact.`,
+          };
+
+          fullAiResponse = exactUrlFailureMessages[currentLangCode] ?? exactUrlFailureMessages.en;
+          sendEvent({ text: fullAiResponse });
+          sendEvent({ done: true });
+          res.end();
+
+          if (session_id) {
+            Promise.all([
+              supabase.from('chat_messages').insert({
+                session_id,
+                role: 'assistant',
+                content: fullAiResponse,
+                grounding_sources: null
+              }),
+              supabase.from('chat_sessions')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', session_id)
+            ]).then(([{ error: msgError }, { error: sessionError }]) => {
+              if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
+              if (sessionError) console.error('[Chat API] Session update error:', sessionError);
+            }).catch((dbError: any) => {
+              console.error('[Chat API] DB save failed:', dbError?.message ?? dbError);
+            });
+          }
+
+          return;
+        }
+
         // trackingEvent: generator.ts에서 SDK 스트리밍 청크를 보낼 때 fullAiResponse도 자동 누적
         const trackingEvent = (data: any) => {
           if (data.text) fullAiResponse += data.text;

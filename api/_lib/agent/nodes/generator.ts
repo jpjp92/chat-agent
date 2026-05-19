@@ -40,6 +40,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         if (state.webContent) {
             finalInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${state.webContent}`;
         }
+        if (state.webContent.includes('[URL_FETCH_FAILED:')) {
+            finalInstruction += `\n\n[EXACT_URL_FETCH_FAILURE]\nThe user provided a specific URL, but its exact content could not be retrieved. Do not use Google Search results, model memory, or similarly titled pages as a substitute summary. Tell the user that the exact URL content is unavailable and ask for pasted text or an accessible source if they need an exact summary.`;
+        }
         if (state.contextInfo) {
             finalInstruction += `\n\n${state.contextInfo}`;
         }
@@ -167,6 +170,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // 전혀 다른 기사를 요약하는 문제가 발생. URL이 제공된 이상 해당 URL 기반으로만 요약해야 함.
                     // [URL_CONTENT:...] 태그 자체가 "URL fetch 시도 완료" 신호이므로 길이 체크 제거.
                     const hasUrlContent = state.webContent.includes('[URL_CONTENT:');
+                    const hasUrlFetchFailed = state.webContent.includes('[URL_FETCH_FAILED:');
 
                     let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
                     // 1턴: transcript 또는 native video 있으면 Search 비활성 (영상 자체가 컨텍스트)
@@ -175,6 +179,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         useGoogleSearch = false;
                     }
                     if (hasUrlContent) {
+                        useGoogleSearch = false;
+                    }
+                    if (hasUrlFetchFailed) {
                         useGoogleSearch = false;
                     }
                     // medical_qa: 이미지 없는 경우 Google Search 강제 활성화
@@ -204,6 +211,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
                     if (hasUrlContent) {
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
+                    }
+                    if (hasUrlFetchFailed) {
+                        console.log('[LangGraph] Exact URL fetch failed — Google Search disabled to avoid summarizing unrelated pages');
                     }
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', resolvedMaxTokens, '| contentsLen:', sdkContents.length);

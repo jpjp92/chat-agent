@@ -278,25 +278,31 @@ export const useChatStream = ({
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
       } else {
+        const appendUrlFetchFailedContext = () => {
+          webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
+        };
+
         try {
           setLoadingStatus(statusMessages.fetchingUrl);
           const pageContent = await fetchUrlContent(url);
           if (pageContent) {
             webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
           } else {
-            console.warn('[useChatStream] URL fetch returned empty — skipping URL_CONTENT tag, Google Search will be used');
+            console.warn('[useChatStream] URL fetch returned empty — marking exact URL fetch as failed');
             urlFetchError = true;
+            appendUrlFetchFailedContext();
           }
           setLoadingStatus(null);
         } catch (urlError: any) {
           console.error('[useChatStream] URL fetch error:', urlError);
           setLoadingStatus(null);
           urlFetchError = true;
+          appendUrlFetchFailedContext();
         }
       }
 
-      // URL fetch 실패 시 에러를 띄우지 않음 — Google Search가 자동으로 대체
-      // (URL_CONTENT 태그가 없으면 generator에서 useGoogleSearch=true 유지)
+      // URL fetch 실패 시에는 정확한 URL 요약을 포기하고 안내하도록 마커만 전달한다.
+      // 검색 fallback은 비슷한 다른 문서를 요약할 수 있어 명시 URL 요약에서는 사용하지 않는다.
     }
 
     let hasError = false;

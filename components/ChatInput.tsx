@@ -16,6 +16,18 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_ATTACHMENTS = 3;
 
+const decodeTextFile = async (file: File): Promise<string> => {
+  const arrayBuffer = await file.arrayBuffer();
+
+  try {
+    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+    return utf8Decoder.decode(arrayBuffer);
+  } catch {
+    const eucKrDecoder = new TextDecoder('euc-kr');
+    return eucKrDecoder.decode(arrayBuffer);
+  }
+};
+
 // 이미지를 최대 1920px / JPEG 85%로 압축 — Vercel 4.5MB 페이로드 제한 대응
 // GIF는 Canvas 변환 시 애니메이션 프레임 소실로 원본 유지
 const compressImage = (dataUrl: string, mimeType: string): Promise<string> => {
@@ -258,15 +270,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       } else if (file.type === "text/plain" || file.type === "text/markdown" || file.type === "text/csv" ||
         file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
 
-        const arrayBuffer = await file.arrayBuffer();
-
-        try {
-          const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
-          extractedText = utf8Decoder.decode(arrayBuffer);
-        } catch (e) {
-          const eucKrDecoder = new TextDecoder('euc-kr');
-          extractedText = eucKrDecoder.decode(arrayBuffer);
-        }
+        extractedText = await decodeTextFile(file);
 
         if (file.name.endsWith(".csv")) {
           const lines = extractedText.split(/\r?\n/).filter(line => line.trim() !== "");

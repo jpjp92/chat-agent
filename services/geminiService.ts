@@ -120,7 +120,7 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
  */
 export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); // 15초: 서버사이드 10초 + 네트워크 여유
+  const timeout = setTimeout(() => controller.abort(), 25000); // 서버사이드 direct 10초 + Jina fallback 12초 + 네트워크 여유
   try {
     const response = await fetch('/api/fetch-url', {
       method: 'POST',
