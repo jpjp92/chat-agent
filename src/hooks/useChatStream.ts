@@ -301,7 +301,7 @@ export const useChatStream = ({
         }
       }
 
-      // URL fetch 실패 시에는 정확한 URL 요약을 포기하고 안내하도록 마커만 전달한다.
+      // URL fetch 실패 시 정확한 URL 요약을 포기하고 안내 메시지를 반환한다.
       // 검색 fallback은 비슷한 다른 문서를 요약할 수 있어 명시 URL 요약에서는 사용하지 않는다.
     }
 

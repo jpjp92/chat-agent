@@ -234,31 +234,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             es: `No pude obtener el contenido exacto de esta URL: ${failedUrl}\n\nLa página parece estar bloqueada por verificación de seguridad, CAPTCHA o restricciones de acceso. Pegue el texto de la página o proporcione una URL accesible para un resumen exacto.`,
             fr: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée par une vérification de sécurité, un CAPTCHA ou des restrictions d'accès. Collez le texte de la page ou fournissez une URL accessible pour un résumé exact.`,
           };
-
           fullAiResponse = exactUrlFailureMessages[currentLangCode] ?? exactUrlFailureMessages.en;
           sendEvent({ text: fullAiResponse });
           sendEvent({ done: true });
           res.end();
-
           if (session_id) {
             Promise.all([
-              supabase.from('chat_messages').insert({
-                session_id,
-                role: 'assistant',
-                content: fullAiResponse,
-                grounding_sources: null
-              }),
-              supabase.from('chat_sessions')
-                .update({ updated_at: new Date().toISOString() })
-                .eq('id', session_id)
-            ]).then(([{ error: msgError }, { error: sessionError }]) => {
-              if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
-              if (sessionError) console.error('[Chat API] Session update error:', sessionError);
-            }).catch((dbError: any) => {
-              console.error('[Chat API] DB save failed:', dbError?.message ?? dbError);
-            });
+              supabase.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null }),
+              supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', session_id)
+            ]).catch((dbError: any) => console.error('[Chat API] DB save failed:', dbError?.message ?? dbError));
           }
-
           return;
         }
 
