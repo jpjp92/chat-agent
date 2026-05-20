@@ -58,6 +58,80 @@
 - 무료 티어 제약은 유지하면서 검색 근거 수집은 2.5 Flash가 담당하고, 최종 정리/분석 품질은 3.5 Flash가 담당하는 역할 분리가 목표.
 - 항상 2단계로 보내면 지연 시간이 증가하므로 `useGoogleSearch && selectedModel === gemini-3.5-flash` 조건에서만 적용한다.
 
+### Gemini 3.x API 파라미터 분기 적용
+
+Gemini 3.5 Flash 공식 가이드에 따라 3.x 모델에서는 `temperature`·`topP`·`topK` 사용이 권장되지 않고, `thinkingBudget` 대신 `thinkingLevel` enum 사용을 권장한다. **2.5-flash 계열은 현재 config를 그대로 유지**하고, 3.5-flash 경로에서만 새 파라미터 적용.
+
+**마이그레이션 전략 — 모델 분기 함수로 통일**
+
+```ts
+// api/_lib/models.ts 또는 공통 헬퍼에 추가
+const GEMINI_3X_MODELS = new Set(["gemini-3.5-flash"]);
+export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
+```
+
+**영향 파일별 작업**
+
+- [ ] `api/_lib/models.ts` — `is3xModel(model: string): boolean` 헬퍼 추가
+- [ ] `generator.ts` — `effectiveModel`이 3.x이면 `temperature`·`topP`·`topK` 제거, 2.5-flash는 현행 유지
+- [ ] `generator.ts` — `thinkingBudget` → `thinkingLevel` 분기: 3.5-flash는 `{ thinkingLevel: "minimal" | "low" }`, 2.5-flash는 `{ thinkingBudget: 0 | 3000 }` 유지
+  - YouTube 요청: `minimal` (3.5) / `thinkingBudget: 0` (2.5)
+  - medical_qa: `low` (3.5) / `thinkingBudget: 3000` (2.5)
+- [ ] `summarize-title.ts` — SUMMARY_MODELS 순회 시 모델별 thinkingConfig 분기 (`is3xModel` 활용)
+- [ ] `vision.ts` — `ChatGoogleGenerativeAI`에 `temperature: 0.1` 사용 중, 3.5-flash이면 제거 검토 (LangChain 파라미터 전달 방식 확인 필요)
+- [ ] `drug-info-tool.ts` — 사용 모델 확인 후 3.5-flash이면 `temperature: 0.1` 제거
+- [ ] `law-tool.ts` — 사용 모델 확인 후 3.5-flash이면 `temperature: 0` 제거
+- [ ] `router.ts` — `ROUTER_MODEL = gemini-2.5-flash-lite` (2.x) → 변경 없음, 그대로 유지
+- [ ] 검증 — 3.5-flash 일반 채팅·medical_qa·YouTube 경로, 2.5-flash 폴백 경로 각각 동작 확인
+
+판단 기준:
+- 2.5-flash 계열은 `thinkingBudget`이 여전히 유효하고 `thinkingLevel`이 미지원일 수 있으므로 분기 없이 일괄 교체하지 않는다.
+- `router.ts`의 `temperature: 0`은 ROUTER_MODEL이 2.x이므로 가이드 적용 대상이 아니며 JSON 결정성을 위해 유지.
+- 3.5-flash의 reasoning은 기본 `thinkingLevel: "medium"`이므로, 별도 override가 없으면 undefined로 두면 된다 (가이드 기본값 사용).
+
+> ⚠️ **현재 상태 유의사항 (마이그레이션 전)**
+>
+> `generator.ts`의 `thinkingConfig`는 `effectiveModel`에 관계없이 동일하게 전달된다.
+> 즉, **2.5-flash 폴백 경로에도 동일한 config가 흘러들어간다.**
+>
+> | 경로 | 현재 전달값 | 문제 |
+> |---|---|---|
+> | YouTube + 네이티브 영상 | `{ thinkingBudget: 0 }` | 3.5-flash에서 deprecated — 동작 불확실 |
+> | medical_qa | `{ thinkingBudget: 3000 }` | 3.5-flash에서 deprecated — 동작 불확실 |
+> | 그 외 전부 | `undefined` | 3.5-flash 기본값 `medium` 사용 중 (의도된 동작) |
+>
+> - YouTube + medical_qa는 `is3xModel()` 분기 작업 전까지 `thinkingBudget`이 3.5-flash에서 무시되거나 오동작할 가능성이 있다.
+> - Google Search 폴백 경로(3.5 선택 → 2.5-flash로 교체)에서 thinkingConfig가 2.5-flash에 그대로 전달되므로 현재는 실질적으로 문제 없으나, 분기 적용 후에는 경로별 config를 명확히 분리해야 한다.
+
+### Gemini 3.5 Flash 토큰 관리 유의사항
+
+3.5 Flash는 max output 65k, 1M context로 스펙상 여유가 있지만, 멀티턴 누적 비용과 PDF 토큰 증가에 유의 필요.
+
+**Thought Preservation (자동 누적 — 주의)**
+
+3.5 Flash부터 멀티턴 대화에서 이전 추론 컨텍스트(thought signatures)가 SDK에 의해 히스토리에 자동 포함된다. 현재 `sdkContents`를 전체 히스토리 그대로 전달하고 있으므로, **대화가 길어질수록 입력 토큰이 누적 증가**한다.
+
+- [ ] `generator.ts` — 멀티턴 길이 기준(`MAX_HISTORY_TURNS` 등) 도달 시 thought signatures 제거 또는 히스토리 슬라이딩 윈도우 적용 검토
+- [ ] 멀티턴 경고·차단(20/30턴) 작업과 연계 — 토큰 비용 폭증 방지 측면에서 해당 작업의 우선순위 근거 추가
+- [ ] 단순 질의(`general` intent, 짧은 대화)에서 thought signatures 제거 여부 검토 (가이드 권장)
+
+**PDF 토큰 증가**
+
+가이드: "Migrating to Gemini 3 defaults may increase token usage for PDFs" — 2.5 대비 PDF 입력 토큰 비용 증가 가능성.
+
+- [ ] PDF 분석 경로(`hasDocumentContent`) 실측 — 입력 토큰 증가 여부 모니터링
+- [ ] 필요 시 `media_resolution` 파라미터 명시적 조정 검토 (가이드: `media_resolution_high` 또는 축소)
+
+**현재 maxOutputTokens 설정 — 유효 범위 내 (변경 불필요)**
+
+| 경로 | 현재 설정 | 3.5 Flash 상한 |
+|---|---|---|
+| 일반·코드 | 32,768 | 65,000 ✅ |
+| PDF·문서 | 16,384 | 65,000 ✅ |
+| YouTube·이미지·의학 등 | 4,096~8,192 | 65,000 ✅ |
+
+> 참고: 영상(YouTube/video) 토큰은 3.5 Flash에서 오히려 감소 가능성 있음 (가이드 명시).
+
 ### 모바일 초기 세션 공백 최소 방어
 
 현재는 `loadUserSessions()` 병합 보정 이후 재현 빈도가 낮아진 상태. 당장 큰 구조 변경은 보류하고, 빈 화면으로 보이는 상황을 줄이는 최소 개선만 후보로 유지.
@@ -67,7 +141,6 @@
 - [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
 
 후순위 보류:
-- `App.tsx` — 앱 루트 Error Boundary 추가
 - `ChatArea.tsx` — `ChatMessage` lazy chunk 로드 실패 재시도
 - 모바일 uncaught error / unhandled rejection 로그 수집
 - `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락 보정
@@ -95,12 +168,6 @@
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
 - [ ] `ChatArea.tsx` — 차단 배너 + 새 채팅 버튼
-
-### React Error Boundary (M4)
-
-훅 내 비동기 에러 발생 시 화이트스크린 방지.
-
-- [ ] `App.tsx` — Error Boundary 컴포넌트 추가
 
 ### 동물병원 상세정보 선택형 보강
 
@@ -163,6 +230,7 @@
 
 ### 아키텍처 리팩토링
 - [ ] Vite → Next.js 전환 플랜 검토 — `docs/Guide/NEXTJS_MIGRATION_PLAN.md`
+- [ ] **DTO 레이어 구성** — Next.js 마이그레이션 이후 처리. App Router Route Handlers / Server Actions 경계에서 Zod 스키마 기반 요청·응답 DTO 정의. 현재는 `types.ts` + 각 툴 내부 Zod 스키마로 충분.
 - [ ] `api/chat.ts` normalizer / stream-events / persistence 분리
 - [ ] `geminiService.ts` 에러 계약 통일 (Result 패턴)
 - [ ] `attachment` + `attachments` 필드 단일화
@@ -190,7 +258,7 @@
 
 ---
 
-_최종 수정: 2026-05-20 — Gemini 3.5 Flash 무료 티어 검색 제약에 따른 2.5 검색 digest → 3.5 최종 응답 2단계화 후보 추가. 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
+_최종 수정: 2026-05-20 — Gemini 3.5 Flash 무료 티어 검색 제약에 따른 2.5 검색 digest → 3.5 최종 응답 2단계화 후보 추가. Gemini 3.x API 파라미터 분기 적용 계획 추가 (2.5-flash 현행 유지, 3.5-flash는 thinkingLevel·temperature 제거 분기). 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
 
 ---
 

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import ErrorBoundary from './ErrorBoundary';
 import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -557,72 +558,92 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
           if (part.type === 'chart') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <ChartRenderer chartData={part.data} language={language} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <ChartRenderer chartData={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'chemical') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <ChemicalRenderer smiles={part.data.smiles} name={part.data.name || part.data.text} language={language} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <ChemicalRenderer smiles={part.data.smiles} name={part.data.name || part.data.text} language={language} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'bio') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <BioRenderer bioData={part.data} language={language} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <BioRenderer bioData={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'constellation') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <ConstellationRenderer data={part.data} language={language} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <ConstellationRenderer data={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'diagram') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <DiagramRenderer data={part.data} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <DiagramRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'drug') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <DrugRenderer data={part.data} language={language} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <DrugRenderer data={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'pharmacy') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <PharmacyRenderer data={part.data} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <PharmacyRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'hospital') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <HospitalRenderer data={part.data} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <HospitalRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'vet') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <VetRenderer data={part.data} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <VetRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'law') {
             return (
-              <Suspense key={idx} fallback={<LoadingFallback />}>
-                <LawRenderer data={part.data} />
-              </Suspense>
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <LawRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
             );
           }
           if (part.type === 'chart_loading') {
@@ -681,9 +702,11 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               );
               if (youtubeSource) {
                 return (
-                  <Suspense fallback={<div className="w-full aspect-video bg-slate-100 dark:bg-white/5 animate-pulse rounded-2xl mb-4" />}>
-                    <YoutubeEmbed url={youtubeSource.uri} />
-                  </Suspense>
+                  <ErrorBoundary>
+                    <Suspense fallback={<div className="w-full aspect-video bg-slate-100 dark:bg-white/5 animate-pulse rounded-2xl mb-4" />}>
+                      <YoutubeEmbed url={youtubeSource.uri} />
+                    </Suspense>
+                  </ErrorBoundary>
                 );
               }
               return null;
