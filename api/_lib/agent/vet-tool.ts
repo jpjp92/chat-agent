@@ -79,7 +79,6 @@ export const vetTool = tool(
             if (cleanSigungu && cleanSigungu.includes(' ')) {
                 const parts = cleanSigungu.split(/\s+/);
                 cleanSigungu = parts[parts.length - 1];
-                console.log(`[VetTool] sigungu 변환: ${sigungu} -> ${cleanSigungu}`);
             }
 
             const areaAddrQuery = [cleanSido, cleanSigungu].filter(Boolean).join(' ').trim();
@@ -87,7 +86,7 @@ export const vetTool = tool(
             const locationLabel = [cleanSido, cleanSigungu, cleanDongName, cleanHospitalName].filter(Boolean).join(' ').trim();
             const dongKeywords = getDongKeywords(cleanDongName);
 
-            console.log(`[VetTool] area="${areaAddrQuery}" dong="${cleanDongName || ''}" name="${cleanHospitalName || ''}"`);
+
 
             if (!VET_KEY) {
                 return `동물병원 API 키가 설정되어 있지 않습니다. [지시사항]: VET_KEY 환경변수 설정이 필요하다고 사용자에게 안내해 주세요.`;
@@ -130,7 +129,6 @@ export const vetTool = tool(
                 for (const query of queries) {
                     const rows = await fetchItems(field, query);
                     if (rows.length > 0) {
-                        if (query !== queries[0]) console.log(`[VetTool] ${field} fallback query="${query}"`);
                         return rows;
                     }
                 }

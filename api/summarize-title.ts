@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
-import { API_KEYS, getNextApiKey, markKeyRateLimited } from './_lib/config.js';
+import { API_KEYS, getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from './_lib/config.js';
 import { SUMMARY_MODELS } from './_lib/models.js';
 
 const TITLE_PROMPTS: any = {
@@ -73,7 +73,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } catch (error: any) {
                 const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
-                if (isRateLimit && apiKey) markKeyRateLimited(apiKey);
+                if (isRateLimit && apiKey) {
+                    if (isDailyQuotaError(error)) {
+                        markKeyDailyExhausted(apiKey);
+                    } else {
+                        markKeyRateLimited(apiKey);
+                    }
+                }
                 console.error(`[Title API] Failed with model ${model}:`, { status: error?.status, message: error.message });
             }
         }

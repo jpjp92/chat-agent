@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as NGL from 'ngl';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -179,7 +180,6 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         // 호버 감지 로직 개선
         stage.signals.hovered.removeAll();
         stage.signals.hovered.add((pickingProxy: any) => {
-            // 디버깅용: console.log("NGL Hover:", pickingProxy);
             if (pickingProxy && (pickingProxy.atom || pickingProxy.residue)) {
                 const atom = pickingProxy.atom;
                 const residue = pickingProxy.residue;
@@ -349,15 +349,18 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                 <div ref={stageRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
                             )}
 
-                            {/* Custom Premium Tooltip */}
+                        </div>
+
+                        {/* Custom Premium Tooltip - Portal로 document.body에 렌더링 (overflow-hidden/GPU 레이어 클리핑 완전 회피) */}
+                        {createPortal(
                             <AnimatePresence>
                                 {hoverInfo && (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.9, y: isMobile ? 20 : 10 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.9, y: isMobile ? 20 : 10 }}
-                                        className={isMobile ? "absolute bottom-16 left-4 right-4 z-50 pointer-events-none" : "fixed z-[9999] pointer-events-none"}
-                                        style={isMobile ? {} : {
+                                        className="fixed z-[9999] pointer-events-none"
+                                        style={{
                                             left: hoverInfo.x + 15,
                                             top: hoverInfo.y + 15
                                         }}
@@ -384,8 +387,9 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                                         </div>
                                     </motion.div>
                                 )}
-                            </AnimatePresence>
-                        </div>
+                            </AnimatePresence>,
+                            document.body
+                        )}
 
                         {/* Floating Footer Badges */}
                         <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between pointer-events-none">

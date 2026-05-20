@@ -4,6 +4,7 @@ import { API_KEYS } from './_lib/config.js';
 import { getSystemInstruction } from './_lib/agent/prompt.js';
 import { compileAgentGraph } from './_lib/agent/graph.js';
 import { DEFAULT_CHAT_MODEL } from './_lib/models.js';
+import { isDailyQuotaError, isAllKeysDailyExhausted } from './_lib/config.js';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 
 export const config = {
@@ -20,6 +21,12 @@ const CHAT_ERRORS: Record<string, Record<string, string>> = {
     en: 'Too many requests. Please try again in a moment.',
     es: 'Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.',
     fr: 'Trop de requêtes. Veuillez réessayer dans un instant.',
+  },
+  dailyExhausted: {
+    ko: '오늘의 API 사용량이 모두 소진되었습니다. 내일 다시 이용해주세요.',
+    en: 'Daily API quota has been exhausted. Please try again tomorrow.',
+    es: 'La cuota diaria de API se ha agotado. Por favor, inténtelo mañana.',
+    fr: 'Le quota API journalier est épuisé. Veuillez réessayer demain.',
   },
   unavailable: {
     ko: '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.',
@@ -474,8 +481,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const msg = error?.message ?? '';
     const lang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
     const errorType =
-      status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') ? 'rateLimit'
-      : msg.includes('No API key available') || msg.includes('API keys exhausted') || msg.includes('All API keys') ? 'rateLimit'
+      status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') ?
+        (isDailyQuotaError(error) || isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
+      : msg.includes('No API key available') || msg.includes('API keys exhausted') || msg.includes('All API keys') ?
+        (isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
       : status === 503 || msg.includes('503') || msg.includes('UNAVAILABLE') ? 'unavailable'
       : status === 401 || status === 403 ? 'auth'
       : 'generic';

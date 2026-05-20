@@ -1,6 +1,6 @@
 import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { getNextApiKey, markKeyRateLimited, API_KEYS } from "../../config.js";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config.js";
 import { DEFAULT_CHAT_MODEL } from "../../models.js";
 import { HumanMessage } from "@langchain/core/messages";
 
@@ -93,7 +93,11 @@ You MUST call the 'identify_pill' tool using the properties extracted above. Do 
         } catch (err: any) {
             const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
             if (isRateLimit && attempt < MAX_ATTEMPTS - 1) {
-                markKeyRateLimited(apiKey);
+                if (isDailyQuotaError(err)) {
+                    markKeyDailyExhausted(apiKey);
+                } else {
+                    markKeyRateLimited(apiKey);
+                }
                 const nextKey = getNextApiKey();
                 if (nextKey && nextKey !== apiKey) {
                     apiKey = nextKey;

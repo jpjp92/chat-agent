@@ -43,8 +43,6 @@ const range = (s: string, c: string) => s ? `${fmt(s)}~${fmt(c)}` : '휴무';
 export const pharmacyTool = tool(
     async ({ sido, sigungu, keyword, current_time_kst }: { sido: string; sigungu?: string; keyword?: string; current_time_kst?: string }) => {
         try {
-            console.log(`[PharmacyTool] LLM Parsed - 시도: ${sido}, 시군구: ${sigungu || '(없음)'}, 키워드: ${keyword || '(없음)'}`);
-
             // 현재 시간 계산
             const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
             const weekday = now.getDay(); // 0=sun,1=mon..6=sat
@@ -58,7 +56,6 @@ export const pharmacyTool = tool(
             if (cleanSigungu && cleanSigungu.includes(' ')) {
                 const parts = cleanSigungu.split(/\s+/);
                 cleanSigungu = parts[parts.length - 1];
-                console.log(`[PharmacyTool] sigungu 변환: ${sigungu} -> ${cleanSigungu} (API 인식 오류 방지)`);
             }
 
             // 1페이지에 최대 1000건을 한 번에 조회하여 넓은 구역(예: 전주시 전체)도 누락 없이 커버

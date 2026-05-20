@@ -1,8 +1,8 @@
 import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyInvalid, API_KEYS } from "../../config.js";
-import { DEFAULT_CHAT_MODEL } from "../../models.js";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config.js";
+import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../../models.js";
 import { identifyPillTool, searchWebTool } from "../tools.js";
 import { searchDrugInfoTool } from "../drug-info-tool.js";
 import { pharmacyTool } from "../pharmacy-tool.js";
@@ -61,6 +61,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
         // Google Search grounding is enabled unless multimodal content is present.
+        // NOTE: gemini-3.5-flash supports Google Search grounding, but it is not available
+        // on the free tier. When 3.5 Flash is selected and grounding is needed, fall back
+        // to 2.5 Flash for the grounded response.
+        const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
+        const needsSearchFallback = resolvedModel === SERVER_MODELS.FLASH_3_5;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
@@ -193,11 +198,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         if (state.intent === 'data_viz') return 8192;      // 차트 JSON + 설명
                         if (state.intent === 'astronomy') return 8192;     // 별자리 JSON + 설명
                         if (state.intent === 'biology') return 8192;       // PDB 구조 + 설명
-                        if (state.intent === 'chemistry') return 4096;     // SMILES + 설명
-                        if (state.intent === 'physics') return 4096;       // 다이어그램 JSON + 설명
+                        if (state.intent === 'chemistry') return 8192;     // SMILES + 설명 (grounding 대응)
+                        if (state.intent === 'physics') return 8192;       // 다이어그램 JSON + 설명 (grounding 대응)
                         if (state.intent === 'medical_qa') return 8192;    // 의학 Q&A + 출처
                         return 32768;                                        // 코드·일반
                     })();
+                    // Google Search grounding이 활성화되면 검색 결과 + 설명이 추가되어 토큰이 더 필요.
+                    // 멀티턴에서도 히스토리가 쌓인 상태에서 grounding 응답이 길어질 수 있으므로 최소 8192 보장.
+                    const effectiveMaxTokens = (useGoogleSearch && resolvedMaxTokens < 8192) ? 8192 : resolvedMaxTokens;
 
                     if ((hasMultimodalContent || historyHasImage) && !isYoutubeRequest) {
                         console.log('[LangGraph] Image in conversation — Google Search disabled', { hasMultimodalContent, historyHasImage });
@@ -206,7 +214,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
                     }
 
-                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', resolvedMaxTokens, '| contentsLen:', sdkContents.length);
+                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
                     // Streaming SDK call — emits chunks to client in real-time
                     // YouTube native video: disable thinking entirely to stay within Vercel 60s
                     // Video download + processing already takes 30-50s; thinking adds 10-20s more
@@ -218,9 +226,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         ? { thinkingBudget: 3000 }
                         : undefined;
 
+                    // gemini-3.5-flash Search grounding is not available on the free tier.
+                    // Fall back to 2.5 Flash for grounded calls; non-search calls keep the selected model.
+                    const effectiveModel = (useGoogleSearch && needsSearchFallback)
+                        ? SEARCH_FALLBACK_MODEL
+                        : resolvedModel;
+                    if (useGoogleSearch && needsSearchFallback) {
+                        console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
+                    }
 
                     const sdkStream = await genai.models.generateContentStream({
-                        model: resolvedModel,
+                        model: effectiveModel,
                         contents: sdkContents,
                         config: {
                             systemInstruction: finalInstruction,
@@ -228,7 +244,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             temperature: 0.2,
                             topP: 0.8,
                             topK: 40,
-                            maxOutputTokens: resolvedMaxTokens,
+                            maxOutputTokens: effectiveMaxTokens,
                             ...(thinkingConfig ? { thinkingConfig } : {}),
                         }
                     });
@@ -304,8 +320,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     if (!responseText) {
                         console.log('[LangGraph] Stream empty (chunkCount:', chunkCount, ') — falling back to generateContent');
                         for (const fbUseSearch of (useGoogleSearch ? [false, true] : [false])) {
+                            const fbEffectiveModel = (fbUseSearch && needsSearchFallback)
+                                ? SEARCH_FALLBACK_MODEL
+                                : resolvedModel;
                             const fallbackResponse = await genai.models.generateContent({
-                                model: resolvedModel,
+                                model: fbEffectiveModel,
                                 contents: sdkContents,
                                 config: {
                                     systemInstruction: finalInstruction,
@@ -313,7 +332,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     temperature: 0.2,
                                     topP: 0.8,
                                     topK: 40,
-                                    maxOutputTokens: resolvedMaxTokens,
+                                    maxOutputTokens: effectiveMaxTokens,
                                     ...(thinkingConfig ? { thinkingConfig } : {}),
                                 }
                             });
@@ -365,7 +384,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             continue;
                         }
                     } else if (isRateLimit || isUnavailable) {
-                        if (isRateLimit) markKeyRateLimited(sdkApiKey);
+                        if (isRateLimit) {
+                            if (isDailyQuotaError(err)) {
+                                markKeyDailyExhausted(sdkApiKey);
+                            } else {
+                                markKeyRateLimited(sdkApiKey);
+                            }
+                        }
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
@@ -488,7 +513,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     err.message.includes('503')
                 );
                 if (isRateLimit || isStreamError) {
-                    if (isRateLimit) markKeyRateLimited(lcApiKey);
+                    if (isRateLimit) {
+                        if (isDailyQuotaError(err)) {
+                            markKeyDailyExhausted(lcApiKey);
+                        } else {
+                            markKeyRateLimited(lcApiKey);
+                        }
+                    }
                     const nextKey = getNextApiKey();
                     if (nextKey && nextKey !== lcApiKey) {
                         lcApiKey = nextKey;

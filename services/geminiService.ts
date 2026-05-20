@@ -204,7 +204,7 @@ export const streamChatResponse = async (
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
   attachments?: MessageAttachment[],
-  model: string = 'gemini-2.5-flash',
+  model: string = 'gemini-3.5-flash',
   onCutOff?: () => void,
 ) => {
   const controller = new AbortController();

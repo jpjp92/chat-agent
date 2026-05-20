@@ -41,6 +41,23 @@
 - LCP 개선은 인증/세션 초기화 흐름과 맞물리므로 모바일 안정화 후 진행.
 - 동물병원 상세정보 보강과 신규 외부 API는 core flow 안정화 이후 기능 확장으로 처리.
 
+### Gemini 3.5 Flash 검색 응답 2단계화
+
+현재 무료 티어 API 키에서는 `gemini-3.5-flash`의 Google Search grounding이 제공되지 않으므로, 3.5 선택 + 검색 필요 시 `gemini-2.5-flash`로 폴백한다. 다만 현재 구조는 검색뿐 아니라 최종 응답 생성까지 2.5 Flash가 처리하므로, 3.5 선택의 품질 이점이 검색 경로에서 사라진다.
+
+- [ ] `generator.ts` — `3.5 Flash + useGoogleSearch` 경로를 단순 모델 폴백이 아니라 2단계 파이프라인으로 분리
+- [ ] 1차 호출 — `gemini-2.5-flash + googleSearch`로 짧은 검색 digest/facts/sources만 생성 (`maxOutputTokens` 2048~4096 검토)
+- [ ] 2차 호출 — `gemini-3.5-flash`가 검색 digest와 대화 맥락을 바탕으로 최종 응답 생성, Google Search는 비활성
+- [ ] 3.5 최종 응답 prompt — 검색 digest에 없는 사실은 추정하지 않도록 제한하고, 부족한 근거는 명시
+- [ ] thinking 정책 — 3.5 기본은 `thinkingLevel: "minimal"`, 의학/법률/복잡한 분석만 `"low"` 또는 `"medium"` 검토
+- [ ] fallback 정책 — 2단계 최종 생성 실패 시 2.5 grounded response를 그대로 반환해 안정성 유지
+- [ ] 소스 칩 — 1차 검색 호출의 `groundingMetadata`를 최종 3.5 응답에도 유지 전달
+- [ ] latency 검증 — 일반 검색, medical_qa, 긴 문서/YouTube follow-up에서 Vercel 60s 제한 내 동작 확인
+
+판단 기준:
+- 무료 티어 제약은 유지하면서 검색 근거 수집은 2.5 Flash가 담당하고, 최종 정리/분석 품질은 3.5 Flash가 담당하는 역할 분리가 목표.
+- 항상 2단계로 보내면 지연 시간이 증가하므로 `useGoogleSearch && selectedModel === gemini-3.5-flash` 조건에서만 적용한다.
+
 ### 모바일 초기 세션 공백 최소 방어
 
 현재는 `loadUserSessions()` 병합 보정 이후 재현 빈도가 낮아진 상태. 당장 큰 구조 변경은 보류하고, 빈 화면으로 보이는 상황을 줄이는 최소 개선만 후보로 유지.
@@ -173,7 +190,7 @@
 
 ---
 
-_최종 수정: 2026-05-15 — SSRF 리다이렉트 차단을 우선순위 0으로 격상. 모바일 초기 세션 공백 최소 방어는 기능 개선 1순위로 유지. 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
+_최종 수정: 2026-05-20 — Gemini 3.5 Flash 무료 티어 검색 제약에 따른 2.5 검색 digest → 3.5 최종 응답 2단계화 후보 추가. 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
 
 ---
 

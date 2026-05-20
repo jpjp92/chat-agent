@@ -205,8 +205,6 @@ export const hospitalTool = tool(
         hospital_type?: string;
     }) => {
         try {
-            console.log(`[HospitalTool] 시도: ${sido_name}, 시군구: ${sigungu_name || '(없음)'}, 동: ${dong_name || '(없음)'}, 병원명: ${hospital_name || '(없음)'}, 종별: ${hospital_type || '(없음)'}`);
-
             const sidoCd = SIDO_CODE[sido_name]
                 ?? SIDO_CODE[sido_name.replace(/특별시|광역시|특별자치시|특별자치도|도$/, '').trim()]
                 ?? CITY_TO_SIDO[sido_name]; // LLM이 시(市) 이름을 sido_name으로 넘긴 경우 fallback
@@ -228,8 +226,6 @@ export const hospitalTool = tool(
             if (clCd) baseQs.clCd = clCd;
 
             const url = `https://apis.data.go.kr/B551182/hospInfoServicev2/getHospBasisList?serviceKey=${HOSP_KEY}&${new URLSearchParams(baseQs)}`;
-            console.log(`[HospitalTool] sgguCd=${sgguCd ?? 'N/A'}, numOfRows=${numOfRows}, useSgguFilter=${useSgguFilter}`);
-
             const xml = await fetchXml(url);
 
             const errMatch = xml.match(/<errMsg>(.*?)<\/errMsg>/);
