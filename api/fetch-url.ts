@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 일반 URL: 10초 timeout
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
-        let html: string;
+        let html = '';
         let directFetchBlocked = false;
         try {
             const response = await fetch(targetUrl, {
@@ -90,6 +90,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!response.ok || html.match(/<title[^>]*>\s*just a moment/i)) {
                 directFetchBlocked = true;
             }
+        } catch (fetchError: any) {
+            // 네트워크 오류·타임아웃 등 fetch 자체 실패 → Jina 폴백 경로로 진입
+            console.warn('[fetch-url] Direct fetch threw:', fetchError.message);
+            directFetchBlocked = true;
         } finally {
             clearTimeout(timeout);
         }
@@ -163,11 +167,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .trim()
             .slice(0, 15000);
 
+        // SPA/JS-heavy 감지: body 추출 결과가 너무 짧으면 Jina로 재시도
+        // (Cloudflare 비차단 SPA는 200을 반환하지만 실제 본문이 JS 번들뿐인 경우)
+        if (bodyText.length < 300) {
+            console.warn('[fetch-url] Extracted body too short (' + bodyText.length + ' chars), trying Jina Reader');
+            const spaJinaController = new AbortController();
+            const spaJinaTimeout = setTimeout(() => spaJinaController.abort(), 20000);
+            try {
+                const spaJinaRes = await fetch(`https://r.jina.ai/${targetUrl}`, {
+                    signal: spaJinaController.signal,
+                    headers: { 'Accept': 'text/plain, text/markdown, */*' },
+                });
+                const spaJinaText = await spaJinaRes.text();
+                if (spaJinaRes.ok && spaJinaText.trim().length >= 100) {
+                    return res.status(200).json({ content: spaJinaText.replace(/\s+/g, ' ').trim().slice(0, 17000) });
+                }
+            } catch (e: any) {
+                console.warn('[fetch-url] Jina fallback for SPA failed:', e.message);
+            } finally {
+                clearTimeout(spaJinaTimeout);
+            }
+        }
+
         // og 메타 + 본문 조합
         let content = '';
         if (ogTitle) content += `제목: ${ogTitle.trim()}\n`;
         if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
         content += bodyText;
+
+        if (!content.trim()) {
+            return res.status(502).json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' });
+        }
 
         return res.status(200).json({ content: content.trim().slice(0, 17000) });
     } catch (error: any) {

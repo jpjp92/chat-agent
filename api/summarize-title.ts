@@ -39,9 +39,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return `Assistant: ${plain.slice(0, 500)}${plain.length > 500 ? '...' : ''}`;
     }).join("\n");
 
-    // Try each model with each API key
+    // Use the configured summary model with each API key.
+    // 503 (model unavailable) → skip remaining keys for this model, try next model immediately.
+    // 429 (rate limit) → rotate key, keep trying same model.
     for (const model of SUMMARY_MODELS) {
+        let modelUnavailable = false;
         for (let k = 0; k < API_KEYS.length; k++) {
+            if (modelUnavailable) break;
             const apiKey = getNextApiKey();
             if (!apiKey) continue;
             try {
@@ -72,7 +76,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     continue;
                 }
             } catch (error: any) {
-                const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
+                const status = error?.status;
+                const isRateLimit = status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
+                const isUnavailable = status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
+
+                if (isUnavailable) {
+                    // Model server is overloaded — rotating key won't help; skip to next model
+                    console.error(`[Title API] Model ${model} unavailable (503), skipping to next model.`);
+                    modelUnavailable = true;
+                    break;
+                }
                 if (isRateLimit && apiKey) {
                     if (isDailyQuotaError(error)) {
                         markKeyDailyExhausted(apiKey);
@@ -80,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         markKeyRateLimited(apiKey);
                     }
                 }
-                console.error(`[Title API] Failed with model ${model}:`, { status: error?.status, message: error.message });
+                console.error(`[Title API] Failed with model ${model}:`, { status, message: error.message });
             }
         }
     }

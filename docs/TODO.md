@@ -72,36 +72,48 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 
 **영향 파일별 작업**
 
-- [ ] `api/_lib/models.ts` — `is3xModel(model: string): boolean` 헬퍼 추가
+- [ ] `api/_lib/models.ts` — `is3xModel(model: string): boolean` 헬퍼 추가 (generator.ts 내 인라인으로 처리 중, 공식화 선택사항)
 - [ ] `generator.ts` — `effectiveModel`이 3.x이면 `temperature`·`topP`·`topK` 제거, 2.5-flash는 현행 유지
-- [ ] `generator.ts` — `thinkingBudget` → `thinkingLevel` 분기: 3.5-flash는 `{ thinkingLevel: "minimal" | "low" }`, 2.5-flash는 `{ thinkingBudget: 0 | 3000 }` 유지
-  - YouTube 요청: `minimal` (3.5) / `thinkingBudget: 0` (2.5)
-  - medical_qa: `low` (3.5) / `thinkingBudget: 3000` (2.5)
-- [ ] `summarize-title.ts` — SUMMARY_MODELS 순회 시 모델별 thinkingConfig 분기 (`is3xModel` 활용)
+- [x] `generator.ts` — thinkingConfig 모델 분기 적용 ✅ (2026-05-20)
+  - YouTube: 3.5-flash → `thinkingLevel: "minimal"`, 2.5-flash → `thinkingBudget: 0`
+  - 그 외 모든 경로: 3.5-flash → `thinkingLevel: "low"`, 2.5-flash → 기존 유지
+  - `effectiveModel` 기준 분기 (Google Search 폴백 경로도 올바르게 처리)
+- [x] `summarize-title.ts` — 제목 생성은 `gemini-2.5-flash-lite` 단일 사용으로 고정 ✅
 - [ ] `vision.ts` — `ChatGoogleGenerativeAI`에 `temperature: 0.1` 사용 중, 3.5-flash이면 제거 검토 (LangChain 파라미터 전달 방식 확인 필요)
-- [ ] `drug-info-tool.ts` — 사용 모델 확인 후 3.5-flash이면 `temperature: 0.1` 제거
-- [ ] `law-tool.ts` — 사용 모델 확인 후 3.5-flash이면 `temperature: 0` 제거
+- [ ] `drug-info-tool.ts` `searchDrugViaGoogleSearch` — `DEFAULT_CHAT_MODEL` (3.5-flash) 사용, `temperature: 0.1` 제거
+- [ ] `drug-info-tool.ts` `extractImprintViaVision` — `ChatGoogleGenerativeAI` + `DEFAULT_CHAT_MODEL` (3.5-flash), `temperature: 0.1` 제거
+- [ ] `law-tool.ts` `interpretLawQuery` — `SERVER_MODELS.FLASH` (2.5-flash, **2.x**) 사용 → 변경 없음, 유지
 - [ ] `router.ts` — `ROUTER_MODEL = gemini-2.5-flash-lite` (2.x) → 변경 없음, 그대로 유지
+- [ ] `generator.ts` LangChain path — `ChatGoogleGenerativeAI`에 `temperature: 0.2, topP: 0.8, topK: 40` 사용 중, `resolvedModel`이 3.5-flash이면 제거 (drug_id·drug_info·pharmacy·hospital·vet·law 경로)
+- [ ] `generator.ts` SDK non-streaming fallback (`generateContent`) — 동일 params, 동일 조건으로 제거
 - [ ] 검증 — 3.5-flash 일반 채팅·medical_qa·YouTube 경로, 2.5-flash 폴백 경로 각각 동작 확인
+
+**✅ Function Calling `id` 매칭 — 검증 완료 (2026-05-20)**
+
+가이드: "FunctionResponse마다 FunctionCall의 `id`를 반드시 포함해야 한다. 누락 시 3.x에서 `finish_reason: STOP`으로 빈 응답 반환."
+
+`scripts/test-lc-toolcall-35flash.ts`로 직접 검증 결과:
+- **3.5-flash**: API 응답에 `id` 직접 포함 (`"id":"tu6u4joe"`) → LangChain이 ToolMessage에 정상 전달 ✅
+- **2.5-flash**: API 응답에 `id` 없음 → LangChain(`@langchain/google-genai@2.1.22`)이 클라이언트에서 UUID 자동 생성 → 정상 ✅
+- 두 모델 모두 tool call 사이클 완료 후 최종 응답 정상 수신. **추가 조치 불필요.**
 
 판단 기준:
 - 2.5-flash 계열은 `thinkingBudget`이 여전히 유효하고 `thinkingLevel`이 미지원일 수 있으므로 분기 없이 일괄 교체하지 않는다.
-- `router.ts`의 `temperature: 0`은 ROUTER_MODEL이 2.x이므로 가이드 적용 대상이 아니며 JSON 결정성을 위해 유지.
+- `router.ts`·`law-tool.ts`의 temperature는 2.x 모델 사용이므로 가이드 적용 대상 아님, 그대로 유지.
 - 3.5-flash의 reasoning은 기본 `thinkingLevel: "medium"`이므로, 별도 override가 없으면 undefined로 두면 된다 (가이드 기본값 사용).
 
-> ⚠️ **현재 상태 유의사항 (마이그레이션 전)**
+> ✅ **thinkingConfig 분기 적용 완료 (2026-05-20)** — `test-thinking-35flash.ts` 3회 검증 후 적용
 >
-> `generator.ts`의 `thinkingConfig`는 `effectiveModel`에 관계없이 동일하게 전달된다.
-> 즉, **2.5-flash 폴백 경로에도 동일한 config가 흘러들어간다.**
+> `generator.ts`의 `thinkingConfig`는 `effectiveModel` 기준으로 모델별 분기됨.
 >
-> | 경로 | 현재 전달값 | 문제 |
+> | 경로 | 3.5-flash | 2.5-flash |
 > |---|---|---|
-> | YouTube + 네이티브 영상 | `{ thinkingBudget: 0 }` | 3.5-flash에서 deprecated — 동작 불확실 |
-> | medical_qa | `{ thinkingBudget: 3000 }` | 3.5-flash에서 deprecated — 동작 불확실 |
-> | 그 외 전부 | `undefined` | 3.5-flash 기본값 `medium` 사용 중 (의도된 동작) |
+> | YouTube 네이티브 영상 | `thinkingLevel: "minimal"` | `thinkingBudget: 0` |
+> | medical_qa | `thinkingLevel: "low"` | `thinkingBudget: 3000` |
+> | 그 외 전체 | `thinkingLevel: "low"` | `undefined` |
 >
-> - YouTube + medical_qa는 `is3xModel()` 분기 작업 전까지 `thinkingBudget`이 3.5-flash에서 무시되거나 오동작할 가능성이 있다.
-> - Google Search 폴백 경로(3.5 선택 → 2.5-flash로 교체)에서 thinkingConfig가 2.5-flash에 그대로 전달되므로 현재는 실질적으로 문제 없으나, 분기 적용 후에는 경로별 config를 명확히 분리해야 한다.
+> - 기본 모델도 3.5-flash → 2.5-flash로 변경됨 (3.5-flash는 헤더 드롭다운 두 번째 선택)
+> - 잔여 미적용: `temperature/topP/topK` 제거, LangChain path, drug-info-tool, vision.ts (아래 항목 참조)
 
 ### Gemini 3.5 Flash 토큰 관리 유의사항
 

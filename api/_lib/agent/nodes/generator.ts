@@ -79,6 +79,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 // Declare outside try so catch block can read them for duplicate-guard
                 let responseText = "";
                 let groundingSources: any[] = [];
+                let stage1FallbackText = "";
                 // Track whether this attempt included multimodal parts (readable in catch)
                 let hadMultimodalContent = false;
 
@@ -215,17 +216,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
-                    // Streaming SDK call — emits chunks to client in real-time
-                    // YouTube native video: disable thinking entirely to stay within Vercel 60s
-                    // Video download + processing already takes 30-50s; thinking adds 10-20s more
-                    // medical_qa: cap at 3,000 tokens — sufficient for Google Search result analysis
-                    //             without incurring the full default budget (~8k~16k tokens)
-                    const thinkingConfig = (isYoutubeRequest && hasVideoData)
-                        ? { thinkingBudget: 0 }
-                        : state.intent === 'medical_qa'
-                        ? { thinkingBudget: 3000 }
-                        : undefined;
-
                     // gemini-3.5-flash Search grounding is not available on the free tier.
                     // Fall back to 2.5 Flash for grounded calls; non-search calls keep the selected model.
                     const effectiveModel = (useGoogleSearch && needsSearchFallback)
@@ -235,128 +225,210 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
                     }
 
-                    const sdkStream = await genai.models.generateContentStream({
-                        model: effectiveModel,
-                        contents: sdkContents,
-                        config: {
-                            systemInstruction: finalInstruction,
-                            tools: useGoogleSearch ? [{ googleSearch: {} }] : undefined,
-                            temperature: 0.2,
-                            topP: 0.8,
-                            topK: 40,
-                            maxOutputTokens: effectiveMaxTokens,
-                            ...(thinkingConfig ? { thinkingConfig } : {}),
-                        }
-                    });
+                    // Thinking config — model-aware branching:
+                    // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
+                    //   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
+                    //     (video download 30~50s + medium thinking 15~25s → exceeds 60s limit)
+                    //   - All other 3.5-flash paths: "low" — prevents 60s timeout on complex queries
+                    //     (default "medium" can take 15~25s before first text output)
+                    // 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
+                    //   - YouTube: budget 0 (disable)
+                    //   - medical_qa: budget 3000 (cap)
+                    //   - Others: undefined (model default)
+                    const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
+                    const thinkingConfig = is3xModel
+                        ? (isYoutubeRequest && hasVideoData)
+                            ? { thinkingLevel: "minimal" as const }
+                            : { thinkingLevel: "low" as const }
+                        : (isYoutubeRequest && hasVideoData)
+                            ? { thinkingBudget: 0 }
+                            : state.intent === 'medical_qa'
+                            ? { thinkingBudget: 3000 }
+                            : undefined;
 
-                    let chunkCount = 0;
-                    let hitMaxTokens = false;
-                    // Buffer chars that could be the start of a split [N] citation (e.g. "[" arriving alone)
-                    let citationBuffer = '';
-                    // Regex to detect an incomplete [N] pattern at the end of a string
-                    const incompletecitation = /\s?\[\d*(?:,\s*\d*)*$/;
+                    // Two-track path for 3.5 + Google Search:
+                    // 1) 2.5-flash with Google Search for grounded facts
+                    // 2) 3.5-flash with minimal thinking for final synthesis
+                    if (useGoogleSearch && needsSearchFallback) {
+                        console.log('[LangGraph] Two-track enabled: stage1(2.5+search) -> stage2(3.5+minimal)');
 
-                    for await (const chunk of sdkStream) {
-                        chunkCount++;
-                        const candidate = chunk.candidates?.[0];
-                        const finishReason = candidate?.finishReason;
-                        if (finishReason === 'MAX_TOKENS') {
-                            hitMaxTokens = true;
-                            console.warn('[LangGraph] Response truncated — MAX_TOKENS reached (responseLen so far:', responseText.length, ')');
-                        }
-                        if (finishReason && finishReason !== 'STOP') {
-                            console.warn('[LangGraph] Non-STOP finishReason:', finishReason, JSON.stringify(candidate?.safetyRatings));
-                        }
-                        let chunkText = "";
-                        try { chunkText = chunk.text ?? ""; } catch (e: any) {
-                            console.warn('[LangGraph] chunk.text threw:', e?.message);
-                        }
-                        if (!chunkText && candidate?.content?.parts) {
-                            chunkText = candidate.content.parts
-                                .filter((p: any) => !p.thought)
-                                .map((p: any) => p.text || "").join("");
-                        }
-                        if (chunkText) {
-                            // Prepend any buffered incomplete citation from the previous chunk
-                            const combined = citationBuffer + chunkText;
-                            citationBuffer = '';
-                            let sanitized = combined.replace(/(.)\1{49,}/g, '$1$1$1');
-                            // Strip complete grounding inline citations — sources are shown as chips
-                            sanitized = sanitized.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
-                            // Hold back any trailing incomplete citation pattern for the next chunk
-                            const incomplete = sanitized.match(incompletecitation);
-                            if (incomplete) {
-                                citationBuffer = incomplete[0];
-                                sanitized = sanitized.slice(0, -citationBuffer.length);
+                        const stage1Response = await genai.models.generateContent({
+                            model: SEARCH_FALLBACK_MODEL,
+                            contents: sdkContents,
+                            config: {
+                                systemInstruction: finalInstruction,
+                                tools: [{ googleSearch: {} }],
+                                temperature: 0.2,
+                                topP: 0.8,
+                                topK: 40,
+                                maxOutputTokens: effectiveMaxTokens,
+                                ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
                             }
-                            if (sanitized.trim()) {
-                                responseText += sanitized;
-                                if (sendEvent) sendEvent({ text: sanitized });
+                        });
+
+                        const stage1Parts = stage1Response.candidates?.[0]?.content?.parts ?? [];
+                        let stage1Text = (stage1Response.text ?? stage1Parts
+                            .filter((p: any) => !p.thought)
+                            .map((p: any) => p.text || "")
+                            .join(""))
+                            .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
+                            .trim();
+
+                        const stage1Grounding = stage1Response.candidates?.[0]?.groundingMetadata;
+                        if (stage1Grounding?.groundingChunks) {
+                            groundingSources = stage1Grounding.groundingChunks
+                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                .filter(Boolean);
+                        }
+
+                        if (!stage1Text) {
+                            throw new Error('Two-track stage1 returned empty grounded text');
+                        }
+                        stage1FallbackText = stage1Text;
+
+                        // Keep synthesis input compact to reduce timeout risk.
+                        if (stage1Text.length > 8000) {
+                            stage1Text = stage1Text.slice(0, 8000);
+                        }
+
+                        const synthesisInstruction = [
+                            '[GROUNDING_NOTES_FROM_STAGE1]',
+                            stage1Text,
+                            '',
+                            '[SYNTHESIS_RULES]',
+                            '- Use ONLY the grounded notes above as factual source.',
+                            '- Do not add new external facts.',
+                            '- Preserve useful structure, clarity, and brevity.',
+                            '- If evidence is insufficient, state that clearly.',
+                        ].join('\n');
+
+                        let stage2ApiKey = sdkApiKey;
+                        let stage2Attempt = 0;
+                        let stage2QuotaExhausted = false;
+
+                        while (stage2Attempt < MAX_KEY_RETRIES) {
+                            try {
+                                const stage2Genai = new GoogleGenAI({ apiKey: stage2ApiKey });
+                                const stage2Response = await stage2Genai.models.generateContent({
+                                    // Stage2 synthesis must run on the originally selected model (3.5),
+                                    // not on effectiveModel (2.5 used only for Stage1 grounding).
+                                    model: resolvedModel,
+                                    contents: [{ role: 'user', parts: [{ text: synthesisInstruction }] }],
+                                    config: {
+                                        maxOutputTokens: effectiveMaxTokens,
+                                        thinkingConfig: { thinkingLevel: 'minimal' as any },
+                                    },
+                                });
+
+                                responseText = stage2Response.text || '';
+                                break;
+                            } catch (error: any) {
+                                const status = error?.status ?? error?.code;
+                                if (status === 429 || status === 503) {
+                                    stage2Attempt += 1;
+                                    // Daily/project-level quota exhausted — rotating keys won't help
+                                    // Skip remaining key retries and go directly to 2.5 fallback
+                                    if (isDailyQuotaError(error)) {
+                                        console.warn(`[LangGraph] Stage2 daily quota exhausted for ${resolvedModel}. Skipping key rotation → 2.5 fallback.`);
+                                        markKeyDailyExhausted(stage2ApiKey);
+                                        stage2QuotaExhausted = true;
+                                        break;
+                                    }
+                                    console.warn(`[LangGraph] Stage2 quota error (${status}) attempt ${stage2Attempt}/${MAX_KEY_RETRIES}. Rotating API key.`);
+                                    if (stage2Attempt >= MAX_KEY_RETRIES) {
+                                        stage2QuotaExhausted = true;
+                                        break;
+                                    }
+                                    const nextStage2Key = getNextApiKey();
+                                    if (!nextStage2Key) {
+                                        stage2QuotaExhausted = true;
+                                        break;
+                                    }
+                                    stage2ApiKey = nextStage2Key;
+                                    continue;
+                                }
+                                throw error;
                             }
                         }
-                        // Grounding metadata arrives on final chunk
-                        const gm = chunk.candidates?.[0]?.groundingMetadata;
-                        if (gm?.groundingChunks) {
-                            groundingSources = gm.groundingChunks
+
+                        if (stage2QuotaExhausted) {
+                            console.warn('[LangGraph] Stage2 exhausted all API keys. Falling back to 2.5 synthesis.');
+                            let fallbackSuccess = false;
+                            for (let retryIdx = 0; retryIdx < MAX_KEY_RETRIES; retryIdx++) {
+                                try {
+                                    const fallbackKey = getNextApiKey() ?? sdkApiKey;
+                                    const fallbackGenai = new GoogleGenAI({ apiKey: fallbackKey });
+                                    const fallbackResponse = await fallbackGenai.models.generateContent({
+                                        model: SEARCH_FALLBACK_MODEL,
+                                        contents: [{ role: 'user', parts: [{ text: synthesisInstruction }] }],
+                                        config: {
+                                            temperature: 0.2,
+                                            topP: 0.8,
+                                            topK: 40,
+                                            maxOutputTokens: effectiveMaxTokens,
+                                            ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
+                                        },
+                                    });
+                                    responseText = fallbackResponse.text || stage1Text;
+                                    fallbackSuccess = true;
+                                    console.log('[LangGraph] Stage2 fallback to 2.5 succeeded');
+                                    break;
+                                } catch (fallbackError: any) {
+                                    const fbStatus = fallbackError?.status ?? fallbackError?.code;
+                                    if (fbStatus === 429 || fbStatus === 503) {
+                                        console.warn(`[LangGraph] Stage2 fallback retry ${retryIdx + 1}/${MAX_KEY_RETRIES} failed with ${fbStatus}`);
+                                        continue;
+                                    }
+                                    console.error('[LangGraph] Stage2 fallback fatal error:', fallbackError.message);
+                                    break;
+                                }
+                            }
+                            
+                            // If all fallback attempts failed, use stage1Text as fallback
+                            if (!fallbackSuccess) {
+                                console.warn('[LangGraph] Stage2 fallback exhausted. Using Stage1 grounded text as response.');
+                                responseText = stage1Text;
+                            }
+                        }
+
+                        if (!responseText && stage1FallbackText) {
+                            console.warn('[LangGraph] Stage2 returned empty text. Using Stage1 grounded text as safe fallback.');
+                            responseText = stage1FallbackText;
+                        }
+                    } else {
+                        const singlePassResponse = await genai.models.generateContent({
+                            model: effectiveModel,
+                            contents: sdkContents,
+                            config: {
+                                systemInstruction: finalInstruction,
+                                ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
+                                ...(is3xModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
+                                maxOutputTokens: effectiveMaxTokens,
+                                ...(thinkingConfig ? { thinkingConfig: thinkingConfig as any } : {}),
+                            }
+                        });
+
+                        const singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
+                        responseText = (singlePassResponse.text ?? singleParts
+                            .filter((p: any) => !p.thought)
+                            .map((p: any) => p.text || '')
+                            .join('')).trim();
+
+                        const singleGrounding = singlePassResponse.candidates?.[0]?.groundingMetadata;
+                        if (singleGrounding?.groundingChunks) {
+                            groundingSources = singleGrounding.groundingChunks
                                 .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
                                 .filter(Boolean);
                         }
                     }
 
-                    // Flush any remaining buffer (incomplete pattern at stream end = not a citation)
-                    if (citationBuffer) {
-                        responseText += citationBuffer;
-                        if (sendEvent) sendEvent({ text: citationBuffer });
-                        citationBuffer = '';
-                    }
-
-                    if (hitMaxTokens && sendEvent) sendEvent({ cutOff: true });
-
-                    console.log('[LangGraph] SDK stream done | chunkCount:', chunkCount, '| responseLen:', responseText.length, '| sources:', groundingSources.length);
-
-                    // Fallback: if streaming returned no text (e.g. vercel dev proxy buffers SSE chunks),
-                    // retry with non-streaming generateContent. First try with Google Search off
-                    // (grounding can alter response structure), then with it on.
                     if (!responseText) {
-                        console.log('[LangGraph] Stream empty (chunkCount:', chunkCount, ') — falling back to generateContent');
-                        for (const fbUseSearch of (useGoogleSearch ? [false, true] : [false])) {
-                            const fbEffectiveModel = (fbUseSearch && needsSearchFallback)
-                                ? SEARCH_FALLBACK_MODEL
-                                : resolvedModel;
-                            const fallbackResponse = await genai.models.generateContent({
-                                model: fbEffectiveModel,
-                                contents: sdkContents,
-                                config: {
-                                    systemInstruction: finalInstruction,
-                                    tools: fbUseSearch ? [{ googleSearch: {} }] : undefined,
-                                    temperature: 0.2,
-                                    topP: 0.8,
-                                    topK: 40,
-                                    maxOutputTokens: effectiveMaxTokens,
-                                    ...(thinkingConfig ? { thinkingConfig } : {}),
-                                }
-                            });
-                            // Extract text from parts directly to handle thought-only or grounding responses
-                            const fbParts = fallbackResponse.candidates?.[0]?.content?.parts ?? [];
-                            responseText = (fallbackResponse.text ?? fbParts.filter((p: any) => !p.thought).map((p: any) => p.text || "").join("")).trim();
-                            const fbGrounding = fallbackResponse.candidates?.[0]?.groundingMetadata;
-                            if (fbGrounding?.groundingChunks) {
-                                groundingSources = fbGrounding.groundingChunks
-                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                    .filter(Boolean);
-                            }
-                            console.log('[LangGraph] Fallback generateContent | search:', fbUseSearch, '| responseLen:', responseText.length);
-                            if (responseText) {
-                                // Strip grounding inline citations before sending — sources are shown as chips
-                                responseText = responseText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
-                                if (sendEvent) sendEvent({ text: responseText });
-                                break;
-                            }
-                        }
+                        throw new Error('SDK returned empty response text');
                     }
 
+                    if (sendEvent && responseText) sendEvent({ text: responseText });
                     if (groundingSources.length > 0) {
-                        console.log(`[LangGraph] Found ${groundingSources.length} grounding sources`);
+                        console.log(`[LangGraph] Two-track grounding sources: ${groundingSources.length}`);
                     }
 
                     sdkSuccess = true;
@@ -423,12 +495,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
         while (lcAttempt < API_KEYS.length) {
             try {
+                const is3xLcModel = resolvedModel === SERVER_MODELS.FLASH_3_5;
                 const llm = new ChatGoogleGenerativeAI({
                     model: resolvedModel,
                     apiKey: lcApiKey,
-                    temperature: 0.2,
-                    topP: 0.8,
-                    topK: 40,
+                    ...(is3xLcModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
                     // Drug card JSON is compact — 8192 is sufficient and reduces Vercel 60s timeout risk
                     maxOutputTokens: 8192,
                     maxRetries: 0,

@@ -37,9 +37,16 @@ export const isDailyQuotaError = (err: any): boolean => {
         msg.includes('per day') ||
         msg.includes('daily') ||
         msg.includes('quota_exceeded') ||
+        // Gemini free tier daily limit: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+        // err.message가 JSON 문자열 전체이므로 msg(소문자화)에서 camelCase 패턴 검사
+        msg.includes('perday') ||
+        msg.includes('freetier') ||
         details.includes('per day') ||
         details.includes('daily') ||
-        details.includes('quota_exceeded')
+        details.includes('quota_exceeded') ||
+        details.includes('perday') ||
+        details.includes('free_tier') ||
+        details.includes('freetier')
     );
 };
 
