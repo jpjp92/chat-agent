@@ -16,6 +16,11 @@
 
 현재 구조는 SPA + Vercel Functions에 가깝다. Next.js 전환의 1차 목표는 SSR 앱 재작성보다 **동일 UX를 유지한 App Router 기반 SPA shell + Route Handlers**로 옮기는 것이다.
 
+2026-05-21 재검토 기준:
+- 전환 목적은 성능 최적화보다 **API 경계 정리, server-only 코드 격리, 향후 DTO/Auth/RLS 작업 기반 마련**에 둔다.
+- `api/chat.ts` SSE와 파일 업로드/body size 계약이 가장 큰 위험 지점이다.
+- `App.tsx`와 대부분 렌더러는 browser-only API를 사용하므로, 초기 전환에서는 React Server Components 최적화를 시도하지 않는다.
+
 ---
 
 ## 2. 전환 원칙
@@ -25,6 +30,8 @@
 3. 채팅 UI는 우선 Client Component로 유지한다.
 4. `fetch-url`, `proxy-image`, `sync-drug-image`의 SSRF 리다이렉트 차단은 Next.js 이전 전에 완료한다.
 5. Supabase Auth/RLS 전환은 Next.js 이전과 분리한다.
+6. `api/chat.ts` SSE 이전은 마지막 단계로 둔다. 일반 JSON API 이전 성공 후 별도 검증한다.
+7. Route Handler는 기본적으로 Node runtime을 사용한다. Gemini SDK, LangGraph, Supabase service role, 파일 처리 경로를 Edge runtime으로 옮기지 않는다.
 
 ---
 
@@ -69,6 +76,19 @@ server/
 - P0 SSRF 리다이렉트 차단 완료
 - `.env.local` / Vercel 환경변수 목록 정리
 - 현재 Vite production build warning과 큰 chunk 목록 기록
+- 현재 API 계약 스냅샷 기록:
+  - `/api/chat` SSE 이벤트: `text`, `sources`, `heartbeat`, `cutOff`, `done`, `error`
+  - `/api/chat` body size: Vercel Function `10mb`
+  - `/api/upload` body size: Vercel Function `30mb`
+  - `/api/proxy-image` binary image response
+- `api/chat.ts`를 세부 함수로 먼저 쪼개는지 검토:
+  - request normalization
+  - SSE event writing
+  - LangGraph event loop
+  - source extraction
+  - DB persistence
+
+> `api/chat.ts` 분리는 Next 전환의 필수 선행 작업은 아니지만, Route Handler 이전 난도를 낮춘다.
 
 ### Phase 1. Next.js 기본 골격 추가
 
@@ -94,6 +114,16 @@ server/
 - lazy renderer들은 Client Component 경계 안에서 유지
 - `public/data/constellations.json` 접근 경로 확인
 
+현재 확인된 browser-only 지점:
+- `App.tsx`: `localStorage`, `document.documentElement`, `window.location`, custom event
+- `services/geminiService.ts`: `AudioContext`, `atob`, SSE `ReadableStream` reader
+- `ChatInput.tsx`: `FileReader`, canvas resize, `window.innerWidth`
+- `ChatMessage.tsx`: clipboard, `window.open`, TTS audio unlock, context menu positioning
+- visualization renderers: canvas, NGL/WebGL, `document.body` Portal, download link 생성
+- `utils/astronomyHelper.ts`: `navigator.geolocation`
+
+초기 전환에서는 `app/page.tsx`가 client wrapper를 렌더링하고, 기존 `App` 이하를 전부 Client Component graph로 유지한다.
+
 ### Phase 3. API Route Handler 이전
 
 기존 `api/*.ts`를 `app/api/*/route.ts`로 이전한다.
@@ -118,12 +148,67 @@ server/
 - SSE 응답은 `ReadableStream` 기반으로 재구성
 - `maxDuration`은 route segment config 또는 Vercel 설정으로 이전
 - Node runtime 필요 route는 `export const runtime = 'nodejs'`
+- `api/chat.ts`의 `res.write()` 기반 SSE는 `ReadableStream` + `TextEncoder`로 이전
+- `api/upload.ts`와 `api/chat.ts`의 body size 설정은 Next.js Route Handler에서 별도 확인 필요
+- `api/proxy-image.ts`는 `Buffer` binary 응답을 `Response` body로 변환
+- `api/fetch-transcript.ts`는 이미 `Request`/`Response` 형태에 가까워 이전 난도가 낮음
+
+Route Handler 공통 config 권장:
+
+```ts
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+```
+
+SSE route skeleton:
+
+```ts
+export async function POST(req: NextRequest) {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (data: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
+
+      try {
+        // 기존 LangGraph streamEvents 루프 이전
+        sendEvent({ done: true });
+      } catch (error) {
+        sendEvent({ error: '...' });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+```
 
 ### Phase 4. Server-only 보호
 
 - `server/**`에 `server-only` 적용 검토
 - `api/_lib/config.ts`의 환경변수 로딩이 client bundle에 포함되지 않는지 확인
 - `LAW_OC`, Supabase service role, Gemini API key가 클라이언트 chunk에 노출되지 않는지 grep/build 결과로 검증
+
+권장 구조:
+- `server/config.ts`, `server/supabase.ts`, `server/models.ts`, `server/agent/**` 상단에 `import 'server-only';` 적용
+- Route Handler만 `server/**`를 import
+- Client 코드(`App.tsx`, `services/geminiService.ts`, hooks, renderers)는 `server/**` import 금지
+- build 후 `.next/static` 기준으로 secret-like 문자열 grep:
+  - `API_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `LAW_OC`
+  - 실제 env 값 prefix 일부
 
 ### Phase 5. Vercel 설정 이전
 
@@ -161,6 +246,9 @@ server/
 | API 응답 계약 변경 | 프론트 훅 깨짐 | `services/geminiService.ts` 계약 유지 |
 | Vercel maxDuration 차이 | 긴 응답 중단 | route config로 명시 |
 | 번들 재분할 | 초기 로딩 변동 | 전환 후 Lighthouse 재측정 |
+| body size 설정 차이 | 이미지/PDF 업로드 실패 | `chat` 10mb, `upload` 30mb 계약 별도 검증 |
+| binary response 변환 | 프록시 이미지 깨짐 | `proxy-image`를 별도 검증 대상에 포함 |
+| Route Handler caching | API 응답 stale/cache 오염 | 동적 API에 `dynamic = 'force-dynamic'` 명시 |
 
 ---
 
@@ -175,6 +263,16 @@ server/
 7. 마지막으로 `chat` SSE 이전
 8. 전체 회귀 테스트 후 Vercel Preview 배포
 
+세부 순서 권장:
+1. `app/layout.tsx`, `app/page.tsx`, `app/globals.css`만 추가하고 기존 UI 렌더 확인
+2. `auth`, `sessions` 이전 후 로그인/세션 CRUD 확인
+3. `summarize-title`, `speech` 이전 후 제목 생성/TTS 확인
+4. `create-signed-url`, `upload` 이전 후 이미지/PDF/DOCX/XLSX 업로드 확인
+5. `proxy-image`, `sync-drug-image`, `pill-search` 이전 후 약품 카드 이미지 확인
+6. `fetch-url`, `fetch-transcript` 이전 후 URL/YouTube 사전 처리 확인
+7. `chat` 이전 후 SSE, sources, heartbeat, cutOff, done 이벤트 확인
+8. Vercel Preview에서 모바일 네트워크 드롭/재시도까지 확인
+
 ---
 
 ## 7. 보류 항목
@@ -187,4 +285,3 @@ Next.js 전환과 동시에 처리하지 않는다.
 - renderer 대규모 리팩토링
 - server actions 도입
 - React Server Components 최적화
-

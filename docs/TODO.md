@@ -241,7 +241,11 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 - [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
-- [ ] Vite → Next.js 전환 플랜 검토 — `docs/Guide/NEXTJS_MIGRATION_PLAN.md`
+- [ ] Vite → Next.js 전환 준비 — `docs/Guide/NEXTJS_MIGRATION_PLAN.md`
+  - 전환 목표: SSR 재작성보다 App Router SPA shell + Route Handlers 이전
+  - 선행 조건: P0 SSRF 리다이렉트 차단, `npx tsc --noEmit` 통과, API 계약 스냅샷 기록
+  - 핵심 리스크: `api/chat.ts` SSE(`res.write` → `ReadableStream`), `chat` 10mb / `upload` 30mb body size 계약, server secret client 노출 방지
+  - 진행 순서: UI shell → 단순 JSON API → 파일/이미지 API → URL API → 마지막 `chat` SSE
 - [ ] **DTO 레이어 구성** — Next.js 마이그레이션 이후 처리. App Router Route Handlers / Server Actions 경계에서 Zod 스키마 기반 요청·응답 DTO 정의. 현재는 `types.ts` + 각 툴 내부 Zod 스키마로 충분.
 - [ ] `api/chat.ts` normalizer / stream-events / persistence 분리
 - [ ] `geminiService.ts` 에러 계약 통일 (Result 패턴)

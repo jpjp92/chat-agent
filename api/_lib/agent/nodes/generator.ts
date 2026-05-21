@@ -324,6 +324,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             '[SYNTHESIS_RULES]',
                             '- Use ONLY the grounded notes above as factual source.',
                             '- Do not add new external facts.',
+                            '- Do NOT mention the process or source handoff. Never start with phrases like "제시된 정보를 바탕으로", "제공된 정보를 바탕으로", "Based on the provided information", "Based on the sources", "Según la información proporcionada", or "D’après les informations fournies".',
+                            '- Start directly with the answer content.',
+                            '- Use this structure, translating section labels into the target response language:',
+                            '  1. A short "One-line summary" section with exactly one sentence.',
+                            '  2. A "Key content" section with concrete, organized subsections.',
+                            '  3. A "Considerations" section only if there are meaningful tradeoffs, limitations, risks, or adoption notes.',
+                            '- Keep headings concise and avoid generic meta headings such as "Summary of provided information".',
                             '- Preserve useful structure, clarity, and brevity.',
                             '- If evidence is insufficient, state that clearly.',
                         ].join('\n');
