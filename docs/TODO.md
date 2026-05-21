@@ -41,22 +41,77 @@
 - LCP 개선은 인증/세션 초기화 흐름과 맞물리므로 모바일 안정화 후 진행.
 - 동물병원 상세정보 보강과 신규 외부 API는 core flow 안정화 이후 기능 확장으로 처리.
 
-### Gemini 3.5 Flash 검색 응답 2단계화
+### ✅ Gemini 3.5 Flash 검색 응답 2단계화 — 완료 (2026-05-20)
 
-현재 무료 티어 API 키에서는 `gemini-3.5-flash`의 Google Search grounding이 제공되지 않으므로, 3.5 선택 + 검색 필요 시 `gemini-2.5-flash`로 폴백한다. 다만 현재 구조는 검색뿐 아니라 최종 응답 생성까지 2.5 Flash가 처리하므로, 3.5 선택의 품질 이점이 검색 경로에서 사라진다.
+> Stage1(2.5-flash + Search) → Stage2(3.5-flash synthesis) Two-track 아키텍처 `generator.ts`에 구현 완료. 상세: `DEV_260520.md` §13, `DEV_260521.md`.
 
-- [ ] `generator.ts` — `3.5 Flash + useGoogleSearch` 경로를 단순 모델 폴백이 아니라 2단계 파이프라인으로 분리
-- [ ] 1차 호출 — `gemini-2.5-flash + googleSearch`로 짧은 검색 digest/facts/sources만 생성 (`maxOutputTokens` 2048~4096 검토)
-- [ ] 2차 호출 — `gemini-3.5-flash`가 검색 digest와 대화 맥락을 바탕으로 최종 응답 생성, Google Search는 비활성
-- [ ] 3.5 최종 응답 prompt — 검색 digest에 없는 사실은 추정하지 않도록 제한하고, 부족한 근거는 명시
-- [ ] thinking 정책 — 3.5 기본은 `thinkingLevel: "minimal"`, 의학/법률/복잡한 분석만 `"low"` 또는 `"medium"` 검토
-- [ ] fallback 정책 — 2단계 최종 생성 실패 시 2.5 grounded response를 그대로 반환해 안정성 유지
-- [ ] 소스 칩 — 1차 검색 호출의 `groundingMetadata`를 최종 3.5 응답에도 유지 전달
-- [ ] latency 검증 — 일반 검색, medical_qa, 긴 문서/YouTube follow-up에서 Vercel 60s 제한 내 동작 확인
+- [x] `generator.ts` — `3.5 Flash + useGoogleSearch` 경로를 2단계 파이프라인으로 분리 ✅
+- [x] 1차 호출 — `gemini-2.5-flash + googleSearch`로 grounding 사실 텍스트 + sources 수집 (8000자 초과 시 truncate) ✅
+- [x] 2차 호출 — `gemini-3.5-flash`가 Stage1 notes를 바탕으로 최종 응답 생성, Search 비활성 ✅
+- [x] 3.5 최종 응답 prompt — 메타 서문 금지(`제시된 정보를 바탕으로` 등), `한 줄 요약` → `주요 내용` → `고려 사항` 구조 강제 ✅
+- [x] thinking 정책 — Stage2: `thinkingLevel: "minimal"`, Stage2 fallback: 2.5-flash `undefined` ✅
+- [x] fallback 정책 — Stage2 quota 소진 → 2.5-flash 합성 재시도 → 최종 실패 → Stage1 텍스트 직접 반환 ✅
+- [x] 소스 칩 — Stage1 `groundingMetadata`를 최종 응답에 전달 ✅
+- [x] renderer intent 오분기 보정 — `astronomy`/`biology`/`chemistry`/`physics`/`data_viz`는 명시적 검색 요청 없으면 Search 비활성화 ✅ (2026-05-21)
+- [ ] latency 검증 — 의학 분야 long-context, YouTube follow-up에서 Vercel 60s 제한 내 동작 추가 확인 필요
 
-판단 기준:
-- 무료 티어 제약은 유지하면서 검색 근거 수집은 2.5 Flash가 담당하고, 최종 정리/분석 품질은 3.5 Flash가 담당하는 역할 분리가 목표.
-- 항상 2단계로 보내면 지연 시간이 증가하므로 `useGoogleSearch && selectedModel === gemini-3.5-flash` 조건에서만 적용한다.
+### ✅ 3.5 Flash 인텐트 동작 검증 현황 (2026-05-21)
+
+| 인텐트 | 경로 | 상태 |
+|--------|------|------|
+| `law_search` | LangChain | ✅ 정상 |
+| `drug_info` / `drug_id` (텍스트) | LangChain | ✅ 정상 |
+| `astronomy` | SDK | ✅ 정상 |
+| `biology` | SDK | ✅ 정상 |
+| `chemistry` | SDK | ✅ 정상 |
+| `physics` | SDK | ✅ 정상 |
+| `data_viz` | SDK | ✅ 정상 (차트 타입·축 레이블 개선 필요 — 아래 항목) |
+| `pharmacy_search` | LangChain | ✅ 정상 |
+| `hospital_search` | LangChain | ✅ 정상 |
+| `vet_search` | LangChain | ✅ 정상 |
+| `drug_id` (알약 이미지) | vision → generator 직접 DB 조회 | ✅ 정상 |
+| YouTube native 분석 | SDK (thinkingLevel: minimal) | ✅ 정상 |
+| `medical_qa` | SDK | ✅ 정상 |
+| `general` | SDK | ✅ 정상 |
+
+- [x] 알약 이미지 업로드 → `drug_id` 식별 동작 확인 ✅ (2026-05-21)
+- [x] `vision` 노드 내부 JSON 스트림 SSE 노출 차단 ✅ (2026-05-21)
+- [x] `drug_id + state.pillData` 경로에서 `identify_pill` LLM tool-call 대신 서버 직접 조회 적용 ✅ (2026-05-21)
+
+### ✅ 알약 이미지 식별 경로 안정화 — 완료 (2026-05-21)
+
+알약 이미지 식별은 일반 tool-calling보다 서버 주도 deterministic flow가 적합하다고 판단.
+
+완료 항목:
+- [x] `router.ts` — 이미지 식별성 요청 fast-path로 `drug_id → vision` 이동
+- [x] `vision.ts` — 2.5 Flash로 고정해 이미지에서 각인/색상/모양 추출
+- [x] `vision.ts` — raw JSON은 `contextInfo`에 넣지 않고 `state.pillData`에만 저장
+- [x] `api/chat.ts` — `langgraph_node === "vision"`의 `on_chat_model_stream`은 SSE 전송 제외
+- [x] `generator.ts` — `state.pillData` 기반 `identifyPillTool.invoke()` 직접 호출
+- [x] `generator.ts` — DB no-match/error는 LLM 호출 없이 고정 응답 반환
+- [x] `generator.ts` — 매칭 성공 시 DB 결과만 최종 설명 생성에 사용하고 `identify_pill` 재바인딩 제외
+- [x] `generator.ts` — 직접 DB 조회 성공 후 추가 tool bind 제거로 `generator → tools → generator` recursion 방지
+- [x] `generator.ts` — `match_type !== exact`이면 `json:drug` 카드 생성 금지, 후보 표만 서버에서 직접 반환
+- [x] `generator.ts` — 유사 후보 표에는 이미지 URL 대신 약학정보원 상세 페이지 링크만 제공
+- [x] `prompt.ts` — `[IDENTIFY_PILL_DATABASE_RESULT]`가 있으면 tool 호출 없이 DB 결과만 사용하도록 `drug_id` focus hint 정리
+- [x] 검증 — 2.5 Flash 테스트에서 JSON 노출 없이 유사 약품 리스트 응답 확인
+- [x] 검증 — 2.5/3.5 Flash 모두 `match_type !== exact`에서 동일한 후보 표 반환 확인
+
+운영 원칙:
+- LLM 역할: 이미지 특징 추출, 최종 설명 정리
+- 서버 역할: 약학정보원 DB 조회, 실패 판정, 안전 문구 강제
+- 의료/약품 식별 경로에서는 LLM에게 tool 선택/호출을 맡기지 않고 서버가 조회를 주도한다.
+- `drug_id + state.pillData` 성공 조회 이후에는 추가 tool을 열지 않는다. 보강 검색이 필요하면 별도 후속 intent로 분리한다.
+- `match_type`이 `exact`가 아닌 경우 단일 약품 카드로 확정하지 않는다. `imprint_only`/`similar`는 후보 표로만 안내한다.
+
+남은 개선 후보:
+- [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
+  - 현재: `색상·모양 기준 유사 후보`
+  - 후보: `각인 검색 확장 및 색상/제형 유사도 기준 후보`
+- [ ] `pill-logic.ts` — 후보 정렬 보강
+  - 추출 shape가 `타원형`이면 타원형 후보를 상단 배치
+  - 추출 shape가 `장방형`이면 장방형 후보를 상단 배치
+  - 색상만 맞고 모양이 먼 후보는 후순위 또는 제외 검토
 
 ### Gemini 3.x API 파라미터 분기 적용
 
@@ -72,21 +127,22 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 
 **영향 파일별 작업**
 
-- [ ] `api/_lib/models.ts` — `is3xModel(model: string): boolean` 헬퍼 추가 (generator.ts 내 인라인으로 처리 중, 공식화 선택사항)
-- [ ] `generator.ts` — `effectiveModel`이 3.x이면 `temperature`·`topP`·`topK` 제거, 2.5-flash는 현행 유지
+- [x] `api/_lib/models.ts` — `is3xModel` 헬퍼는 `generator.ts` 내 인라인(`is3xModel`, `is3xLcModel` 변수)으로 처리 ✅
+- [x] `generator.ts` — SDK path: `effectiveModel`이 3.x이면 `temperature`·`topP`·`topK` 제거 (`is3xModel ? {} : { temp, topP, topK }`) ✅ (2026-05-21)
 - [x] `generator.ts` — thinkingConfig 모델 분기 적용 ✅ (2026-05-20)
   - YouTube: 3.5-flash → `thinkingLevel: "minimal"`, 2.5-flash → `thinkingBudget: 0`
   - 그 외 모든 경로: 3.5-flash → `thinkingLevel: "low"`, 2.5-flash → 기존 유지
   - `effectiveModel` 기준 분기 (Google Search 폴백 경로도 올바르게 처리)
-- [x] `summarize-title.ts` — 제목 생성은 `gemini-2.5-flash-lite` 단일 사용으로 고정 ✅
-- [ ] `vision.ts` — `ChatGoogleGenerativeAI`에 `temperature: 0.1` 사용 중, 3.5-flash이면 제거 검토 (LangChain 파라미터 전달 방식 확인 필요)
-- [ ] `drug-info-tool.ts` `searchDrugViaGoogleSearch` — `DEFAULT_CHAT_MODEL` (3.5-flash) 사용, `temperature: 0.1` 제거
-- [ ] `drug-info-tool.ts` `extractImprintViaVision` — `ChatGoogleGenerativeAI` + `DEFAULT_CHAT_MODEL` (3.5-flash), `temperature: 0.1` 제거
-- [ ] `law-tool.ts` `interpretLawQuery` — `SERVER_MODELS.FLASH` (2.5-flash, **2.x**) 사용 → 변경 없음, 유지
-- [ ] `router.ts` — `ROUTER_MODEL = gemini-2.5-flash-lite` (2.x) → 변경 없음, 그대로 유지
-- [ ] `generator.ts` LangChain path — `ChatGoogleGenerativeAI`에 `temperature: 0.2, topP: 0.8, topK: 40` 사용 중, `resolvedModel`이 3.5-flash이면 제거 (drug_id·drug_info·pharmacy·hospital·vet·law 경로)
-- [ ] `generator.ts` SDK non-streaming fallback (`generateContent`) — 동일 params, 동일 조건으로 제거
-- [ ] 검증 — 3.5-flash 일반 채팅·medical_qa·YouTube 경로, 2.5-flash 폴백 경로 각각 동작 확인
+- [x] `generator.ts` LangChain path — `is3xLcModel` 조건으로 3.5-flash 시 `temperature`·`topP`·`topK` 제거 ✅ (2026-05-21)
+- [x] `generator.ts` Stage1/Stage2/single-pass SDK path — 3.5-flash 시 params 제거 ✅ (2026-05-21)
+- [x] `summarize-title.ts` — 제목 생성은 `[FLASH_LITE, FLASH]` (2.5 계열)로 고정 ✅
+- [x] `law-tool.ts` `interpretLawQuery` — `SERVER_MODELS.FLASH` (2.5-flash) 사용 → 변경 없음 ✅
+- [x] `router.ts` — `ROUTER_MODEL = gemini-2.5-flash-lite` (2.x) → 변경 없음 ✅
+- [ ] `vision.ts` — `ChatGoogleGenerativeAI` `temperature: 0.1` — `DEFAULT_CHAT_MODEL`이 2.5-flash로 복구되어 당장 영향 없음. 3.5-flash로 전환 시 제거 검토
+- [ ] `drug-info-tool.ts` `searchDrugViaGoogleSearch` — `DEFAULT_CHAT_MODEL` (현재 2.5-flash) `temperature: 0.1` — 동일 조건
+- [ ] `drug-info-tool.ts` `extractImprintViaVision` — `ChatGoogleGenerativeAI` + `DEFAULT_CHAT_MODEL`, `temperature: 0.1` — 동일 조건
+- [ ] `generator.ts` LangChain path `maxOutputTokens: 8192` — 3.5-flash는 65k 지원, 필요 시 상향 검토
+- [ ] 검증 — 3.5-flash 선택 상태에서 의학·YouTube·law 경로, Google Search two-track 동작 추가 확인
 
 **✅ Function Calling `id` 매칭 — 검증 완료 (2026-05-20)**
 
@@ -113,7 +169,8 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 > | 그 외 전체 | `thinkingLevel: "low"` | `undefined` |
 >
 > - 기본 모델도 3.5-flash → 2.5-flash로 변경됨 (3.5-flash는 헤더 드롭다운 두 번째 선택)
-> - 잔여 미적용: `temperature/topP/topK` 제거, LangChain path, drug-info-tool, vision.ts (아래 항목 참조)
+> - 잔여 미적용: `temperature/topP/topK` 제거 (LangChain path, drug-info-tool, vision.ts)
+> - **2026-05-21 추가 완료**: generator.ts SDK path·LangChain path·Stage2 모두 `is3xModel`/`is3xLcModel` 분기로 처리됨. vision.ts·drug-info-tool.ts는 DEFAULT_CHAT_MODEL이 2.5-flash이므로 낮은 우선순위로 후순위 보류.
 
 ### Gemini 3.5 Flash 토큰 관리 유의사항
 
@@ -180,6 +237,41 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
 - [ ] `ChatArea.tsx` — 차단 배너 + 새 채팅 버튼
+
+### ChartRenderer 차트 품질 개선
+
+> 검증 중 발견 (2026-05-21): 데이터 특성과 무관하게 차트 타입이 생성되는 케이스, 축 레이블이 길어 겹치거나 잘리는 케이스 확인.
+
+**문제 1 — 차트 타입 부적합**
+
+모델이 데이터 맥락과 무관하게 원형(pie) 차트를 선택하는 경우 발생. 예: 시계열·연속 수치 데이터에 pie 차트 생성.
+
+- [ ] `prompt.ts` — `data_viz` intent focus hint에 차트 타입 선택 기준 명시
+  - 시계열·트렌드·연속 수치 → `bar` 또는 `line`
+  - 비율·구성 비교 (카테고리 수 ≤ 6) → `pie`
+  - 카테고리 비교 (항목 수 많음) → `bar` (horizontal 검토)
+  - 두 변수 상관관계 → `scatter`
+  - 기본값이 필요하면 `bar` 우선
+- [ ] 모델 JSON 스키마에 `chartType` 선택 가이드 주석 보강 (`prompt.ts` renderer schema)
+
+**문제 2 — 축 레이블 길이 초과**
+
+x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
+
+- [ ] `ChartRenderer.tsx` — x축 레이블 길이 기준으로 자동 처리
+  - 최대 길이(예: 8자) 초과 시 `\n` 줄바꿈 또는 `...` truncate
+  - 항목 수 많을 때 폰트 크기 축소 또는 45°/90° 회전 (`angle` 옵션)
+- [ ] `ChartRenderer.tsx` — y축 레이블 단위 자동 단축 (예: `1000000` → `1M`, `10000` → `1만`)
+- [ ] `prompt.ts` — 모델에게 레이블은 간결하게 작성하도록 지시 추가 (예: `"레이블은 10자 이내로 요약"`)
+
+**문제 3 — 데이터 특성 반영 부족**
+
+- [ ] `prompt.ts` — 데이터 건수/범위에 따른 차트 타입 자동 판단 규칙 프롬프트에 명시
+  - 단일 시계열 → `line`
+  - 다중 카테고리 비교 → `bar`
+  - 비율 합계 100% 데이터 → `pie` 허용
+- [ ] 모델이 생성한 `chartType`을 `ChartRenderer.tsx`에서 데이터 기준으로 보정하는 fallback 검토
+  - 예: `pie` 선택인데 데이터 항목 수 > 8 → 자동으로 `bar` 전환
 
 ### 동물병원 상세정보 선택형 보강
 
@@ -274,7 +366,7 @@ export const is3xModel = (model: string) => GEMINI_3X_MODELS.has(model);
 
 ---
 
-_최종 수정: 2026-05-20 — Gemini 3.5 Flash 무료 티어 검색 제약에 따른 2.5 검색 digest → 3.5 최종 응답 2단계화 후보 추가. Gemini 3.x API 파라미터 분기 적용 계획 추가 (2.5-flash 현행 유지, 3.5-flash는 thinkingLevel·temperature 제거 분기). 완료 항목은 DEV_HISTORY로 이관하고 TODO에는 미완료 작업만 유지._
+_최종 수정: 2026-05-21 — 3.5 Flash 인텐트 검증 완료: YouTube·medical_qa·general 및 drug_id 알약 이미지 경로 정상 확인. drug_id 이미지는 vision → state.pillData → 서버 직접 DB 조회 흐름으로 안정화했고, vision 내부 JSON 스트림 SSE 노출을 차단. 2.5/3.5 모두 non-exact 후보에서 동일한 표 반환 확인. ChartRenderer 차트 타입 선택 부적합·축 레이블 길이 초과 개선 항목 유지. PDF 멀티턴 413 Payload Too Large 수정: history attachment.extractedText 제거(geminiService.ts) + webContent 30,000자 상한 적용(useChatStream.ts)._
 
 ---
 

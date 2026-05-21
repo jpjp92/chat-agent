@@ -1,7 +1,7 @@
 import { AgentStateType } from "../state.js";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config.js";
-import { DEFAULT_CHAT_MODEL } from "../../models.js";
+import { SERVER_MODELS } from "../../models.js";
 import { HumanMessage } from "@langchain/core/messages";
 
 /**
@@ -31,7 +31,27 @@ Return ONLY a JSON object in this exact format, no other text:
   "confidence": "high|medium|low"
 }`;
 
-    const imageAtt = state.attachments.find(att => att.mimeType && att.mimeType.startsWith('image/'));
+    const imageAtt = state.attachments.find(att => att.mimeType && att.mimeType.startsWith('image/')) ?? (() => {
+        for (const msg of [...state.messages].reverse() as any[]) {
+            if (!Array.isArray(msg.content)) continue;
+            for (const part of msg.content) {
+                if (part.type === 'image_url' && part.image_url?.url) {
+                    const url: string = part.image_url.url;
+                    const mimeType = url.startsWith('data:') && url.includes(';')
+                        ? url.slice(5, url.indexOf(';'))
+                        : 'image/jpeg';
+                    return { data: url, mimeType };
+                }
+                if (part.inlineData?.mimeType?.startsWith?.('image/') && part.inlineData?.data) {
+                    return { data: part.inlineData.data, mimeType: part.inlineData.mimeType };
+                }
+                if (part.fileData?.mimeType?.startsWith?.('image/') && part.fileData?.fileUri) {
+                    return { data: part.fileData.fileUri, mimeType: part.fileData.mimeType };
+                }
+            }
+        }
+        return null;
+    })();
     if (!imageAtt) {
         return { nextNode: "generator" }; // fallback
     }
@@ -57,7 +77,7 @@ Return ONLY a JSON object in this exact format, no other text:
     while (attempt < MAX_ATTEMPTS) {
         try {
             const model = new ChatGoogleGenerativeAI({
-                model: DEFAULT_CHAT_MODEL,
+                model: SERVER_MODELS.FLASH,
                 apiKey: apiKey,
                 temperature: 0.1,
             });
@@ -72,11 +92,10 @@ Return ONLY a JSON object in this exact format, no other text:
                     console.log('[LangGraph] Vision Node extracted:', pillInfo);
 
                     const contextUpdate = `[VISION EXTRACTION SUCCESS]
-The user attached an image of a pill. We have successfully extracted its visual properties:
-${JSON.stringify(pillInfo, null, 2)}
+The user attached an image of a pill. The visual properties were extracted and stored in state.pillData.
 
 [MANDATORY LLM INSTRUCTION]
-You MUST call the 'identify_pill' tool using the properties extracted above. Do NOT guess the drug name based on your internal knowledge without calling the tool first.`;
+Do NOT print the extracted vision data as JSON. Use the database lookup result supplied by the system, and do NOT guess the drug name based on internal knowledge.`;
 
                     return {
                         pillData: pillInfo,
@@ -88,7 +107,10 @@ You MUST call the 'identify_pill' tool using the properties extracted above. Do 
                 }
             }
 
-            return { nextNode: "generator" }; // LLM succeeded but no parseable JSON
+            return {
+                contextInfo: `[VISION EXTRACTION FAILED]\n약 이미지에서 각인, 색상, 모양을 안정적으로 추출하지 못했습니다. 원본 이미지를 다시 분석하지 말고 "수동으로 각인, 색상, 모양을 알려주시면 다시 검색해 드릴게요"라고 사용자에게 응답하세요.`,
+                nextNode: "generator"
+            }; // LLM succeeded but no parseable JSON
 
         } catch (err: any) {
             const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');

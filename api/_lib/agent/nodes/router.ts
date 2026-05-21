@@ -3,7 +3,7 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config.js";
 import { ROUTER_MODEL } from "../../models.js";
-import { classifyIntentByRules, hasMedicalIntentKeyword } from "../intentRules.js";
+import { classifyIntentByRules, hasMedicalIntentKeyword, isAmbiguousImageIdentificationRequest } from "../intentRules.js";
 
 /**
  * Router Node
@@ -31,7 +31,15 @@ export const routerNode = async (state: AgentStateType) => {
         ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"`
         : "";
 
-    const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
+    const attachmentHasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
+    const messageHasImage = state.messages.some((msg: any) =>
+        Array.isArray(msg.content) && msg.content.some((part: any) =>
+            part.type === 'image_url' ||
+            part.inlineData?.mimeType?.startsWith?.('image/') ||
+            (part.fileData?.mimeType?.startsWith?.('image/') && !part.fileData.fileUri?.includes('youtube'))
+        )
+    );
+    const hasImage = attachmentHasImage || messageHasImage;
 
     let intent: IntentType = "general";
     const apiKey = getNextApiKey();
@@ -46,10 +54,11 @@ export const routerNode = async (state: AgentStateType) => {
         return { nextNode: "generator", intent: "general" };
     }
 
-    // Fast-path: 이미지 첨부 + 의약품 키워드 없음 → 항상 "general" → Router LLM 호출 스킵
-    if (hasImage && !hasMedicalKeyword) {
-        console.log('[LangGraph] Router fast-path: image without medical keyword → general');
-        return { nextNode: "generator", intent: "general" };
+    // Fast-path: image + pill/ambiguous identification request → vision.
+    // Router LLM only sees text, so image-only or "이거 분석해줘" pill requests can be misrouted to general.
+    if (hasImage && isAmbiguousImageIdentificationRequest(textContent)) {
+        console.log('[LangGraph] Router fast-path: image identification request → drug_id vision');
+        return { nextNode: "vision", intent: "drug_id" };
     }
 
     if (apiKey) {
@@ -81,6 +90,9 @@ export const routerNode = async (state: AgentStateType) => {
                 const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
+                }
+                if (intent === "general" && hasImage && isAmbiguousImageIdentificationRequest(textContent)) {
+                    intent = "drug_id";
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
             }

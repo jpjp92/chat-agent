@@ -566,3 +566,4 @@
 | v4.49.1 | 전 intent `gemini-2.5-flash` 통일 (Router 제외). flash-lite는 Router 전용으로 축소 |
 | v4.55 | 이미지 항상 Supabase `chat-imgs` 버킷 업로드 → URL DB 저장으로 히스토리 미리보기 복원 |
 | 2026-05-06 | `medical_qa` Google Search Grounding 강제 활성화. thinkingBudget 3,000 상한. 외부 공공 API 7종 통합 기획 수립 (약국·병원·문화행사·논문·학교·법령) |
+| 2026-05-21 | 3.5 Search two-track 보정 및 renderer intent Search 기본 비활성화. 약품 이미지 식별은 비전 JSON을 `contextInfo`에 노출하지 않고 `state.pillData` 기반 서버 직접 DB 조회로 전환. `vision` 노드의 내부 JSON 스트림도 SSE에서 제외해 raw JSON 응답 노출 방지. 3.5 Flash에서 직접 DB 조회 이후 추가 tool bind로 발생하던 LangGraph recursion을 차단. `match_type !== exact` 후보는 카드화하지 않고 약학정보원 상세 링크가 포함된 후보 표만 반환하도록 변경. 2.5/3.5 Flash 모두 non-exact 후보에서 동일한 표 반환 확인 |

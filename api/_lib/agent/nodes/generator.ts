@@ -40,6 +40,75 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             return lastHuman ? extractTextContent(lastHuman.content) : '';
         })();
 
+        const formatPillAttributes = (pillData: any): string => {
+            const parts = [
+                pillData?.imprint_front ? `앞면 각인: ${pillData.imprint_front}` : null,
+                pillData?.imprint_back ? `뒷면 각인: ${pillData.imprint_back}` : null,
+                pillData?.color ? `색상: ${pillData.color}` : null,
+                pillData?.shape ? `모양: ${pillData.shape}` : null,
+            ].filter(Boolean);
+            return parts.length > 0 ? parts.join(', ') : '이미지에서 추출한 특징';
+        };
+
+        const pillNoMatchMessage = (pillData: any): string =>
+            `제공된 이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 일치하는 약품을 약학정보원 DB에서 찾지 못했습니다.\n\n정확한 식별을 위해 약사 또는 의사에게 직접 확인하거나, 알약의 각인·색상·모양을 다시 알려주시면 재검색해드릴게요.`;
+
+        const pillLookupErrorMessage =
+            '약학정보원 DB 조회 중 오류가 발생해 이미지 기반 약품 식별을 완료하지 못했습니다.\n\n잠시 후 다시 시도하거나, 알약의 각인·색상·모양을 텍스트로 알려주시면 다시 검색해드릴게요.';
+
+        const extractPillMatchType = (toolText: string): string => {
+            const match = toolText.match(/^match_type:\s*([^\n]+)/m);
+            return match?.[1]?.trim() || '';
+        };
+
+        const parsePillCandidates = (toolText: string) => {
+            const blocks = toolText.split(/\nCandidate\s+\d+:\n/g).slice(1);
+            return blocks.map(block => {
+                const read = (label: string) => {
+                    const match = block.match(new RegExp(`^- ${label}:\\s*(.*)$`, 'm'));
+                    return match?.[1]?.trim() || '';
+                };
+                return {
+                    name: read('Name'),
+                    company: read('Company'),
+                    imprint: read('Imprint'),
+                    color: read('Color'),
+                    shape: read('Shape'),
+                    detailUrl: read('Detail URL'),
+                };
+            }).filter(candidate => candidate.name);
+        };
+
+        const pillCandidateTableMessage = (pillData: any, matchType: string, toolText: string): string => {
+            const candidates = parsePillCandidates(toolText);
+            const matchLabel = matchType === 'imprint_only'
+                ? '각인 기준 유사 후보'
+                : '색상·모양 기준 유사 후보';
+
+            const rows = candidates.map(candidate => [
+                candidate.name,
+                candidate.company || '-',
+                candidate.imprint || '-',
+                candidate.color || '-',
+                candidate.shape || '-',
+                candidate.detailUrl ? `[약품정보](${candidate.detailUrl})` : '-',
+            ]);
+
+            const table = [
+                '| 제품명 | 제조사 | 식별표시 | 색상 | 모양 | 링크 |',
+                '|---|---|---|---|---|---|',
+                ...rows.map(row => `| ${row.join(' | ')} |`),
+            ].join('\n');
+
+            return [
+                `제공된 이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 완전히 일치하는 약품은 찾지 못했습니다.`,
+                '',
+                `아래는 약학정보원 DB에서 확인된 **${matchLabel}**입니다. 단일 약품으로 확정할 수 없으므로 복용 전 약사 또는 의사에게 반드시 확인하세요.`,
+                '',
+                table,
+            ].join('\n');
+        };
+
         let finalInstruction = systemInstructionBase;
 
         // Inject Current Date/Time to prevent hallucination
@@ -538,25 +607,23 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     maxRetries: 0,
                 });
 
-                let allTools: any[] = [];
-                if (state.intent === "drug_id") {
-                    allTools = [identifyPillTool, searchWebTool];
-                } else if (state.intent === "drug_info") {
-                    allTools = [searchDrugInfoTool, searchWebTool];
-                } else if (state.intent === "pharmacy_search") {
-                    allTools = [pharmacyTool, searchWebTool];
-                } else if (state.intent === "hospital_search") {
-                    allTools = [hospitalTool, searchWebTool];
-                } else if (state.intent === "vet_search") {
-                    allTools = [vetTool, searchWebTool];
-                } else if (state.intent === "law_search") {
-                    allTools = [lawTool];
-                }
-
-                const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
-
                 // Fast-pass: Bypass final LLM generation if pharmacyTool / hospitalTool has successfully executed
                 const lastMsg = state.messages[state.messages.length - 1];
+                if (state.intent === "drug_id" && lastMsg._getType() === "tool" && lastMsg.name === "identify_pill") {
+                    const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                    if (toolContent.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다')) {
+                        console.log('[LangGraph] Fast-passing identify_pill no-match result');
+                        return {
+                            messages: [new AIMessage(pillNoMatchMessage(state.pillData))]
+                        };
+                    }
+                    if (toolContent.includes('약학정보원 DB 조회 중 오류가 발생했습니다')) {
+                        console.log('[LangGraph] Fast-passing identify_pill lookup-error result');
+                        return {
+                            messages: [new AIMessage(pillLookupErrorMessage)]
+                        };
+                    }
+                }
                 if (state.intent === "pharmacy_search" && lastMsg._getType() === "tool" && lastMsg.name === "pharmacyTool") {
                     const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
                     if (toolContent.includes('```json:pharmacy')) {
@@ -586,13 +653,64 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
                 }
 
-                // LangChain does not support fileData content parts — strip them for compatibility.
-                // Medical intent images are pre-processed by the vision node (text extracted),
-                // so filtering fileData here is safe.
+                let directPillLookupDone = false;
+                if (state.intent === "drug_id" && state.pillData && lastMsg._getType() !== "tool") {
+                    console.log('[LangGraph] Direct identify_pill lookup from vision data');
+                    const pillLookupResult = await identifyPillTool.invoke({
+                        imprint_front: state.pillData.imprint_front ?? "",
+                        imprint_back: state.pillData.imprint_back ?? "",
+                        color: state.pillData.color ?? "",
+                        shape: state.pillData.shape ?? "",
+                    });
+                    const pillLookupText = typeof pillLookupResult === 'string'
+                        ? pillLookupResult
+                        : String(pillLookupResult ?? '');
+                    directPillLookupDone = true;
+
+                    if (pillLookupText.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다')) {
+                        console.log('[LangGraph] Direct identify_pill no-match result');
+                        return { messages: [new AIMessage(pillNoMatchMessage(state.pillData))] };
+                    }
+                    if (pillLookupText.includes('약학정보원 DB 조회 중 오류가 발생했습니다')) {
+                        console.log('[LangGraph] Direct identify_pill lookup-error result');
+                        return { messages: [new AIMessage(pillLookupErrorMessage)] };
+                    }
+                    const pillMatchType = extractPillMatchType(pillLookupText);
+                    if (pillMatchType && pillMatchType !== 'exact') {
+                        console.log('[LangGraph] Direct identify_pill non-exact result:', pillMatchType);
+                        return { messages: [new AIMessage(pillCandidateTableMessage(state.pillData, pillMatchType, pillLookupText))] };
+                    }
+
+                    finalInstruction += `\n\n[IDENTIFY_PILL_DATABASE_RESULT]\n${pillLookupText}\n\n[DRUG_ID_RESPONSE_RULES]\n- Do NOT include or reproduce the raw vision extraction JSON.\n- Use the database result above as the only source for the pill candidate list.\n- Generate a json:drug card ONLY when match_type is exact.`;
+                }
+
+                let allTools: any[] = [];
+                if (state.intent === "drug_id") {
+                    // Pill image identification already performed deterministic DB lookup
+                    // above. Do not expose additional tools here; otherwise the model can
+                    // enter generator → search/identify tool → generator recursion.
+                    allTools = directPillLookupDone ? [] : [identifyPillTool, searchWebTool];
+                } else if (state.intent === "drug_info") {
+                    allTools = [searchDrugInfoTool, searchWebTool];
+                } else if (state.intent === "pharmacy_search") {
+                    allTools = [pharmacyTool, searchWebTool];
+                } else if (state.intent === "hospital_search") {
+                    allTools = [hospitalTool, searchWebTool];
+                } else if (state.intent === "vet_search") {
+                    allTools = [vetTool, searchWebTool];
+                } else if (state.intent === "law_search") {
+                    allTools = [lawTool];
+                }
+
+                const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
+
+                // Drug image requests are pre-processed by the vision node. Do not pass the
+                // original image into the LangChain tool path again: 3.5 may re-run visual
+                // extraction and stream raw JSON instead of calling identify_pill.
                 const safeMessages = state.messages.map((msg: any) => {
                     if (msg._getType() === 'human' && Array.isArray(msg.content)) {
                         const safeParts = (msg.content as any[]).filter((p: any) =>
-                            p.type === 'text' || p.type === 'image_url'
+                            p.type === 'text' || (state.intent !== 'drug_id' && p.type === 'image_url')
                         );
                         if (safeParts.length === msg.content.length) return msg;
                         return new HumanMessage({ content: safeParts.length > 0 ? safeParts : [{ type: 'text', text: '' }] });

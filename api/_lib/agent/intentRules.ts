@@ -8,6 +8,7 @@ const KOREAN_MEDICAL_KEYWORDS = [
 
 const MEDICAL_WORD_PATTERN = /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/;
 const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|drug|medication|medicine|dosage|dose|side effects?|ingredients?|prescription|pharmacist|pastilla|tableta|c[aá]psula|medicamento|medicina|dosis|efectos secundarios|ingredientes?|receta|farmac[eé]utico|comprim[eé]|g[eé]lule|m[eé]dicament|posologie|effets secondaires|ingr[eé]dient|ordonnance|pharmacien)(?=$|[^\p{L}\p{N}_])/iu;
+const AMBIGUOUS_IMAGE_IDENTIFICATION_PATTERN = /(이거|이것|사진|이미지|분석|확인|식별|뭔지|무엇|뭐야|알려|봐줘|판독|identify|analy[sz]e|what is this|check this|read this|image|photo|imagen|foto|identificar|analizar|qué es|que es|image|photo|identifier|analyser|qu'est-ce que|c'est quoi)/i;
 
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
     {
@@ -52,6 +53,13 @@ export const hasMedicalIntentKeyword = (text: string): boolean => {
     return KOREAN_MEDICAL_KEYWORDS.some(keyword => text.includes(keyword)) ||
         MEDICAL_WORD_PATTERN.test(text) ||
         MULTILINGUAL_MEDICAL_PATTERN.test(text);
+};
+
+export const isAmbiguousImageIdentificationRequest = (text: string): boolean => {
+    const normalized = text.trim();
+    if (!normalized) return true;
+    if (hasMedicalIntentKeyword(normalized)) return true;
+    return normalized.length <= 40 && AMBIGUOUS_IMAGE_IDENTIFICATION_PATTERN.test(normalized);
 };
 
 /**

@@ -207,7 +207,12 @@ export const useChatStream = ({
     if (webContext === '' && activeSession?.lastActiveDoc?.extractedText) {
       const isVideoContext = activeSession.lastActiveDoc.mimeType?.startsWith('video/');
       const tag = isVideoContext ? 'VIDEO_ANALYSIS_SUMMARY' : 'PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT';
-      webContext = `[${tag}: ${activeSession.lastActiveDoc.fileName}]\n${activeSession.lastActiveDoc.extractedText}`;
+      const MAX_DOC_CHARS = 30_000;
+      const raw = activeSession.lastActiveDoc.extractedText;
+      const body = raw.length > MAX_DOC_CHARS
+        ? raw.slice(0, MAX_DOC_CHARS) + '\n[CONTENT_TRUNCATED: 문서가 길어 일부만 전달됩니다]'
+        : raw;
+      webContext = `[${tag}: ${activeSession.lastActiveDoc.fileName}]\n${body}`;
     }
 
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;

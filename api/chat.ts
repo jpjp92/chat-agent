@@ -277,8 +277,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         for await (const event of streamEvents) {
           const data = event.data;
+          const langGraphNode = (event as any).metadata?.langgraph_node;
 
           if (event.event === "on_chat_model_stream") {
+            // The vision node intentionally asks Gemini to output raw JSON for pill
+            // attribute extraction. That JSON is internal preprocessing data and must
+            // never be streamed to the user.
+            if (langGraphNode === 'vision') continue;
+
             const chunk = data?.chunk;
             const chunkText = chunk?.content;
             if (chunkText && typeof chunkText === 'string') {

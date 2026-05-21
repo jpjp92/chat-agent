@@ -225,10 +225,24 @@ export const streamChatResponse = async (
 
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // history 내 attachment.extractedText 제거 — 서버는 att.data(URL)만 사용하고
+    // extractedText는 webContent로 별도 전달되므로 중복 페이로드 방지 (413 대응)
+    const stripExtractedText = (att: any) => {
+      if (!att) return att;
+      const { extractedText: _et, ...rest } = att;
+      return rest;
+    };
+    const sanitizedHistory = history.map(msg => ({
+      ...msg,
+      attachment: stripExtractedText(msg.attachment),
+      attachments: msg.attachments?.map(stripExtractedText),
+    }));
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone }),
+      body: JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone }),
       signal: controller.signal,
     });
 
