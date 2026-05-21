@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { createSession, fetchUrlContent, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
+import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
@@ -278,26 +278,29 @@ export const useChatStream = ({
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
       } else {
-        const appendUrlFetchFailedContext = () => {
-          webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
-        };
-
         try {
           setLoadingStatus(statusMessages.fetchingUrl);
-          const pageContent = await fetchUrlContent(url);
-          if (pageContent) {
-            webContext += `\n\n[URL_CONTENT: ${url}]\n${pageContent}`;
+          const urlData = await fetchUrlData(url);
+          const { content } = urlData;
+
+          if (content && !content.startsWith('[FETCH_ERROR')) {
+            webContext += `\n\n[URL_CONTENT: ${url}]\n${content}`;
           } else {
-            console.warn('[useChatStream] URL fetch returned empty — marking exact URL fetch as failed');
+            const isSecurityBlock = content?.includes('보안 인증이 필요한');
+            console.warn('[useChatStream] URL fetch failed —', isSecurityBlock ? 'security block' : 'empty/error');
             urlFetchError = true;
-            appendUrlFetchFailedContext();
+            if (isSecurityBlock) {
+              webContext += `\n\n[URL_SECURITY_BLOCKED: ${url}]\n이 URL은 보안 인증(CAPTCHA/Cloudflare 차단)으로 인해 서버에서 직접 접근할 수 없습니다. 사용자에게 이 사실을 알리고, 페이지 본문을 직접 붙여넣거나 접근 가능한 URL을 제공해달라고 안내하세요. 다른 검색 결과로 대체하지 마세요.`;
+            } else {
+              webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
+            }
           }
           setLoadingStatus(null);
         } catch (urlError: any) {
           console.error('[useChatStream] URL fetch error:', urlError);
           setLoadingStatus(null);
           urlFetchError = true;
-          appendUrlFetchFailedContext();
+          webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
         }
       }
 

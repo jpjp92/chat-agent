@@ -98,6 +98,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             clearTimeout(timeout);
         }
 
+        // Jina Reader 응답에 보안 챌린지 페이지 여부 감지
+        // Jina가 200으로 응답해도 내부 콘텐츠가 Cloudflare/CAPTCHA 페이지일 수 있음
+        const isJinaSecurityBlock = (text: string): boolean => {
+            const t = text.toLowerCase();
+            return (
+                t.includes('just a moment') ||
+                t.includes('performing security verification') ||
+                t.includes('security service to protect') ||
+                t.includes('warning: target url returned error 403') ||
+                t.includes('warning: this page maybe requiring captcha') ||
+                t.includes('verifying you are not a bot') ||
+                t.includes('please enable cookies')
+            );
+        };
+
         // Cloudflare 차단 감지 시 Jina Reader로 폴백
         if (directFetchBlocked) {
             console.warn('[fetch-url] Direct fetch blocked, fallback to Jina Reader');
@@ -111,6 +126,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 const jinaText = await jinaRes.text();
                 if (jinaRes.ok && jinaText.trim().length >= 100) {
+                    if (isJinaSecurityBlock(jinaText)) {
+                        console.warn('[fetch-url] Jina returned security challenge page, treating as blocked');
+                        return res.status(502).json({ content: '[FETCH_ERROR: 보안 인증이 필요한 페이지로 내용을 가져올 수 없습니다.]' });
+                    }
                     return res.status(200).json({ content: jinaText.replace(/\s+/g, ' ').trim().slice(0, 17000) });
                 }
             } catch (jinaError: any) {
@@ -180,6 +199,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 const spaJinaText = await spaJinaRes.text();
                 if (spaJinaRes.ok && spaJinaText.trim().length >= 100) {
+                    if (isJinaSecurityBlock(spaJinaText)) {
+                        console.warn('[fetch-url] Jina (SPA path) returned security challenge page');
+                        return res.status(502).json({ content: '[FETCH_ERROR: 보안 인증이 필요한 페이지로 내용을 가져올 수 없습니다.]' });
+                    }
                     return res.status(200).json({ content: spaJinaText.replace(/\s+/g, ' ').trim().slice(0, 17000) });
                 }
             } catch (e: any) {
