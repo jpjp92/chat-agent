@@ -177,6 +177,26 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         };
         window.addEventListener('mousemove', updateMousePos);
 
+        // 모바일 터치 지원:
+        // NGL은 mousemove 기반으로 hovered 시그널을 발화하므로,
+        // touchmove 시 좌표를 업데이트하고 synthetic mousemove를 canvas에 디스패치해
+        // NGL picking을 트리거한다.
+        const stageEl = stageRef.current;
+        const handleTouchMove = (e: TouchEvent) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+            stageEl?.dispatchEvent(new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                bubbles: true,
+            }));
+        };
+        const handleTouchEnd = () => setHoverInfo(null);
+        stageEl?.addEventListener('touchmove', handleTouchMove, { passive: true });
+        stageEl?.addEventListener('touchend', handleTouchEnd);
+
         // 호버 감지 로직 개선
         stage.signals.hovered.removeAll();
         stage.signals.hovered.add((pickingProxy: any) => {
@@ -256,6 +276,8 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('resize', checkMobile);
             window.removeEventListener('mousemove', updateMousePos);
+            stageEl?.removeEventListener('touchmove', handleTouchMove);
+            stageEl?.removeEventListener('touchend', handleTouchEnd);
             resizeObserver.disconnect();
             if (nglStage.current) {
                 nglStage.current.signals.hovered.removeAll();
