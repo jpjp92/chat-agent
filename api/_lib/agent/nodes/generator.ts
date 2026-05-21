@@ -25,6 +25,21 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         console.log('[LangGraph] API key available:', !!apiKey, '| intent:', state.intent, '| model:', state.model);
         if (!apiKey) throw new Error("No API key available");
 
+        const extractTextContent = (content: unknown): string => {
+            if (typeof content === 'string') return content;
+            if (Array.isArray(content)) {
+                return content
+                    .map((part: any) => part?.type === 'text' ? part.text || '' : '')
+                    .join('\n');
+            }
+            return '';
+        };
+
+        const latestUserText = (() => {
+            const lastHuman = [...state.messages].reverse().find(msg => msg._getType() === 'human');
+            return lastHuman ? extractTextContent(lastHuman.content) : '';
+        })();
+
         let finalInstruction = systemInstructionBase;
 
         // Inject Current Date/Time to prevent hallucination
@@ -189,6 +204,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     if (state.intent === 'medical_qa' && !hasMultimodalContent && !historyHasImage) {
                         useGoogleSearch = true;
                     }
+                    // Renderer intents should produce structured JSON directly. If Google Search is
+                    // left on for 3.5, the two-track path turns the request into Stage1 search notes
+                    // followed by Stage2 summary, which can drop the visualization block entirely.
+                    const rendererIntents = new Set(['astronomy', 'biology', 'chemistry', 'physics', 'data_viz']);
+                    const explicitSearchRequested = /(검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|latest|recent|search|source|cite)/i.test(latestUserText);
+                    if (rendererIntents.has(state.intent) && !explicitSearchRequested) {
+                        useGoogleSearch = false;
+                    }
 
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
                     const resolvedMaxTokens = (() => {
@@ -213,6 +236,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
                     if (hasUrlContent) {
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');
+                    }
+                    if (rendererIntents.has(state.intent) && !explicitSearchRequested) {
+                        console.log('[LangGraph] Renderer intent — Google Search disabled to preserve structured visualization output');
                     }
 
                     console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);

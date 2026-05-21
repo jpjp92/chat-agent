@@ -3,10 +3,11 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config.js";
 import { ROUTER_MODEL } from "../../models.js";
+import { classifyIntentByRules, hasMedicalIntentKeyword } from "../intentRules.js";
 
 /**
  * Router Node
- * Uses a lightweight LLM to classify user intent into 9 categories.
+ * Uses a lightweight LLM to classify user intent into the supported intent categories.
  * Injects last assistant message as context for follow-up intent continuity.
  * Falls back to keyword heuristics if the LLM fails.
  */
@@ -32,28 +33,10 @@ export const routerNode = async (state: AgentStateType) => {
 
     const hasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
 
-    const medicalKeywords = [
-        '알약', '약품', '캡슐', '명칭', '식별', '무슨 약',
-        '용법', '용량', '성분', '부작용', '주의사항', '효능', '효과', '복용',
-        '정제', '필름정', 'mg정', '산제', '시럽', '의약품', '약사', '처방'
-    ];
-
     let intent: IntentType = "general";
     const apiKey = getNextApiKey();
 
-    // Fallback heuristic function
-    const heuristicCheck = (): IntentType => {
-        if (/(법령|법률|법안|조항|제\d+\s*조|몇\s*조|도로교통법|교통법|소방법|소방기본법|민법|형법|상법|근로기준법|근로법|개인정보\s*보호법|개인정보법|판례|헌재|행정규칙|고시|법령해석)/.test(textContent)) return "law_search";
-        if (textContent.includes("약국")) return "pharmacy_search";
-        if (textContent.includes("동물병원") || textContent.includes("동물 병원") || textContent.includes("동물의원") || textContent.includes("동물 의료") || textContent.includes("동물의료") || textContent.includes("수의사") || textContent.includes("수의과")) return "vet_search";
-        if (textContent.includes("병원") || textContent.includes("의원") || textContent.includes("응급실")) return "hospital_search";
-        if (medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent)) {
-            return hasImage ? "drug_id" : "drug_info";
-        }
-        return "general";
-    };
-
-    const hasMedicalKeyword = medicalKeywords.some(k => textContent.includes(k)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(textContent);
+    const hasMedicalKeyword = hasMedicalIntentKeyword(textContent);
 
     // Fast-path: YouTube URL → 항상 "general" → Router LLM 호출 스킵
     const hasYoutubeUrl = /(?:youtube\.com\/|youtu\.be\/)/.test(textContent) ||
@@ -72,7 +55,7 @@ export const routerNode = async (state: AgentStateType) => {
     if (apiKey) {
         try {
             const ai = new GoogleGenAI({ apiKey });
-            const prompt = `Classify the strictly main intent of the user message into one of these 12 categories:
+            const prompt = `Classify the strictly main intent of the user message into one of these categories:
 - "drug_id"         : pill/tablet image identification (user has an image AND asks to identify it)
 - "drug_info"       : text-based drug name lookup, dosage, side effects, ingredients
 - "medical_qa"      : general medical or health question (symptoms, diseases, treatments, anatomy)
@@ -111,10 +94,10 @@ export const routerNode = async (state: AgentStateType) => {
                 }
             }
             console.warn('[LangGraph] Semantic Router LLM failed, falling back to heuristics:', error?.status ?? error);
-            intent = heuristicCheck();
+            intent = classifyIntentByRules(textContent, hasImage);
         }
     } else {
-        intent = heuristicCheck();
+        intent = classifyIntentByRules(textContent, hasImage);
     }
 
     // Route: drug_id requires vision preprocessing when image is present
