@@ -437,6 +437,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         let textPart = content.substring(lastIndex, match.index);
         // Process for numeric ranges (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
+        // Fix: closing ** immediately followed by Korean character is not recognized as a
+        // closer by CommonMark (it becomes left-flanking too). Insert space to disambiguate.
+        textPart = textPart.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
         // Close unclosed bold markers during streaming
         if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
           textPart += '**';
@@ -504,6 +507,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         if (visibleText.trim()) {
           // Process for numeric ranges (1~10 -> 1&#126;10)
           let processedVisible = visibleText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+          // Fix Korean bold rendering (same as above)
+          processedVisible = processedVisible.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
 
           // Safely close dangling code blocks during streaming
           const backticks = processedVisible.match(/```/g);
@@ -525,6 +530,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       } else {
         // Process for numeric ranges (1~10 -> 1&#126;10)
         let processedRemaining = remainingText.replace(/(\d)~(\d)/g, '$1&#126;$2');
+        // Fix Korean bold rendering (same as above)
+        processedRemaining = processedRemaining.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
 
         // Safely close dangling code blocks during streaming
         const backticks = processedRemaining.match(/```/g);
