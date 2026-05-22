@@ -267,6 +267,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     if (hasUrlContent) {
                         useGoogleSearch = false;
                     }
+                    // Follow-up turns after URL analysis: keep single-pass path
+                    // so the model can still access document content from history.
+                    const historyHasUrl = state.messages.slice(0, -1)
+                        .filter((m: any) => m._getType() === 'human')
+                        .some((m: any) => {
+                            const text = Array.isArray(m.content)
+                                ? (m.content as any[]).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+                                : String(m.content);
+                            return /https?:\/\/\S+/.test(text);
+                        });
+                    if (historyHasUrl) useGoogleSearch = false;
                     // medical_qa: 이미지 없는 경우 Google Search 강제 활성화
                     // LLM 내부 지식 의존 → 실시간 의학 정보 + 출처 기반 답변으로 개선
                     // (이미지가 있으면 Gemini API 제약상 Search 불가 → hasMultimodalContent/historyHasImage 조건 유지)
@@ -320,12 +331,15 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
                     }
 
+                    // Multi-turn detection (shared by thinkingConfig and Stage2 synthesis)
+                    const isMultiTurn = sdkContents.length > 1;
+
                     // Thinking config — model-aware branching:
                     // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
                     //   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
                     //     (video download 30~50s + medium thinking 15~25s → exceeds 60s limit)
-                    //   - All other 3.5-flash paths: "low" — prevents 60s timeout on complex queries
-                    //     (default "medium" can take 15~25s before first text output)
+                    //   - Multi-turn: "medium" — follow-up turns need more reasoning to honor user format requests
+                    //   - 1st turn: "low" — prevents 60s timeout on first complex queries
                     // 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
                     //   - YouTube: budget 0 (disable)
                     //   - medical_qa: budget 3000 (cap)
@@ -334,6 +348,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const thinkingConfig = is3xModel
                         ? (isYoutubeRequest && hasVideoData)
                             ? { thinkingLevel: "minimal" as const }
+                            : isMultiTurn
+                            ? { thinkingLevel: "medium" as const }
                             : { thinkingLevel: "low" as const }
                         : (isYoutubeRequest && hasVideoData)
                             ? { thinkingBudget: 0 }
@@ -387,19 +403,28 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
 
                         const synthesisInstruction = [
+                            `[USER_REQUEST]\n${latestUserText}\n`,
                             '[GROUNDING_NOTES_FROM_STAGE1]',
                             stage1Text,
                             '',
                             '[SYNTHESIS_RULES]',
                             '- Use ONLY the grounded notes above as factual source.',
                             '- Do not add new external facts.',
-                            '- Do NOT mention the process or source handoff. Never start with phrases like "제시된 정보를 바탕으로", "제공된 정보를 바탕으로", "Based on the provided information", "Based on the sources", "Según la información proporcionada", or "D’après les informations fournies".',
+                            "- Do NOT mention the process or source handoff. Never start with phrases like \"제시된 정보를 바탕으로\", \"제공된 정보를 바탕으로\", \"Based on the provided information\", \"Based on the sources\", \"Según la información proporcionada\", or \"D'après les informations fournies\".",
                             '- Start directly with the answer content.',
-                            '- Use this structure, translating section labels into the target response language:',
-                            '  1. A short "One-line summary" section with exactly one sentence.',
-                            '  2. A "Key content" section with concrete, organized subsections.',
-                            '  3. A "Considerations" section only if there are meaningful tradeoffs, limitations, risks, or adoption notes.',
-                            '- Keep headings concise and avoid generic meta headings such as "Summary of provided information".',
+                            ...(isMultiTurn
+                                ? [
+                                    "- This is a follow-up turn in an ongoing conversation. Respond naturally and conversationally — do NOT use a fixed section structure (no \"One-line summary\", no rigid headings).",
+                                    "- Match the tone and depth the conversation has established. Answer the user's specific follow-up directly.",
+                                    '- Use formatting (bullet points, bold, short paragraphs) only when it genuinely aids clarity.',
+                                ]
+                                : [
+                                    '- Use this structure, translating section labels into the target response language:',
+                                    '  1. A short "One-line summary" section with exactly one sentence.',
+                                    '  2. A "Key content" section with concrete, organized subsections.',
+                                    '  3. A "Considerations" section only if there are meaningful tradeoffs, limitations, risks, or adoption notes.',
+                                    '- Keep headings concise and avoid generic meta headings such as "Summary of provided information".',
+                                ]),
                             '- Preserve useful structure, clarity, and brevity.',
                             '- If evidence is insufficient, state that clearly.',
                         ].join('\n');
