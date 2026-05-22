@@ -101,11 +101,13 @@ server/
   - `dev`: `next dev`
   - `build`: `next build`
   - `start`: `next start`
+- **환경 변수 접두사 변환**:
+  - 기존 Vite의 `import.meta.env.VITE_SUPABASE_URL` 등을 Next.js용 `process.env.NEXT_PUBLIC_SUPABASE_URL`로 전환 필요. (클라이언트 번들에 노출되는 변수만 접두사를 붙이고, 백엔드 전용 API key는 `process.env.API_KEY` 형태로 안전하게 유지)
 
 ### Phase 2. UI Client Boundary 고정
 
 - `App.tsx` 최상단 또는 wrapper에 `"use client"` 추가
-- browser-only 코드 확인:
+- browser-only 코드 확인 및 예외 처리:
   - `window`
   - `localStorage`
   - `AudioContext`
@@ -123,6 +125,18 @@ server/
 - `utils/astronomyHelper.ts`: `navigator.geolocation`
 
 초기 전환에서는 `app/page.tsx`가 client wrapper를 렌더링하고, 기존 `App` 이하를 전부 Client Component graph로 유지한다.
+
+**Hydration Mismatch 및 WebGL 라이브러리 방어 가이드**:
+1. **Hydration Mismatch 대처**:
+   - `App.tsx` 초기 마운트 시 `localStorage`나 `document` 상태를 동기적으로 읽어 useState에 넣으면 SSR HTML과 불일치가 발생합니다. 
+   - `useEffect`가 실행된 직후(Mount 완료 시점)에 브라우저용 API값을 읽어 클라이언트 상태와 맞추거나, `isMounted` 플래그가 참일 때만 해당 요소를 렌더링하는 형태로 제어해야 합니다.
+2. **동적 임포트 (`next/dynamic` ssr: false)**:
+   - Canvas, WebGL, DOM을 조작하는 라이브러리(`ngl`, `smiles-drawer`, `apexcharts` 등)는 Next.js가 서버에서 사전 렌더링하려고 시도할 시 `window is not defined` 에러로 빌드가 깨집니다.
+   - 해당 라이브러리를 참조하는 렌더러 컴포넌트(`ChemicalRenderer.tsx`, `BioRenderer.tsx`, `ChartRenderer.tsx` 등)는 반드시 dynamic import로 로드해야 합니다.
+     ```typescript
+     import dynamic from 'next/dynamic';
+     const ChemicalRenderer = dynamic(() => import('./ChemicalRenderer'), { ssr: false });
+     ```
 
 ### Phase 3. API Route Handler 이전
 
@@ -143,13 +157,15 @@ server/
 | `api/pill-search.ts` | `app/api/pill-search/route.ts` |
 | `api/fetch-transcript.ts` | `app/api/fetch-transcript/route.ts` |
 
-주의:
+주의 및 세부 설정:
 - `VercelRequest` / `VercelResponse` → `NextRequest` / `Response`
 - SSE 응답은 `ReadableStream` 기반으로 재구성
-- `maxDuration`은 route segment config 또는 Vercel 설정으로 이전
+- `maxDuration`은 route segment config (`export const maxDuration = 60;`)로 명시
 - Node runtime 필요 route는 `export const runtime = 'nodejs'`
 - `api/chat.ts`의 `res.write()` 기반 SSE는 `ReadableStream` + `TextEncoder`로 이전
-- `api/upload.ts`와 `api/chat.ts`의 body size 설정은 Next.js Route Handler에서 별도 확인 필요
+- **Body Parser 용량 한계 대응**:
+  - App Router의 Route Handler는 Pages Router의 `export const config = { api: { bodyParser: { sizeLimit: '10mb' } } }`와 같은 간편 설정을 지원하지 않습니다. 
+  - Route Handler 내에서 큰 요청 바디 처리를 지원하기 위해 Vercel의 Serverless Function payload limit(Vercel Pro 플랜 4.5MB, Hobby 4.5MB 등)에 직접 도달하지 않도록 1MB 이상 크기의 파일은 Supabase Storage에 PUT으로 직접 업로드하고 backend API로는 URL만 넘기는 기존 설계를 확실히 엄수해야 합니다.
 - `api/proxy-image.ts`는 `Buffer` binary 응답을 `Response` body로 변환
 - `api/fetch-transcript.ts`는 이미 `Request`/`Response` 형태에 가까워 이전 난도가 낮음
 
