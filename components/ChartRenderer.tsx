@@ -35,6 +35,19 @@ const useThemeMode = () => {
     return isDark;
 };
 
+// 화면 너비 감지 훅
+const useScreenWidth = () => {
+    const [width, setWidth] = React.useState(() =>
+        typeof window !== 'undefined' ? window.innerWidth : 1280
+    );
+    useEffect(() => {
+        const onResize = () => setWidth(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+    return width;
+};
+
 // 세련된 색상 팔레트
 const CHART_COLORS = [
     '#6366f1', // Primary (Indigo)
@@ -51,12 +64,15 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const chartRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<ApexCharts | null>(null);
     const isDark = useThemeMode();
+    const screenWidth = useScreenWidth();
+    const isMobile = screenWidth < 480;
+    const isTablet = screenWidth >= 480 && screenWidth < 768;
 
     const i18n = {
-        ko: { title: '데이터 시각화', download: 'SVG 다운로드' },
-        en: { title: 'Data Visualization', download: 'Download SVG' },
-        es: { title: 'Visualización de Datos', download: 'Descargar SVG' },
-        fr: { title: 'Visualisation des Données', download: 'Télécharger SVG' }
+        ko: { title: '데이터 시각화', download: 'PNG 다운로드' },
+        en: { title: 'Data Visualization', download: 'Download PNG' },
+        es: { title: 'Visualización de Datos', download: 'Descargar PNG' },
+        fr: { title: 'Visualisation des Données', download: 'Télécharger PNG' }
     };
     const t = i18n[language] || i18n.en;
     const { type, title, data } = chartData;
@@ -86,15 +102,34 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 normSeries = [0, 0, 0];
             }
         } else if (isTreemapType) {
-            normSeries = [{
-                data: (chartData.data.series[0].data || []).map((d: any, i: number) => ({
-                    x: normCategories[i] || `Item ${i + 1}`,
-                    y: Number(d) || 0
-                }))
-            }];
+            const rawSeries = chartData.data.series;
+            if (rawSeries.length > 1) {
+                // Multiple series format: each series = one treemap cell (name=label, data[0]=value)
+                normSeries = [{
+                    data: rawSeries.map((s: any) => ({
+                        x: s.name || 'Unnamed',
+                        y: Number(s.data?.[0]) || 0
+                    }))
+                }];
+            } else {
+                // Single series: data is [{x,y}] objects or numbers paired with categories
+                normSeries = [{
+                    data: (rawSeries[0].data || []).map((d: any, i: number) => {
+                        if (typeof d === 'object' && d !== null && 'x' in d) {
+                            return { x: String(d.x), y: Number(d.y) || 0 };
+                        }
+                        return { x: normCategories[i] || `Item ${i + 1}`, y: Number(d) || 0 };
+                    })
+                }];
+            }
         } else {
             // Bar/Line/Scatter/Radar/Area
-            normSeries = chartData.data.series.map(s => ({
+            let rawSeries = chartData.data.series;
+            // Radar chart guard: cap at 3 series to prevent unreadable overlapping
+            if (isRadarType && rawSeries.length > 3) {
+                rawSeries = rawSeries.slice(0, 3);
+            }
+            normSeries = rawSeries.map(s => ({
                 name: s.name,
                 data: (s.data || []).map(d => {
                     if (typeof d === 'object' && d !== null) {
@@ -119,10 +154,28 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     useEffect(() => {
         if (series.length === 0) return;
 
+        // 반응형 값 계산
+        const chartHeight    = isMobile ? 200 : isTablet ? 250 : 300;
+        const xFontSize      = isMobile ? '8px': isTablet ? '10px': '11px';
+        const xRotate        = isMobile ? -55  : -45;
+        const yFontSize      = isMobile ? '9px': isTablet ? '10px': '12px';
+        const legendFontSize = isMobile ? '10px': '12px';
+        const legendAlign    = (isMobile || series.length > 3) ? 'left' : 'center';
+        const donutValueSize = isMobile ? '14px': isTablet ? '17px': '20px';
+        // Radar labels sit at polygon vertices and extend beyond the canvas edge.
+        // Large horizontal padding reserves space so labels are not clipped by overflow.
+        const gridPadding    = isRadar
+            ? { top: 10, right: isMobile ? 50 : 80, bottom: 20, left: isMobile ? 50 : 80 }
+            : isMobile
+            ? { top: 0, right: 8, bottom: 0, left: 0 }
+            : { top: 0, right: 20, bottom: 0, left: 10 };
+        // Radar polygon radius: smaller than before to keep labels inside grid padding bounds
+        const radarSize      = isMobile ? 60 : isTablet ? 80 : 100;
+
         const options: any = {
             chart: {
                 type: type,
-                height: 320,
+                height: chartHeight,
                 width: '100%',
                 fontFamily: 'Inter, sans-serif',
                 background: 'transparent',
@@ -144,16 +197,20 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 labels: {
                     style: {
                         colors: isDark ? '#94a3b8' : '#64748b',
-                        fontSize: '11px'
+                        // Radar labels sit at axis vertices — smaller font prevents overlap
+                        fontSize: isRadar ? (isMobile ? '8px' : '10px') : xFontSize,
                     },
-                    rotate: -45,
+                    // Radar labels must not rotate (they're positioned around the polygon)
+                    rotate: isRadar ? 0 : xRotate,
                     hideOverlappingLabels: true,
                 },
-                axisBorder: { show: true, color: isDark ? '#334155' : '#e2e8f0' }
+                axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' }
             },
             yaxis: {
+                // Radar yaxis labels (concentric ring values) clutter the center — hide them
+                show: !isRadar,
                 labels: {
-                    style: { colors: isDark ? '#94a3b8' : '#64748b' },
+                    style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: yFontSize },
                     formatter: (value: number) => {
                         if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
                         return value;
@@ -163,11 +220,25 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             grid: {
                 borderColor: isDark ? '#334155' : '#e2e8f0',
                 strokeDashArray: 4,
-                padding: { top: 0, right: 20, bottom: 0, left: 10 }
+                padding: gridPadding,
             },
-            dataLabels: { enabled: false },
+            dataLabels: isTreemap
+                ? {
+                    enabled: true,
+                    style: {
+                        fontSize: isMobile ? '10px' : '12px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '600',
+                        colors: ['#fff'],
+                    },
+                    formatter: (text: string, op: any) =>
+                        [text, op.value?.toLocaleString()],
+                }
+                : { enabled: false },
             legend: {
                 position: 'bottom',
+                horizontalAlign: legendAlign,
+                fontSize: legendFontSize,
                 labels: { colors: isDark ? '#e2e8f0' : '#334155' }
             },
             stroke: {
@@ -182,7 +253,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                         size: '65%',
                         labels: {
                             show: true,
-                            value: { fontSize: '20px', fontWeight: 600, color: isDark ? '#f1f5f9' : '#1e293b' }
+                            value: { fontSize: donutValueSize, fontWeight: 600, color: isDark ? '#f1f5f9' : '#1e293b' }
                         }
                     }
                 },
@@ -191,6 +262,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     enableShades: false
                 },
                 radar: {
+                    size: radarSize,
+                    offsetY: -10,
                     polygons: {
                         strokeColors: isDark ? '#334155' : '#e2e8f0',
                         connectorColors: isDark ? '#334155' : '#e2e8f0',
@@ -219,10 +292,17 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 chartInstance.current = null;
             }
         };
-    }, [series, categories, isPie, isDark, type, title, isTreemap]);
+    }, [series, categories, isPie, isDark, type, title, isTreemap, isMobile, isTablet]);
 
-    const handleDownload = () => {
-        if (chartInstance.current) {
+    const handleDownload = async () => {
+        if (!chartInstance.current) return;
+        try {
+            const { imgURI } = await (chartInstance.current as any).dataURI();
+            const a = document.createElement('a');
+            a.href = imgURI;
+            a.download = `${title || 'chart'}.png`;
+            a.click();
+        } catch {
             (chartInstance.current as any).exportToSVG();
         }
     };
@@ -231,31 +311,31 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const chartMinWidth = dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
 
     return (
-        <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
+        <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
-                <div className="px-4 sm:px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-start justify-between bg-slate-50/30 dark:bg-white/[0.04]">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm mt-1.5 flex-shrink-0"></div>
-                        <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight break-all sm:break-keep line-clamp-2 leading-relaxed">
+                <div className="px-3 py-1.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-white/[0.04]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>
+                        <h3 className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate leading-none">
                             {title || t.title}
                         </h3>
                     </div>
                     <button
                         onClick={handleDownload}
-                        className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0 ml-2"
+                        className="flex items-center text-slate-400 hover:text-indigo-500 transition-colors px-1 flex-shrink-0 ml-2 mr-2"
                         title={t.download}
                     >
-                        <i className="fa-solid fa-download text-xs"></i>
+                        <i className="fa-solid fa-download text-[9px] leading-none"></i>
                     </button>
                 </div>
 
                 {/* Chart Area */}
-                <div className="p-5 flex-1 relative min-h-[340px]">
+                <div className="p-2 sm:p-4 flex-1 relative min-h-[220px] sm:min-h-[270px] lg:min-h-[320px]">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-                    <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
+                    <div className={`w-full ${dataCount > 10 ? 'overflow-x-auto custom-scrollbar' : 'overflow-x-hidden'}`}>
                         <div style={{ minWidth: chartMinWidth, width: '100%' }}>
                             <div ref={chartRef} className="w-full" />
                         </div>

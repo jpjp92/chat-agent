@@ -99,3 +99,4 @@ scripts/test-summary-thinking-35flash.mjs
 scripts/test-two-stage-multitask-thinking.mjs
 scripts/test-multiturn-35flash.mjs
 scripts/test-bold-rendering.mjs
+scripts/test-chart-options.mjs

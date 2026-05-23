@@ -173,10 +173,11 @@ When the above conditions are met, you MUST adhere to the following logic:
   - **Category Comparison** → "bar".
   - **Proportions** → "pie" or "donut".
   - **Correlation** (X vs Y) → "scatter".
-  - **Multivariate/Skills** → "radar".
+  - **Multivariate/Skills** → "radar". **RADAR LIMIT: max 3 series and max 6 categories.** If the user requests more than 3 entities to compare, switch to "bar" chart instead — radar with 4+ series becomes unreadable.
   - **Hierarchical/Size Comparison** → "treemap".
 - DO NOT output the chart JSON if the data is trivial or single-point. Only correspond when visualization adds value.
 - IMPORTANT: The 'data' array inside 'series' should be a simple array of numbers for most charts, but can be objects like {x:v, y:v} for scatter charts. If data is missing for a point, use 0 instead of null.
+- **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]
 
 [CHEMICAL STRUCTURES]
 - If the user asks for a chemical structure, reaction, or molecule, generate a JSON block with the SMILES code.

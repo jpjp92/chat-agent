@@ -337,7 +337,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Thinking config — model-aware branching:
                     // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
                     //   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
-                    //     (video download 30~50s + medium thinking 15~25s → exceeds 60s limit)
+                    //   - Renderer intents (astronomy/data_viz/etc): "minimal" — structured JSON output;
+                    //     "low" budget can be exhausted by JSON reasoning → empty response
                     //   - Multi-turn: "medium" — follow-up turns need more reasoning to honor user format requests
                     //   - 1st turn: "low" — prevents 60s timeout on first complex queries
                     // 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
@@ -345,8 +346,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - medical_qa: budget 3000 (cap)
                     //   - Others: undefined (model default)
                     const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
+                    const rendererIntentSet = new Set(['astronomy', 'biology', 'chemistry', 'physics', 'data_viz']);
                     const thinkingConfig = is3xModel
-                        ? (isYoutubeRequest && hasVideoData)
+                        ? ((isYoutubeRequest && hasVideoData) || rendererIntentSet.has(state.intent))
                             ? { thinkingLevel: "minimal" as const }
                             : isMultiTurn
                             ? { thinkingLevel: "medium" as const }
@@ -536,7 +538,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         });
 
                         const singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
-                        responseText = (singlePassResponse.text ?? singleParts
+                        responseText = (singlePassResponse.text || singleParts
                             .filter((p: any) => !p.thought)
                             .map((p: any) => p.text || '')
                             .join('')).trim();
