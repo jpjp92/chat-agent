@@ -681,8 +681,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   // Force a fixed-width container for pharmacy cards so width never varies with content length
   const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*(pharmacy|hospital|vet)/i);
-  const outerMaxWidth = hasPharmacyBlock
-    ? 'w-[98%] sm:w-[90%] max-w-[98%] sm:max-w-[90%]'
+  const hasChartBlock = !isUser && !!message.content?.match(/```json\s*:\s*chart/i);
+  const outerMaxWidth = (hasPharmacyBlock || hasChartBlock)
+    ? 'w-[98%] sm:w-[92%] max-w-[98%] sm:max-w-[92%]'
     : 'max-w-[95%] sm:max-w-[85%]';
 
   return (
