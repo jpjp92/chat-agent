@@ -491,7 +491,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         (isDailyQuotaError(error) || isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
       : msg.includes('No API key available') || msg.includes('API keys exhausted') || msg.includes('All API keys') ?
         (isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
-      : status === 503 || msg.includes('503') || msg.includes('UNAVAILABLE') ? 'unavailable'
+      : status === 503 || status === 504 || msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('DEADLINE_EXCEEDED') ? 'unavailable'
       : status === 401 || status === 403 ? 'auth'
       : 'generic';
     sendEvent({ error: CHAT_ERRORS[errorType][lang] });

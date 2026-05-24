@@ -453,7 +453,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 break;
                             } catch (error: any) {
                                 const status = error?.status ?? error?.code;
-                                if (status === 429 || status === 503) {
+                                const isStage2Timeout = status === 504 || error?.message?.includes('DEADLINE_EXCEEDED') || error?.message?.includes('504') || error?.code === 'ERR_STREAM_DESTROYED';
+                                if (status === 429 || status === 503 || isStage2Timeout) {
                                     stage2Attempt += 1;
                                     // Daily/project-level quota exhausted — rotating keys won't help
                                     // Skip remaining key retries and go directly to 2.5 fallback
@@ -463,7 +464,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                         stage2QuotaExhausted = true;
                                         break;
                                     }
-                                    console.warn(`[LangGraph] Stage2 quota error (${status}) attempt ${stage2Attempt}/${MAX_KEY_RETRIES}. Rotating API key.`);
+                                    const reason = isStage2Timeout ? 'timeout/504' : `quota(${status})`;
+                                    console.warn(`[LangGraph] Stage2 error (${reason}) attempt ${stage2Attempt}/${MAX_KEY_RETRIES}. Rotating API key.`);
                                     if (stage2Attempt >= MAX_KEY_RETRIES) {
                                         stage2QuotaExhausted = true;
                                         break;
@@ -504,8 +506,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     break;
                                 } catch (fallbackError: any) {
                                     const fbStatus = fallbackError?.status ?? fallbackError?.code;
-                                    if (fbStatus === 429 || fbStatus === 503) {
-                                        console.warn(`[LangGraph] Stage2 fallback retry ${retryIdx + 1}/${MAX_KEY_RETRIES} failed with ${fbStatus}`);
+                                    const isFbTimeout = fbStatus === 504 || fallbackError?.message?.includes('DEADLINE_EXCEEDED') || fallbackError?.code === 'ERR_STREAM_DESTROYED';
+                                    if (fbStatus === 429 || fbStatus === 503 || fbStatus === 504 || isFbTimeout) {
+                                        console.warn(`[LangGraph] Stage2 fallback retry ${retryIdx + 1}/${MAX_KEY_RETRIES} failed with ${isFbTimeout ? 'timeout' : fbStatus}`);
                                         continue;
                                     }
                                     console.error('[LangGraph] Stage2 fallback fatal error:', fallbackError.message);
@@ -574,6 +577,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
                     const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
                     const isUnavailable = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
+                    const isTimeout = err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
                     const isAuth = err?.status === 401 || err?.status === 403;
                     if (isAuth) {
                         markKeyInvalid(sdkApiKey);
@@ -584,7 +588,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             console.warn(`[LangGraph] SDK 401/403: retrying with next key (attempt ${sdkAttempt + 1})`);
                             continue;
                         }
-                    } else if (isRateLimit || isUnavailable) {
+                    } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) {
                             if (isDailyQuotaError(err)) {
                                 markKeyDailyExhausted(sdkApiKey);
@@ -596,7 +600,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
                             sdkAttempt++;
-                            console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : '503');
+                            console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : isTimeout ? 'timeout/504' : '503');
                             continue;
                         }
                     } else if (err?.status === 500 && hadMultimodalContent && !forceTextOnly) {
@@ -761,7 +765,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     err.message.includes('INTERNAL') ||
                     err.message.includes('503')
                 );
-                if (isRateLimit || isStreamError) {
+                const isTimeout = err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
+                const isUnavailable = err?.status === 503 || err?.message?.includes('UNAVAILABLE');
+                if (isRateLimit || isStreamError || isTimeout || isUnavailable) {
                     if (isRateLimit) {
                         if (isDailyQuotaError(err)) {
                             markKeyDailyExhausted(lcApiKey);
@@ -773,7 +779,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     if (nextKey && nextKey !== lcApiKey) {
                         lcApiKey = nextKey;
                         lcAttempt++;
-                        console.log(`[LangGraph] LangChain retry (attempt ${lcAttempt + 1}) reason:`, isRateLimit ? '429' : 'stream-error', err?.message?.slice(0, 80));
+                        const reason = isRateLimit ? '429' : isTimeout ? 'timeout/504' : isUnavailable ? '503' : 'stream-error';
+                        console.log(`[LangGraph] LangChain retry (attempt ${lcAttempt + 1}) reason:`, reason, err?.message?.slice(0, 80));
                         continue;
                     }
                 }
