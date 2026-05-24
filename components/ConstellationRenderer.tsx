@@ -173,7 +173,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
 
             const isMobile = window.innerWidth < 640;
             const width = isMobile ? 500 : 800;
-            const height = isMobile ? 420 : 500;
+            const height = isMobile ? 340 : 500;
 
             canvas.width = width * 2; // Retina support
             canvas.height = height * 2;
@@ -382,7 +382,10 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             });
 
             // Draw star labels with collision detection
-            ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            const isMobileCanvas = window.innerWidth < 640;
+            const labelFontSize = isMobileCanvas ? 10 : 12;
+            const labelHeight = isMobileCanvas ? 15 : 18;
+            ctx.font = `${labelFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
 
@@ -415,8 +418,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
 
                     // Measure text dimensions
                     const textMetrics = ctx.measureText(star.name);
-                    const labelWidth = textMetrics.width + 12;
-                    const labelHeight = 18;
+                    const labelWidth = textMetrics.width + 10;
 
                     // Apply pan offset to star position
                     const starX = star.canvasX + panOffset.x;
@@ -690,11 +692,11 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
     return (
         <div className="relative my-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-xl bg-[#0a0a0b]">
             {/* Responsive Header Bar */}
-            <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2 px-3 py-2 bg-black/70 backdrop-blur-xl rounded-xl border border-white/20 shadow-2xl">
+            <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between gap-1.5 px-2.5 py-1.5 sm:py-2 bg-black/70 backdrop-blur-xl rounded-xl border border-white/20 shadow-2xl">
                 {/* Left: Constellation Name */}
-                <div className="flex items-center gap-2 min-w-0">
-                    <i className="fa-solid fa-stars text-xs sm:text-sm text-blue-400 flex-shrink-0"></i>
-                    <span className="text-xs sm:text-sm font-bold text-white truncate">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <i className="fa-solid fa-stars text-[10px] sm:text-sm text-blue-400 flex-shrink-0"></i>
+                    <span className="text-[10px] sm:text-sm font-bold text-white truncate">
                         {data.constellations && data.constellations.length > 0
                             ? data.constellations[0].name[language] || data.constellations[0].name.en
                             : currentLabels.title}
@@ -702,12 +704,10 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 </div>
 
                 {/* Center: Time Display & Controls */}
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-1 justify-center max-w-[320px]">
-                    <i className="fa-solid fa-clock text-[10px] sm:text-xs text-blue-400 flex-shrink-0 hidden sm:inline"></i>
-
+                <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-center max-w-[280px] sm:max-w-[320px]">
                     {/* Time Display (Read-only) */}
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-white/10 rounded">
-                        <span className="text-[10px] sm:text-xs font-mono text-white whitespace-nowrap">
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/10 rounded">
+                        <span className="text-[9px] sm:text-[10px] font-mono text-white whitespace-nowrap">
                             {observerTime.toLocaleString('ko-KR', {
                                 month: '2-digit',
                                 day: '2-digit',
@@ -715,28 +715,28 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                                 minute: '2-digit'
                             })}
                         </span>
-                        <span className="text-[10px] sm:text-xs">{isNight ? '🌙' : '☀️'}</span>
+                        <span className="text-[9px] sm:text-[10px]">{isNight ? '🌙' : '☀️'}</span>
                     </div>
 
                     {/* Time Adjustment Buttons */}
                     <div className="flex items-center gap-0.5">
                         <button
                             onClick={() => setObserverTime(new Date(observerTime.getTime() - 3600000))}
-                            className="px-1.5 py-0.5 text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
+                            className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
                             title="1시간 전"
                         >
                             ◀
                         </button>
                         <button
                             onClick={() => setIsPlaying(!isPlaying)}
-                            className="px-2 py-0.5 text-xs text-white bg-blue-500/30 hover:bg-blue-500/40 active:bg-blue-500/50 active:scale-95 rounded transition-all"
+                            className="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs text-white bg-blue-500/30 hover:bg-blue-500/40 active:bg-blue-500/50 active:scale-95 rounded transition-all"
                             title={isPlaying ? "일시정지" : "시간 흐름 재생"}
                         >
                             <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
                         </button>
                         <button
                             onClick={() => setObserverTime(new Date(observerTime.getTime() + 3600000))}
-                            className="px-1.5 py-0.5 text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
+                            className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
                             title="1시간 후"
                         >
                             ▶
@@ -745,13 +745,13 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center flex-shrink-0">
                     <button
                         onClick={handleSnapshot}
-                        className="p-1.5 hover:text-white text-slate-300 active:text-white active:scale-95 transition-all"
+                        className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-slate-300 bg-white/10 hover:bg-white/20 hover:text-white active:bg-white/30 active:scale-95 rounded transition-all"
                         title={currentLabels.snapshot}
                     >
-                        <i className="fa-solid fa-camera text-xs sm:text-sm"></i>
+                        <i className="fa-solid fa-camera"></i>
                     </button>
                 </div>
             </div>
@@ -772,62 +772,62 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             />
 
             {/* Control Panel */}
-            <div className="absolute bottom-3 right-3 flex flex-col gap-1.5 z-20">
+            <div className="absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3 flex flex-col gap-1 sm:gap-1.5 z-20">
                 {/* Zoom controls */}
                 <div className="flex flex-col bg-black/60 backdrop-blur-md rounded border border-white/10">
                     <button
                         onClick={handleZoomIn}
                         disabled={zoom >= MAX_ZOOM}
-                        className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
+                        className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
                         title="Zoom in"
                     >
-                        <i className="fa-solid fa-plus text-sm"></i>
+                        <i className="fa-solid fa-plus text-xs sm:text-sm"></i>
                     </button>
                     <div className="h-px bg-white/10"></div>
                     <button
                         onClick={handleZoomOut}
                         disabled={zoom <= MIN_ZOOM}
-                        className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
+                        className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
                         title="Zoom out"
                     >
-                        <i className="fa-solid fa-minus text-sm"></i>
+                        <i className="fa-solid fa-minus text-xs sm:text-sm"></i>
                     </button>
                 </div>
 
                 {/* Reset button */}
                 <button
                     onClick={handleResetView}
-                    className="w-10 h-10 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
+                    className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
                     title="Reset view"
                 >
-                    <i className="fa-solid fa-rotate-right text-sm"></i>
+                    <i className="fa-solid fa-rotate-right text-xs sm:text-sm"></i>
                 </button>
             </div>
             {/* Star info panel — fixed bottom-left glassmorphism */}
-            <div className={`absolute bottom-3 left-3 z-20 transition-all duration-200 ${hoveredStar ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1 pointer-events-none'}`}>
+            <div className={`absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 z-20 transition-all duration-200 ${hoveredStar ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1 pointer-events-none'}`}>
                 {hoveredStar && (
-                    <div className="bg-black/55 backdrop-blur-xl rounded-2xl border border-white/10 px-4 py-3 shadow-2xl min-w-[185px]">
-                        <div className="flex items-center gap-2 mb-2.5">
+                    <div className="bg-black/55 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/10 px-3 py-2 sm:px-4 sm:py-3 shadow-2xl min-w-[150px] sm:min-w-[185px]">
+                        <div className="flex items-center gap-1.5 mb-1.5 sm:mb-2.5">
                             <div
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ background: getStarColor(hoveredStar.mag), boxShadow: `0 0 8px 2px ${getStarColor(hoveredStar.mag)}` }}
+                                className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0"
+                                style={{ background: getStarColor(hoveredStar.mag), boxShadow: `0 0 6px 2px ${getStarColor(hoveredStar.mag)}` }}
                             />
-                            <p className="text-[13px] font-semibold text-white leading-tight truncate">
+                            <p className="text-[11px] sm:text-[13px] font-semibold text-white leading-tight truncate">
                                 {hoveredStar.name || '—'}
                             </p>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <div className="flex justify-between gap-6">
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">등급</span>
-                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.mag.toFixed(2)}</span>
+                        <div className="flex flex-col gap-0.5 sm:gap-1">
+                            <div className="flex justify-between gap-4 sm:gap-6">
+                                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wide">등급</span>
+                                <span className="text-[9px] sm:text-[11px] text-slate-200 font-mono">{hoveredStar.mag.toFixed(2)}</span>
                             </div>
-                            <div className="flex justify-between gap-6">
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">RA</span>
-                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.ra.toFixed(2)}h</span>
+                            <div className="flex justify-between gap-4 sm:gap-6">
+                                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wide">RA</span>
+                                <span className="text-[9px] sm:text-[11px] text-slate-200 font-mono">{hoveredStar.ra.toFixed(2)}h</span>
                             </div>
-                            <div className="flex justify-between gap-6">
-                                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dec</span>
-                                <span className="text-[11px] text-slate-200 font-mono">{hoveredStar.dec.toFixed(2)}°</span>
+                            <div className="flex justify-between gap-4 sm:gap-6">
+                                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wide">Dec</span>
+                                <span className="text-[9px] sm:text-[11px] text-slate-200 font-mono">{hoveredStar.dec.toFixed(2)}°</span>
                             </div>
                         </div>
                     </div>
@@ -835,8 +835,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             </div>
 
             {/* Zoom indicator */}
-            <div className="absolute bottom-3 right-14 z-20 px-2 h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
-                <span className="text-[10px] font-mono text-slate-300 leading-none">
+            <div className="absolute bottom-2.5 sm:bottom-3 right-11 sm:right-14 z-20 px-1.5 sm:px-2 h-5 sm:h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
+                <span className="text-[9px] sm:text-[10px] font-mono text-slate-300 leading-none">
                     {(zoom * 100).toFixed(0)}%
                 </span>
             </div>
