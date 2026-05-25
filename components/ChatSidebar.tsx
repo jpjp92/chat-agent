@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatSession, Language } from '../types';
 
 interface ChatSidebarProps {
@@ -16,6 +16,9 @@ interface ChatSidebarProps {
   isCollapsed?: boolean;
   toggleCollapse?: () => void;
   isLoadingSessions?: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -33,6 +36,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onRenameSession,
   showConfirmDialog,
   isLoadingSessions = false,
+  isLoadingMore = false,
+  hasMore = false,
+  onLoadMore,
 }) => {
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -42,6 +48,15 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !hasMore || isLoadingMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+      onLoadMore?.();
+    }
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,7 +85,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       languageLabel: "언어 설정",
       searchPlaceholder: "채팅 검색",
       edit: "편집",
-      delete: "삭제"
+      delete: "삭제",
+      loadingMore: "불러오는 중...",
     },
     en: {
       newChat: "New Chat",
@@ -81,7 +97,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       languageLabel: "Language",
       searchPlaceholder: "Search chats",
       edit: "Edit",
-      delete: "Delete"
+      delete: "Delete",
+      loadingMore: "Loading...",
     },
     es: {
       newChat: "Nuevo Chat",
@@ -92,7 +109,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       languageLabel: "Idioma",
       searchPlaceholder: "Buscar chats",
       edit: "Editar",
-      delete: "Eliminar"
+      delete: "Eliminar",
+      loadingMore: "Cargando...",
     },
     fr: {
       newChat: "Nouveau Chat",
@@ -103,7 +121,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       languageLabel: "Langue",
       searchPlaceholder: "Rechercher",
       edit: "Modifier",
-      delete: "Supprimer"
+      delete: "Supprimer",
+      loadingMore: "Chargement...",
     }
   };
 
@@ -202,7 +221,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
           {/* Scrollable List Part: Hidden when collapsed */}
           {(!isCollapsed || isOpen) && (
-            <div className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4 custom-scrollbar">
+            <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4 custom-scrollbar">
               <div className="flex items-center justify-between px-2 mb-2">
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest tabular-nums">{t.history}</h3>
               </div>
@@ -346,6 +365,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   )}
                 </div>
               ))
+              )}
+
+              {/* Load more indicator */}
+              {isLoadingMore && (
+                <div className="flex items-center justify-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                  <i className="fa-solid fa-spinner fa-spin text-[11px]"></i>
+                  <span className="text-[11px] font-medium">{t.loadingMore}</span>
+                </div>
               )}
             </div>
           )}

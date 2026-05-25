@@ -74,8 +74,8 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
 /**
  * 세션 관리
  */
-export const fetchSessions = async (userId: number) => {
-  const response = await fetch(`/api/sessions?user_id=${userId}`);
+export const fetchSessions = async (userId: number, offset = 0, limit = 30) => {
+  const response = await fetch(`/api/sessions?user_id=${userId}&offset=${offset}&limit=${limit}`);
   if (!response.ok) throw new Error(`Failed to fetch sessions: ${response.status}`);
   return response.json();
 };

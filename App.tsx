@@ -69,7 +69,10 @@ const App: React.FC = () => {
     currentSession,
     isLoadingMessages,
     isLoadingSessions,
+    isLoadingMore,
+    hasMore,
     createNewSession,
+    loadMoreSessions,
     selectSession,
     removeSession,
     renameSession,
@@ -338,6 +341,9 @@ const App: React.FC = () => {
         isOpen={isSidebarOpen}
         isCollapsed={isSidebarCollapsed}
         isLoadingSessions={isLoadingSessions}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
+        onLoadMore={loadMoreSessions}
         onClose={() => setIsSidebarOpen(false)}
         toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onLanguageChange={handleLanguageChange}

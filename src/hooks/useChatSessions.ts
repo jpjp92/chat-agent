@@ -99,6 +99,7 @@ const mapDbMessage = (message: any): Message => ({
 });
 
 const SESSIONS_CACHE_KEY = 'chat_sessions_cache_v1';
+const SESSION_PAGE_SIZE = 30;
 
 const readSessionsCache = (): ChatSession[] => {
   try {
@@ -139,6 +140,9 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [sessionOffset, setSessionOffset] = useState(0);
 
   const lang = (['ko', 'en', 'es', 'fr'].includes(language ?? '')) ? language! : 'ko';
 
@@ -186,7 +190,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
     setIsLoadingSessions(true);
     try {
-      const { sessions: dbSessions } = await fetchSessions(resolvedUserId);
+      const { sessions: dbSessions, total } = await fetchSessions(resolvedUserId, 0, SESSION_PAGE_SIZE);
 
       if (dbSessions && dbSessions.length > 0) {
         const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
@@ -200,6 +204,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
           writeSessionsCache(updated);
           return updated;
         });
+        setSessionOffset(SESSION_PAGE_SIZE);
+        setHasMore((total ?? 0) > SESSION_PAGE_SIZE);
         return;
       }
 
@@ -209,6 +215,37 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       reportError('loadSessions');
     } finally {
       setIsLoadingSessions(false);
+    }
+  };
+
+  const loadMoreSessions = async () => {
+    if (!userId || isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const { sessions: dbSessions, total } = await fetchSessions(userId, sessionOffset, SESSION_PAGE_SIZE);
+      if (dbSessions && dbSessions.length > 0) {
+        const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
+          id: session.id,
+          title: session.title,
+          messages: [],
+          createdAt: new Date(session.created_at).getTime(),
+        }));
+        setSessions(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newSessions = mappedSessions.filter(s => !existingIds.has(s.id));
+          return [...prev, ...newSessions];
+        });
+        const nextOffset = sessionOffset + SESSION_PAGE_SIZE;
+        setSessionOffset(nextOffset);
+        setHasMore(nextOffset < (total ?? 0));
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error('Failed to load more sessions', error);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -288,8 +325,11 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     setCurrentSessionId,
     isLoadingMessages,
     isLoadingSessions,
+    isLoadingMore,
+    hasMore,
     currentSession: sessions.find(session => session.id === currentSessionId),
     loadUserSessions,
+    loadMoreSessions,
     createNewSession,
     selectSession,
     removeSession,

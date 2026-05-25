@@ -18,15 +18,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (error) throw error;
                 return res.status(200).json({ messages });
             } else if (user_id) {
-                // 사용자의 세션 목록 가져오기
-                const { data: sessions, error } = await supabase
+                const offset = parseInt((req.query.offset as string) || '0', 10);
+                const limit = parseInt((req.query.limit as string) || '30', 10);
+
+                const { data: sessions, error, count } = await supabase
                     .from('chat_sessions')
-                    .select('*')
+                    .select('*', { count: 'exact' })
                     .eq('user_id', user_id)
-                    .order('updated_at', { ascending: false });
+                    .order('updated_at', { ascending: false })
+                    .range(offset, offset + limit - 1);
 
                 if (error) throw error;
-                return res.status(200).json({ sessions });
+                return res.status(200).json({ sessions, total: count ?? 0 });
             }
         }
 
