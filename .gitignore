@@ -10,6 +10,8 @@ node_modules
 # Production
 /dist
 /build
+/.next
+/next-env.d.ts
 
 # Misc
 .DS_Store
@@ -107,3 +109,4 @@ scripts/inspect-storage.mjs
 scripts/migrate-storage.mjs
 scripts/migrate-supabase.mjs
 scripts/test-new-supabase.mjs
+scripts/test-ssrf.mjs
