@@ -427,6 +427,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     '  3. A "Considerations" section only if there are meaningful tradeoffs, limitations, risks, or adoption notes.',
                                     '- Keep headings concise and avoid generic meta headings such as "Summary of provided information".',
                                 ]),
+                            '- IMPORTANT: For weather forecasts, daily/weekly schedules, comparisons, or any multi-row structured data, you MUST use a markdown table. Never use bullet points for data that has consistent columns across multiple rows.',
                             '- Preserve useful structure, clarity, and brevity.',
                             '- If evidence is insufficient, state that clearly.',
                         ].join('\n');

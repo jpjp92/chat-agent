@@ -100,3 +100,10 @@ scripts/test-two-stage-multitask-thinking.mjs
 scripts/test-multiturn-35flash.mjs
 scripts/test-bold-rendering.mjs
 scripts/test-chart-options.mjs
+scripts/check-today.mjs
+scripts/count-old-supabase.mjs
+scripts/inspect-old-supabase.mjs
+scripts/inspect-storage.mjs
+scripts/migrate-storage.mjs
+scripts/migrate-supabase.mjs
+scripts/test-new-supabase.mjs
