@@ -439,6 +439,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
         // Fix: closing ** immediately followed by Korean character is not recognized as a
         // closer by CommonMark (it becomes left-flanking too). Insert space to disambiguate.
+        // Extra: when closing ** is preceded by a quote char (punctuation), rule (b) may fail
+        // in some remark-gfm versions. Insert ZWNJ (U+200C, not whitespace/punctuation in
+        // CommonMark) before ** so right-flanking is satisfied via the simpler rule (a).
+        textPart = textPart.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '$1‌** ');
         textPart = textPart.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
         // Close unclosed bold markers during streaming
         if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
@@ -508,6 +512,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           // Process for numeric ranges (1~10 -> 1&#126;10)
           let processedVisible = visibleText.replace(/(\d)~(\d)/g, '$1&#126;$2');
           // Fix Korean bold rendering (same as above)
+          processedVisible = processedVisible.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '$1‌** ');
           processedVisible = processedVisible.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
 
           // Safely close dangling code blocks during streaming
@@ -531,6 +536,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         // Process for numeric ranges (1~10 -> 1&#126;10)
         let processedRemaining = remainingText.replace(/(\d)~(\d)/g, '$1&#126;$2');
         // Fix Korean bold rendering (same as above)
+        processedRemaining = processedRemaining.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '$1‌** ');
         processedRemaining = processedRemaining.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ])/g, '**$1** ');
 
         // Safely close dangling code blocks during streaming
