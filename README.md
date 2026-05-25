@@ -11,6 +11,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 - **Login-less**: Start instantly with an auto-assigned random nickname and avatar
 - **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
 - **Auto-title**: Session titles generated automatically from conversation content (Gemini 2.5 Flash)
+- **Sidebar infinite scroll**: Session list loads 30 items at a time; additional sessions are fetched automatically on scroll to bottom
 - **Localization**: Full support for KO / EN / ES / FR
 
 ### 1-2. AI Intelligence
@@ -467,16 +468,21 @@ Model IDs are centralized to avoid scattered string literals:
 │   │   └── models.ts           # Frontend chat model registry + Header options
 │   └── hooks/                  # Custom React hooks (App.tsx 오케스트레이션 분리)
 │       ├── useAuthSession.ts   # Auth init, localStorage restore, 익명 로그인
-│       ├── useChatSessions.ts  # Session CRUD, 메시지 lazy load
+│       ├── useChatSessions.ts  # Session CRUD, 메시지 lazy load, 무한 스크롤 페이지네이션
 │       └── useChatStream.ts    # 메시지 전송 오케스트레이션 (upload / stream / title)
 ├── services/
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260521.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260525.md)
 │   ├── TODO.md                 # Roadmap
-│   ├── Guide/REF_*.md          # Renderer test prompt guides
-│   └── Guide/ERROR_HANDLING.md # 에러 처리 전체 구조 (7-layer map)
+│   ├── Guide/
+│   │   ├── REF_*.md            # Renderer test prompt guides
+│   │   ├── ERROR_HANDLING.md   # 에러 처리 전체 구조 (7-layer map)
+│   │   ├── DB_SCHEMA.md        # Supabase 테이블 구조 스냅샷
+│   │   ├── LAW_API_TEST.md     # 법령 API 테스트 가이드
+│   │   └── NEXTJS_MIGRATION_PLAN.md
+│   └── History/                # 이전 세션 작업 로그 (DEV_260520.md 이전)
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
 └── types.ts                    # 공유 TypeScript 타입 정의
 ```
@@ -489,23 +495,18 @@ Model IDs are centralized to avoid scattered string literals:
 
 ```env
 SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_service_role_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key   # fallback: SUPABASE_KEY
 API_KEY=your_gemini_key_1
-API_KEY2=your_gemini_key_2
+API_KEY2=your_gemini_key_2   # optional: additional keys for rotation
 
 # Drug Search APIs
 MFDS_API_ENDPOINT=your_mfds_endpoint
 MFDS_API_KEY=your_mfds_key
-DRUG_API_KEY=your_drug_api_key
 
 # Public Info APIs
 PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용
 VET_KEY=your_animal_hospital_api_key                    # 행정안전부 동물병원 (만료 2028-05-10)
-EDU_KEY=your_neis_school_api_key
-NCBI_KEY=your_pubmed_api_key
-CULTURE_API_KEY=your_culture_event_key
 LAW_OC=your_law_openapi_oc
-GEMINI_IMAGEN=your_imagen_api_key
 ```
 
 ### 5-2. Install & run
