@@ -8,7 +8,12 @@ export const maxDuration = 60;
 const inflightRequests = new Map<string, Promise<{ publicUrl: string; pillVisual: any } | null>>();
 
 export async function POST(req: NextRequest) {
-    const { url, imprint_front, imprint_back, drug_name } = await req.json();
+    let url: string, imprint_front: string, imprint_back: string, drug_name: string;
+    try {
+        ({ url, imprint_front, imprint_back, drug_name } = await req.json());
+    } catch {
+        return NextResponse.json({ error: 'Invalid or empty request body' }, { status: 400 });
+    }
 
     if (!url || typeof url !== 'string') {
         return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
