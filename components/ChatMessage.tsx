@@ -783,7 +783,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             if (!hasGrounding && drugChips.length === 0) return null;
             return (
               <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
-                {hasGrounding && message.groundingSources!.map((source, idx) => (
+                {hasGrounding && message.groundingSources!
+                  .filter(source => { try { new URL(source.uri); return true; } catch { return false; } })
+                  .map((source, idx) => (
                   <a
                     key={idx}
                     href={source.uri}
