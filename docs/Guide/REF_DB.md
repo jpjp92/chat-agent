@@ -32,7 +32,7 @@
 | `avatar_url` | `text` | nullable | 프로필 이미지 Supabase Storage URL |
 | `created_at` | `timestamptz` | DEFAULT now() | |
 
-**API 접근:** `api/auth.ts`  
+**API 접근:** `app/api/auth/route.ts`  
 **조작:** POST(login/signup), PATCH(display_name, avatar_url)  
 **보안 이슈:** PATCH에 소유권 검증 없음 → 누구든 임의 id로 타 사용자 수정 가능 (IDOR-1)
 
@@ -50,8 +50,8 @@
 | `created_at` | `timestamptz` | DEFAULT now() | |
 | `updated_at` | `timestamptz` | | 마지막 메시지 시각. 사이드바 정렬 기준 |
 
-**API 접근:** `api/sessions.ts`, `api/chat.ts`  
-**조작:** GET(user_id로 목록), POST(생성), DELETE(삭제), PATCH(title 변경)  
+**API 접근:** `app/api/sessions/route.ts`, `app/api/chat/route.ts`  
+**조작:** GET(user_id로 목록, offset/limit 페이지네이션), POST(생성), DELETE(삭제), PATCH(title 변경)  
 **보안 이슈:** 세션 ID만 알면 타 사용자 세션 전체 열람·수정·삭제 가능 (IDOR-2)
 
 ---
@@ -70,7 +70,7 @@
 | `grounding_sources` | `jsonb` | nullable | Google Search 출처 칩. `[{title, uri}]` 배열 |
 | `created_at` | `timestamptz` | DEFAULT now() | 메시지 시각. 조회 정렬 기준 |
 
-**API 접근:** `api/sessions.ts`(조회), `api/chat.ts`(삽입)  
+**API 접근:** `app/api/sessions/route.ts`(조회), `app/api/chat/route.ts`(삽입)  
 **조작:** GET(session_id로 목록, created_at ASC), INSERT(user 메시지, assistant 메시지)
 
 **현재 미저장 항목 (로컬 only):**
@@ -83,7 +83,7 @@
 ## Storage 버킷
 
 허용 버킷 화이트리스트: `ALLOWED_BUCKETS = ['chat-imgs', 'chat-videos', 'chat-docs']`  
-(`api/upload.ts`, `api/create-signed-url.ts` 양쪽에 하드코딩)
+(`app/api/upload/route.ts`, `app/api/create-signed-url/route.ts` 양쪽에 하드코딩)
 
 ---
 
@@ -93,11 +93,11 @@
 
 | 업로더 | 파일 경로 패턴 | 비고 |
 |---|---|---|
-| `api/upload.ts` (서버 base64) | `{timestamp}_{safe-name}.{ext}` | 특수문자 → `-` 치환, 소문자화 |
-| `api/create-signed-url.ts` (클라이언트 PUT) | `{timestamp}_{safe-name}` | `.` 허용, 소문자화 |
-| `api/sync-drug-image.ts` (약품 이미지 캐시) | `drug-cache/{urlHash}.jpg` | URL SHA256 해시 기반. 중복 요청 in-flight dedup |
+| `app/api/upload/route.ts` (서버 base64) | `{timestamp}_{safe-name}.{ext}` | 특수문자 → `-` 치환, 소문자화 |
+| `app/api/create-signed-url/route.ts` (클라이언트 PUT) | `{timestamp}_{safe-name}` | `.` 허용, 소문자화 |
+| `app/api/sync-drug-image/route.ts` (약품 이미지 캐시) | `drug-cache/{urlHash}.jpg` | URL SHA256 해시 기반. 중복 요청 in-flight dedup |
 
-**접근:** `api/proxy-image.ts`가 이 버킷의 이미지를 외부 URL 대신 프록시로 제공
+**접근:** `app/api/proxy-image/route.ts`가 이 버킷의 이미지를 외부 URL 대신 프록시로 제공
 
 ---
 
@@ -107,8 +107,8 @@
 
 | 업로더 | 파일 경로 패턴 |
 |---|---|
-| `api/upload.ts` | `{timestamp}_{safe-name}.{ext}` |
-| `api/create-signed-url.ts` | `{timestamp}_{safe-name}` |
+| `app/api/upload/route.ts` | `{timestamp}_{safe-name}.{ext}` |
+| `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` |
 
 ---
 
@@ -118,8 +118,8 @@
 
 | 업로더 | 파일 경로 패턴 | 비고 |
 |---|---|---|
-| `api/upload.ts` | `{timestamp}_{safe-name}.{ext}` | |
-| `api/create-signed-url.ts` | `{timestamp}_{safe-name}` | |
+| `app/api/upload/route.ts` | `{timestamp}_{safe-name}.{ext}` | |
+| `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` | |
 
 **자동 라우팅:** `useChatStream.ts`에서 1MB 이상 문서는 인라인 base64 대신 이 버킷에 업로드 후 URL만 전달 → Vercel 4.5MB payload 초과 방지
 
@@ -129,8 +129,8 @@
 
 | 경로 | API | 방식 | bodyParser 한도 |
 |---|---|---|---|
-| 서버 경유 | `api/upload.ts` | 서버가 base64 수신 → Buffer 변환 → Storage PUT | 30MB |
-| 클라이언트 직접 | `api/create-signed-url.ts` → 클라이언트 PUT | Signed URL 발급 → 브라우저가 Storage 직접 PUT | 없음 (브라우저 제한) |
+| 서버 경유 | `app/api/upload/route.ts` | 서버가 base64 수신 → Buffer 변환 → Storage PUT | 30MB |
+| 클라이언트 직접 | `app/api/create-signed-url/route.ts` → 클라이언트 PUT | Signed URL 발급 → 브라우저가 Storage 직접 PUT | 없음 (브라우저 제한) |
 
 현재 이미지는 클라이언트 직접 경로(`create-signed-url`), 문서 1MB+ 도 동일. `api/upload.ts`는 서버사이드 처리가 필요한 케이스용 레거시 경로.
 

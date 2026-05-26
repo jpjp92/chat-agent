@@ -226,13 +226,8 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 - [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
-- [ ] Vite → Next.js 전환 준비 — `docs/Guide/NEXTJS_MIGRATION_PLAN.md`
-  - 전환 목표: SSR 재작성보다 App Router SPA shell + Route Handlers 이전
-  - 선행 조건: P0 SSRF 리다이렉트 차단, `npx tsc --noEmit` 통과, API 계약 스냅샷 기록
-  - 핵심 리스크: `api/chat.ts` SSE(`res.write` → `ReadableStream`), `chat` 10mb / `upload` 30mb body size 계약, server secret client 노출 방지
-  - 진행 순서: UI shell → 단순 JSON API → 파일/이미지 API → URL API → 마지막 `chat` SSE
-- [ ] **DTO 레이어 구성** — Next.js 마이그레이션 이후 처리. App Router Route Handlers / Server Actions 경계에서 Zod 스키마 기반 요청·응답 DTO 정의. 현재는 `types.ts` + 각 툴 내부 Zod 스키마로 충분.
-- [ ] `api/chat.ts` normalizer / stream-events / persistence 분리
+- [ ] **DTO 레이어 구성** — App Router Route Handlers / Server Actions 경계에서 Zod 스키마 기반 요청·응답 DTO 정의. 현재는 `types.ts` + 각 툴 내부 Zod 스키마로 충분.
+- [ ] `app/api/chat/route.ts` normalizer / stream-events / persistence 분리
 - [ ] `geminiService.ts` 에러 계약 통일 (Result 패턴)
 - [ ] `attachment` + `attachments` 필드 단일화
 - [ ] `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
@@ -259,7 +254,7 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 
 ---
 
-_최종 수정: 2026-05-24 — TODO 정리: ✅ Gemini 3.5 Flash Two-track 2단계화, 인텐트 동작 검증 현황, 알약 이미지 식별 경로 안정화 3개 완료 섹션 제거(상세: DEV_260520.md, DEV_260521.md). Gemini 3.x 파라미터 분기 섹션에서 완료된 [x] 항목 제거, 잔여 [ ] 항목만 유지. SSRF 리다이렉트 차단 항목 현재 구조 검토 완료 — Vercel Lambda 환경에서 실질 위험도 낮으나, Next.js 마이그레이션 시 Route Handler 작성 시점에 함께 처리하는 방향으로 유지._
+_최종 수정: 2026-05-26 — TODO 정리: ✅ Vite → Next.js App Router 마이그레이션 완료(DEV_260525.md·DEV_260526.md). 아키텍처 리팩토링 섹션에서 완료된 마이그레이션 항목 제거, `api/chat.ts` → `app/api/chat/route.ts` 경로 수정. SSRF 리다이렉트 차단은 Next.js Route Handler 환경에서 재검토 필요로 유지._
 
 ---
 

@@ -84,7 +84,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 flowchart TB
     User([User])
 
-    subgraph Frontend ["Frontend (React 19 + Vite)"]
+    subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
         UI[Main UI & App State]
         Stream[useChatStream]
         Renderers["Visualization Renderers\nDrug / Pharmacy / Hospital / Vet / Law / Science / Chart"]
@@ -280,7 +280,7 @@ Safety rules:
 
 ### 2-7. Streaming And Source Handling
 
-`/api/chat.ts` consumes LangGraph stream events and forwards clean SSE events to the client.
+`app/api/chat/route.ts` consumes LangGraph stream events and forwards clean SSE events to the client.
 
 - SDK responses can stream text directly through `sendEvent`.
 - LangChain `on_chat_model_stream` chunks are sanitized before being sent.
@@ -390,13 +390,11 @@ Persistence timing:
 
 | Layer         | Technology                                                              |
 | ------------- | ----------------------------------------------------------------------- |
-| Frontend      | React 19, Vite, TypeScript, Tailwind CSS, Framer Motion                 |
+| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
 | Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas                            |
-| Backend       | Vercel Serverless Functions, LangGraph.js                               |
+| Backend       | Next.js Route Handlers (Vercel), LangGraph.js                           |
 | AI            | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
 | Database      | Supabase (PostgreSQL, Storage, Auth)                                    |
-
-> Next.js migration plan: [docs/Guide/NEXTJS_MIGRATION_PLAN.md](docs/Guide/NEXTJS_MIGRATION_PLAN.md)
 
 ### 3-1. Model Usage
 
@@ -420,20 +418,25 @@ Model IDs are centralized to avoid scattered string literals:
 ## 4. Project Structure
 
 ```
-├── api/                        # Vercel Serverless Functions
-│   ├── chat.ts                 # Main Gemini streaming endpoint (LangGraph, SSE)
-│   ├── speech.ts               # TTS service (gemini-2.5-flash-preview-tts)
-│   ├── summarize-title.ts      # Auto session title generation
-│   ├── sync-drug-image.ts      # Drug image caching and parsing
-│   ├── pill-search.ts          # Pill identification API
-│   ├── sessions.ts             # Session / message CRUD
-│   ├── upload.ts               # Supabase Storage upload proxy
-│   ├── fetch-url.ts            # Web / ArXiv scraping
-│   ├── fetch-transcript.ts     # YouTube transcript proxy (disabled — native video analysis only)
-│   ├── auth.ts                 # Auth handling
-│   ├── create-signed-url.ts    # Supabase Storage signed URL generation
-│   ├── proxy-image.ts          # Image proxy
-│   └── _lib/                   # Shared utilities (excluded from Vercel function count)
+├── app/                        # Next.js App Router
+│   ├── layout.tsx              # Root layout (HTML, CDN scripts, theme init)
+│   ├── page.tsx                # Entry point — dynamic import App (ssr: false)
+│   ├── globals.css             # Global styles
+│   └── api/                    # Route Handlers (maxDuration: 60, nodejs runtime)
+│       ├── chat/route.ts       # Main Gemini streaming endpoint (LangGraph, SSE)
+│       ├── speech/route.ts     # TTS service (gemini-2.5-flash-preview-tts)
+│       ├── summarize-title/route.ts  # Auto session title generation
+│       ├── sync-drug-image/route.ts  # Drug image caching and parsing
+│       ├── pill-search/route.ts      # Pill identification API
+│       ├── sessions/route.ts         # Session / message CRUD (offset/limit pagination)
+│       ├── upload/route.ts           # Supabase Storage upload proxy
+│       ├── fetch-url/route.ts        # Web / ArXiv scraping (Jina AI)
+│       ├── fetch-transcript/route.ts # YouTube transcript proxy (disabled)
+│       ├── auth/route.ts             # Auth handling
+│       ├── create-signed-url/route.ts # Supabase Storage signed URL generation
+│       └── proxy-image/route.ts      # Image proxy (nedrug.mfds.go.kr)
+├── api/
+│   └── _lib/                   # Shared server utilities
 │       ├── config.ts           # API key pool, markKeyRateLimited / markKeyInvalid
 │       ├── models.ts           # Server model registry (chat / router / TTS / title)
 │       ├── agent/              # LangGraph agent
@@ -473,17 +476,17 @@ Model IDs are centralized to avoid scattered string literals:
 ├── services/
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
-│   ├── DEV_HISTORY.md          # Version changelog (v4.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260525.md)
+│   ├── DEV_HISTORY.md          # Version changelog (v4.x ~ v5.x)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260526.md)
 │   ├── TODO.md                 # Roadmap
 │   ├── Guide/
 │   │   ├── REF_*.md            # Renderer test prompt guides
 │   │   ├── ERROR_HANDLING.md   # 에러 처리 전체 구조 (7-layer map)
 │   │   ├── DB_SCHEMA.md        # Supabase 테이블 구조 스냅샷
-│   │   ├── LAW_API_TEST.md     # 법령 API 테스트 가이드
-│   │   └── NEXTJS_MIGRATION_PLAN.md
+│   │   └── LAW_API_TEST.md     # 법령 API 테스트 가이드
 │   └── History/                # 이전 세션 작업 로그 (DEV_260520.md 이전)
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
+├── next.config.ts              # Next.js 설정 (보안 헤더)
 └── types.ts                    # 공유 TypeScript 타입 정의
 ```
 
@@ -513,7 +516,9 @@ LAW_OC=your_law_openapi_oc
 
 ```bash
 npm install
-npm run dev
+npm run dev        # Next.js dev server (port 3001)
+npm run build      # Production build
+npm start          # Production server
 ```
 
 ---
