@@ -215,10 +215,17 @@ export const useChatStream = ({
       webContext = `[${tag}: ${activeSession.lastActiveDoc.fileName}]\n${body}`;
     }
 
+    // 코드 블럭(``` ... ```, ~~~ ... ~~~, 인덴트 블럭) 제거 후 URL 추출 — 코드 안의 URL은 fetch 대상 아님
+    const contentWithoutCode = content
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/~~~[\s\S]*?~~~/g, '')
+      .replace(/^( {4}|\t).*/gm, '');
     const urlRegex = /(https?:\/\/[^\s\)]+)/g;
-    const urls = content.match(urlRegex);
-    const manualGroundingSources = (urls || []).map(url => {
-      const cleanUrl = url.replace(/[.\)\]\!,?]+$/, '');
+    const urls = contentWithoutCode.match(urlRegex);
+    const manualGroundingSources = (urls || [])
+      .map(url => url.replace(/[.\)\]\!,?]+$/, ''))
+      .filter(cleanUrl => { try { new URL(cleanUrl); return true; } catch { return false; } })
+      .map(cleanUrl => {
       const isYt = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       // Normalize YouTube URL to canonical form — backend sources use youtube.com/watch?v=ID,
       // so dedup (Map keyed by uri) works correctly regardless of original URL format (youtu.be, shorts, etc.)
@@ -242,9 +249,11 @@ export const useChatStream = ({
       let isPdf = false;
       let isYoutube = false;
       let urlFetchError = false;
+      let isValidUrl = false;
 
       try {
         const parsedUrl = new URL(rawUrl);
+        isValidUrl = true;
         const paramsToStrip = ['fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
         let hasStripped = false;
 
@@ -282,6 +291,8 @@ export const useChatStream = ({
       } else if (isPdf) {
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
+      } else if (!isValidUrl) {
+        // URL 파싱 실패 — fetch 시도하지 않음
       } else {
         try {
           setLoadingStatus(statusMessages.fetchingUrl);
