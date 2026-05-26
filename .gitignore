@@ -18,6 +18,7 @@ node_modules
 .env
 .env.local
 .env.vercel
+.env.vercel.prod
 .env.development.local
 .env.test.local
 .env.production.local
