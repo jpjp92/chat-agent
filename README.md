@@ -479,11 +479,9 @@ Model IDs are centralized to avoid scattered string literals:
 │   ├── DEV_*.md                # Session work logs (latest: DEV_260526.md)
 │   ├── TODO.md                 # Roadmap
 │   ├── Guide/
-│   │   ├── REF_*.md            # Renderer test prompt guides
-│   │   ├── ERROR_HANDLING.md   # 에러 처리 전체 구조 (7-layer map)
-│   │   ├── DB_SCHEMA.md        # Supabase 테이블 구조 스냅샷
-│   │   └── LAW_API_TEST.md     # 법령 API 테스트 가이드
+│   │   └── REF_*.md            # Renderer test prompt guides (Biology/Chart/Chemistry/DB/Diagram/Drug/Hospital/Law/Pharmacy/Physics/Vet/Constellation)
 │   └── History/                # 이전 세션 작업 로그 (DEV_260520.md 이전)
+│       └── Plans/              # 마이그레이션·보안·에러처리 계획 문서 (DB_MIGRATION_PLAN, ERROR_HANDLING, LAW_API_TEST, NEXTJS_MIGRATION_PLAN, SECURITY_VERIFICATION)
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
 ├── next.config.ts              # Next.js 설정 (보안 헤더)
 └── types.ts                    # 공유 TypeScript 타입 정의
@@ -497,7 +495,8 @@ Model IDs are centralized to avoid scattered string literals:
 
 ```env
 SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key   # fallback: SUPABASE_KEY
+SUPABASE_KEY=your_supabase_service_role_key             # service role key (anon·admin 공용)
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key # optional: SUPABASE_KEY fallback 사용
 API_KEY=your_gemini_key_1
 API_KEY2=your_gemini_key_2   # optional: additional keys for rotation
 
@@ -506,9 +505,9 @@ MFDS_API_ENDPOINT=your_mfds_endpoint
 MFDS_API_KEY=your_mfds_key
 
 # Public Info APIs
-PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용
+PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용 (만료 2028-05-06/07)
 VET_KEY=your_animal_hospital_api_key                    # 행정안전부 동물병원 (만료 2028-05-10)
-LAW_OC=your_law_openapi_oc
+LAW_OC=your_law_openapi_oc                              # 국가법령정보센터 OC 코드
 ```
 
 ### 5-2. Install & run
