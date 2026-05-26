@@ -1,3 +1,5 @@
+import 'server-only';
+
 const SEARCH_URL = 'https://www.pharm.or.kr/search/drugidfy/list.asp';
 
 export async function searchPill(criteria: { imprint_front: string, imprint_back?: string, color?: string, shape?: string }) {

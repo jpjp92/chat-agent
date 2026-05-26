@@ -1,3 +1,5 @@
+import 'server-only';
+
 export const SERVER_MODELS = {
     FLASH_3_5: "gemini-3.5-flash",
     FLASH: "gemini-2.5-flash",

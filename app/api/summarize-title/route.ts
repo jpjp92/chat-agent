@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { API_KEYS, getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from '../../../api/_lib/config.js';
-import { SUMMARY_MODELS } from '../../../api/_lib/models.js';
+import { API_KEYS, getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from '../../../api/_lib/config';
+import { SUMMARY_MODELS } from '../../../api/_lib/models';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

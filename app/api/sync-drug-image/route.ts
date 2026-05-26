@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../api/_lib/supabase.js';
+import { supabase } from '../../../api/_lib/supabase';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';

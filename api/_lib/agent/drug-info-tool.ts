@@ -3,9 +3,9 @@ import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
-import { getNextApiKey } from "../config.js";
-import { DEFAULT_CHAT_MODEL } from "../models.js";
-import { searchWebTool } from "./tools.js";
+import { getNextApiKey } from "../config";
+import { DEFAULT_CHAT_MODEL } from "../models";
+import { searchWebTool } from "./tools";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
 const MFDS_API_KEY = process.env.MFDS_API_KEY || '';

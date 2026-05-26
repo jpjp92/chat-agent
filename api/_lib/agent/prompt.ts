@@ -407,7 +407,7 @@ export const getPillWarnFallback = () => `
 3. "정확한 식별을 위해 약사 또는 의사에게 문의하거나, 약학정보원(www.pharm.or.kr)에서 직접 검색하세요"라고 안내하세요.
 4. 절대로 json:drug 블록을 생성해서는 안 됩니다.`;
 
-import type { IntentType } from "./state.js";
+import type { IntentType } from "./state";
 
 /**
  * Intent → additional prompt section hints.

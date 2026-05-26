@@ -1,9 +1,9 @@
-import { AgentStateType, IntentType } from "../state.js";
+import { AgentStateType, IntentType } from "../state";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config.js";
-import { ROUTER_MODEL } from "../../models.js";
-import { classifyIntentByRules, hasMedicalIntentKeyword, isAmbiguousImageIdentificationRequest } from "../intentRules.js";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config";
+import { ROUTER_MODEL } from "../../models";
+import { classifyIntentByRules, hasMedicalIntentKeyword, isAmbiguousImageIdentificationRequest } from "../intentRules";
 
 /**
  * Router Node

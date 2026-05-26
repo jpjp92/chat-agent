@@ -1,4 +1,6 @@
 
+import 'server-only';
+
 /**
  * API Key Management Utility
  * Dynamically loads all Gemini API keys from environment variables.

@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { searchPill } from "../pill-logic.js";
+import { searchPill } from "../pill-logic";
 
 /**
  * Tool for searching the web using DuckDuckGo Html.

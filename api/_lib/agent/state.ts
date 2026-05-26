@@ -1,6 +1,6 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
-import { DEFAULT_CHAT_MODEL } from "../models.js";
+import { DEFAULT_CHAT_MODEL } from "../models";
 
 export type IntentType =
     | "drug_id"      // 알약 이미지 식별 요청

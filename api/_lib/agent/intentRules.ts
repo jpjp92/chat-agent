@@ -1,4 +1,4 @@
-import type { IntentType } from "./state.js";
+import type { IntentType } from "./state";
 
 const KOREAN_MEDICAL_KEYWORDS = [
     '알약', '약품', '캡슐', '명칭', '식별', '무슨 약',

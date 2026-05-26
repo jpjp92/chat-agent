@@ -1,15 +1,16 @@
+import 'server-only';
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { GraphState, AgentStateType } from "./state.js";
-import { routerNode } from "./nodes/router.js";
-import { visionNode } from "./nodes/vision.js";
-import { createGeneratorNode } from "./nodes/generator.js";
-import { identifyPillTool, searchWebTool } from "./tools.js";
-import { searchDrugInfoTool } from "./drug-info-tool.js";
-import { pharmacyTool } from "./pharmacy-tool.js";
-import { hospitalTool } from "./hospital-tool.js";
-import { vetTool } from "./vet-tool.js";
-import { lawTool } from "./law-tool.js";
+import { GraphState, AgentStateType } from "./state";
+import { routerNode } from "./nodes/router";
+import { visionNode } from "./nodes/vision";
+import { createGeneratorNode } from "./nodes/generator";
+import { identifyPillTool, searchWebTool } from "./tools";
+import { searchDrugInfoTool } from "./drug-info-tool";
+import { pharmacyTool } from "./pharmacy-tool";
+import { hospitalTool } from "./hospital-tool";
+import { vetTool } from "./vet-tool";
+import { lawTool } from "./law-tool";
 
 /**
  * Compiles the LangGraph StateGraph instance.

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '../../../api/_lib/supabase.js';
-import { API_KEYS } from '../../../api/_lib/config.js';
-import { getSystemInstruction } from '../../../api/_lib/agent/prompt.js';
-import { compileAgentGraph } from '../../../api/_lib/agent/graph.js';
-import { DEFAULT_CHAT_MODEL } from '../../../api/_lib/models.js';
-import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../api/_lib/config.js';
+import { supabase } from '../../../api/_lib/supabase';
+import { API_KEYS } from '../../../api/_lib/config';
+import { getSystemInstruction } from '../../../api/_lib/agent/prompt';
+import { compileAgentGraph } from '../../../api/_lib/agent/graph';
+import { DEFAULT_CHAT_MODEL } from '../../../api/_lib/models';
+import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../api/_lib/config';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 
 export const runtime = 'nodejs';

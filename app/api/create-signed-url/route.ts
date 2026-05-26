@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../api/_lib/supabase.js';
+import { supabaseAdmin } from '../../../api/_lib/supabase';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

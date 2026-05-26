@@ -1,16 +1,16 @@
-import { AgentStateType } from "../state.js";
+import { AgentStateType } from "../state";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config.js";
-import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../../models.js";
-import { identifyPillTool, searchWebTool } from "../tools.js";
-import { searchDrugInfoTool } from "../drug-info-tool.js";
-import { pharmacyTool } from "../pharmacy-tool.js";
-import { hospitalTool } from "../hospital-tool.js";
-import { vetTool } from "../vet-tool.js";
-import { lawTool } from "../law-tool.js";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
+import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../../models";
+import { identifyPillTool, searchWebTool } from "../tools";
+import { searchDrugInfoTool } from "../drug-info-tool";
+import { pharmacyTool } from "../pharmacy-tool";
+import { hospitalTool } from "../hospital-tool";
+import { vetTool } from "../vet-tool";
+import { lawTool } from "../law-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
-import { getIntentFocusHint } from "../prompt.js";
+import { getIntentFocusHint } from "../prompt";
 
 /**
  * Generator Node
