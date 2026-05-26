@@ -1,7 +1,7 @@
-import { AgentStateType } from "../state.js";
+import { AgentStateType } from "../state";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config.js";
-import { SERVER_MODELS } from "../../models.js";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config";
+import { SERVER_MODELS } from "../../models";
 import { HumanMessage } from "@langchain/core/messages";
 
 /**

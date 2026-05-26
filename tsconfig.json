@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -13,16 +17,31 @@
     "strict": true,
     "allowJs": true,
     "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "incremental": true
   },
   "include": [
+    "next-env.d.ts",
+    "app/**/*.tsx",
+    "app/**/*.ts",
     "App.tsx",
     "index.tsx",
     "types.ts",
     "components/**/*.tsx",
     "src/**/*.ts",
     "services/**/*.ts",
-    "api/**/*.ts"
+    "api/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["dist", "node_modules"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    ".next"
+  ]
 }

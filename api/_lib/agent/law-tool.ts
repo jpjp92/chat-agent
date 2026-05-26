@@ -1,8 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { getNextApiKey, markKeyRateLimited } from "../config.js";
-import { SERVER_MODELS } from "../models.js";
+import { getNextApiKey, markKeyRateLimited } from "../config";
+import { SERVER_MODELS } from "../models";
 
 const LAW_BASE_URL = "https://www.law.go.kr/DRF";
 const FETCH_TIMEOUT_MS = 15000;

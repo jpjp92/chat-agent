@@ -1,3 +1,4 @@
+import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 // dotenv is not compatible with Edge runtime and Vercel automatically injects env vars
