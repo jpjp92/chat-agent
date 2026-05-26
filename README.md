@@ -18,7 +18,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 
 - **Gemini 2.5 Flash** as the default chat model, with **Gemini 3.5 Flash** selectable for higher-quality synthesis
 - **Gemini Flash-Lite** for semantic routing
-- **Centralized model registry**: Server model IDs live in `api/_lib/models.ts`; frontend selectable chat models live in `src/lib/models.ts`
+- **Centralized model registry**: Server model IDs live in `server/models.ts`; frontend selectable chat models live in `src/lib/models.ts`
 - **Model selector**: Header dropdown switches between Gemini 2.5 Flash and Gemini 3.5 Flash, with `preferred_model` persisted locally
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **3.5 Search two-track**: When 3.5 is selected but Google Search grounding is required, 2.5 Flash performs grounded retrieval and 3.5 Flash synthesizes the final answer
@@ -270,13 +270,13 @@ Safety rules:
 
 | Tool                 | File                                 | Purpose                                                                  |
 | -------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
-| `identify_pill`    | `api/_lib/agent/tools.ts`          | pharm.or.kr pill identification from imprint / color / shape             |
-| `search_web`       | `api/_lib/agent/tools.ts`          | DuckDuckGo HTML fallback search and source extraction                    |
-| `search_drug_info` | `api/_lib/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback guidance |
-| `pharmacyTool`     | `api/_lib/agent/pharmacy-tool.ts`  | National pharmacy search                                                 |
-| `hospitalTool`     | `api/_lib/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                              |
-| `vetTool`          | `api/_lib/agent/vet-tool.ts`       | Animal hospital search                                                   |
-| `lawTool`          | `api/_lib/agent/law-tool.ts`       | Korean law list/body/article lookup                                      |
+| `identify_pill`    | `server/agent/tools.ts`          | pharm.or.kr pill identification from imprint / color / shape             |
+| `search_web`       | `server/agent/tools.ts`          | DuckDuckGo HTML fallback search and source extraction                    |
+| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback guidance |
+| `pharmacyTool`     | `server/agent/pharmacy-tool.ts`  | National pharmacy search                                                 |
+| `hospitalTool`     | `server/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                              |
+| `vetTool`          | `server/agent/vet-tool.ts`       | Animal hospital search                                                   |
+| `lawTool`          | `server/agent/law-tool.ts`       | Korean law list/body/article lookup                                      |
 
 ### 2-7. Streaming And Source Handling
 
@@ -310,7 +310,7 @@ Safety rules:
 Router behavior:
 
 - Router LLM uses `gemini-2.5-flash-lite`.
-- Product-critical fallback rules live in `api/_lib/agent/intentRules.ts`.
+- Product-critical fallback rules live in `server/agent/intentRules.ts`.
 - Fallback rules include Korean / English / Spanish / French keywords for medicine, law, science visualization, locations, and data visualization.
 - Renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`) disable Google Search by default so structured JSON blocks are preserved; explicit “search/source/latest” requests re-enable search.
 
@@ -400,7 +400,7 @@ Persistence timing:
 
 Model IDs are centralized to avoid scattered string literals:
 
-- Server runtime: `api/_lib/models.ts`
+- Server runtime: `server/models.ts`
 - Frontend selection UI: `src/lib/models.ts`
 
 | Purpose                        | Model                                                                                       |
@@ -435,24 +435,23 @@ Model IDs are centralized to avoid scattered string literals:
 │       ├── auth/route.ts             # Auth handling
 │       ├── create-signed-url/route.ts # Supabase Storage signed URL generation
 │       └── proxy-image/route.ts      # Image proxy (nedrug.mfds.go.kr)
-├── api/
-│   └── _lib/                   # Shared server utilities
-│       ├── config.ts           # API key pool, markKeyRateLimited / markKeyInvalid
-│       ├── models.ts           # Server model registry (chat / router / TTS / title)
-│       ├── agent/              # LangGraph agent
-│       │   ├── graph.ts        # StateGraph definition
-│       │   ├── intentRules.ts  # deterministic multilingual routing fallbacks
-│       │   ├── nodes/          # router / vision / generator
-│       │   ├── drug-info-tool.ts  # MFDS + pharm.or.kr + Vision imprint (timeouts)
-│       │   ├── pharmacy-tool.ts   # 전국 약국 공공데이터 API (1000건, 영업시간 정렬)
-│       │   ├── hospital-tool.ts   # HIRA 전국 병원정보 API (sidoCd/sgguCd 코드 매핑)
-│       │   ├── vet-tool.ts        # 행정안전부 전국 동물병원 API (주소 LIKE 텍스트 검색)
-│       │   ├── law-tool.ts        # 국가법령정보센터 법령 목록/본문/조항호목 조회 + 조문 원문 링크
-│       │   ├── tools.ts        # identifyPillTool, searchWebTool (DDG 8s timeout)
-│       │   ├── prompt.ts
-│       │   └── state.ts
-│       ├── pill-logic.ts       # pharm.or.kr search logic
-│       └── supabase.ts
+├── server/                     # Shared server utilities (server-only, never bundled to client)
+│   ├── config.ts               # API key pool, markKeyRateLimited / markKeyInvalid
+│   ├── models.ts               # Server model registry (chat / router / TTS / title)
+│   ├── agent/                  # LangGraph agent
+│   │   ├── graph.ts            # StateGraph definition
+│   │   ├── intentRules.ts      # deterministic multilingual routing fallbacks
+│   │   ├── nodes/              # router / vision / generator
+│   │   ├── drug-info-tool.ts   # MFDS + pharm.or.kr + Vision imprint (timeouts)
+│   │   ├── pharmacy-tool.ts    # 전국 약국 공공데이터 API (1000건, 영업시간 정렬)
+│   │   ├── hospital-tool.ts    # HIRA 전국 병원정보 API (sidoCd/sgguCd 코드 매핑)
+│   │   ├── vet-tool.ts         # 행정안전부 전국 동물병원 API (주소 LIKE 텍스트 검색)
+│   │   ├── law-tool.ts         # 국가법령정보센터 법령 목록/본문/조항호목 조회 + 조문 원문 링크
+│   │   ├── tools.ts            # identifyPillTool, searchWebTool (DDG 8s timeout)
+│   │   ├── prompt.ts
+│   │   └── state.ts
+│   ├── pill-logic.ts           # pharm.or.kr search logic
+│   └── supabase.ts
 ├── components/                 # UI components
 │   ├── ChatMessage.tsx         # Markdown + visualization block parser
 │   ├── DrugRenderer.tsx        # Drug card

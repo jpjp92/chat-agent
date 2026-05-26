@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchPill } from '../../../api/_lib/pill-logic';
+import { searchPill } from '../../../server/pill-logic';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         const safeBaseName = baseName.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'file';
         const filePath = `${timestamp}_${safeBaseName}${ext ? '.' + ext : ''}`;
 
-        const { supabaseAdmin, supabase } = await import('../../../api/_lib/supabase');
+        const { supabaseAdmin, supabase } = await import('../../../server/supabase');
         const client = supabaseAdmin ?? supabase;
         if (!client) throw new Error('Supabase client not initialized');
 
