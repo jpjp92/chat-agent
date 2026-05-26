@@ -1,0 +1,44 @@
+# REF_CICD — GitHub Actions CI/CD 가이드
+
+> 작성일: 2026-05-26
+
+---
+
+## 현재 구성
+
+### Auto PR (dev → main)
+
+**파일**: `.github/workflows/auto-pr.yml`  
+**트리거**: `dev` 브랜치 push
+
+**동작 흐름**:
+1. dev 브랜치에 push 발생
+2. 오픈 상태의 `dev → main` PR 존재 여부 확인
+3. 없으면 PR 자동 생성 / 있으면 스킵
+
+**PR 형식**:
+- 제목: `dev → main: YYYY-MM-DD`
+- 본문: `git log origin/main..HEAD --oneline` 자동 삽입
+
+**권한**:
+- `GITHUB_TOKEN` — GitHub Actions가 자동 주입, 별도 시크릿 설정 불필요
+- `pull-requests: write` permission 명시
+
+---
+
+## 수동 PR 생성
+
+```bash
+gh pr create --base main --head dev --title "dev → main" --fill
+```
+
+---
+
+## 향후 확장 포인트
+
+| 작업 | 방법 |
+|------|------|
+| 빌드 검증 후 PR 생성 | `npm run build` step 추가 후 성공 시 PR 생성 |
+| PR에 라벨 자동 부착 | `gh pr edit --add-label` 추가 |
+| Vercel preview URL PR 코멘트 | Vercel GitHub 통합으로 자동 처리됨 |
+| main 머지 후 dev 자동 동기화 | `pull_request` closed 이벤트 + `git merge` workflow 추가 |

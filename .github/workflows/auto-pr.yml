@@ -1,0 +1,45 @@
+name: Auto PR (dev → main)
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create PR if not exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists. Skipping."
+            exit 0
+          fi
+
+          DATE=$(date +'%Y-%m-%d')
+          COMMITS=$(git log origin/main..HEAD --oneline | sed 's/^/- /' || echo "- (no commits)")
+
+          BODY="## 변경 내역
+
+${COMMITS}
+
+---
+🤖 dev 브랜치 push 시 자동 생성"
+
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "dev → main: ${DATE}" \
+            --body "${BODY}"
+          echo "PR created."
