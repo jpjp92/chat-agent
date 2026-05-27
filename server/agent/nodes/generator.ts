@@ -277,7 +277,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 : String(m.content);
                             return /https?:\/\/\S+/.test(text);
                         });
-                    if (historyHasUrl) useGoogleSearch = false;
+                    // Current message URL check: slice(0,-1) misses the current turn, so
+                    // 2.5 Flash with Google Search sees the URL and tries to fetch it.
+                    // Disable Search when current prompt contains a non-YouTube URL.
+                    const currentMsgHasNonYtUrl = (() => {
+                        const lastMsg = state.messages[state.messages.length - 1];
+                        if (!lastMsg || lastMsg._getType() !== 'human') return false;
+                        const text = Array.isArray(lastMsg.content)
+                            ? (lastMsg.content as any[]).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+                            : String(lastMsg.content);
+                        return /https?:\/\/\S+/.test(text) && !/(?:youtube\.com|youtu\.be)/.test(text);
+                    })();
+                    if (historyHasUrl || currentMsgHasNonYtUrl) useGoogleSearch = false;
                     // medical_qa: 이미지 없는 경우 Google Search 강제 활성화
                     // LLM 내부 지식 의존 → 실시간 의학 정보 + 출처 기반 답변으로 개선
                     // (이미지가 있으면 Gemini API 제약상 Search 불가 → hasMultimodalContent/historyHasImage 조건 유지)
