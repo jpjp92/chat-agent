@@ -151,10 +151,8 @@ export async function POST(req: NextRequest) {
           sendEvent({ text: fullAiResponse });
           sendEvent({ done: true });
           if (session_id) {
-            Promise.all([
-              supabase.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null }),
-              supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', session_id)
-            ]).catch((e: any) => console.error('[Chat API] DB save failed:', e?.message));
+            supabase.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null })
+            .then(({ error }) => { if (error) console.error('[Chat API] DB save failed:', error); });
           }
           return;
         }
@@ -242,13 +240,11 @@ export async function POST(req: NextRequest) {
 
         if (fullAiResponse && session_id) {
           try {
-            await Promise.all([
-              supabase.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: allSources.length > 0 ? allSources : null }),
-              supabase.from('chat_sessions').update({ updated_at: new Date().toISOString() }).eq('id', session_id)
-            ]).then(([{ error: msgError }, { error: sessionError }]) => {
-              if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
-              if (sessionError) console.error('[Chat API] Session update error:', sessionError);
+            const { error: msgError } = await supabase.from('chat_messages').insert({
+              session_id, role: 'assistant', content: fullAiResponse,
+              grounding_sources: allSources.length > 0 ? allSources : null
             });
+            if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
           } catch (dbError: any) {
             console.error('[Chat API] DB save failed:', dbError.message);
           }

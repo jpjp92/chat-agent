@@ -290,13 +290,7 @@ const App: React.FC = () => {
   }, []);
 
 
-  if (isAuthLoading) {
-    return (
-      <LoadingScreen message={t.preparingSession} />
-    );
-  }
-
-  if (!currentUser) {
+  if (!currentUser && !isAuthLoading) {
     const errMsg = language === 'es' ? 'Error de conexión.' : language === 'fr' ? 'Erreur de connexion.' : language === 'en' ? 'Connection failed.' : '연결에 실패했습니다.';
     return (
       <LoadingScreen message={errMsg}>
@@ -408,7 +402,7 @@ const App: React.FC = () => {
         </main>
 
         <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
-          <ChatInput onSend={handleSendMessage} disabled={isTyping} language={language} showToast={showToast} editValue={editingMessageContent} />
+          <ChatInput onSend={handleSendMessage} disabled={isTyping || isAuthLoading} language={language} showToast={showToast} editValue={editingMessageContent} />
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
               {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :

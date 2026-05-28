@@ -439,13 +439,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         textPart = textPart.replace(/<br\s*\/?>/gi, ' · ');
         // Process for numeric ranges (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
-        // Fix: closing ** immediately followed by Korean/alphanumeric is not recognized as a
-        // closer by CommonMark (it becomes left-flanking too). Insert space to disambiguate.
-        // Extra: when closing ** is preceded by a quote char (punctuation), rule (b) may fail
-        // in some remark-gfm versions. Insert ZWNJ (U+200C, not whitespace/punctuation in
-        // CommonMark) before ** so right-flanking is satisfied via the simpler rule (a).
+        // Fix closing ** followed by Korean/alphanumeric while avoiding previous closing markers.
         textPart = textPart.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-        textPart = textPart.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '**$1** ');
+        textPart = textPart.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
         // Close unclosed bold markers during streaming
         if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
           textPart += '**';
@@ -515,7 +511,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           let processedVisible = visibleText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
           // Fix Korean bold rendering (same as above)
           processedVisible = processedVisible.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-          processedVisible = processedVisible.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '**$1** ');
+          processedVisible = processedVisible.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
 
           // Safely close dangling code blocks during streaming
           const backticks = processedVisible.match(/```/g);
@@ -539,7 +535,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         let processedRemaining = remainingText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
         // Fix Korean bold rendering (same as above)
         processedRemaining = processedRemaining.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-        processedRemaining = processedRemaining.replace(/\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '**$1** ');
+        processedRemaining = processedRemaining.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
 
         // Safely close dangling code blocks during streaming
         const backticks = processedRemaining.match(/```/g);
