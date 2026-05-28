@@ -43,7 +43,7 @@
 
 ### 알약 식별 후속 개선
 
-> 완료 이력: `DEV_260520.md`, `DEV_260521.md`
+> 완료 이력: `logs/DEV_260520.md`, `logs/DEV_260521.md`
 
 - [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
   - 현재: `색상·모양 기준 유사 후보`
@@ -55,11 +55,10 @@
 
 ### Gemini 3.x API 파라미터 분기 적용
 
-3.x 모델에서는 `temperature`·`topP`·`topK` 제거, `thinkingLevel` enum 사용. 2.5-flash 계열은 기존 config 유지. 완료 항목 상세: `DEV_260520.md`, `DEV_260521.md`.
+3.x 모델에서는 `temperature`·`topP`·`topK` 제거, `thinkingLevel` enum 사용. 2.5-flash 계열은 기존 config 유지. 완료 항목 상세: `logs/DEV_260520.md`, `logs/DEV_260521.md`.
 
 **잔여 항목** (3.5-flash 기본 모델 전환 시 검토):
 
-- [ ] `vision.ts` — `temperature: 0.1` — `DEFAULT_CHAT_MODEL`이 2.5-flash이므로 당장 영향 없음. 3.5-flash로 전환 시 제거 검토
 - [ ] `drug-info-tool.ts` `searchDrugViaGoogleSearch` — `temperature: 0.1` — 동일 조건
 - [ ] `drug-info-tool.ts` `extractImprintViaVision` — `temperature: 0.1` — 동일 조건
 - [ ] `generator.ts` LangChain path `maxOutputTokens: 8192` — 3.5-flash는 65k 지원, 필요 시 상향 검토
@@ -83,16 +82,6 @@
 
 - [ ] PDF 분석 경로(`hasDocumentContent`) 실측 — 입력 토큰 증가 여부 모니터링
 - [ ] 필요 시 `media_resolution` 파라미터 명시적 조정 검토 (가이드: `media_resolution_high` 또는 축소)
-
-**현재 maxOutputTokens 설정 — 유효 범위 내 (변경 불필요)**
-
-| 경로 | 현재 설정 | 3.5 Flash 상한 |
-|---|---|---|
-| 일반·코드 | 32,768 | 65,000 ✅ |
-| PDF·문서 | 16,384 | 65,000 ✅ |
-| YouTube·이미지·의학 등 | 4,096~8,192 | 65,000 ✅ |
-
-> 참고: 영상(YouTube/video) 토큰은 3.5 Flash에서 오히려 감소 가능성 있음 (가이드 명시).
 
 ### 모바일 초기 세션 공백 최소 방어
 
@@ -220,9 +209,6 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 - [ ] **IDOR-2** `api/sessions.ts:10-53` — 세션 접근 전 소유자 확인 추가
   - 현재: 세션 ID만 알면 타 사용자 대화 전체 열람·삭제·수정 가능 (GET/DELETE/PATCH 전부)
   - 수정: 각 작업 전 `user_id === authenticatedUser` 검증
-- [ ] **SSRF-1** `api/fetch-url.ts`, `api/proxy-image.ts` — 리다이렉트 추적 차단
-  - 현재: hostname 블록리스트 적용 후 `fetch()`가 302 리다이렉트를 자동 추적 → `169.254.169.254` 우회 가능
-  - 수정: 우선순위 0으로 격상. `{ redirect: 'error' }` 또는 Location 헤더 재검증으로 별도 선처리
 - [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
 
 ### 아키텍처 리팩토링
@@ -251,10 +237,6 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 - [ ] ARC (Agent RAG Cache) — 트래픽 증가 시 재검토
 - [ ] 3D Astro-Viz, 3D Physics-Viz, Plotly/D3 벡터장
 - [ ] Service Worker (PWA) — Vercel Edge로 커버
-
----
-
-_최종 수정: 2026-05-26 — TODO 정리: ✅ Vite → Next.js App Router 마이그레이션 완료(DEV_260525.md·DEV_260526.md). 아키텍처 리팩토링 섹션에서 완료된 마이그레이션 항목 제거, `api/chat.ts` → `app/api/chat/route.ts` 경로 수정. SSRF 리다이렉트 차단은 Next.js Route Handler 환경에서 재검토 필요로 유지._
 
 ---
 
@@ -293,7 +275,7 @@ router.ts — intent 분류
 > 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
 
 **신규 파일**
-- [ ] `api/_lib/agent/tools/paper-tool.ts`
+- [ ] `server/agent/tools/paper-tool.ts`
   - arXiv: Atom XML 파싱 → 제목·저자·초록·PDF링크
   - PubMed: esearch(ID) → esummary(메타) → efetch(초록) 3단계 파이프라인
   - 쿼리에 "의학", "medical", "clinical" 포함 시 PubMed 우선, 나머지는 arXiv
@@ -312,7 +294,7 @@ router.ts — intent 분류
 > 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
 
 **신규 파일**
-- [ ] `api/_lib/agent/tools/culture-tool.ts`
+- [ ] `server/agent/tools/culture-tool.ts`
   - 구 필터링 + 오늘 이후 행사만 우선 정렬
   - `MAIN_IMG` → 썸네일 카드
 - [ ] `components/CultureRenderer.tsx` — 행사 카드 (이미지+날짜+장소)
@@ -330,7 +312,7 @@ router.ts — intent 분류
 > 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
 
 **신규 파일**
-- [ ] `api/_lib/agent/tools/school-tool.ts`
+- [ ] `server/agent/tools/school-tool.ts`
   - 파라미터: `SCHUL_NM`(학교명), `LCTN_SC_NM`(시도), `SCHUL_KND_SC_NM`(종류)
   - NEIS 응답구조: `schoolInfo[0].head` + `schoolInfo[1].row`
 - [ ] `components/SchoolRenderer.tsx`
@@ -359,7 +341,7 @@ Phase 2 — 생활 정보:
 - **arXiv timeout**: `AbortSignal.timeout(6000)` + 실패 시 `"arXiv 서버 응답 없음, 잠시 후 재시도"` fallback
 - **PubMed 3단계**: esearch → esummary → efetch 순서 필수, `NCBI_KEY` 없으면 rate-limit 10 req/s
 - **NEIS 응답 파싱**: `data.schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 (구조 중첩)
-> 국가법령정보 현행 법령 MVP(`law_search` + LawRenderer)는 2026-05-17 구현 완료. 상세는 `DEV_260517.md`와 `Guide/LAW_API_TEST.md` 참고.
+> 국가법령정보 현행 법령 MVP(`law_search` + LawRenderer)는 2026-05-17 구현 완료. 상세는 `logs/DEV_260517.md`와 `Guide/LAW_API_TEST.md` 참고.
 
 ### ⚖️ 국가법령정보 후속 확장
 
@@ -465,7 +447,7 @@ Phase 2 — 생활 정보:
 | `claude-4.6-sonnet` | Anthropic | Chat | 고성능 추론 | 50 RPM / 30K TPM |
 | `claude-4.5-haiku` | Anthropic | Chat | 경량/고속 | 50 RPM / 50K TPM |
 
-> **Rate Limit 및 확장 기획 상세**: `docs/DEV_260518.md` 참조
+> **Rate Limit 및 확장 기획 상세**: `docs/logs/DEV_260518.md` 참조
 > (특히 Claude는 50 RPM으로 제한이 엄격하며, 멀티모달 생성 모델(TTS, Imagen)은 10 RPM이므로 큐(Queue)/백오프 관리가 필수적임)
 
 ---
@@ -477,15 +459,15 @@ Phase 2 — 생활 정보:
 현재 `generator.ts`가 `@google/genai` SDK에 하드코딩 → 멀티 프로바이더 지원 불가.
 
 ```
-api/_lib/providers/
+server/providers/
   gemini.ts   — 기존 Gemini SDK 로직 이관
   openai.ts   — OpenAI ChatCompletion + streaming
   index.ts    — 통합 인터페이스 (streamResponse, generateContent)
 ```
 
-- [ ] `api/_lib/providers/gemini.ts` — 기존 SDK 스트리밍·폴백·retries 이관
-- [ ] `api/_lib/providers/openai.ts` — OpenAI SDK 스트리밍 (`openai` npm 패키지)
-- [ ] `api/_lib/providers/index.ts` — `getProvider(model)` → 프로바이더 선택 분기
+- [ ] `server/providers/gemini.ts` — 기존 SDK 스트리밍·폴백·retries 이관
+- [ ] `server/providers/openai.ts` — OpenAI SDK 스트리밍 (`openai` npm 패키지)
+- [ ] `server/providers/index.ts` — `getProvider(model)` → 프로바이더 선택 분기
 - [ ] `generator.ts` — providers/index.ts 통해 호출하도록 리팩토링
 
 **트레이드오프**: 초기 구조 변경 비용 높음, 완료 후 모델 추가는 trivial
@@ -502,7 +484,7 @@ api/_lib/providers/
 
 ---
 
-#### M3 — 모델 메타데이터 레지스트리 (`api/_lib/models.ts`)
+#### M3 — 모델 메타데이터 레지스트리 (`server/models.ts`)
 
 멀티 프로바이더 확장 시 필요한 provider / capability metadata registry를 추가한다.
 
@@ -522,7 +504,7 @@ export const MODELS = {
 } as const;
 ```
 
-- [ ] `api/_lib/models.ts` — provider / capability metadata 확장
+- [ ] `server/models.ts` — provider / capability metadata 확장
 - [ ] `src/lib/models.ts` — Gemini / OpenAI / ImageGen 그룹 표시 metadata 확장
 
 ---
@@ -539,7 +521,7 @@ OpenAI는 Gemini와 content 포맷이 다름 → 공통 내부 포맷 → 각 �
 | Google Search | 네이티브 grounding | ❌ 미지원 → `searchWebTool` 자동 바인딩 |
 | Tool call | LangChain 또는 SDK | `@langchain/openai` bindTools |
 
-- [ ] 내부 공통 메시지 포맷 정의 (`api/_lib/types.ts`)
+- [ ] 내부 공통 메시지 포맷 정의 (`server/types.ts`)
 - [ ] OpenAI 선택 시 YouTube 요청 → `"이 모델은 YouTube 분석 미지원"` 안내
 - [ ] OpenAI 선택 시 Google Search 대신 `searchWebTool` 자동 활성화
 
@@ -585,11 +567,11 @@ OpenAI는 Gemini와 content 포맷이 다름 → 공통 내부 포맷 → 각 �
 **수정/생성 파일**:
 | 파일 | 변경 |
 |------|------|
-| `api/_lib/agent/state.ts` | `IntentType`에 `"image_gen"` 추가 |
-| `api/_lib/agent/tools.ts` | `generateImageTool` 추가 |
-| `api/_lib/agent/nodes/router.ts` | image_gen 감지 패턴 추가 |
-| `api/_lib/agent/nodes/generator.ts` | `LANGCHAIN_INTENTS`에 `"image_gen"` 추가 + intent hint |
-| `api/_lib/agent/prompt.ts` | image_gen 시스템 지시 + intent focus hint 추가 |
+| `server/agent/state.ts` | `IntentType`에 `"image_gen"` 추가 |
+| `server/agent/tools.ts` | `generateImageTool` 추가 |
+| `server/agent/nodes/router.ts` | image_gen 감지 패턴 추가 |
+| `server/agent/nodes/generator.ts` | `LANGCHAIN_INTENTS`에 `"image_gen"` 추가 + intent hint |
+| `server/agent/prompt.ts` | image_gen 시스템 지시 + intent focus hint 추가 |
 | `components/ImageGenRenderer.tsx` | 신규 — 이미지 카드 렌더러 |
 | `components/ChatMessage.tsx` | `image-gen` 블록 파서 + lazy import 추가 |
 
@@ -598,7 +580,7 @@ OpenAI는 Gemini와 content 포맷이 다름 → 공통 내부 포맷 → 각 �
 **Step 1: `state.ts` — intent 타입 추가**
 
 ```ts
-// api/_lib/agent/state.ts
+// server/agent/state.ts
 export type IntentType =
     | "drug_id" | "drug_info" | "medical_qa"
     | "biology" | "chemistry" | "physics" | "astronomy"
@@ -613,7 +595,7 @@ export type IntentType =
 **Step 2: `tools.ts` — `generateImageTool` 추가**
 
 ```ts
-// api/_lib/agent/tools.ts 하단에 추가
+// server/agent/tools.ts 하단에 추가
 import { GoogleGenAI } from "@google/genai";
 
 export const generateImageTool = tool(
