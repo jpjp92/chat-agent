@@ -6,7 +6,7 @@
 
 ## 최근 작업 로그
 
-- [DEV_260528.md](DEV_260528.md) — **2.5 Flash URL 패칭 동작 수정**: 텍스트 중간에 URL이 있을 때 3.5 Flash는 정상 분석하지만 2.5 Flash는 URL을 패칭하려는 동작 차이 원인 분석 및 수정. 원인: `historyHasUrl` 체크가 `slice(0,-1)`로 현재 턴을 누락해 첫 메시지의 URL에서 Google Search가 비활성화되지 않음 + 2.5 Flash의 무료 티어 Google Search 가용성 + thinking 모델 특성이 겹쳐 URL을 검색 대상으로 해석. 수정: `currentMsgHasNonYtUrl` 추가로 현재 메시지의 비YouTube URL도 감지해 `useGoogleSearch = false` 강제 (`server/agent/nodes/generator.ts`).
+- [DEV_260528.md](DEV_260528.md) — **2.5 Flash URL 패칭 동작 수정**: 텍스트 중간에 URL이 있을 때 3.5 Flash는 정상 분석하지만 2.5 Flash는 URL을 패칭하려는 동작 차이 원인 분석 및 수정. 원인: `historyHasUrl` 체크가 `slice(0,-1)`로 현재 턴을 누락해 첫 메시지의 URL에서 Google Search가 비활성화되지 않음 + 2.5 Flash의 무료 티어 Google Search 가용성 + thinking 모델 특성이 겹쳐 URL을 검색 대상으로 해석. 수정: `currentMsgHasNonYtUrl` 추가로 현재 메시지의 비YouTube URL도 감지해 `useGoogleSearch = false` 강제 (`server/agent/nodes/generator.ts`). / **2.5 Flash 멀티턴 "제공된 정보에 따르면" 반복 수정**: 멀티턴 대화에서 2.5 Flash가 응답을 "제공된 정보에 따르면", "제시된 정보를 바탕으로" 등으로 시작하는 경향 수정. 원인: 3.5 Flash two-track `synthesisInstruction`에는 해당 서두 문구 금지 규칙이 있었으나 2.5 Flash가 직접 사용하는 `getSystemInstruction` 경로에는 없음. 수정: `getSystemInstruction`의 `[FORMATTING & QUALITY]` 섹션에 한/영/스/불 4개 언어 및 변형 패턴 포함 서두 문구 금지 규칙 추가 (`server/agent/prompt.ts`).
 
 - [DEV_260527.md](DEV_260527.md) — **GitHub Actions 자동 PR 워크플로우 버그 수정**: dev push 후 Actions 즉시 실패 — `workflow file issue`. 원인: `BODY` 멀티라인 변수 내 `---`(YAML 문서 구분자)·빈 줄 인라인 삽입 + `→` 유니코드 특수문자. 수정: workflow name/title `→` → `->` ASCII 변경, PR body를 `printf > /tmp/pr_body.md` 임시 파일로 분리 후 `--body-file` 전달, PR 존재 확인 `jq '.[0].number'` → `jq length` 숫자 비교로 안정화.
 
