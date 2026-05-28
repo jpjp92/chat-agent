@@ -4,114 +4,52 @@
 
 ---
 
-## 🔴 우선순위 0 — 운영/보안 즉시 수정
+## 🔴 P0 — 보안 즉시 수정
 
 ### SSRF 리다이렉트 차단
 
-현재 `api/fetch-url.ts`, `api/proxy-image.ts`는 최초 URL hostname 블록리스트는 적용하지만, `fetch()` 기본 동작이 302/301 리다이렉트를 자동 추적한다. 공격자가 허용된 외부 URL에서 `169.254.169.254` 등 내부 주소로 리다이렉트시키면 최초 검사 이후 우회 가능성이 남는다.
+`fetch()`가 302/301 리다이렉트를 자동 추적해 hostname 블록리스트 우회 가능. 공개 배포 상태에서 현재 구조로 독립 수정 가능.
 
-- [ ] `api/fetch-url.ts` — 일반 URL fetch에 `redirect: 'manual'` 또는 `redirect: 'error'` 적용
-- [ ] `api/fetch-url.ts` — YouTube page fetch에도 동일한 리다이렉트 정책 적용 검토
-- [ ] `api/proxy-image.ts` — 외부 이미지 fetch에 리다이렉트 차단 적용
-- [ ] 공통 helper 검토 — URL hostname/IP 차단 로직 중복을 줄이고 Location 재검증 가능하게 정리
-- [ ] 회귀 검증 — 정상 URL 요약, Jina fallback, 프록시 이미지 로딩, 리다이렉트 차단 케이스 확인
-
-판단 기준:
-- 공개 배포 상태에서는 사용자 입력 URL을 서버가 직접 fetch하므로 기능 개선보다 먼저 닫아야 할 리스크.
-- IDOR 계열은 Supabase Auth/RLS 전환과 맞물리지만, SSRF 리다이렉트 차단은 현재 구조에서 독립적으로 작게 수정 가능.
+- [ ] `app/api/fetch-url/route.ts` — 일반 URL fetch에 `redirect: 'manual'` 또는 `redirect: 'error'` 적용
+- [ ] `app/api/fetch-url/route.ts` — YouTube page fetch 동일 정책 적용 검토
+- [ ] `app/api/proxy-image/route.ts` — 외부 이미지 fetch 리다이렉트 차단
+- [ ] 공통 helper — hostname/IP 차단 로직 중복 제거 + Location 헤더 재검증 구조로 정리
+- [ ] 회귀 검증 — 정상 URL 요약, Jina fallback, 프록시 이미지, 리다이렉트 차단 케이스
 
 ---
 
-## 🟡 우선순위 1 — 기능 개선
+## 🟡 P1 — 기능 개선
 
-### 다음 작업 우선순위
+> 진행 순서: 모바일 공백 → 프롬프트 언어 → 멀티턴 경고 → 알약/차트/동물병원
 
-> 우선순위 0의 SSRF 리다이렉트 차단을 먼저 처리한 뒤 진행.
+### 1. 모바일 초기 세션 공백
 
-1. 모바일 초기 세션 공백 마무리
-2. 프롬프트 언어 혼합 정리
-3. 멀티턴 경고·차단
-4. LCP / 초기 로딩 개선
-5. 외부 API 확장 또는 동물병원 상세정보 선택형 보강
+`loadUserSessions()` 병합 보정으로 재현 빈도 감소. 최소 방어만 우선.
 
-판단 기준:
-- 모바일 첫 입력 공백은 현재 재현 빈도가 낮아졌지만, 재발 시 사용자 장애가 크므로 최소 방어만 우선 검토.
-- 프롬프트 언어 혼합은 응답 품질과 다국어 일관성에 직접 영향.
-- 멀티턴 경고·차단은 컨텍스트 폭주와 비용/품질 저하를 줄이는 운영 안정화 항목.
-- LCP 개선은 인증/세션 초기화 흐름과 맞물리므로 모바일 안정화 후 진행.
-- 동물병원 상세정보 보강과 신규 외부 API는 core flow 안정화 이후 기능 확장으로 처리.
-
-### 알약 식별 후속 개선
-
-> 완료 이력: `logs/DEV_260520.md`, `logs/DEV_260521.md`
-
-- [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
-  - 현재: `색상·모양 기준 유사 후보`
-  - 후보: `각인 검색 확장 및 색상/제형 유사도 기준 후보`
-- [ ] `pill-logic.ts` — 후보 정렬 보강
-  - 추출 shape가 `타원형`이면 타원형 후보를 상단 배치
-  - 추출 shape가 `장방형`이면 장방형 후보를 상단 배치
-  - 색상만 맞고 모양이 먼 후보는 후순위 또는 제외 검토
-
-### Gemini 3.x API 파라미터 분기 적용
-
-3.x 모델에서는 `temperature`·`topP`·`topK` 제거, `thinkingLevel` enum 사용. 2.5-flash 계열은 기존 config 유지. 완료 항목 상세: `logs/DEV_260520.md`, `logs/DEV_260521.md`.
-
-**잔여 항목** (3.5-flash 기본 모델 전환 시 검토):
-
-- [ ] `drug-info-tool.ts` `searchDrugViaGoogleSearch` — `temperature: 0.1` — 동일 조건
-- [ ] `drug-info-tool.ts` `extractImprintViaVision` — `temperature: 0.1` — 동일 조건
-- [ ] `generator.ts` LangChain path `maxOutputTokens: 8192` — 3.5-flash는 65k 지원, 필요 시 상향 검토
-- [ ] 검증 — 3.5-flash 선택 상태에서 의학·YouTube·law 경로, Google Search two-track 동작 추가 확인
-
-### Gemini 3.5 Flash 토큰 관리 유의사항
-
-3.5 Flash는 max output 65k, 1M context로 스펙상 여유가 있지만, 멀티턴 누적 비용과 PDF 토큰 증가에 유의 필요.
-
-**Thought Preservation (자동 누적 — 주의)**
-
-3.5 Flash부터 멀티턴 대화에서 이전 추론 컨텍스트(thought signatures)가 SDK에 의해 히스토리에 자동 포함된다. 현재 `sdkContents`를 전체 히스토리 그대로 전달하고 있으므로, **대화가 길어질수록 입력 토큰이 누적 증가**한다.
-
-- [ ] `generator.ts` — 멀티턴 길이 기준(`MAX_HISTORY_TURNS` 등) 도달 시 thought signatures 제거 또는 히스토리 슬라이딩 윈도우 적용 검토
-- [ ] 멀티턴 경고·차단(20/30턴) 작업과 연계 — 토큰 비용 폭증 방지 측면에서 해당 작업의 우선순위 근거 추가
-- [ ] 단순 질의(`general` intent, 짧은 대화)에서 thought signatures 제거 여부 검토 (가이드 권장)
-
-**PDF 토큰 증가**
-
-가이드: "Migrating to Gemini 3 defaults may increase token usage for PDFs" — 2.5 대비 PDF 입력 토큰 비용 증가 가능성.
-
-- [ ] PDF 분석 경로(`hasDocumentContent`) 실측 — 입력 토큰 증가 여부 모니터링
-- [ ] 필요 시 `media_resolution` 파라미터 명시적 조정 검토 (가이드: `media_resolution_high` 또는 축소)
-
-### 모바일 초기 세션 공백 최소 방어
-
-현재는 `loadUserSessions()` 병합 보정 이후 재현 빈도가 낮아진 상태. 당장 큰 구조 변경은 보류하고, 빈 화면으로 보이는 상황을 줄이는 최소 개선만 후보로 유지.
-
-- [ ] `useChatSessions.ts` — `currentSessionId`가 있지만 `sessions` 배열에서 찾지 못할 때 유효 세션으로 자동 복구
-- [ ] `ChatArea.tsx` — `Suspense fallback={null}` 대신 메시지 skeleton/fallback 표시 검토
+- [ ] `useChatSessions.ts` — `currentSessionId` 있지만 `sessions`에서 찾지 못할 때 자동 복구
+- [ ] `ChatArea.tsx` — `Suspense fallback={null}` → 메시지 skeleton 표시 검토
 - [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
 
 후순위 보류:
-- `ChatArea.tsx` — `ChatMessage` lazy chunk 로드 실패 재시도
+- `ChatArea.tsx` — lazy chunk 로드 실패 재시도
 - 모바일 uncaught error / unhandled rejection 로그 수집
 - `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락 보정
 - `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback
-- `ChatInput.tsx` — `onSend` 완료/수락 전 입력값·첨부 상태 보존
+- `ChatInput.tsx` — `onSend` 완료 전 입력값·첨부 상태 보존
 - `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 사용자 알림 + 입력 보존
-- `useChatSessions.ts` — transient `!userId` 상태에서 `currentSessionId` 즉시 null 처리 방지
 
-### 프롬프트 언어 혼합 정리
+### 2. 프롬프트 언어 혼합 정리
 
-날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어/범위 불일치 정리.
+날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어 불일치 정리.
 
 - [ ] `prompt.ts` — URL summary placeholder 문구 언어별 분리
 - [ ] `prompt.ts` — YouTube fallback 안내 문장 언어별 분리
 - [ ] `prompt.ts` — `getPillWarnFallback` 다국어화
 - [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
 - [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용 검토
-- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리하는 Phase P-B 설계
+- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리 (Phase P-B)
 
-### 멀티턴 경고·차단
+### 3. 멀티턴 경고·차단
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
 
@@ -119,71 +57,123 @@
 - [ ] `useChatStream.ts` — 경고(20)·차단(30) 로직 + `onLimitReached` 콜백
 - [ ] `App.tsx` — `isLimitReached` state + `onLimitReached` 핸들러
 - [ ] `ChatArea.tsx` — 차단 배너 + 새 채팅 버튼
+- [ ] `generator.ts` — 멀티턴 길이 기준 도달 시 thought signatures 제거 또는 히스토리 슬라이딩 윈도우 검토 (3.5 Flash thought preservation 비용 방지)
 
-### ChartRenderer 차트 품질 개선
+### 4. 알약 식별 후속 개선
 
-> 검증 중 발견 (2026-05-21): 데이터 특성과 무관하게 차트 타입이 생성되는 케이스, 축 레이블이 길어 겹치거나 잘리는 케이스 확인.
+- [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화 (`색상·모양` → `각인 검색 확장 및 색상/제형 유사도`)
+- [ ] `pill-logic.ts` — 추출 shape 기준 후보 정렬 보강 (타원형·장방형 상단 배치, 색상만 일치 후순위)
 
-**문제 1 — 차트 타입 부적합**
+### 5. ChartRenderer 차트 품질 개선
 
-모델이 데이터 맥락과 무관하게 원형(pie) 차트를 선택하는 경우 발생. 예: 시계열·연속 수치 데이터에 pie 차트 생성.
+- [ ] `prompt.ts` — `data_viz` intent에 차트 타입 선택 기준 명시 (시계열→bar/line, 비율→pie, 상관→scatter)
+- [ ] `prompt.ts` — `chartType` 선택 가이드 주석 보강 + 레이블 10자 이내 지시
+- [ ] `ChartRenderer.tsx` — x축 레이블 길이 초과 시 `\n` 줄바꿈 또는 45°/90° 회전
+- [ ] `ChartRenderer.tsx` — y축 단위 자동 단축 (`1000000` → `1M`, `10000` → `1만`)
+- [ ] `ChartRenderer.tsx` — `pie` 선택인데 항목 수 > 8이면 `bar`로 자동 보정
 
-- [ ] `prompt.ts` — `data_viz` intent focus hint에 차트 타입 선택 기준 명시
-  - 시계열·트렌드·연속 수치 → `bar` 또는 `line`
-  - 비율·구성 비교 (카테고리 수 ≤ 6) → `pie`
-  - 카테고리 비교 (항목 수 많음) → `bar` (horizontal 검토)
-  - 두 변수 상관관계 → `scatter`
-  - 기본값이 필요하면 `bar` 우선
-- [ ] 모델 JSON 스키마에 `chartType` 선택 가이드 주석 보강 (`prompt.ts` renderer schema)
+### 6. 동물병원 상세정보 선택형 보강
 
-**문제 2 — 축 레이블 길이 초과**
-
-x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
-
-- [ ] `ChartRenderer.tsx` — x축 레이블 길이 기준으로 자동 처리
-  - 최대 길이(예: 8자) 초과 시 `\n` 줄바꿈 또는 `...` truncate
-  - 항목 수 많을 때 폰트 크기 축소 또는 45°/90° 회전 (`angle` 옵션)
-- [ ] `ChartRenderer.tsx` — y축 레이블 단위 자동 단축 (예: `1000000` → `1M`, `10000` → `1만`)
-- [ ] `prompt.ts` — 모델에게 레이블은 간결하게 작성하도록 지시 추가 (예: `"레이블은 10자 이내로 요약"`)
-
-**문제 3 — 데이터 특성 반영 부족**
-
-- [ ] `prompt.ts` — 데이터 건수/범위에 따른 차트 타입 자동 판단 규칙 프롬프트에 명시
-  - 단일 시계열 → `line`
-  - 다중 카테고리 비교 → `bar`
-  - 비율 합계 100% 데이터 → `pie` 허용
-- [ ] 모델이 생성한 `chartType`을 `ChartRenderer.tsx`에서 데이터 기준으로 보정하는 fallback 검토
-  - 예: `pie` 선택인데 데이터 항목 수 > 8 → 자동으로 `bar` 전환
-
-### 동물병원 상세정보 선택형 보강
-
-기본 동물병원 검색은 공공데이터 기반 빠른 응답을 유지하고, 웹검색 기반 상세정보는 사용자가 필요할 때만 실행하는 방향.
+공공데이터 기본 검색 유지, 웹검색 기반 상세정보는 사용자 요청 시만 실행.
 
 - [ ] `VetRenderer.tsx` — 병원별 `상세 정보 찾기` 액션 UX 검토
-- [ ] `vet_search` 후속 흐름 — 선택된 병원 1곳만 웹검색으로 영업시간/홈페이지/추가 연락처 보강하는 방식 검토
-- [ ] 자동 보강이 필요할 경우 상위 1~3개로 제한하고, 실패해도 기본 카드 결과는 유지
-- [ ] 웹검색 보강 결과의 출처/최신성 표기 방식 검토
+- [ ] `vet_search` 후속 흐름 — 선택된 병원 1곳 웹검색으로 영업시간/홈페이지/연락처 보강
+- [ ] 자동 보강 시 상위 1~3개로 제한, 실패해도 기본 카드 유지
+- [ ] 웹검색 보강 결과 출처/최신성 표기 방식 검토
 
 ---
 
-## 🟢 우선순위 2 — 성능 (Lighthouse)
+## 🟢 P2 — 성능
 
-현재 점수: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04 측정)
+현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04)
 
-**LCP 개선 (현재 ~3,300ms — `isAuthLoading` 블로킹)**
-- [ ] `isAuthLoading` 제거 + 백그라운드 `loadUserSessions` (`App.tsx`)
-- [ ] `ChatInput` — `!currentUser` 시 disabled 처리
-- [ ] 사이드바 세션 로딩 중 스켈레톤 UI
+### DB 쿼리 최적화 및 캐싱
+
+**쿼리 효율화**
+- [x] `sessions/route.ts` GET — `select('*')` → `select('id, title, updated_at, created_at')` (사이드바에 content 불필요)
+- [x] `sessions/route.ts` GET — `count: 'exact'` 제거 + `hasMore: boolean` 패턴으로 교체 (매 페이지 `COUNT(*)` 제거)
+- [x] `sessions/route.ts` GET messages — `select('*')` → `select('id, role, content, attachment_url, grounding_sources, created_at')`
+- [x] `chat/route.ts` — `updated_at` 수동 업데이트(`sessions` 별도 write) → DB trigger 자동화 완료 (`trg_message_updates_session`)
+
+**인덱스 확인**
+- [ ] Supabase에서 `chat_messages(session_id, created_at)` 복합 인덱스 존재 여부 확인 — 메시지 정렬 쿼리 핵심
+- [ ] `chat_sessions(user_id, updated_at DESC)` 인덱스 확인 — 세션 목록 정렬 핵심
+- [ ] `users(nickname)` 인덱스 확인 — 로그인 시 nickname lookup
+
+**캐싱 레이어**
+- [ ] `sessions/route.ts` — Next.js `unstable_cache` 또는 `revalidateTag` 적용 검토 (세션 목록 단기 캐시, 새 메시지 전송 시 invalidate)
+- [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 시 외부 API 재호출 방지용 인메모리 캐시 또는 Supabase 임시 테이블 캐시 검토 (TTL 1시간)
+- [ ] `drug-info-tool.ts` Google Search 결과 — 동일 약품명 반복 검색 캐싱 검토
+
+**연결 관리**
+- [ ] `server/supabase.ts` — Vercel Fluid Compute 환경에서 인스턴스 재사용 시 연결 누수 여부 확인
+- [ ] 요청량 증가 대비 Supabase connection pool 설정 점검 (현재 direct client, pgBouncer 전환 검토)
+
+### LCP 개선 (~3,300ms — `isAuthLoading` 블로킹)
+
+- [x] `App.tsx` — `isAuthLoading` 전체 차단 제거 + 백그라운드 인증 완료
+- [x] `ChatInput` — `isAuthLoading || isTyping` disabled 처리
+- [x] 사이드바 세션 로딩 중 스켈레톤 UI (기존 구현 확인)
+- [x] 세션 전환 중 `isLoadingMessages` 스켈레톤 (기존 구현 확인)
 - [ ] `handleNewSession` Optimistic UI (tempId 패턴)
-- [ ] 세션 전환 중 `isLoadingMessages` 스켈레톤
 
-**번들 최적화**
+### 번들 최적화
+
 - [ ] FontAwesome CDN → `@fortawesome/fontawesome-svg-core` 전환 (18KB + 100ms)
 - [ ] `framer-motion` 실사용 여부 확인 (~50KB gzip)
-- [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 적용 전제조건)
+- [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
 
-> **CSP 적용 전제**: KaTeX·FontAwesome 자체 호스팅 완료 후 inline style 의존성 제거 → CSP 도입 가능
+> CSP 도입은 KaTeX·FontAwesome 자체 호스팅 + inline style 의존성 제거 완료 후 가능
+
+---
+
+## 🔵 P3 — 기능 확장
+
+### 외부 API 신규 연동
+
+공통 구현 패턴: `tools.ts` → `router.ts` → `generator.ts` → `prompt.ts` → `ChatMessage.tsx` → `Renderer.tsx`
+
+**① arXiv + PubMed 논문 검색** (★★★)
+- [ ] `server/agent/tools/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인
+- [ ] `components/PaperRenderer.tsx`
+- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
+
+**② 서울 문화행사** (★★) — 키: `CULTURE_API_KEY`
+- [ ] `server/agent/tools/culture-tool.ts` — 구 필터 + 오늘 이후 정렬 + 썸네일
+- [ ] `components/CultureRenderer.tsx`
+- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
+
+**③ NEIS 학교기본정보** (★★) — 키: `EDU_KEY`
+- [ ] `server/agent/tools/school-tool.ts` — `SCHUL_NM`/`LCTN_SC_NM`/`SCHUL_KND_SC_NM` 파라미터
+- [ ] `components/SchoolRenderer.tsx`
+- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
+
+> 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
+
+### 국가법령정보 후속 확장
+
+현행 법령 MVP 완료. 아래는 `law_search` 확장 또는 별도 intent.
+
+- [ ] 판례/헌재결정례/행정심판례 검색 (`case_search` intent 분리 검토)
+- [ ] 행정규칙·자치법규·고시 조회 지원
+- [ ] 법령해석례·중앙부처 해석 조회
+- [ ] 법령 연혁·신구법·3단 비교·변경이력 카드
+- [ ] 법령용어/관련법령 지식베이스 검색 보강
+- [ ] 별표·서식 목록 조회 및 원문 링크 카드
+
+### 이미지 생성 (Imagen 4) — 키: `GEMINI_IMAGEN`
+
+> 모델: Imagen 4 Standard ($0.04) / Fast ($0.02) / Gemini Flash-Image. 상세 테스트 결과: `logs/DEV_260504.md`
+
+- [ ] `server/agent/state.ts` — `image_gen` intent 추가
+- [ ] `server/agent/tools.ts` — `generateImageTool` (Imagen 4 API)
+- [ ] `server/agent/nodes/router.ts` — 감지 패턴 추가 (`그려줘`, `draw`, `generate image` 등)
+- [ ] `server/agent/nodes/generator.ts` — `LANGCHAIN_INTENTS`에 `image_gen` 추가
+- [ ] `server/agent/prompt.ts` — `image_gen` intent focus hint 추가
+- [ ] `components/ImageGenRenderer.tsx` — 이미지 카드 렌더러 (다운로드 + 프롬프트 복사)
+- [ ] `components/ChatMessage.tsx` — `image-gen` 블록 파서 + lazy import 연결
+- [ ] `.env.local` + Vercel에 `GEMINI_IMAGEN` 추가
 
 ---
 
@@ -194,35 +184,27 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 - [ ] **메시지 편집** — 보낸 메시지 수정 후 해당 시점부터 재실행
 - [ ] **세션 문서 컨텍스트 영구 저장** — `lastActiveDoc` Supabase 저장
 
-### 보안 (중장기)
-- [ ] `xlsx` 대안 패키지 검토 (fix 없는 Prototype Pollution·ReDoS)
+### 보안 (인증 전환 후)
+
+> 전제: 장기 계획 **L1(서버 토큰 발급)** 완료 후 처리. 현재 `service_role` 키로 RLS 비활성 + 소유권 검증 없음.
+
+- [ ] **IDOR-1** `app/api/auth/route.ts` — PATCH 소유권 검증 (Bearer 토큰 → `authenticatedUserId === id`)
+- [ ] **IDOR-2** `app/api/sessions/route.ts` — GET/DELETE/PATCH 전 `user_id === authenticatedUser` 검증
+- [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
 
-#### 인증 시스템 도입 후 처리 (POC 단계 보류)
-
-> **전제**: nickname 기반 → Supabase Auth 계정 기반으로 마이그레이션 완료 후 일괄 처리.
-> 현재 `SUPABASE_KEY`가 `service_role` JWT이므로 RLS가 전면 비활성화된 상태 — 아래 항목들의 근본 원인.
-
-- [ ] **IDOR-1** `api/auth.ts:52` — PATCH 핸들러에 소유권 검증 추가
-  - 현재: 누구든 임의 UUID로 타 사용자 `display_name`·`avatar_url` 수정 가능
-  - 수정: Auth JWT 검증 후 `authenticatedUserId === id` 확인
-- [ ] **IDOR-2** `api/sessions.ts:10-53` — 세션 접근 전 소유자 확인 추가
-  - 현재: 세션 ID만 알면 타 사용자 대화 전체 열람·삭제·수정 가능 (GET/DELETE/PATCH 전부)
-  - 수정: 각 작업 전 `user_id === authenticatedUser` 검증
-- [ ] **참고**: `supabase` 클라이언트를 `anon` 키 + RLS 정책으로 전환하면 IDOR-1·2는 DB 레이어에서 자동 차단됨
-
 ### 아키텍처 리팩토링
-- [ ] **DTO 레이어 구성** — App Router Route Handlers / Server Actions 경계에서 Zod 스키마 기반 요청·응답 DTO 정의. 현재는 `types.ts` + 각 툴 내부 Zod 스키마로 충분.
-- [ ] `app/api/chat/route.ts` normalizer / stream-events / persistence 분리
-- [ ] `geminiService.ts` 에러 계약 통일 (Result 패턴)
+- [ ] **DTO 레이어** — Route Handlers 경계에서 Zod 스키마 기반 요청·응답 DTO 정의
+- [ ] `app/api/chat/route.ts` — normalizer / stream-events / persistence 분리
+- [ ] `geminiService.ts` — 에러 계약 통일 (Result 패턴)
 - [ ] `attachment` + `attachments` 필드 단일화
 - [ ] `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
 - [ ] i18n 중앙화 (`src/i18n/messages.ts`)
 
 ### 시각화 카드 전체화면 팝업
 - [ ] `expandedViz` state + `VisualizationModal` Portal (`App.tsx`)
-- [ ] ESC 키 닫기, `onExpand` prop (ChatMessage.tsx 현재 렌더러 전체)
-- [ ] `isExpanded` prop (BioRenderer.tsx), `isPaused` prop (DiagramRenderer.tsx)
+- [ ] ESC 키 닫기, `onExpand` prop (렌더러 전체)
+- [ ] `isExpanded` prop (BioRenderer), `isPaused` prop (DiagramRenderer)
 
 ### 데이터 & 시각화
 - [ ] CSV/XLSX 파싱 고도화 (대용량 행 제한·샘플링, 다중 시트)
@@ -231,657 +213,71 @@ x축/y축 레이블이 길 때 겹치거나 잘려서 가독성 저하.
 ### 코드 품질
 - [ ] ESLint / Prettier 설정
 - [ ] 단위 테스트 (Vitest)
-- [ ] `test-supabase.ts` 정리
 
-### 낮은 우선순위 / 보류
+### 낮은 우선순위
 - [ ] ARC (Agent RAG Cache) — 트래픽 증가 시 재검토
 - [ ] 3D Astro-Viz, 3D Physics-Viz, Plotly/D3 벡터장
-- [ ] Service Worker (PWA) — Vercel Edge로 커버
+- [ ] Service Worker (PWA)
+- [ ] 카카오 지도 모달 팝업 — 약국/병원 카드 마커 + 커스텀 오버레이
 
 ---
 
-## 🌐 외부 API 통합 계획 (2026-05-06 수립)
+## 📋 장기 계획 (검토 중)
 
-> **전제**: 외부 API 키는 환경변수로 주입하고, 구조화된 카드 UI 패턴은 기존 약국·병원 구현을 재사용한다.  
-> **목표**: LLM 단독 답변 한계를 실시간 공공데이터로 보완 — 구조화된 카드 UI 렌더링.
+### 인증 시스템 전환
 
----
+현재 nickname 기반 localStorage 인증 → 서버 검증 가능한 구조로 단계 전환.
 
-### 🏗️ 전체 시스템 연동 구조
+| 단계 | 내용 | 선행 조건 |
+|---|---|---|
+| **L1** 서버 토큰 발급 | `auth_tokens` 테이블 + `POST /api/auth` 토큰 발급 + Bearer 헤더 검증 미들웨어 | — |
+| **L2** IDOR 수정 | IDOR-1/2 소유권 검증 (토큰 기반 user_id 추출) → 백로그 항목 이행 | L1 |
+| **L3** Supabase Auth 전환 | nickname → 이메일/OAuth 마이그레이션, `users` 테이블 재설계 | — (독립) |
+| **L4** RLS 활성화 | anon 키 전환 + 테이블별 policy 작성, `supabaseAdmin`만 service role 사용 | L3 |
 
-```
-사용자 메시지
-    ↓
-router.ts — intent 분류
-    ├─ "culture_event"    → CultureTool    → 서울 문화행사 API → CultureRenderer
-    ├─ "paper_search"     → PaperTool      → arXiv / PubMed  → PaperRenderer
-    └─ "school_search"    → SchoolTool     → NEIS API        → SchoolRenderer
-```
+> L1/L2는 현재 구조 최소 변경으로 가능. L3/L4는 대규모 마이그레이션으로 별도 계획 필요.
 
-**공통 패턴** (각 Tool 동일):
-1. `tools.ts` — LangChain tool 정의 (API 호출 + 응답 파싱)
-2. `generator.ts` — LANGCHAIN_INTENTS 추가 + allTools 분기
-3. `router.ts` — intent 감지 패턴 추가
-4. `ChatMessage.tsx` — `json:<type>` 블록 파서 추가
-5. `components/<Type>Renderer.tsx` — 카드 UI 컴포넌트
+### Trial / Playground
 
----
+로그인 없이 서비스 체험 가능한 게스트 플레이그라운드.
 
-### 📦 API별 상세 구현 계획
+- 세션 미저장 — in-memory only, 탭 닫으면 소멸 (Supabase write 없음)
+- 메시지 횟수 제한 — 세션당 N회 (미정), 초과 시 회원가입 유도
+- 일부 기능 비활성 — 파일 업로드, 세션 히스토리, 세션 이름 변경 등
+- 모델 제한 — 기본 모델만 허용, Flash 고급 옵션 잠금
+- 회원가입 유도 배너 — 제한 도달 시 / 일정 메시지 수 초과 시
 
-#### ① arXiv + PubMed 논문 검색 (우선순위 ★★★)
-
-> 키: `NCBI_KEY`, arXiv는 키 불필요  
-> 특이사항: arXiv 서버 간헐적 timeout → AbortController + 3s retry 필수
-
-**신규 파일**
-- [ ] `server/agent/tools/paper-tool.ts`
-  - arXiv: Atom XML 파싱 → 제목·저자·초록·PDF링크
-  - PubMed: esearch(ID) → esummary(메타) → efetch(초록) 3단계 파이프라인
-  - 쿼리에 "의학", "medical", "clinical" 포함 시 PubMed 우선, 나머지는 arXiv
-- [ ] `components/PaperRenderer.tsx` — 논문 카드 (제목·저자·초록·링크)
-
-**기존 파일 수정**
-- [ ] `state.ts` — `"paper_search"` intent 추가
-- [ ] `router.ts` — 감지 패턴: `"논문"`, `"arXiv"`, `"PubMed"`, `"공학논문"`, `"의학논문"`
-- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
+> 선행 조건: L1(서버 토큰) 완료 후 guest 토큰 흐름 분기 추가
 
 ---
 
-#### ② 서울 문화행사 (우선순위 ★★)
-
-> 키: `CULTURE_API_KEY`  
-> 카드 정보: 행사명·날짜·장소·구·요금·이미지URL·홈페이지
-
-**신규 파일**
-- [ ] `server/agent/tools/culture-tool.ts`
-  - 구 필터링 + 오늘 이후 행사만 우선 정렬
-  - `MAIN_IMG` → 썸네일 카드
-- [ ] `components/CultureRenderer.tsx` — 행사 카드 (이미지+날짜+장소)
-
-**기존 파일 수정**
-- [ ] `state.ts` — `"culture_event"` intent 추가
-- [ ] `router.ts` — 감지 패턴: `"문화행사"`, `"행사"`, `"전시"`, `"강남구 행사"`
-- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
-
----
-
-#### ③ 학교기본정보 NEIS (우선순위 ★★)
-
-> 키: `EDU_KEY`  
-> 카드 정보: 학교명·종류(초/중/고)·주소·전화·홈페이지·남녀공학·설립일·시도교육청
-
-**신규 파일**
-- [ ] `server/agent/tools/school-tool.ts`
-  - 파라미터: `SCHUL_NM`(학교명), `LCTN_SC_NM`(시도), `SCHUL_KND_SC_NM`(종류)
-  - NEIS 응답구조: `schoolInfo[0].head` + `schoolInfo[1].row`
-- [ ] `components/SchoolRenderer.tsx`
-
-**기존 파일 수정**
-- [ ] `state.ts` — `"school_search"` intent 추가
-- [ ] `router.ts` — 감지 패턴: `"학교"`, `"초등학교"`, `"중학교"`, `"고등학교"`, `"○○중"`
-- [ ] `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — 공통 패턴 적용
-
----
-
-### 📋 구현 순서 (우선순위)
-
-```
-Phase 1 — 학술 정보:
-  ① arXiv + PubMed Tool + PaperRenderer
-
-Phase 2 — 생활 정보:
-  ② 서울 문화행사 Tool + CultureRenderer
-  ③ NEIS 학교정보 Tool + SchoolRenderer
-```
-
-### ⚠️ 공통 주의사항
-
-- **서울시 API (약국/병원/문화행사)**: 전체 건수(5k~22k)에서 구 단위 클라이언트 필터 → 최대 100건씩 페이지 로드, 구 특정 시 500건으로 증가
-- **arXiv timeout**: `AbortSignal.timeout(6000)` + 실패 시 `"arXiv 서버 응답 없음, 잠시 후 재시도"` fallback
-- **PubMed 3단계**: esearch → esummary → efetch 순서 필수, `NCBI_KEY` 없으면 rate-limit 10 req/s
-- **NEIS 응답 파싱**: `data.schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 (구조 중첩)
-> 국가법령정보 현행 법령 MVP(`law_search` + LawRenderer)는 2026-05-17 구현 완료. 상세는 `logs/DEV_260517.md`와 `Guide/LAW_API_TEST.md` 참고.
-
-### ⚖️ 국가법령정보 후속 확장
-
-현행 법령 목록/본문/조항호목 조회는 완료. 아래는 별도 intent 또는 `law_search` 확장으로 처리할 후속 범위.
-
-- [ ] 판례/헌재결정례/행정심판례 검색 (`case_search` 계열 intent 분리 검토)
-- [ ] 행정규칙·자치법규·고시 조회 지원
-- [ ] 법령해석례·중앙부처 1차 해석 조회 지원
-- [ ] 법령 연혁·신구법·3단 비교·변경이력 카드 확장
-- [ ] 법령용어/일상용어/관련법령 지식베이스 검색 보강
-- [ ] 별표·서식 목록 조회 및 원문 링크 카드 확장
-
----
-
-## 🤖 Agentic AI 업그레이드 방안 검토
-
-> **현재 구조**: `router → (vision?) → generator ↔ tools` — 단일 generator가 모든 도메인을 처리하는 단순 ReAct 루프  
-> **기존 툴 3종**: identifyPill, searchDrugInfo, searchWeb(DuckDuckGo)
-
----
-
-### 방향 A — 더 똑똑하게 (Multi-Agent + Planning + Reflection)
-
-도메인별 전문 서브에이전트를 두고, supervisor가 오케스트레이션.
-
-| 항목 | 내용 | 복잡도 |
-|------|------|--------|
-| **A1** Supervisor Agent | 의도 분류 후 서브에이전트로 dispatch. 현재 router 역할 확장 | 중 |
-| **A2** 도메인 서브에이전트 | biology / chemistry / physics / astronomy / medical / general 각자 전용 prompt + tool 세트 | 높음 |
-| **A3** Planning Node | 복잡한 멀티스텝 쿼리에 대해 plan → execute 분리 (예: "CO2 분자 구조 설명 + 온실효과 검색 + 차트") | 높음 |
-| **A4** Reflection Node | generator 응답 후 self-critique 패스 → 품질·정확도 검토 후 재생성 또는 통과 | 중 |
-
-**트레이드오프**: 응답 품질·전문성 ↑, 레이턴시 ↑, 구현 복잡도 ↑
-
----
-
-### 방향 B — 더 많이 할 수 있게 (Tool 확장 + 병렬 실행)
-
-툴 종류를 늘리고, 여러 툴을 동시에 호출.
-
-| 항목 | 내용 | 복잡도 |
-|------|------|--------|
-| **B1** 병렬 툴 호출 | 현재 순차 ReAct → `Promise.all` 기반 병렬 실행 (LangGraph fan-out) | 중 |
-| **B2** 코드 실행 툴 | Python/JS 샌드박스 실행 (Vercel Sandbox 또는 E2B) — 수식 계산, 데이터 처리 | 높음 |
-| **B3** 계산기 툴 | math.js 기반 정확한 수식 계산 (LLM 할루시네이션 방지) | 낮음 |
-| **B4** Wikipedia / PubMed 툴 | 학술·의학 정보 조회 API 추가 | 낮음 |
-| **B5** 차트 데이터 생성 툴 | LLM이 툴 호출로 구조화된 차트 데이터 생성 → ChartRenderer 연동 강화 | 중 |
-| **B6** 파일 분석 툴 | 업로드된 CSV/XLSX를 에이전트가 직접 파싱·요약 | 중 |
-
-**트레이드오프**: 기능 범위 ↑, 개별 툴은 독립 구현 가능 → 점진적 확장 쉬움
-
----
-
-### 방향 C — 더 기억하게 (Long-term Memory)
-
-유저 선호, 과거 대화 요약, 벡터 검색으로 컨텍스트 유지.
-
-| 항목 | 내용 | 복잡도 |
-|------|------|--------|
-| **C1** 세션 요약 저장 | 세션 종료 시 Gemini로 요약 → Supabase `session_summaries` 테이블 | 낮음 |
-| **C2** 유저 프로필 메모리 | 유저가 명시적으로 알려준 선호·사실을 Supabase에 저장 (`user_memories` 테이블) | 중 |
-| **C3** 벡터 검색 (RAG) | 과거 대화를 Gemini Embedding → pgvector 저장 → 관련 대화 자동 주입 | 높음 |
-| **C4** 크로스세션 컨텍스트 | 새 세션 시작 시 관련 과거 세션 요약 자동 첨부 | 중 |
-
-**트레이드오프**: 개인화·연속성 ↑, Supabase 스키마 변경 필요, 프라이버시 고려 필요
-
----
-
-### 우선순위 추천
-
-```
-단기 (낮은 복잡도, 즉시 효과):
-  B3 계산기 툴, B4 Wikipedia/PubMed, C1 세션 요약 저장
-
-중기 (중간 복잡도, 큰 가치):
-  B1 병렬 툴 호출, A4 Reflection Node, C2 유저 프로필 메모리
-
-장기 (높은 복잡도, 구조 변경):
-  A1~A3 Multi-Agent Supervisor, B2 코드 실행, C3 벡터 RAG
-```
-
-> **결정 전 확인 필요**: 어느 방향부터 시작할지 → 각 방향은 독립적으로 구현 가능
-
----
-
-## 🧠 모델 확장 방안
-
-> **현재 모델**: generator=`gemini-2.5-flash`, router=`gemini-2.5-flash-lite`  
-> **현재 구조**: `config.ts`가 Gemini 키(`API_KEY*`)만 관리, `generator.ts`가 `@google/genai` SDK에 완전 종속
-
----
-
-### 추가 연동 타겟 모델 목록
-
-| 모델 | 프로바이더 | 타입 | 주요 특징 | Rate Limit (RPM / TPM) |
-|------|-----------|------|----------|-------------------------|
-| `gemini-2.5-flash` | Google | Chat | 주력 멀티모달 (영상 분석 포함) | 1K RPM / 1M TPM |
-| `gemini-2.5-flash-lite` | Google | Chat | 고속 라우팅용 | 4K RPM / 4M TPM |
-| `gemini-3.1-flash-lite` | Google | Chat | 초경량, 라우터·분류용 후보 | 4K RPM / 4M TPM |
-| `gpt-5.2` | OpenAI | Chat/Reasoning | 고성능 추론 | 500 RPM / 500K TPM |
-| `gpt-5-mini` | OpenAI | Chat | 비용/속도 균형형 | 500 RPM / 500K TPM |
-| `gpt-5.4-mini` | OpenAI | Chat | 경량 모델 | 500 RPM / 200K TPM |
-| `claude-4.6-sonnet` | Anthropic | Chat | 고성능 추론 | 50 RPM / 30K TPM |
-| `claude-4.5-haiku` | Anthropic | Chat | 경량/고속 | 50 RPM / 50K TPM |
-
-> **Rate Limit 및 확장 기획 상세**: `docs/logs/DEV_260518.md` 참조
-> (특히 Claude는 50 RPM으로 제한이 엄격하며, 멀티모달 생성 모델(TTS, Imagen)은 10 RPM이므로 큐(Queue)/백오프 관리가 필수적임)
-
----
-
-### 개선 항목
-
-#### M1 — 프로바이더 추상화 레이어 (핵심, 선행 필수)
-
-현재 `generator.ts`가 `@google/genai` SDK에 하드코딩 → 멀티 프로바이더 지원 불가.
-
-```
-server/providers/
-  gemini.ts   — 기존 Gemini SDK 로직 이관
-  openai.ts   — OpenAI ChatCompletion + streaming
-  index.ts    — 통합 인터페이스 (streamResponse, generateContent)
-```
-
-- [ ] `server/providers/gemini.ts` — 기존 SDK 스트리밍·폴백·retries 이관
-- [ ] `server/providers/openai.ts` — OpenAI SDK 스트리밍 (`openai` npm 패키지)
-- [ ] `server/providers/index.ts` — `getProvider(model)` → 프로바이더 선택 분기
-- [ ] `generator.ts` — providers/index.ts 통해 호출하도록 리팩토링
-
-**트레이드오프**: 초기 구조 변경 비용 높음, 완료 후 모델 추가는 trivial
-
----
-
-#### M2 — API 키 관리 확장
-
-현재 `config.ts`는 Gemini 키만 관리 (`API_KEY`, `API_KEY2` ...).
-
-- [ ] `config.ts` — `OPENAI_API_KEY` 로드 추가 (단일 키, rotation 불필요)
-- [ ] 프로바이더별 키 분리: `getGeminiKey()` / `getOpenAIKey()`
-- [ ] Vercel 환경변수에 `OPENAI_API_KEY` 추가 (`vercel env add`)
-
----
-
-#### M3 — 모델 메타데이터 레지스트리 (`server/models.ts`)
-
-멀티 프로바이더 확장 시 필요한 provider / capability metadata registry를 추가한다.
-
-```ts
-export const MODELS = {
-  // Gemini
-  FLASH:        { id: 'gemini-2.5-flash',    provider: 'gemini', vision: true,  tools: true,  search: true  },
-  FLASH_LITE:   { id: 'gemini-2.5-flash-lite', provider: 'gemini', vision: false, tools: false, search: false },
-  FLASH_3:      { id: 'gemini-3.0-flash',    provider: 'gemini', vision: true,  tools: true,  search: true  },
-  FLASH_3_LITE: { id: 'gemini-3.1-flash-lite', provider: 'gemini', vision: false, tools: false, search: false },
-  // OpenAI
-  GPT52:        { id: 'gpt-5.2',       provider: 'openai', vision: true,  tools: true,  search: false },
-  GPT5_MINI:    { id: 'gpt-5-mini',    provider: 'openai', vision: true,  tools: true,  search: false },
-  GPT54_MINI:   { id: 'gpt-5.4-mini',  provider: 'openai', vision: true,  tools: true,  search: false },
-  // Image Generation
-  IMAGEN4:      { id: 'imagen-4',      provider: 'gemini', imageGen: true },
-} as const;
-```
-
-- [ ] `server/models.ts` — provider / capability metadata 확장
-- [ ] `src/lib/models.ts` — Gemini / OpenAI / ImageGen 그룹 표시 metadata 확장
-
----
-
-#### M4 — OpenAI 호환 Content 매핑
-
-OpenAI는 Gemini와 content 포맷이 다름 → 공통 내부 포맷 → 각 프로바이더 변환.
-
-| 항목 | Gemini | OpenAI |
-|------|--------|--------|
-| 이미지 | `inlineData` / `fileData` | `image_url` (base64 또는 URL) |
-| 시스템 프롬프트 | `systemInstruction` | `system` role 메시지 |
-| YouTube | `fileData(fileUri)` | ❌ 미지원 → 텍스트 요약으로 폴백 |
-| Google Search | 네이티브 grounding | ❌ 미지원 → `searchWebTool` 자동 바인딩 |
-| Tool call | LangChain 또는 SDK | `@langchain/openai` bindTools |
-
-- [ ] 내부 공통 메시지 포맷 정의 (`server/types.ts`)
-- [ ] OpenAI 선택 시 YouTube 요청 → `"이 모델은 YouTube 분석 미지원"` 안내
-- [ ] OpenAI 선택 시 Google Search 대신 `searchWebTool` 자동 활성화
-
----
-
-#### M5 — 이미지 생성 모델 지원 (Imagen 4 / Gemini Flash-Image)
-
-> **모델**: `imagen-4.0-generate-001` (Standard, $0.04) / `imagen-4.0-fast-generate-001` (Fast, $0.02) / `gemini-2.5-flash-image` (Flash-Image)  
-> **전달 방식**: base64 data URL → `json:image-gen` 블록 → `ImageGenRenderer`  
-> **환경변수**: `GEMINI_IMAGEN` (기존 `GOOGLE_API_KEY`와 분리 관리)
-
-**2026-05-03~04 테스트 결과** (`scripts/test-image-academic.js`):
-
-| 모델 | API 방식 | 평균 시간 | 평균 크기 | 학술 피규어 정확도 |
-|------|---------|---------|---------|--------------|
-| Imagen 4 Standard | `ai.models.generateImages()` | ~10s | ~1100KB | ★★★ (라벨 가장 정확) |
-| Imagen 4 Fast | `ai.models.generateImages()` | ~5s | ~1200KB | ★★ |
-| Gemini 2.5 Flash-Image | REST `/v1beta/models/gemini-2.5-flash-image:generateContent` | ~9s | ~1300KB | ★★ (오타 있음) |
-
-**주요 발견사항**:
-- Imagen Standard가 학술 다이어그램 라벨 정확도 최고 (오타·중복 최소)
-- Flash-Image는 `responseModalities` 파라미터 불필요 — `generateContent`만 호출해도 이미지 반환
-- Flash-Image SDK 호출 불가 (`@google/genai` v1.34.0 직렬화 버그) → REST API 직접 호출 필요
-- 프롬프트 강화 효과: 라벨 명시적 열거 + "no duplicate labels, no spelling errors" 추가 시 정확도 개선
-- `Buffer.from(imgData)` → `Buffer.from(imgData, 'base64')` 필수 (없으면 빈 PNG)
-- `GEMINI_IMAGEN` 키를 Flash-Image에도 동일하게 사용 (별도 키 불필요)
-
-**모델 선택 가이드**:
-- 학술/과학 다이어그램 → **Imagen 4 Standard** (정확도 우선)
-- 일반 이미지 빠른 생성 → **Imagen 4 Fast** (속도/비용 우선)
-- 채팅 맥락 반영 이미지 → **Gemini Flash-Image** (대화 흐름 이해 강점)
-
-**플로우**:
-```
-유저: "세포막 유동 모자이크 모델 그려줘"
-  → Router: image_gen 감지
-  → Generator (LangChain path): generateImageTool 호출
-    → Imagen API → imageBytes(base64) 반환
-  → Generator: json:image-gen 블록 출력
-  → ChatMessage: ImageGenRenderer 렌더링 (이미지 + 다운로드)
-```
-
-**수정/생성 파일**:
-| 파일 | 변경 |
-|------|------|
-| `server/agent/state.ts` | `IntentType`에 `"image_gen"` 추가 |
-| `server/agent/tools.ts` | `generateImageTool` 추가 |
-| `server/agent/nodes/router.ts` | image_gen 감지 패턴 추가 |
-| `server/agent/nodes/generator.ts` | `LANGCHAIN_INTENTS`에 `"image_gen"` 추가 + intent hint |
-| `server/agent/prompt.ts` | image_gen 시스템 지시 + intent focus hint 추가 |
-| `components/ImageGenRenderer.tsx` | 신규 — 이미지 카드 렌더러 |
-| `components/ChatMessage.tsx` | `image-gen` 블록 파서 + lazy import 추가 |
-
----
-
-**Step 1: `state.ts` — intent 타입 추가**
-
-```ts
-// server/agent/state.ts
-export type IntentType =
-    | "drug_id" | "drug_info" | "medical_qa"
-    | "biology" | "chemistry" | "physics" | "astronomy"
-    | "data_viz" | "image_gen"   // ← 추가
-    | "general";
-```
-
-- [ ] `state.ts` `IntentType`에 `"image_gen"` 추가
-
----
-
-**Step 2: `tools.ts` — `generateImageTool` 추가**
-
-```ts
-// server/agent/tools.ts 하단에 추가
-import { GoogleGenAI } from "@google/genai";
-
-export const generateImageTool = tool(
-    async ({ prompt, aspectRatio = "4:3", quality = "standard" }) => {
-        const apiKey = process.env.GEMINI_IMAGEN;
-        if (!apiKey) return JSON.stringify({ error: "GEMINI_IMAGEN 환경변수 없음" });
-
-        const modelId = quality === "fast"
-            ? "imagen-4.0-fast-generate-001"
-            : "imagen-4.0-generate-001";
-
-        try {
-            const ai = new GoogleGenAI({ apiKey });
-            const response = await ai.models.generateImages({
-                model: modelId,
-                prompt,
-                config: { numberOfImages: 1, aspectRatio },
-            });
-            const imgBytes = response.generatedImages?.[0]?.image?.imageBytes;
-            if (!imgBytes) return JSON.stringify({ error: "이미지 생성 실패: imageBytes 없음" });
-
-            const sizeKB = Math.round((imgBytes.length * 3) / 4 / 1024);
-            return JSON.stringify({
-                imageData: imgBytes,          // base64 string
-                prompt,
-                model: modelId,
-                aspectRatio,
-                sizeKB,
-            });
-        } catch (err: any) {
-            return JSON.stringify({ error: err?.message?.slice(0, 200) ?? "알 수 없는 오류" });
-        }
-    },
-    {
-        name: "generate_image",
-        description: "주어진 프롬프트로 Imagen 4 이미지를 생성합니다. 이미지 생성/그리기 요청에만 사용. 반드시 영어 프롬프트 사용.",
-        schema: z.object({
-            prompt: z.string().describe("영어로 작성된 이미지 생성 프롬프트 (상세할수록 좋음)"),
-            aspectRatio: z.enum(["1:1", "4:3", "3:4", "16:9", "9:16"]).optional()
-                .describe("이미지 비율 (기본: 4:3)"),
-            quality: z.enum(["standard", "fast"]).optional()
-                .describe("standard=$0.04 고품질, fast=$0.02 저비용 (기본: standard)"),
-        }),
-    }
-);
-```
-
-- [ ] `tools.ts`에 `generateImageTool` 추가 (`@google/genai` import 포함)
-
----
-
-**Step 3: `router.ts` — image_gen 감지 패턴 추가**
-
-라우터의 LLM 분류 프롬프트와 휴리스틱 폴백에 추가:
-
-```ts
-// router.ts 의도 분류 프롬프트 예시 항목 추가
-"image_gen": "이미지 생성/그리기 요청 (그려줘, 이미지 만들어줘, 그림 그려, draw, generate image, create a picture)"
-
-// 휴리스틱 폴백 패턴 추가 (기존 패턴들 다음에)
-if (/그려줘|그림.*그려|이미지.*만들|이미지.*생성|그려.*줘|draw\b|generate.*image|create.*image|create.*picture|illustrate/i.test(lastMsg)) {
-    return "image_gen";
-}
-```
-
-- [ ] `router.ts` LLM 분류 프롬프트에 `image_gen` 예시 추가
-- [ ] `router.ts` 휴리스틱 폴백에 `image_gen` 패턴 추가
-
----
-
-**Step 4: `generator.ts` — LANGCHAIN_INTENTS + 툴 바인딩**
-
-```ts
-// generator.ts
-import { generateImageTool } from "../tools.js";
-
-// 기존:
-const LANGCHAIN_INTENTS = ["drug_id", "drug_info"];
-// 변경:
-const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "image_gen"];
-
-// LangChain path의 allTools 배열에 추가 (image_gen일 때만):
-const allTools = state.intent === "drug_id"
-    ? [identifyPillTool, searchWebTool]
-    : state.intent === "drug_info"
-    ? [searchDrugInfoTool, searchWebTool]
-    : state.intent === "image_gen"
-    ? [generateImageTool]                    // ← 추가
-    : [searchWebTool];
-```
-
-- [ ] `generator.ts` `LANGCHAIN_INTENTS`에 `"image_gen"` 추가
-- [ ] `generator.ts` `allTools` 분기에 `image_gen` 케이스 추가
-
----
-
-**Step 5: `prompt.ts` — 시스템 지시 + intent hint**
-
-```ts
-// prompt.ts getIntentFocusHint에 추가
-image_gen: `[INTENT FOCUS: IMAGE GENERATION]
-유저가 이미지 생성을 요청했습니다. generate_image 툴을 반드시 호출하세요.
-툴 호출 시 prompt는 반드시 영어로, 최대한 구체적으로 작성하세요.
-툴 결과를 받으면 아래 포맷으로 출력하세요:
-
-\`\`\`json:image-gen
-{
-  "imageData": "<툴 결과의 imageData 그대로>",
-  "prompt": "<사용한 영어 프롬프트>",
-  "promptKo": "<한국어로 설명>",
-  "model": "<툴 결과의 model>",
-  "aspectRatio": "<비율>",
-  "sizeKB": <크기>
-}
-\`\`\`
-
-툴이 error를 반환하면 json:image-gen 블록 없이 에러 내용을 한국어로 안내하세요.
-절대 이미지를 markdown 이미지(![])로 출력하지 마세요.`,
-```
-
-- [ ] `prompt.ts` `getIntentFocusHint` 맵에 `image_gen` 추가
-
----
-
-**Step 6: `ImageGenRenderer.tsx` 신규 생성**
-
-```tsx
-// components/ImageGenRenderer.tsx
-import React, { useState } from 'react';
-
-interface ImageGenData {
-    imageData: string;     // base64
-    prompt: string;
-    promptKo?: string;
-    model: string;
-    aspectRatio: string;
-    sizeKB: number;
-    error?: string;
-}
-
-export default function ImageGenRenderer({ data }: { data: ImageGenData }) {
-    const [copied, setCopied] = useState(false);
-
-    if (data.error) {
-        return (
-            <div className="my-4 p-4 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
-                <i className="fa-solid fa-circle-exclamation mr-2" />
-                이미지 생성 실패: {data.error}
-            </div>
-        );
-    }
-
-    const src = `data:image/png;base64,${data.imageData}`;
-    const isStandard = data.model.includes('fast') ? false : true;
-
-    const handleDownload = () => {
-        const a = document.createElement('a');
-        a.href = src;
-        a.download = `imagen-${Date.now()}.png`;
-        a.click();
-    };
-
-    const handleCopyPrompt = () => {
-        navigator.clipboard.writeText(data.prompt);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
-    return (
-        <div className="my-4 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur-sm">
-            {/* 이미지 */}
-            <img
-                src={src}
-                alt={data.promptKo ?? data.prompt}
-                className="w-full object-contain"
-            />
-            {/* 하단 정보 바 */}
-            <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 dark:border-white/5">
-                <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {data.promptKo ?? data.prompt}
-                    </p>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                        {isStandard ? 'Imagen 4 Standard' : 'Imagen 4 Fast'} · {data.aspectRatio} · {data.sizeKB}KB
-                    </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                    <button
-                        onClick={handleCopyPrompt}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                    >
-                        <i className={`fa-solid ${copied ? 'fa-check text-green-500' : 'fa-copy'} mr-1`} />
-                        {copied ? '복사됨' : '프롬프트'}
-                    </button>
-                    <button
-                        onClick={handleDownload}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
-                    >
-                        <i className="fa-solid fa-download mr-1" />
-                        저장
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-```
-
-- [ ] `components/ImageGenRenderer.tsx` 위 코드로 생성
-
----
-
-**Step 7: `ChatMessage.tsx` — 파서 + lazy import 연결**
-
-```tsx
-// 상단 lazy import 추가
-const ImageGenRenderer = lazy(() => import('./ImageGenRenderer'));
-
-// renderContent의 blockRegex 수정
-const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|image-gen)\s*\n([\s\S]*?)\n```/gi;
-
-// parts 타입 확장
-type PartType = 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'image-gen' | 'chart_loading';
-
-// blockType 분기에 추가
-} else if (blockType === 'image-gen') {
-    parts.push({ type: 'image-gen', data: jsonData });
-}
-
-// 스트리밍 미완성 감지 regex 수정 (image-gen 포함)
-const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|image-gen)/i.test(remainingText);
-
-// 렌더링 분기에 추가
-if (part.type === 'image-gen') {
-    return (
-        <Suspense key={idx} fallback={<LoadingFallback />}>
-            <ImageGenRenderer data={part.data} />
-        </Suspense>
-    );
-}
-```
-
-- [ ] `ChatMessage.tsx` lazy import `ImageGenRenderer` 추가
-- [ ] `ChatMessage.tsx` `blockRegex`에 `image-gen` 추가
-- [ ] `ChatMessage.tsx` `parts` 타입에 `'image-gen'` 추가
-- [ ] `ChatMessage.tsx` blockType 파싱 분기에 `image-gen` 추가
-- [ ] `ChatMessage.tsx` 스트리밍 미완성 감지 regex 업데이트
-- [ ] `ChatMessage.tsx` 렌더링 분기에 `image-gen` 케이스 추가
-
----
-
-**환경변수 확인**
-- [ ] `.env.local`에 `GEMINI_IMAGEN=...` 추가 확인
-- [ ] Vercel 환경변수에 `GEMINI_IMAGEN` 추가 (`vercel env add GEMINI_IMAGEN`)
-
----
-
-#### M6 — 프론트엔드 모델 선택 UI
-
-유저가 채팅 중 모델을 바꿀 수 있는 UI의 잔여 확장.
-
-- [ ] `src/lib/models.ts` — 멀티 프로바이더 그룹 표시(Gemini / OpenAI / ImageGen)
-- [ ] `App.tsx` — 세션별 모델 기억
-
----
-
-### 모델 확장 우선순위
-
-```
-선행 필수 (구조):
-  M1 프로바이더 추상화 → M2 API 키 확장 → M3 metadata 확장
-
-단기 (기능):
-  Gemini 신모델(3.0-flash, 3.1-flash-lite) 추가 검토
-  M6 세션별 모델 기억
-
-중기 (복잡):
-  M4 OpenAI content 매핑 + OpenAI 모델 실제 연결
-
-장기 (신규 기능):
-  M5 이미지 생성 모델 (별도 렌더러·엔드포인트)
-```
-
-> **주의**: M1(프로바이더 추상화) 없이 OpenAI를 붙이면 `generator.ts`가 2000줄짜리 괴물이 됨 → M1이 진입점
-
-### 카카오 지도 모달 팝업 구현 (B안)
-- [ ] 카카오 디벨로퍼스 JavaScript API 키 발급 및 `.env` 추가
-- [ ] `react-kakao-maps-sdk` 도입 검토 또는 직접 Script 주입 방식 구현
-- [ ] 약국/병원 카드에서 마커 및 커스텀 오버레이가 포함된 지도 모달(팝업) 컴포넌트 렌더링
+### Agentic AI 업그레이드
+
+현재: `router → (vision?) → generator ↔ tools` 단순 ReAct 루프
+
+| 방향 | 항목 | 복잡도 |
+|---|---|---|
+| **A. 더 똑똑하게** | A1 Supervisor, A2 도메인 서브에이전트, A3 Planning Node, A4 Reflection Node | 중~높음 |
+| **B. 더 많이** | B1 병렬 툴 호출, B2 코드 실행, B3 계산기, B4 Wikipedia/PubMed, B5 차트 생성, B6 파일 분석 | 낮~높음 |
+| **C. 더 기억하게** | C1 세션 요약, C2 유저 프로필 메모리, C3 벡터 RAG, C4 크로스세션 컨텍스트 | 낮~높음 |
+
+추천 순서: B3/B4/C1(단기) → B1/A4/C2(중기) → A1~A3/B2/C3(장기)
+
+### 모델 확장 (멀티 프로바이더)
+
+M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 → M1이 진입점.
+
+| 단계 | 내용 |
+|---|---|
+| M1 프로바이더 추상화 | `server/providers/` — gemini.ts / openai.ts / index.ts |
+| M2 API 키 확장 | `config.ts` OPENAI_API_KEY 추가, `getGeminiKey()` / `getOpenAIKey()` 분리 |
+| M3 모델 레지스트리 | `server/models.ts` provider/capability metadata 확장 |
+| M4 OpenAI 매핑 | 공통 내부 포맷 → 프로바이더 변환 (이미지/시스템프롬프트/YouTube/Search) |
+| M5 이미지 생성 | Imagen 4 → P3에서 선행 구현 가능 (M1 불필요) |
+| M6 프론트 UI | 멀티 프로바이더 그룹 표시, 세션별 모델 기억 |
+
+**Gemini 3.5 Flash 전환 시 확인 항목** (DEFAULT_CHAT_MODEL 변경 시):
+- `drug-info-tool.ts` — `temperature: 0.1` 제거 (`searchDrugViaGoogleSearch`, `extractImprintViaVision`)
+- `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토
+- 의학·YouTube·law 경로, Google Search two-track 동작 검증
+- PDF 토큰 증가 실측 (`hasDocumentContent` 경로), 필요 시 `media_resolution` 조정

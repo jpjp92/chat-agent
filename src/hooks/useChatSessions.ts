@@ -190,7 +190,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
     setIsLoadingSessions(true);
     try {
-      const { sessions: dbSessions, total } = await fetchSessions(resolvedUserId, 0, SESSION_PAGE_SIZE);
+      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(resolvedUserId, 0, SESSION_PAGE_SIZE);
 
       if (dbSessions && dbSessions.length > 0) {
         const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
@@ -205,7 +205,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
           return updated;
         });
         setSessionOffset(SESSION_PAGE_SIZE);
-        setHasMore((total ?? 0) > SESSION_PAGE_SIZE);
+        setHasMore(apiHasMore ?? false);
         return;
       }
 
@@ -223,7 +223,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
     setIsLoadingMore(true);
     try {
-      const { sessions: dbSessions, total } = await fetchSessions(userId, sessionOffset, SESSION_PAGE_SIZE);
+      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(userId, sessionOffset, SESSION_PAGE_SIZE);
       if (dbSessions && dbSessions.length > 0) {
         const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
           id: session.id,
@@ -236,9 +236,8 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
           const newSessions = mappedSessions.filter(s => !existingIds.has(s.id));
           return [...prev, ...newSessions];
         });
-        const nextOffset = sessionOffset + SESSION_PAGE_SIZE;
-        setSessionOffset(nextOffset);
-        setHasMore(nextOffset < (total ?? 0));
+        setSessionOffset(prev => prev + SESSION_PAGE_SIZE);
+        setHasMore(apiHasMore ?? false);
       } else {
         setHasMore(false);
       }

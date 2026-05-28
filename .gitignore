@@ -135,3 +135,4 @@ scripts/test-ssrf.mjs
 .understand-anything/tmp/ua-import-map-output.json
 .understand-anything/tmp/ua-scan-files.json
 tsconfig.tsbuildinfo
+scripts/test-markdown-bold-regression.mjs
