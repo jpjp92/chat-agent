@@ -15,9 +15,9 @@ node_modules
 
 # TypeScript build cache
 *.tsbuildinfo
+tsconfig.tsbuildinfo
 
-# Misc
-.DS_Store
+# Environment variables
 .env
 .env.local
 .env.vercel
@@ -25,11 +25,13 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+.env*.local
 
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+out.txt
 
 # IDEs
 .visualstudio
@@ -37,102 +39,58 @@ yarn-error.log*
 .idea
 *.swp
 *.swo
-.vercel
-.env*.local
 
-# reference
+# Vercel
+.vercel
+
+# Tools
+.superpowers/
+.understand-anything/
+
+# Reference / security docs
 reference/
-test-supabase.ts
-test-port.js
-scripts/test-drug-viz.js
-scripts/test-pill-search.js
-scripts/debug-grounding.ts
-scripts/debug-grounding-graph.ts
-scripts/test-connectdi-fallback.js
-.superpowers/brainstorm/25178-1776689967/content/dark-mode-options.html
-.superpowers/brainstorm/25178-1776689967/content/indigo-brightness.html
-.superpowers/brainstorm/25178-1776689967/state/server-stopped
-.superpowers/brainstorm/25178-1776689967/state/server.log
-.superpowers/brainstorm/25178-1776689967/state/server.pid
-scripts/test-drug-image.js
-scripts/test-image-academic.js
-scripts/test-image-gen.js
-scripts/image-gen-output/academic/bio-01-eukaryotic-cell-fast.png
-scripts/image-gen-output/academic/bio-01-eukaryotic-cell-flash.png
-scripts/image-gen-output/academic/bio-01-eukaryotic-cell-std.png
-scripts/image-gen-output/academic/bio-02-mitosis-fast.png
-scripts/image-gen-output/academic/bio-02-mitosis-std.png
-scripts/image-gen-output/academic/elec-01-mosfet-fast.png
-scripts/image-gen-output/academic/elec-01-mosfet-std.png
-scripts/image-gen-output/academic/elec-02-opamp-circuit-fast.png
-scripts/image-gen-output/academic/elec-02-opamp-circuit-std.png
-scripts/image-gen-output/academic/elec-03-rc-filter-fast.png
-scripts/image-gen-output/academic/elec-03-rc-filter-std.png
-scripts/image-gen-output/academic/elec-04-logic-gates-fast.png
-scripts/image-gen-output/academic/elec-04-logic-gates-std.png
-scripts/image-gen-output/academic/elec-05-pn-junction-fast.png
-scripts/image-gen-output/academic/elec-05-pn-junction-std.png
-.superpowers/brainstorm/11244-1777882232/content/agent-architecture.html
-.superpowers/brainstorm/11244-1777882232/state/events
-.superpowers/brainstorm/11244-1777882232/state/server-stopped
-.superpowers/brainstorm/11244-1777882232/state/server.pid
 docs/SECURITY_VERIFICATION.md
 docs/superpowers/
-scripts/test-bucket-security.ts
-scripts/test-pubchem.js
-scripts/card-preview.html
+
+# Root-level test files
+test-supabase.ts
+test-port.js
+
+# Scripts — test, debug, one-off utilities (keep test-markdown-bold-regression.mjs)
+.scripts/
+scripts/test-*.js
+scripts/test-*.ts
 scripts/test-apis.mjs
 scripts/test-arxiv.mjs
+scripts/test-bold-rendering.mjs
+scripts/test-chart-options.mjs
 scripts/test-culture.mjs
 scripts/test-drug.mjs
 scripts/test-drugstore.mjs
+scripts/test-google-search-35flash.mjs
 scripts/test-hospital.mjs
-scripts/test-law-api.ts
+scripts/test-intent-routing-benchmark.mjs
+scripts/test-law-openapi.mjs
 scripts/test-law.mjs
+scripts/test-lc-toolcall-35flash.ts
+scripts/test-multiturn-35flash.mjs
+scripts/test-new-supabase.mjs
+scripts/test-pharmacy-national.mjs
 scripts/test-pubmed.mjs
 scripts/test-school.mjs
-scripts/test-pharmacy-national.mjs
-out.txt
-
-scripts/test-url-extract.mjs
-scripts/test-law-openapi.mjs
-scripts/test-lc-toolcall-35flash.ts
-scripts/test-thinking-35flash.ts
-scripts/test-google-search-35flash.mjs
-scripts/test-intent-routing-benchmark.mjs
+scripts/test-ssrf.mjs
 scripts/test-summary-thinking-35flash.mjs
+scripts/test-thinking-35flash.ts
 scripts/test-two-stage-multitask-thinking.mjs
-scripts/test-multiturn-35flash.mjs
-scripts/test-bold-rendering.mjs
-scripts/test-chart-options.mjs
+scripts/test-url-extract.mjs
+scripts/debug-grounding.ts
+scripts/debug-grounding-graph.ts
 scripts/check-today.mjs
 scripts/count-old-supabase.mjs
 scripts/inspect-old-supabase.mjs
 scripts/inspect-storage.mjs
 scripts/migrate-storage.mjs
 scripts/migrate-supabase.mjs
-scripts/test-new-supabase.mjs
-scripts/test-ssrf.mjs
-.understand-anything/.understandignore
-.understand-anything/intermediate/assemble-review.json
-.understand-anything/intermediate/assembled-graph.json
-.understand-anything/intermediate/batch-1.json
-.understand-anything/intermediate/batch-2.json
-.understand-anything/intermediate/batch-3.json
-.understand-anything/intermediate/batch-4.json
-.understand-anything/intermediate/batch-5.json
-.understand-anything/intermediate/batch-6.json
-.understand-anything/intermediate/batch-7.json
-.understand-anything/intermediate/batch-8.json
-.understand-anything/intermediate/batch-9.json
-.understand-anything/intermediate/batch-10.json
-.understand-anything/intermediate/batch-11.json
-.understand-anything/intermediate/batch-12.json
-.understand-anything/intermediate/batch-13.json
-.understand-anything/intermediate/batches.json
-.understand-anything/intermediate/scan-result.json
-.understand-anything/tmp/ua-import-map-input.json
-.understand-anything/tmp/ua-import-map-output.json
-.understand-anything/tmp/ua-scan-files.json
-tsconfig.tsbuildinfo
+scripts/card-preview.html
+scripts/image-gen-output/
 scripts/test-markdown-bold-regression.mjs

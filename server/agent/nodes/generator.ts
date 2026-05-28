@@ -151,6 +151,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
         const needsSearchFallback = resolvedModel === SERVER_MODELS.FLASH_3_5;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
+        // Hoist hasVideoData outside the SDK loop so YouTube fallback block can reference it.
+        const hasVideoData = state.messages.some((m: any) =>
+            Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
+        );
+
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = apiKey; // start with the key already chosen above
@@ -236,9 +241,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // Google Search is incompatible with multimodal content (images, video, PDF)
                     // Optimization: Disable Google Search for YouTube summaries when transcript OR video data is present
                     const hasTranscript = state.webContent.includes('[TRANSCRIPT]');
-                    const hasVideoData = state.messages.some((m: any) =>
-                        Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
-                    );
+                    // hasVideoData is hoisted above the while loop — accessible here via closure
 
                     // Disable Google Search when image exists anywhere in conversation history.
                     // Gemini API does not support Google Search + image in the same request.
@@ -258,10 +261,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // [URL_CONTENT:...] 태그 자체가 "URL fetch 시도 완료" 신호이므로 길이 체크 제거.
                     const hasUrlContent = state.webContent.includes('[URL_CONTENT:');
 
+                    // Multi-turn YouTube: 1st response is stored as [VIDEO_ANALYSIS_SUMMARY]
+                    // in webContent. Treat it the same as native video data — no Search needed.
+                    const hasVideoSummary = state.webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
+
                     let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
-                    // 1턴: transcript 또는 native video 있으면 Search 비활성 (영상 자체가 컨텍스트)
-                    // 2턴+: VIDEO_ANALYSIS_SUMMARY가 있어도 Search 허용 — 모델이 문맥에 따라 판단
-                    if (isYoutubeRequest && (hasTranscript || hasVideoData)) {
+                    // 1턴: transcript/native video 있으면 Search 비활성
+                    // 2턴+: VIDEO_ANALYSIS_SUMMARY가 있으면 Search 비활성 (1차 분석 결과가 컨텍스트)
+                    if (isYoutubeRequest && (hasTranscript || hasVideoData || hasVideoSummary)) {
                         useGoogleSearch = false;
                     }
                     if (hasUrlContent) {
@@ -353,7 +360,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - Multi-turn: "medium" — follow-up turns need more reasoning to honor user format requests
                     //   - 1st turn: "low" — prevents 60s timeout on first complex queries
                     // 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
-                    //   - YouTube: budget 0 (disable)
+                    //   - YouTube: budget 0 (disable — thinkingBudget>0 causes 503 with fileData on 2.5-flash)
                     //   - medical_qa: budget 3000 (cap)
                     //   - Others: undefined (model default)
                     const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
@@ -364,7 +371,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             : isMultiTurn
                             ? { thinkingLevel: "medium" as const }
                             : { thinkingLevel: "low" as const }
-                        : (isYoutubeRequest && hasVideoData)
+                        : isYoutubeRequest
                             ? { thinkingBudget: 0 }
                             : state.intent === 'medical_qa'
                             ? { thinkingBudget: 3000 }
@@ -667,10 +674,71 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             }
         }
 
+        // YouTube fallback: primary model (2.5-flash) exhausted → retry with 3.5-flash
+        if (!useLangChain && !sdkSuccess && isYoutubeRequest && hasVideoData && resolvedModel !== SERVER_MODELS.FLASH_3_5) {
+            console.log('[LangGraph] YouTube fallback: all', resolvedModel, 'keys failed — retrying with', SERVER_MODELS.FLASH_3_5);
+            try {
+                const fbKey = getNextApiKey() ?? apiKey;
+                const fbGenai = new GoogleGenAI({ apiKey: fbKey });
+                const fbContents: any[] = [];
+                for (const msg of state.messages) {
+                    if (msg._getType() === 'human') {
+                        const contentVal = msg.content;
+                        if (Array.isArray(contentVal)) {
+                            const parts: any[] = [];
+                            for (const part of contentVal as any[]) {
+                                if (part.type === 'text') parts.push({ text: part.text || '' });
+                                else if (part.fileData?.fileUri) parts.push({ fileData: { fileUri: part.fileData.fileUri, mimeType: part.fileData.mimeType } });
+                            }
+                            if (parts.length === 0) parts.push({ text: '' });
+                            fbContents.push({ role: 'user', parts });
+                        } else {
+                            fbContents.push({ role: 'user', parts: [{ text: String(contentVal) }] });
+                        }
+                    } else if (msg._getType() === 'ai') {
+                        fbContents.push({ role: 'model', parts: [{ text: String(msg.content) }] });
+                    }
+                }
+                const fbResponse = await fbGenai.models.generateContent({
+                    model: SERVER_MODELS.FLASH_3_5,
+                    contents: fbContents,
+                    config: {
+                        systemInstruction: finalInstruction,
+                        temperature: 0.2, topP: 0.8, topK: 40,
+                        maxOutputTokens: 8192,
+                        thinkingConfig: { thinkingLevel: 'minimal' as const },
+                    }
+                });
+                const fbText = fbResponse.text ?? '';
+                if (fbText) {
+                    console.log('[LangGraph] YouTube 3.5-flash fallback succeeded');
+                    if (sendEvent) sendEvent({ text: fbText });
+                    sdkSuccess = true;
+                    return { messages: [new AIMessage(fbText)] };
+                }
+            } catch (fbErr: any) {
+                console.error('[LangGraph] YouTube 3.5-flash fallback failed:', fbErr?.status, fbErr?.message);
+            }
+        }
+
         // LangChain path: drug_id and drug_info intents need custom DB/identification tools.
         // Note: for non-drug intents, this path acts as an unstreamed fallback when SDK fully fails.
         if (!useLangChain && !sdkSuccess) {
             console.error('[LangGraph] SDK path failed for intent:', state.intent, '— falling back to LangChain (no streaming)');
+            // YouTube native video analysis uses fileData which LangChain does not support.
+            // Falling through would produce hallucinated content instead of the actual video summary.
+            // Return a clear error message so the user knows to retry rather than seeing wrong content.
+            if (isYoutubeRequest && hasVideoData) {
+                const YT_ERR: Record<string, string> = {
+                    KOREAN:  'YouTube 영상 분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.',
+                    ENGLISH: 'YouTube video analysis is temporarily unavailable. Please try again in a moment.',
+                    SPANISH: 'El análisis de video de YouTube no está disponible temporalmente. Por favor, inténtelo de nuevo en un momento.',
+                    FRENCH:  'L\'analyse vidéo YouTube est temporairement indisponible. Veuillez réessayer dans un instant.',
+                };
+                const langMatch = systemInstructionBase.match(/YOUR ENTIRE RESPONSE MUST BE IN (\w+) ONLY/);
+                const errMsg = langMatch ? (YT_ERR[langMatch[1]] ?? YT_ERR.ENGLISH) : YT_ERR.ENGLISH;
+                return { messages: [new AIMessage(errMsg)] };
+            }
         }
         let lcApiKey = getNextApiKey() ?? apiKey;
         let lcAttempt = 0;
