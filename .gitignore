@@ -13,6 +13,9 @@ node_modules
 /.next
 /next-env.d.ts
 
+# TypeScript build cache
+*.tsbuildinfo
+
 # Misc
 .DS_Store
 .env
@@ -112,3 +115,25 @@ scripts/migrate-storage.mjs
 scripts/migrate-supabase.mjs
 scripts/test-new-supabase.mjs
 scripts/test-ssrf.mjs
+.understand-anything/.understandignore
+.understand-anything/intermediate/assemble-review.json
+.understand-anything/intermediate/assembled-graph.json
+.understand-anything/intermediate/batch-1.json
+.understand-anything/intermediate/batch-2.json
+.understand-anything/intermediate/batch-3.json
+.understand-anything/intermediate/batch-4.json
+.understand-anything/intermediate/batch-5.json
+.understand-anything/intermediate/batch-6.json
+.understand-anything/intermediate/batch-7.json
+.understand-anything/intermediate/batch-8.json
+.understand-anything/intermediate/batch-9.json
+.understand-anything/intermediate/batch-10.json
+.understand-anything/intermediate/batch-11.json
+.understand-anything/intermediate/batch-12.json
+.understand-anything/intermediate/batch-13.json
+.understand-anything/intermediate/batches.json
+.understand-anything/intermediate/scan-result.json
+.understand-anything/tmp/ua-import-map-input.json
+.understand-anything/tmp/ua-import-map-output.json
+.understand-anything/tmp/ua-scan-files.json
+tsconfig.tsbuildinfo

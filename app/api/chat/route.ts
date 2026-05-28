@@ -16,6 +16,7 @@ const CHAT_ERRORS: Record<string, Record<string, string>> = {
   dailyExhausted: { ko: '오늘의 API 사용량이 모두 소진되었습니다. 내일 다시 이용해주세요.', en: 'Daily API quota has been exhausted. Please try again tomorrow.', es: 'La cuota diaria de API se ha agotado. Por favor, inténtelo mañana.', fr: 'Le quota API journalier est épuisé. Veuillez réessayer demain.' },
   unavailable:    { ko: '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.', en: 'Server temporarily unavailable. Please try again shortly.', es: 'Servidor temporalmente no disponible. Por favor, inténtelo de nuevo.', fr: 'Serveur temporairement indisponible. Veuillez réessayer.' },
   auth:           { ko: '인증 오류가 발생했습니다. 관리자에게 문의해주세요.', en: 'Authentication error. Please contact the administrator.', es: 'Error de autenticación. Por favor, contacte al administrador.', fr: "Erreur d'authentification. Veuillez contacter l'administrateur." },
+  safety:         { ko: '안전 정책에 의해 응답이 차단되었습니다. 질문을 다르게 표현해보세요.', en: 'Response blocked by safety policy. Please rephrase your question.', es: 'Respuesta bloqueada por política de seguridad. Reformule su pregunta.', fr: 'Réponse bloquée par la politique de sécurité. Reformulez votre question.' },
   generic:        { ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.', en: 'Failed to generate a response. Please try again.', es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.', fr: 'Échec de la génération de la réponse. Veuillez réessayer.' },
 };
 
@@ -263,7 +264,8 @@ export async function POST(req: NextRequest) {
         const msg = error?.message ?? '';
         const lang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
         const errorType =
-          status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') ?
+          error?.safetyBlock ? 'safety'
+          : status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') ?
             (isDailyQuotaError(error) || isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
           : msg.includes('No API key available') || msg.includes('All API keys') ?
             (isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')

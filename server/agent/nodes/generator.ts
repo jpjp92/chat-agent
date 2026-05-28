@@ -423,7 +423,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             '[SYNTHESIS_RULES]',
                             '- Use ONLY the grounded notes above as factual source.',
                             '- Do not add new external facts.',
-                            "- Do NOT mention the process or source handoff. Never start with phrases like \"제시된 정보를 바탕으로\", \"제공된 정보를 바탕으로\", \"Based on the provided information\", \"Based on the sources\", \"Según la información proporcionada\", or \"D'après les informations fournies\".",
+                            "- Do NOT mention the process or source handoff. Do not use source-context phrases (\"제시된 정보를 바탕으로\", \"제시된 내용을 바탕으로\", \"제공된 정보를 바탕으로\", \"Based on the provided information\", \"Based on the sources\", \"Según la información proporcionada\", \"D'après les informations fournies\", etc.) as boilerplate openers or formulaic transitions — these add no information and read as mechanical filler. Such phrases are only acceptable when they carry genuine meaning mid-sentence. Start directly with the answer content.",
                             '- Start directly with the answer content.',
                             ...(isMultiTurn
                                 ? [
@@ -540,7 +540,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             responseText = stage1FallbackText;
                         }
                     } else {
-                        const singlePassResponse = await genai.models.generateContent({
+                        // thinkingLevel may exhaust the thinking budget → only thought parts returned → empty text.
+                        // Retry once with "minimal" thinking before giving up.
+                        let singlePassResponse = await genai.models.generateContent({
                             model: effectiveModel,
                             contents: sdkContents,
                             config: {
@@ -552,17 +554,50 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             }
                         });
 
-                        const singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
+                        let singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
                         responseText = (singlePassResponse.text || singleParts
                             .filter((p: any) => !p.thought)
                             .map((p: any) => p.text || '')
                             .join('')).trim();
+
+                        // If empty and we used a non-minimal thinkingLevel, retry with minimal thinking
+                        if (!responseText && is3xModel && thinkingConfig && (thinkingConfig as any).thinkingLevel && (thinkingConfig as any).thinkingLevel !== 'minimal') {
+                            const candidate0 = singlePassResponse.candidates?.[0];
+                            const finishReason = candidate0?.finishReason;
+                            const thoughtOnlyParts = singleParts.filter((p: any) => p.thought).length;
+                            console.warn('[LangGraph] Empty response - finishReason:', finishReason, '| thoughtParts:', thoughtOnlyParts, '| thinkingLevel:', (thinkingConfig as any).thinkingLevel, '— retrying with minimal thinking');
+                            singlePassResponse = await genai.models.generateContent({
+                                model: effectiveModel,
+                                contents: sdkContents,
+                                config: {
+                                    systemInstruction: finalInstruction,
+                                    ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
+                                    maxOutputTokens: effectiveMaxTokens,
+                                    thinkingConfig: { thinkingLevel: 'minimal' } as any,
+                                }
+                            });
+                            singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
+                            responseText = (singlePassResponse.text || singleParts
+                                .filter((p: any) => !p.thought)
+                                .map((p: any) => p.text || '')
+                                .join('')).trim();
+                        }
 
                         const singleGrounding = singlePassResponse.candidates?.[0]?.groundingMetadata;
                         if (singleGrounding?.groundingChunks) {
                             groundingSources = singleGrounding.groundingChunks
                                 .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
                                 .filter(Boolean);
+                        }
+
+                        if (!responseText) {
+                            const candidate0 = singlePassResponse.candidates?.[0];
+                            const finishReason = candidate0?.finishReason;
+                            const safetyRatings = candidate0?.safetyRatings;
+                            console.error('[LangGraph] Empty response - finishReason:', finishReason, '| safetyRatings:', JSON.stringify(safetyRatings));
+                            if (finishReason === 'SAFETY') {
+                                throw Object.assign(new Error('Content blocked by safety filters'), { safetyBlock: true });
+                            }
                         }
                     }
 
@@ -623,6 +658,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.warn('[LangGraph] SDK 500 on multimodal — retrying text-only with Google Search enabled');
                         continue;
                     }
+                    // Safety block — don't retry, propagate immediately
+                    if (err?.safetyBlock) throw err;
                     // Non-retryable error or no more keys
                     console.error('[LangGraph] SDK call failed:', err?.status, err?.message || err);
                     break;
