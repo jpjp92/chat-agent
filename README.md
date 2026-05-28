@@ -10,54 +10,53 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 
 - **Login-less**: Start instantly with an auto-assigned random nickname and avatar
 - **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
-- **Auto-title**: Session titles generated automatically from conversation content (Gemini 2.5 Flash)
-- **Sidebar infinite scroll**: Session list loads 30 items at a time; additional sessions are fetched automatically on scroll to bottom
+- **Auto-title**: Session titles generated automatically from conversation content
+- **Sidebar infinite scroll**: Session list loads 30 items at a time; additional sessions fetched on scroll
 - **Localization**: Full support for KO / EN / ES / FR
 
 ### 1-2. AI Intelligence
 
 - **Gemini 2.5 Flash** as the default chat model, with **Gemini 3.5 Flash** selectable for higher-quality synthesis
 - **Gemini Flash-Lite** for semantic routing
-- **Centralized model registry**: Server model IDs live in `server/models.ts`; frontend selectable chat models live in `src/lib/models.ts`
-- **Model selector**: Header dropdown switches between Gemini 2.5 Flash and Gemini 3.5 Flash, with `preferred_model` persisted locally
+- **Model selector**: Header dropdown switches between models; `preferred_model` persisted locally
 - **Google Search Grounding**: Real-time web search with source chip rendering
-- **3.5 Search two-track**: When 3.5 is selected but Google Search grounding is required, 2.5 Flash performs grounded retrieval and 3.5 Flash synthesizes the final answer
-- **YouTube analysis**: Native Gemini video analysis (direct video reading); supports standard URLs, `youtu.be`, and Shorts (`/shorts/`); structured summary with timestamp links
+- **3.5 Search two-track**: 3.5 Flash on free tier can't ground directly — 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
+- **Empty response auto-retry**: When 3.5 Flash returns empty text (thinking exhaustion), automatically retries with `thinkingLevel: "minimal"` before LangChain fallback
+- **Safety block detection**: `finishReason === 'SAFETY'` blocks propagate immediately with user-friendly localized messages (4 languages) instead of a generic error
+- **YouTube analysis**: Native Gemini video reading; supports standard URLs, `youtu.be`, and Shorts (`/shorts/`)
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator / Tools with intent-based path routing and deterministic fallbacks
 
 ### 1-3. Visualization Renderers (10)
 
-| Renderer             | Intent                      | Trigger                             | Library                                                        |
-| -------------------- | --------------------------- | ----------------------------------- | -------------------------------------------------------------- |
-| 💊 Drug-Viz          | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별      | MFDS + pharm.or.kr + ConnectDI                                 |
-| 🏥 Pharmacy-Viz      | `pharmacy_search`         | 약국 위치 탐색                      | 공공데이터포털 전국 약국 API ⚠️ API 만료 2028-05-06          |
-| 🏨 Hospital-Viz      | `hospital_search`         | 병원·의원 위치 탐색                | 건강보험심사평가원 병원정보서비스 API ⚠️ API 만료 2028-05-07 |
-| 🐾 Vet-Viz           | `vet_search`              | 동물병원 위치 탐색                  | 행정안전부 동물병원 조회서비스 ⚠️ API 만료 2028-05-10        |
-| ⚖️ Law-Viz         | `law_search`              | 법령 목록 / 본문 / 조항호목         | 국가법령정보센터 Open API                                      |
-| 🧪 Chem-Viz          | `chemistry`               | 분자 / 화학 구조                    | smiles-drawer                                                  |
-| 🧬 Bio-Viz           | `biology`                 | 단백질 / DNA                        | NGL Viewer (3D PDB)                                            |
-| 📐 Diagram-Viz       | `physics`                 | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D                                                      |
-| ✨ Constellation-Viz | `astronomy`               | 별자리 / 천체                       | HTML5 Canvas                                                   |
-| 📊 Chart-Viz         | `data_viz`                | 데이터 / 통계                       | ApexCharts                                                     |
+| Renderer | Intent | Trigger | Library |
+|---|---|---|---|
+| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별 | MFDS + pharm.or.kr + ConnectDI |
+| 🏥 Pharmacy-Viz | `pharmacy_search` | 약국 위치 탐색 | 공공데이터포털 전국 약국 API ⚠️ 만료 2028-05-06 |
+| 🏨 Hospital-Viz | `hospital_search` | 병원·의원 위치 탐색 | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
+| 🐾 Vet-Viz | `vet_search` | 동물병원 위치 탐색 | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10 |
+| ⚖️ Law-Viz | `law_search` | 법령 목록 / 본문 / 조항호목 | 국가법령정보센터 Open API |
+| 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
+| 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
+| 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
+| ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas |
+| 📊 Chart-Viz | `data_viz` | 데이터 / 통계 | ApexCharts |
 
 ### 1-4. 💊 Drug-Viz — Pill Identification Engine
 
-- **Image-based pill identification**: Ambiguous image requests such as “이거 뭐야?” route to the Vision node and extract imprint / color / shape
-- **Deterministic DB lookup**: Extracted pill properties are stored in `state.pillData`; the server directly queries pharm.or.kr instead of asking the LLM to call the tool
-- **No raw vision JSON leakage**: Vision node streams are filtered from SSE and raw extraction JSON is never injected into user-visible context
+- **Image-based pill identification**: Ambiguous image requests ("이거 뭐야?") route to Vision node and extract imprint / color / shape
+- **Deterministic DB lookup**: Extracted pill properties stored in `state.pillData`; server directly queries pharm.or.kr without an extra LLM call
+- **No raw vision JSON leakage**: Vision node streams are filtered from SSE; raw extraction JSON never reaches user-visible context
 - **Exact-match safety policy**: Only `match_type = exact` may become a `json:drug` card; `imprint_only` / `similar` results return a candidate table with pharm.or.kr detail links
-- **pharm.or.kr deep links**: Candidate tables and pill cards link to the official drug identification detail page
-- **ConnectDI image sync**: Drug cards use ConnectDI HTML parsing and Supabase caching to improve card image reliability
-- **DDG fallback**: Text drug-info requests not found in MFDS can fall back to DuckDuckGo search with source chips
+- **ConnectDI image sync**: Drug cards use ConnectDI HTML parsing and Supabase caching for image reliability
+- **DDG fallback**: Text drug-info requests not found in MFDS fall back to DuckDuckGo search with source chips
 
 ### 1-5. ⚖️ Law-Viz — Korean Statute Cards
 
-- **Hybrid lookup**: `lawSearch.do?target=law` for candidate laws, then `lawService.do?target=law` for body/article text.
-- **Hybrid intent parsing**: Router only selects `law_search`; `lawTool` then uses Gemini 2.5 Flash to normalize `{mode, law_name, article_no, query}` before Open API calls.
-- **Article links**: Body/article cards include per-article public source links so users can open the official text directly without exposing `LAW_OC`.
-- **Readable result views**: List results use compact cards, while article cards are collapsible and fixed-width; both paginate in groups of 5.
-- **Colloquial law names**: Common aliases such as `소방법`, `교통법`, `개인정보법`, and `근로법` are normalized to official search candidates.
+- **Hybrid lookup**: `lawSearch.do?target=law` for candidate laws → `lawService.do?target=law` for body/article text
+- **Hybrid intent parsing**: Router selects `law_search`; `lawTool` then uses Gemini 2.5 Flash to normalize `{mode, law_name, article_no, query}` before Open API calls
+- **Article links**: Body/article cards include per-article public source links without exposing `LAW_OC`
+- **Colloquial law names**: Aliases (`소방법`, `교통법`, `개인정보법`, `근로법`) normalized to official search candidates
 
 ### 1-6. Performance
 
@@ -69,10 +68,12 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 ### 1-7. Security
 
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
-- **Row Level Security**: Supabase RLS configured for per-user data isolation (service_role IDOR hardening planned — see TODO)
-- **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null` to prevent circular 429 loops
-- **Error message sanitize**: Internal error details (`error.message`) never forwarded to the client; status-code-based user-friendly messages only
-- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube HTML 25s / XML 15s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
+- **SSRF protection**: `fetch-url`, `proxy-image`, `sync-drug-image` enforce hostname blocklists (RFC 1918 + IPv6 private ranges) and whitelist-only patterns
+- **Bucket access control**: `create-signed-url`, `upload` enforce `ALLOWED_BUCKETS` whitelist — arbitrary bucket access blocked
+- **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null`
+- **Error sanitization**: Internal error details (`error.message`, stack) never forwarded to the client; status-code-based localized messages only
+- **Safety block handling**: `finishReason === 'SAFETY'` propagated as a distinct `safety` error type with 4-language user messages; no unnecessary key retry
+- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube HTML 25s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
 
 ---
 
@@ -191,15 +192,13 @@ flowchart TB
 
 Branch rules:
 
-- SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`).
-- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`.
-- Google Search is disabled for multimodal requests because Gemini Search grounding is incompatible with image/video/PDF parts.
-- Renderer intents disable Google Search unless the user explicitly asks for search, sources, latest information, or citations.
-- `gemini-3.5-flash` Search grounding on the free tier is handled by a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer.
+- SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`)
+- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`
+- Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
+- Renderer intents disable Google Search unless the user explicitly requests search/sources/latest information
+- 3.5 Flash free-tier grounding uses a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
 
 ### 2-4. Tool-Calling Loop
-
-The LangGraph tool loop is deliberately narrow:
 
 ```mermaid
 sequenceDiagram
@@ -223,21 +222,15 @@ sequenceDiagram
 
 Tool-binding policy:
 
-| Intent                           | Tools exposed to LLM                 | Notes                                                   |
-| -------------------------------- | ------------------------------------ | ------------------------------------------------------- |
-| `drug_id` without `pillData` | `identify_pill`, `search_web`    | Legacy/fallback path only                               |
-| `drug_id` with `pillData`    | none after direct DB lookup          | Prevents recursion; non-exact returns table before LLM  |
-| `drug_info`                    | `search_drug_info`, `search_web` | MFDS first, DDG fallback for non-pill products          |
-| `pharmacy_search`              | `pharmacyTool`, `search_web`     | Tool output may be fast-passed as `json:pharmacy`     |
-| `hospital_search`              | `hospitalTool`, `search_web`     | Tool output may be fast-passed as `json:hospital`     |
-| `vet_search`                   | `vetTool`, `search_web`          | Tool output may be fast-passed as `json:vet`          |
-| `law_search`                   | `lawTool`                          | Law tool handles query normalization and Open API calls |
-
-Loop termination:
-
-- `graph.ts` routes `generator → tools → generator` only when the last AI message has `tool_calls`.
-- Generator fast-passes already-renderable tool outputs for pharmacy / hospital / vet / law.
-- `drug_id + pillData` performs the pill DB lookup directly in server code and then removes all tool bindings to avoid `generator → tools → generator` recursion.
+| Intent | Tools exposed to LLM | Notes |
+|---|---|---|
+| `drug_id` without `pillData` | `identify_pill`, `search_web` | Legacy/fallback path only |
+| `drug_id` with `pillData` | none after direct DB lookup | Prevents recursion; non-exact returns table before LLM |
+| `drug_info` | `search_drug_info`, `search_web` | MFDS first, DDG fallback |
+| `pharmacy_search` | `pharmacyTool`, `search_web` | Fast-passed as `json:pharmacy` |
+| `hospital_search` | `hospitalTool`, `search_web` | Fast-passed as `json:hospital` |
+| `vet_search` | `vetTool`, `search_web` | Fast-passed as `json:vet` |
+| `law_search` | `lawTool` | Handles query normalization and Open API calls |
 
 ### 2-5. Pill Image Identification Flow
 
@@ -259,64 +252,50 @@ flowchart TB
     Exact -- "none / error" --> Fail
 ```
 
-Safety rules:
-
-- Vision JSON is internal preprocessing data and is not streamed to the client.
-- After direct pill DB lookup succeeds, no extra tools are bound for `drug_id`; this prevents `generator → tools → generator` recursion.
-- Non-exact candidates are not promoted to a single drug card.
-- Candidate tables expose official pharm.or.kr detail links, not raw image URLs.
-
 ### 2-6. Tool Inventory
 
-| Tool                 | File                                 | Purpose                                                                  |
-| -------------------- | ------------------------------------ | ------------------------------------------------------------------------ |
-| `identify_pill`    | `server/agent/tools.ts`          | pharm.or.kr pill identification from imprint / color / shape             |
-| `search_web`       | `server/agent/tools.ts`          | DuckDuckGo HTML fallback search and source extraction                    |
-| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback guidance |
-| `pharmacyTool`     | `server/agent/pharmacy-tool.ts`  | National pharmacy search                                                 |
-| `hospitalTool`     | `server/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                              |
-| `vetTool`          | `server/agent/vet-tool.ts`       | Animal hospital search                                                   |
-| `lawTool`          | `server/agent/law-tool.ts`       | Korean law list/body/article lookup                                      |
+| Tool | File | Purpose |
+|---|---|---|
+| `identify_pill` | `server/agent/tools.ts` | pharm.or.kr pill identification from imprint / color / shape |
+| `search_web` | `server/agent/tools.ts` | DuckDuckGo HTML fallback search and source extraction |
+| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback |
+| `pharmacyTool` | `server/agent/pharmacy-tool.ts` | National pharmacy search |
+| `hospitalTool` | `server/agent/hospital-tool.ts` | HIRA hospital/clinic search |
+| `vetTool` | `server/agent/vet-tool.ts` | Animal hospital search |
+| `lawTool` | `server/agent/law-tool.ts` | Korean law list/body/article lookup |
 
 ### 2-7. Streaming And Source Handling
 
 `app/api/chat/route.ts` consumes LangGraph stream events and forwards clean SSE events to the client.
 
-- SDK responses can stream text directly through `sendEvent`.
-- LangChain `on_chat_model_stream` chunks are sanitized before being sent.
-- Vision node model chunks are filtered out because they contain internal JSON extraction data.
-- Tool source URLs are parsed from `[WEB_SOURCE_URLS]` and emitted as source chips.
-- Fast-pass renderers can stream completed `json:pharmacy`, `json:hospital`, `json:vet`, or `json:law` blocks without another LLM synthesis step.
-- Final assistant content is saved to Supabase after streaming completes.
+- SDK responses send text directly via `sendEvent`
+- LangChain `on_chat_model_stream` chunks are sanitized before forwarding
+- Vision node chunks are filtered out (contain internal JSON extraction data)
+- Tool source URLs parsed from `[WEB_SOURCE_URLS]` and emitted as source chips
+- Fast-pass renderers stream completed `json:pharmacy`, `json:hospital`, `json:vet`, `json:law` blocks without an extra LLM synthesis step
+- Final assistant content saved to Supabase after streaming completes
 
 ### 2-8. Intent Routing
 
-| Intent              | Path                                                                            | Model                                                  |
-| ------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `drug_id` (image) | Router fast-path → Vision → direct DB lookup → exact card or candidate table | Vision: 2.5 Flash, final: selected model               |
-| `drug_info`       | LangChain +`search_drug_info` / DDG fallback                                  | selected model                                         |
-| `pharmacy_search` | LangChain + pharmacy public API tool                                            | selected model                                         |
-| `hospital_search` | LangChain + HIRA hospital API tool                                              | selected model                                         |
-| `vet_search`      | LangChain + animal hospital API tool                                            | selected model                                         |
-| `law_search`      | LangChain + Korean law Open API tool                                            | selected model                                         |
-| `medical_qa`      | SDK + Google Search grounding                                                   | selected model, 3.5 search uses 2.5 → 3.5 two-track   |
-| `biology`         | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `chemistry`       | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `physics`         | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `astronomy`       | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `data_viz`        | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `general`         | SDK, Google Search enabled when applicable                                      | selected model, 3.5 search uses 2.5 → 3.5 two-track   |
+| Intent | Path | Model |
+|---|---|---|
+| `drug_id` (image) | Router fast-path → Vision → direct DB lookup → exact card or candidate table | Vision: 2.5 Flash |
+| `drug_info` | LangChain + `search_drug_info` / DDG fallback | selected model |
+| `pharmacy_search` | LangChain + pharmacy public API tool | selected model |
+| `hospital_search` | LangChain + HIRA hospital API tool | selected model |
+| `vet_search` | LangChain + animal hospital API tool | selected model |
+| `law_search` | LangChain + Korean law Open API tool | selected model |
+| `medical_qa` | SDK + Google Search grounding | selected model, 3.5 uses two-track |
+| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output | selected model, Search off unless explicitly requested |
+| `general` | SDK, Google Search enabled when applicable | selected model, 3.5 uses two-track |
 
 Router behavior:
 
-- Router LLM uses `gemini-2.5-flash-lite`.
-- Product-critical fallback rules live in `server/agent/intentRules.ts`.
-- Fallback rules include Korean / English / Spanish / French keywords for medicine, law, science visualization, locations, and data visualization.
-- Renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`) disable Google Search by default so structured JSON blocks are preserved; explicit “search/source/latest” requests re-enable search.
+- Router LLM: `gemini-2.5-flash-lite`
+- Deterministic fallback rules in `server/agent/intentRules.ts` (KO / EN / ES / FR keywords)
+- Renderer intents disable Google Search by default; explicit "search/source/latest" requests re-enable it
 
 ### 2-9. Database And Storage Flow
-
-Supabase stores identity, sessions, messages, grounding sources, and uploaded assets.
 
 ```mermaid
 flowchart TB
@@ -339,79 +318,48 @@ flowchart TB
         Docs[("chat-docs")]
     end
 
-    User --> AuthAPI
-    AuthAPI --> Users
-    Users --> Sessions
-
-    User --> SessionsAPI
-    SessionsAPI <--> Sessions
-    SessionsAPI <--> Messages
-
-    User --> UploadAPI
-    UploadAPI --> Imgs
-    UploadAPI --> Videos
-    UploadAPI --> Docs
-
-    User --> ChatAPI
-    ChatAPI --> Messages
-    ChatAPI --> Sessions
-    Messages --> Sessions
-
-    SyncAPI --> Imgs
-    SyncAPI --> Messages
+    User --> AuthAPI --> Users --> Sessions
+    User --> SessionsAPI <--> Sessions & Messages
+    User --> UploadAPI --> Imgs & Videos & Docs
+    User --> ChatAPI --> Messages & Sessions
+    SyncAPI --> Imgs & Messages
 ```
 
-Table responsibilities:
-
 | Table | Written by | Purpose |
-|-------|------------|---------|
-| `users` | `/api/auth` | Guest profile identity: `id`, `nickname`, `display_name`, `avatar_url` |
+|---|---|---|
+| `users` | `/api/auth` | Guest profile: `id`, `nickname`, `display_name`, `avatar_url` |
 | `chat_sessions` | `/api/sessions`, `/api/chat` | Session metadata: owner, title, `updated_at` |
-| `chat_messages` | `/api/chat`, `/api/sessions` read path | User/assistant messages, attachment URL, grounding source metadata |
+| `chat_messages` | `/api/chat` | User/assistant messages, attachment URL, grounding sources |
 
-Storage responsibilities:
-
-| Bucket | Written by | Purpose |
-|--------|------------|---------|
-| `chat-imgs` | `/api/upload`, `/api/create-signed-url`, `/api/sync-drug-image` | User image uploads and cached drug-card images |
-| `chat-videos` | `/api/upload`, `/api/create-signed-url` | Uploaded videos |
-| `chat-docs` | `/api/upload`, `/api/create-signed-url` | Uploaded PDFs and documents |
-
-Persistence timing:
-- User messages are inserted into `chat_messages` before LangGraph execution starts.
-- Assistant messages are inserted after the SSE stream completes, together with `grounding_sources` when present.
-- `chat_sessions.updated_at` is refreshed after assistant persistence.
-- Uploaded images keep both inline data for the current multimodal request and `storageUrl` for durable history previews.
-- Drug-card image sync writes cached files into `chat-imgs/drug-cache/...` and returns a public URL to `DrugRenderer`.
+| Bucket | Purpose |
+|---|---|
+| `chat-imgs` | User image uploads + cached drug-card images |
+| `chat-videos` | Uploaded videos |
+| `chat-docs` | Uploaded PDFs and documents |
 
 ---
 
 ## 3. Tech Stack
 
-| Layer         | Technology                                                              |
-| ------------- | ----------------------------------------------------------------------- |
-| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
-| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas                            |
-| Backend       | Next.js Route Handlers (Vercel), LangGraph.js                           |
-| AI            | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
-| Database      | Supabase (PostgreSQL, Storage, Auth)                                    |
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
+| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas |
+| Backend | Next.js Route Handlers (Vercel), LangGraph.js |
+| AI | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
+| Database | Supabase (PostgreSQL, Storage) |
 
 ### 3-1. Model Usage
 
-Model IDs are centralized to avoid scattered string literals:
-
-- Server runtime: `server/models.ts`
-- Frontend selection UI: `src/lib/models.ts`
-
-| Purpose                        | Model                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| Main chat default              | `DEFAULT_CHAT_MODEL` → `gemini-2.5-flash`                                              |
-| User-selectable chat models    | `CHAT_MODEL_OPTIONS` → `gemini-2.5-flash`, `gemini-3.5-flash`                        |
-| Router (intent classification) | `ROUTER_MODEL` → `gemini-2.5-flash-lite`                                               |
-| Pill vision preprocessing      | `SERVER_MODELS.FLASH` → `gemini-2.5-flash`                                             |
-| 3.5 + Search grounding         | Stage 1:`gemini-2.5-flash` + Search, Stage 2: `gemini-3.5-flash` synthesis              |
-| TTS                            | `SERVER_MODELS.TTS` → `gemini-2.5-flash-preview-tts`                                   |
-| Session title                  | `SUMMARY_MODELS` → `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
+| Purpose | Model |
+|---|---|
+| Main chat (default) | `gemini-2.5-flash` |
+| User-selectable | `gemini-2.5-flash`, `gemini-3.5-flash` |
+| Semantic router | `gemini-2.5-flash-lite` |
+| Pill vision preprocessing | `gemini-2.5-flash` |
+| 3.5 + Search grounding | Stage 1: `gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
+| TTS | `gemini-2.5-flash-preview-tts` |
+| Session title | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 
 ---
 
@@ -421,70 +369,67 @@ Model IDs are centralized to avoid scattered string literals:
 ├── app/                        # Next.js App Router
 │   ├── layout.tsx              # Root layout (HTML, CDN scripts, theme init)
 │   ├── page.tsx                # Entry point — dynamic import App (ssr: false)
-│   ├── globals.css             # Global styles
+│   ├── globals.css
 │   └── api/                    # Route Handlers (maxDuration: 60, nodejs runtime)
 │       ├── chat/route.ts       # Main Gemini streaming endpoint (LangGraph, SSE)
-│       ├── speech/route.ts     # TTS service (gemini-2.5-flash-preview-tts)
-│       ├── summarize-title/route.ts  # Auto session title generation
-│       ├── sync-drug-image/route.ts  # Drug image caching and parsing
-│       ├── pill-search/route.ts      # Pill identification API
-│       ├── sessions/route.ts         # Session / message CRUD (offset/limit pagination)
-│       ├── upload/route.ts           # Supabase Storage upload proxy
-│       ├── fetch-url/route.ts        # Web / ArXiv scraping (Jina AI)
-│       ├── fetch-transcript/route.ts # YouTube transcript proxy (disabled)
-│       ├── auth/route.ts             # Auth handling
-│       ├── create-signed-url/route.ts # Supabase Storage signed URL generation
-│       └── proxy-image/route.ts      # Image proxy (nedrug.mfds.go.kr)
-├── server/                     # Shared server utilities (server-only, never bundled to client)
-│   ├── config.ts               # API key pool, markKeyRateLimited / markKeyInvalid
-│   ├── models.ts               # Server model registry (chat / router / TTS / title)
-│   ├── agent/                  # LangGraph agent
-│   │   ├── graph.ts            # StateGraph definition
-│   │   ├── intentRules.ts      # deterministic multilingual routing fallbacks
-│   │   ├── nodes/              # router / vision / generator
-│   │   ├── drug-info-tool.ts   # MFDS + pharm.or.kr + Vision imprint (timeouts)
-│   │   ├── pharmacy-tool.ts    # 전국 약국 공공데이터 API (1000건, 영업시간 정렬)
-│   │   ├── hospital-tool.ts    # HIRA 전국 병원정보 API (sidoCd/sgguCd 코드 매핑)
-│   │   ├── vet-tool.ts         # 행정안전부 전국 동물병원 API (주소 LIKE 텍스트 검색)
-│   │   ├── law-tool.ts         # 국가법령정보센터 법령 목록/본문/조항호목 조회 + 조문 원문 링크
-│   │   ├── tools.ts            # identifyPillTool, searchWebTool (DDG 8s timeout)
-│   │   ├── prompt.ts
-│   │   └── state.ts
-│   ├── pill-logic.ts           # pharm.or.kr search logic
+│       ├── speech/route.ts     # TTS (gemini-2.5-flash-preview-tts)
+│       ├── summarize-title/route.ts
+│       ├── sync-drug-image/route.ts
+│       ├── pill-search/route.ts
+│       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
+│       ├── upload/route.ts     # Supabase Storage upload proxy
+│       ├── fetch-url/route.ts  # Web scraping + Jina AI fallback
+│       ├── auth/route.ts
+│       ├── create-signed-url/route.ts
+│       └── proxy-image/route.ts
+├── server/                     # Server-only utilities (never bundled to client)
+│   ├── config.ts               # API key pool + rotation logic
+│   ├── models.ts               # Server model registry
+│   ├── agent/
+│   │   ├── graph.ts            # LangGraph StateGraph definition
+│   │   ├── intentRules.ts      # Deterministic multilingual routing fallbacks
+│   │   ├── nodes/              # router.ts / vision.ts / generator.ts
+│   │   ├── prompt.ts           # System instruction builder
+│   │   ├── state.ts            # AgentState type definition
+│   │   ├── tools.ts            # identify_pill, search_web (DDG)
+│   │   ├── drug-info-tool.ts
+│   │   ├── pharmacy-tool.ts
+│   │   ├── hospital-tool.ts
+│   │   ├── vet-tool.ts
+│   │   └── law-tool.ts
+│   ├── pill-logic.ts
 │   └── supabase.ts
 ├── components/                 # UI components
 │   ├── ChatMessage.tsx         # Markdown + visualization block parser
-│   ├── DrugRenderer.tsx        # Drug card
-│   ├── PharmacyRenderer.tsx    # National pharmacy card
-│   ├── HospitalRenderer.tsx    # National hospital card (HIRA)
-│   ├── VetRenderer.tsx         # Animal hospital card (행정안전부)
-│   ├── LawRenderer.tsx         # Korean law card (accordion, 5개 단위 페이지네이션)
-│   ├── BioRenderer.tsx         # 3D protein structure
+│   ├── DrugRenderer.tsx
+│   ├── PharmacyRenderer.tsx
+│   ├── HospitalRenderer.tsx
+│   ├── VetRenderer.tsx
+│   ├── LawRenderer.tsx
+│   ├── BioRenderer.tsx         # 3D protein structure (NGL)
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
 │   ├── ConstellationRenderer.tsx
 │   ├── ChartRenderer.tsx
 │   ├── DiagramRenderer.tsx
 │   └── ...
 ├── src/
-│   ├── lib/
-│   │   └── models.ts           # Frontend chat model registry + Header options
-│   └── hooks/                  # Custom React hooks (App.tsx 오케스트레이션 분리)
-│       ├── useAuthSession.ts   # Auth init, localStorage restore, 익명 로그인
-│       ├── useChatSessions.ts  # Session CRUD, 메시지 lazy load, 무한 스크롤 페이지네이션
-│       └── useChatStream.ts    # 메시지 전송 오케스트레이션 (upload / stream / title)
+│   ├── lib/models.ts           # Frontend chat model registry
+│   └── hooks/
+│       ├── useAuthSession.ts
+│       ├── useChatSessions.ts  # Session CRUD + infinite scroll
+│       └── useChatStream.ts    # Message send orchestration
 ├── services/
-│   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
+│   └── geminiService.ts        # API wrapper + session/user remote calls
 ├── docs/
-│   ├── DEV_HISTORY.md          # Version changelog (v4.x ~ v5.x)
+│   ├── DEV_HISTORY.md
 │   ├── DEV_*.md                # Session work logs (latest: DEV_260528.md)
-│   ├── TODO.md                 # Roadmap
-│   ├── Guide/
-│   │   └── REF_*.md            # Renderer test prompt guides (Biology/Chart/Chemistry/CICD/Constellation/DB/Diagram/Drug/Hospital/Law/Pharmacy/Physics/UnderstandAnything/Vet)
-│   └── History/                # 이전 세션 작업 로그 (DEV_260520.md 이전)
-│       └── Plans/              # 마이그레이션·보안·에러처리 계획 문서 (DB_MIGRATION_PLAN, ERROR_HANDLING, LAW_API_TEST, NEXTJS_MIGRATION_PLAN, SECURITY_VERIFICATION)
-├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
-├── next.config.ts              # Next.js 설정 (보안 헤더)
-└── types.ts                    # 공유 TypeScript 타입 정의
+│   ├── TODO.md
+│   ├── Guide/REF_*.md          # Renderer test prompt guides
+│   └── History/                # Older session logs + Plans/
+├── App.tsx                     # Root component (layout + hooks composition)
+├── next.config.ts              # Security headers
+├── types.ts                    # Shared TypeScript types
+└── tailwind.config.js
 ```
 
 ---
@@ -495,8 +440,7 @@ Model IDs are centralized to avoid scattered string literals:
 
 ```env
 SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_service_role_key             # service role key (anon·admin 공용)
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key # optional: SUPABASE_KEY fallback 사용
+SUPABASE_KEY=your_supabase_service_role_key
 API_KEY=your_gemini_key_1
 API_KEY2=your_gemini_key_2   # optional: additional keys for rotation
 

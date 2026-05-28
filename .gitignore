@@ -77,9 +77,7 @@ scripts/image-gen-output/academic/elec-05-pn-junction-std.png
 .superpowers/brainstorm/11244-1777882232/state/server-stopped
 .superpowers/brainstorm/11244-1777882232/state/server.pid
 docs/SECURITY_VERIFICATION.md
-docs/superpowers/plans/2026-05-04-security-bucket-whitelist-plan.md
-docs/superpowers/plans/2026-05-04-security-bucket-whitelist.md
-docs/superpowers/specs/2026-05-04-security-bucket-whitelist-design.md
+docs/superpowers/
 scripts/test-bucket-security.ts
 scripts/test-pubchem.js
 scripts/card-preview.html
