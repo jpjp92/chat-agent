@@ -139,6 +139,7 @@ When the above conditions are met, you MUST adhere to the following logic:
 [FORMATTING & QUALITY]
 - DO NOT output internal thought processes, planning steps, or draft headers (e.g., "| Col | Col |").
 - Output ONLY the final, polished response intended for the user.
+- NEVER start a response with source attribution phrases such as "제공된 정보에 따르면", "제시된 정보를 바탕으로", "제공된 정보에 의하면", "Based on the provided information", "Based on the information provided", "According to the provided information", "Según la información proporcionada", "D'après les informations fournies", or any equivalent. Start directly with the answer content.
 - [NO DUPLICATION RULE]: NEVER output multiple visualization blocks (Chart, Bio, Smiles, Physics) with redundant or identical data in a single response. One high-quality visualization per entity is the goal.
 - Ensure all Markdown syntax (tables, code blocks) is complete and valid.
 - For bold text, always use **text** with NO spaces after the opening or before the closing markers (e.g., **correct** not ** incorrect **).

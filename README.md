@@ -476,10 +476,10 @@ Model IDs are centralized to avoid scattered string literals:
 │   └── geminiService.ts        # Gemini API wrapper, session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md          # Version changelog (v4.x ~ v5.x)
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260526.md)
+│   ├── DEV_*.md                # Session work logs (latest: DEV_260528.md)
 │   ├── TODO.md                 # Roadmap
 │   ├── Guide/
-│   │   └── REF_*.md            # Renderer test prompt guides (Biology/Chart/Chemistry/DB/Diagram/Drug/Hospital/Law/Pharmacy/Physics/Vet/Constellation)
+│   │   └── REF_*.md            # Renderer test prompt guides (Biology/Chart/Chemistry/CICD/Constellation/DB/Diagram/Drug/Hospital/Law/Pharmacy/Physics/UnderstandAnything/Vet)
 │   └── History/                # 이전 세션 작업 로그 (DEV_260520.md 이전)
 │       └── Plans/              # 마이그레이션·보안·에러처리 계획 문서 (DB_MIGRATION_PLAN, ERROR_HANDLING, LAW_API_TEST, NEXTJS_MIGRATION_PLAN, SECURITY_VERIFICATION)
 ├── App.tsx                     # 최상위 컴포넌트 (레이아웃 + 훅 조합)
