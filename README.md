@@ -422,10 +422,9 @@ flowchart TB
 │   └── geminiService.ts        # API wrapper + session/user remote calls
 ├── docs/
 │   ├── DEV_HISTORY.md
-│   ├── DEV_*.md                # Session work logs (latest: DEV_260528.md)
 │   ├── TODO.md
-│   ├── Guide/REF_*.md          # Renderer test prompt guides
-│   └── History/                # Older session logs + Plans/
+│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260528.md)
+│   └── Guide/REF_*.md          # Renderer test prompt guides
 ├── App.tsx                     # Root component (layout + hooks composition)
 ├── next.config.ts              # Security headers
 ├── types.ts                    # Shared TypeScript types
