@@ -75,7 +75,12 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
  * 세션 관리
  */
 export const fetchSessions = async (userId: number, offset = 0, limit = 30) => {
-  const response = await fetch(`/api/sessions?user_id=${userId}&offset=${offset}&limit=${limit}`);
+  let response: Response;
+  try {
+    response = await fetch(`/api/sessions?user_id=${userId}&offset=${offset}&limit=${limit}`);
+  } catch (networkErr: any) {
+    throw new Error(`Sessions network error: ${networkErr?.message ?? 'fetch failed'}`);
+  }
   if (!response.ok) throw new Error(`Failed to fetch sessions: ${response.status}`);
   return response.json();
 };
