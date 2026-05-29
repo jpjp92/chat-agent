@@ -17,10 +17,12 @@ export const visionNode = async (state: AgentStateType) => {
 
 CRITICAL INSTRUCTIONS for imprint reading:
 - Read ALL characters exactly as they appear, preserving case (uppercase/lowercase)
-- Logos made of combined letters (e.g., "dHP", "dP", "BI", "MSD") should be read as a single imprint string
+- Logos made of combined letters (e.g., "dP", "BI", "MSD", "GX") should be read as a single imprint string
 - Do NOT split letters that are physically connected or part of a logo
+- IMPORTANT — tablet score lines vs. imprint characters: a score line (홈) is a physical groove running across the tablet for splitting. Do NOT read score lines as hyphens or extra characters. Only include characters that are actually debossed/embossed as part of the imprint.
+- If you see a stylized logo with two letters (e.g., lowercase letter + uppercase letter), report exactly those two letters with no separator unless a hyphen is visibly embossed as part of the imprint itself.
 - If you see a stylized logo, describe each letter you can identify in order (left-to-right, top-to-bottom)
-- Hyphens, slashes, and numbers after letters (e.g., "J 80", "M 5") should be included in the imprint field
+- Hyphens, slashes, and numbers after letters (e.g., "J 80", "M 5") should be included in the imprint field only when they are part of the debossed imprint, not tablet grooves
 
 Return ONLY a JSON object in this exact format, no other text:
 {

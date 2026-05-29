@@ -758,7 +758,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 // Fast-pass: Bypass final LLM generation if pharmacyTool / hospitalTool has successfully executed
                 const lastMsg = state.messages[state.messages.length - 1];
                 if (state.intent === "drug_id" && lastMsg._getType() === "tool" && lastMsg.name === "identify_pill") {
-                    const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                    const toolContent = (() => {
+                        if (typeof lastMsg.content === 'string') return lastMsg.content;
+                        if (Array.isArray(lastMsg.content)) return (lastMsg.content as any[]).map((p: any) => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
+                        return '';
+                    })();
                     if (toolContent.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다')) {
                         console.log('[LangGraph] Fast-passing identify_pill no-match result');
                         return {
@@ -810,9 +814,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         color: state.pillData.color ?? "",
                         shape: state.pillData.shape ?? "",
                     });
-                    const pillLookupText = typeof pillLookupResult === 'string'
-                        ? pillLookupResult
-                        : String(pillLookupResult ?? '');
+                    const pillLookupText = (() => {
+                        if (typeof pillLookupResult === 'string') return pillLookupResult;
+                        // LangChain may return a ToolMessage object — extract .content
+                        const c = (pillLookupResult as any)?.content;
+                        if (typeof c === 'string') return c;
+                        if (Array.isArray(c)) return c.map((p: any) => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
+                        return String(pillLookupResult ?? '');
+                    })();
                     directPillLookupDone = true;
 
                     if (pillLookupText.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다')) {

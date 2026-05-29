@@ -94,3 +94,5 @@ scripts/migrate-supabase.mjs
 scripts/card-preview.html
 scripts/image-gen-output/
 scripts/test-markdown-bold-regression.mjs
+scripts/sync-mfds-pills.mjs
+scripts/test-mfds-pill-api.mjs

@@ -8,22 +8,35 @@ export async function searchPill(criteria: { imprint_front: string, imprint_back
     try {
         const allResultsMap = new Map();
 
-        // 1차 검색: 원본 각인으로 5페이지 조회
-        const normalized = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        const primaryQueries = new Set<string>([imprint_front, normalized].filter(Boolean));
+        // 1차 검색: 대문자 정규화 + 대소문자 보존 버전 모두 검색
+        // pharm.or.kr이 대소문자 구분 검색인 경우 "dP"와 "DP"가 다른 결과를 반환함
+        // 예: 마그네스정(동화약품) → 각인 "dP", 검색어 "DP"로는 누락될 수 있음
+        const normalized = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase(); // "DP"
+        const preservedCase = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '');             // "dP"
+        const primaryQueries = new Set<string>([normalized, preservedCase].filter(Boolean));
 
         for (const q of primaryQueries) {
             const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
             settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
         }
 
-        // 2차 검색: 2~4자 각인이면 항상 중간 문자 삽입 변형 검색 실행
-        // (Vision이 stylized 로고를 잘못 읽을 수 있으므로 - 예: dHP → d-P)
-        if (normalized.length >= 2 && normalized.length <= 4) {
-            const mid = Math.floor(normalized.length / 2);
-            const variants = ['H', 'P', 'A', 'M'].map(ch => normalized.slice(0, mid) + ch + normalized.slice(mid));
+        // 2차 검색: 2자 정규화 각인 → 중간 문자 삽입 변형 검색 (예: "DP" → "DHP", "DAP"...)
+        // Vision이 "dHP" 같은 3자 로고를 "d-P"(normalize→"DP")로 오독한 경우 복원
+        if (normalized.length === 2) {
+            const variants = ['H', 'P', 'A', 'M'].map(ch => normalized[0] + ch + normalized[1]);
             for (const v of variants) {
                 const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(v, page)));
+                settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
+            }
+        }
+
+        // 3차 검색: 3자 정규화 각인 → 중간 문자 제거 역방향 검색 (예: "DHP" → "DP", "dHP" → "dP")
+        // Vision이 "dP" 같은 2자 로고에 없는 문자를 삽입해 "dHP"로 오독한 경우 복원
+        if (normalized.length === 3) {
+            const shortened = normalized[0] + normalized[2];           // 중간 문자 제거: "DHP" → "DP"
+            const preservedShortened = preservedCase[0] + (preservedCase[2] ?? ''); // "dHP" → "dP"
+            for (const q of new Set([shortened, preservedShortened].filter(Boolean))) {
+                const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
                 settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
             }
         }
@@ -41,8 +54,9 @@ async function fetchPage(imprint: string, page: number): Promise<any[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    // Normalize imprint: remove special chars, uppercase for case-insensitive matching
-    const normalizedQuery = (imprint || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    // Use imprint as-is — caller is responsible for passing the desired query form
+    // (uppercase normalized OR case-preserved). pharm.or.kr may be case-sensitive.
+    const normalizedQuery = imprint;
 
     const body = new URLSearchParams({
         s_anal: normalizedQuery,
@@ -214,7 +228,17 @@ function filterResults(results: any[], criteria: { imprint_front: string, imprin
     });
     if (exactMatches.length > 0) return { match_type: 'exact', filteredResults: exactMatches.slice(0, 3) };
 
-    // 2단계: 각인 포함 일치 (최소 3글자 이상, 뒷면 각인도 추가 검증)
+    // 1단계-b: 각인 완전 일치 — 색상/모양 불일치 허용
+    // pharm.or.kr에 각인 데이터가 없는 약품(예: 마그네스정)은 imprint 검색으로 찾을 수 없음.
+    // 이 경우 각인이 동일하게 등록된 다른 약품(색상/모양이 달라도)을 후보로 표시.
+    const imprintExactOnly = results.filter(r => {
+        const frontMatch = normalize(r.front_imprint) === normTarget;
+        const backMatch = normBackTarget ? normalize(r.back_imprint) === normBackTarget : true;
+        return frontMatch && backMatch;
+    });
+    if (imprintExactOnly.length > 0) return { match_type: 'imprint_only', filteredResults: imprintExactOnly.slice(0, 5) };
+
+    // 2단계: 각인 포함 일치 (최소 3글자 이상 — 2자 정규화 각인(예: "DP")은 너무 짧아 오탐 발생)
     if (normTarget.length >= 3) {
         const imprintMatches = results.filter(r => {
             const target = normalize(r.front_imprint);
@@ -229,6 +253,21 @@ function filterResults(results: any[], criteria: { imprint_front: string, imprin
                 return aBackMatch - bBackMatch;
             });
             return { match_type: 'imprint_only', filteredResults: imprintMatches.slice(0, 5) };
+        }
+    }
+
+    // 2단계-b: Vision 오독 변형 각인 매칭 (2자 정규화 각인 전용)
+    // Vision이 "dP" 같은 2자 로고를 "d-P" 처럼 읽어 normalize 후 2자가 됐을 때만 적용.
+    // 3자 이상(예: "DHP")에 적용하면 "DAHP" 같은 무관한 약품이 false positive로 매칭됨.
+    if (normTarget.length === 2) {
+        const mid = Math.floor(normTarget.length / 2);
+        const targetVariants = new Set(
+            ['H', 'P', 'A', 'M', 'I', 'O', 'T', 'C'].map(ch => normTarget.slice(0, mid) + ch + normTarget.slice(mid))
+        );
+        const variantMatches = results.filter(r => targetVariants.has(normalize(r.front_imprint)));
+        if (variantMatches.length > 0) {
+            const refined = variantMatches.filter(r => contains(r.color, color || '') && contains(r.shape, shape || ''));
+            return { match_type: 'imprint_only', filteredResults: (refined.length > 0 ? refined : variantMatches).slice(0, 5) };
         }
     }
 

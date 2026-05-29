@@ -3,7 +3,7 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
-import { classifyIntentByRules, hasMedicalIntentKeyword, isAmbiguousImageIdentificationRequest } from "../intentRules";
+import { classifyIntentByRules, hasMedicalIntentKeyword } from "../intentRules";
 
 /**
  * Router Node
@@ -54,10 +54,13 @@ export const routerNode = async (state: AgentStateType) => {
         return { nextNode: "generator", intent: "general" };
     }
 
-    // Fast-path: image + pill/ambiguous identification request → vision.
-    // Router LLM only sees text, so image-only or "이거 분석해줘" pill requests can be misrouted to general.
-    if (hasImage && isAmbiguousImageIdentificationRequest(textContent)) {
-        console.log('[LangGraph] Router fast-path: image identification request → drug_id vision');
+    // Fast-path: image + explicit drug/pill textual signal → vision (pill identification).
+    // IMPORTANT: only a genuine medical/pill keyword (약, 알약, 약품, 식별, pill, tablet, ...) triggers this.
+    // A plain image with a generic caption ("이거 뭐야?", "이 사진 분석해줘") or no caption is NOT a pill
+    // request — it must fall through to the LLM router / general multimodal generator, which can describe
+    // any image. Routing every image to pill identification was the previous misclassification bug.
+    if (hasImage && hasMedicalKeyword) {
+        console.log('[LangGraph] Router fast-path: image + drug keyword → drug_id vision');
         return { nextNode: "vision", intent: "drug_id" };
     }
 
@@ -91,7 +94,9 @@ export const routerNode = async (state: AgentStateType) => {
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }
-                if (intent === "general" && hasImage && isAmbiguousImageIdentificationRequest(textContent)) {
+                // Recover only when the LLM missed an explicit drug/pill signal on an image.
+                // Do NOT override "general" for arbitrary images — generic photos stay general.
+                if (intent === "general" && hasImage && hasMedicalKeyword) {
                     intent = "drug_id";
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
