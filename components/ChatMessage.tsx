@@ -425,7 +425,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   const renderContent = (content: string) => {
     // Split by Viz Blocks
     const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)\s*\n([\s\S]*?)\n```/gi;
+    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -462,7 +462,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           .replace(/\[\s*,/g, '[')            // leading comma in array
           .replace(/,\s*\]/g, ']');           // trailing comma before ]
         const jsonData = JSON.parse(repaired);
-        if (blockType === 'chart') {
+        if (blockType === 'chart' || blockType === 'treemap') {
           parts.push({ type: 'chart', data: jsonData });
         } else if (blockType === 'smiles') {
           parts.push({ type: 'chemical', data: jsonData });
@@ -495,13 +495,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }

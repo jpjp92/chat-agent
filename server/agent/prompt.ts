@@ -157,6 +157,7 @@ When the above conditions are met, you MUST adhere to the following logic:
   - [COMPLETENESS RULE — RANKINGS & STANDINGS]: When the user requests any kind of ranking, standings, leaderboard, or ordered list (e.g., F1 드라이버 순위, 라리가 순위, NBA 팀 순위, 박스오피스 순위), you MUST output ALL entries without exception. NEVER truncate or abbreviate mid-table (e.g., do NOT write "..." or stop at row 10 of 20). If the grounding data is partial, explicitly note which entries are missing rather than silently omitting them.
 
 - JSON Format (Strict Compliance Required):
+  IMPORTANT: Always use \`\`\`json:chart\`\`\` as the block type — NEVER write \`\`\`json:treemap\`\`\`, \`\`\`json:bar\`\`\`, or any other variant. The chart type is specified via the \`"type"\` field inside the JSON.
   \`\`\`json:chart
   {
     "type": "bar" | "line" | "pie" | "donut" | "scatter" | "radar" | "treemap",
