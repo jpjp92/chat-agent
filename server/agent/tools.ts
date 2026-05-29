@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { searchMfdsPills } from "../mfds-logic";
 import { searchPill } from "../pill-logic";
 
 /**
@@ -111,41 +112,57 @@ export const searchWebTool = tool(
  */
 export const identifyPillTool = tool(
     async ({ imprint_front, imprint_back, color, shape }) => {
+        // 1순위: MFDS 식약처 DB (Supabase mfds_pills 테이블)
         try {
+            const mfds = await searchMfdsPills({ imprint_front, imprint_back, color, shape });
 
-            const result = await searchPill({
-                imprint_front,
-                imprint_back,
-                color,
-                shape
-            });
+            if (mfds.match_type !== 'none' && mfds.results.length > 0) {
+                let out = `[PROVIDED_PILL_DATA]\nmatch_type: ${mfds.match_type}\n`;
+                mfds.results.forEach((r, i) => {
+                    out += `Candidate ${i + 1}:\n`;
+                    out += `- Name: ${r.item_name}\n`;
+                    out += `- Company: ${r.entp_name}\n`;
+                    out += `- Imprint: ${r.mark_codes.join(', ')}\n`;
+                    out += `- Color: ${r.color_class1 ?? '-'}\n`;
+                    out += `- Shape: ${r.drug_shape ?? '-'}\n`;
+                    out += `- Form: ${r.form_code_name ?? '-'}\n`;
+                    out += `- Image: ${r.item_image ?? ''}\n`;
+                    out += `- Detail URL: ${r.detail_url}\n\n`;
+                });
+                return out;
+            }
+        } catch (e: any) {
+            console.warn('[identifyPillTool] MFDS DB 조회 실패, pharm.or.kr 폴백:', e?.message);
+        }
+
+        // 2순위: pharm.or.kr 스크래핑 폴백
+        try {
+            const result = await searchPill({ imprint_front, imprint_back, color, shape });
 
             if (result.match_type === 'none' || result.filteredResults.length === 0) {
                 return "약학정보원 DB에서 일치하는 약품을 찾지 못했습니다. 시각적 유사성을 기반으로 답변하되, 반드시 의사나 약사에게 정확한 식별을 의뢰하라고 경고하세요.";
             }
 
-            // Format the results into a string block for the LLM
-            let formattedResult = `[PROVIDED_PILL_DATA]\nmatch_type: ${result.match_type}\n`;
-            result.filteredResults.forEach((r, idx) => {
-                formattedResult += `Candidate ${idx + 1}:\n`;
-                formattedResult += `- Name: ${r.product_name}\n`;
-                formattedResult += `- Company: ${r.company}\n`;
-                formattedResult += `- Imprint: ${r.front_imprint} / ${r.back_imprint}\n`;
-                formattedResult += `- Color: ${r.color}\n`;
-                formattedResult += `- Shape: ${r.shape}\n`;
-                formattedResult += `- Image: ${r.thumbnail}\n`;
-                formattedResult += `- Detail URL: ${r.detail_url}\n\n`;
+            let out = `[PROVIDED_PILL_DATA]\nmatch_type: ${result.match_type}\n`;
+            result.filteredResults.forEach((r, i) => {
+                out += `Candidate ${i + 1}:\n`;
+                out += `- Name: ${r.product_name}\n`;
+                out += `- Company: ${r.company}\n`;
+                out += `- Imprint: ${r.front_imprint} / ${r.back_imprint}\n`;
+                out += `- Color: ${r.color}\n`;
+                out += `- Shape: ${r.shape}\n`;
+                out += `- Image: ${r.thumbnail}\n`;
+                out += `- Detail URL: ${r.detail_url}\n\n`;
             });
-
-            return formattedResult;
+            return out;
         } catch (e: any) {
-            console.error("[Agent Tool] searchPillTool error:", e);
+            console.error('[identifyPillTool] 모든 DB 조회 실패:', e?.message);
             return "약학정보원 DB 조회 중 오류가 발생했습니다. (검색 실패)";
         }
     },
     {
         name: "identify_pill",
-        description: "Search the Korean pharmaceutical database (pharm.or.kr) to identify a pill based on its visual characteristics (imprint, color, shape). Call this tool only when you have extracted visual information from a pill image.",
+        description: "Search the Korean pharmaceutical database (MFDS/식약처) to identify a pill based on its visual characteristics (imprint, color, shape). Call this tool only when you have extracted visual information from a pill image.",
         schema: z.object({
             imprint_front: z.string().describe("The exact text imprinted on the front of the pill. Empty string if none."),
             imprint_back: z.string().optional().describe("The exact text imprinted on the back of the pill. Empty string if none."),

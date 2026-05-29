@@ -96,3 +96,5 @@ scripts/image-gen-output/
 scripts/test-markdown-bold-regression.mjs
 scripts/sync-mfds-pills.mjs
 scripts/test-mfds-pill-api.mjs
+.mcp.json
+scripts/debug-magnes.mjs

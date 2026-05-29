@@ -51,10 +51,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         };
 
         const pillNoMatchMessage = (pillData: any): string =>
-            `제공된 이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 일치하는 약품을 약학정보원 DB에서 찾지 못했습니다.\n\n정확한 식별을 위해 약사 또는 의사에게 직접 확인하거나, 알약의 각인·색상·모양을 다시 알려주시면 재검색해드릴게요.`;
+            `이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 일치하는 약품을 식품의약품안전처 DB에서 찾지 못했습니다.\n\n알약의 각인·색상·모양을 직접 알려주시면 재검색해드릴게요. 정확한 식별은 약사 또는 의사에게 확인하시기 바랍니다.`;
 
         const pillLookupErrorMessage =
-            '약학정보원 DB 조회 중 오류가 발생해 이미지 기반 약품 식별을 완료하지 못했습니다.\n\n잠시 후 다시 시도하거나, 알약의 각인·색상·모양을 텍스트로 알려주시면 다시 검색해드릴게요.';
+            '식품의약품안전처 DB 조회 중 오류가 발생했습니다.\n\n잠시 후 다시 시도하거나, 알약의 각인·색상·모양을 텍스트로 알려주시면 다시 검색해드릴게요.';
 
         const extractPillMatchType = (toolText: string): string => {
             const match = toolText.match(/^match_type:\s*([^\n]+)/m);
@@ -101,9 +101,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             ].join('\n');
 
             return [
-                `제공된 이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 완전히 일치하는 약품은 찾지 못했습니다.`,
+                `이미지에서 추출한 특징(${formatPillAttributes(pillData)})을 바탕으로 식품의약품안전처 DB에서 검색한 후보 약품입니다.`,
                 '',
-                `아래는 약학정보원 DB에서 확인된 **${matchLabel}**입니다. 단일 약품으로 확정할 수 없으므로 복용 전 약사 또는 의사에게 반드시 확인하세요.`,
+                `이미지만으로 약품을 단일 확정할 수 없으므로 복용 전 반드시 약사 또는 의사에게 확인하세요.`,
                 '',
                 table,
             ].join('\n');
@@ -368,8 +368,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const thinkingConfig = is3xModel
                         ? ((isYoutubeRequest && hasVideoData) || rendererIntentSet.has(state.intent))
                             ? { thinkingLevel: "minimal" as const }
-                            : isMultiTurn
-                            ? { thinkingLevel: "medium" as const }
                             : { thinkingLevel: "low" as const }
                         : isYoutubeRequest
                             ? { thinkingBudget: 0 }
