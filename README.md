@@ -256,7 +256,7 @@ flowchart TB
 
 | Tool | File | Purpose |
 |---|---|---|
-| `identify_pill` | `server/agent/tools.ts` | pharm.or.kr pill identification from imprint / color / shape |
+| `identify_pill` | `server/agent/tools.ts` | MFDS `mfds_pills` DB 1순위 → pharm.or.kr fallback; imprint / color / shape 3-stage match |
 | `search_web` | `server/agent/tools.ts` | DuckDuckGo HTML fallback search and source extraction |
 | `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback |
 | `pharmacyTool` | `server/agent/pharmacy-tool.ts` | National pharmacy search |
@@ -397,6 +397,7 @@ flowchart TB
 │   │   ├── hospital-tool.ts
 │   │   ├── vet-tool.ts
 │   │   └── law-tool.ts
+│   ├── mfds-logic.ts           # MFDS mfds_pills Supabase 3-stage matching + sortByRelevance
 │   ├── pill-logic.ts
 │   └── supabase.ts
 ├── components/                 # UI components
@@ -423,7 +424,7 @@ flowchart TB
 ├── docs/
 │   ├── DEV_HISTORY.md
 │   ├── TODO.md
-│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260528.md)
+│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260529.md)
 │   └── Guide/REF_*.md          # Renderer test prompt guides
 ├── App.tsx                     # Root component (layout + hooks composition)
 ├── next.config.ts              # Security headers
