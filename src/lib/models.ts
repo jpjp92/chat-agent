@@ -6,18 +6,18 @@ export const CHAT_MODELS = {
 
 export type ChatModelId = typeof CHAT_MODELS[keyof typeof CHAT_MODELS];
 
-export const DEFAULT_CHAT_MODEL: ChatModelId = CHAT_MODELS.FLASH;
+export const DEFAULT_CHAT_MODEL: ChatModelId = CHAT_MODELS.FLASH_3_5;
 
 export const CHAT_MODEL_OPTIONS = [
-  {
-    id: CHAT_MODELS.FLASH,
-    labelKey: 'model25Flash',
-    descriptionKey: 'model25FlashDesc',
-  },
   {
     id: CHAT_MODELS.FLASH_3_5,
     labelKey: 'model35Flash',
     descriptionKey: 'model35FlashDesc',
+  },
+  {
+    id: CHAT_MODELS.FLASH,
+    labelKey: 'model25Flash',
+    descriptionKey: 'model25FlashDesc',
   },
   // {
   //   id: CHAT_MODELS.FLASH_LITE,
