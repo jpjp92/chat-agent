@@ -86,6 +86,16 @@ export const GraphState = Annotation.Root({
     groundingSources: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? y : x),
         default: () => [],
+    }),
+
+    // Whether the current general-intent request needs Google Search grounding.
+    // Set by the router (rule + lite LLM); read by the generator's search gate.
+    // 기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (6-4)
+    // reducer는 반드시 `?? `를 사용 — boolean이라 `||`를 쓰면 false가 default(true)로 덮인다.
+    // default는 on(true) — 회색지대/판정 누락 시 검색누락 방어를 우선 (기획 9 안전판).
+    needsSearch: Annotation<boolean>({
+        reducer: (x, y) => y ?? x,
+        default: () => true,
     })
 });
 
