@@ -1,31 +1,27 @@
 
 # Dependencies
-node_modules
+node_modules/
 /.pnp
 .pnp.js
 
 # Testing
 /coverage
 
-# Production
+# Build outputs
 /dist
 /build
 /.next
-/next-env.d.ts
 
-# TypeScript build cache
+# TypeScript
+next-env.d.ts
 *.tsbuildinfo
-tsconfig.tsbuildinfo
 
 # Environment variables
 .env
 .env.local
+.env*.local
 .env.vercel
 .env.vercel.prod
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
 
 # Logs
 npm-debug.log*
@@ -33,74 +29,38 @@ yarn-debug.log*
 yarn-error.log*
 out.txt
 
-# IDEs
-.visualstudio
-.vscode
-.idea
+# IDE / Editor
+.vscode/
+.idea/
 *.swp
 *.swo
 
-# Vercel
-.vercel
+# Deployment
+.vercel/
 
-# Tools
+# Tools & AI assistants
 .superpowers/
 .understand-anything/
+.mcp.json
+.claude/
 
-# Reference / security docs
+# Reference / internal docs
 reference/
 docs/SECURITY_VERIFICATION.md
 docs/superpowers/
 
-# Root-level test files
+# Root-level scratch files
 test-supabase.ts
 test-port.js
 
-# Scripts — test, debug, one-off utilities (keep test-markdown-bold-regression.mjs)
-.scripts/
-scripts/test-*.js
-scripts/test-*.ts
-scripts/test-apis.mjs
-scripts/test-arxiv.mjs
-scripts/test-bold-rendering.mjs
-scripts/test-chart-options.mjs
-scripts/test-culture.mjs
-scripts/test-drug.mjs
-scripts/test-drugstore.mjs
-scripts/test-google-search-35flash.mjs
-scripts/test-hospital.mjs
-scripts/test-intent-routing-benchmark.mjs
-scripts/test-law-openapi.mjs
-scripts/test-law.mjs
-scripts/test-lc-toolcall-35flash.ts
-scripts/test-multiturn-35flash.mjs
-scripts/test-new-supabase.mjs
-scripts/test-pharmacy-national.mjs
-scripts/test-pubmed.mjs
-scripts/test-school.mjs
-scripts/test-ssrf.mjs
-scripts/test-summary-thinking-35flash.mjs
-scripts/test-thinking-35flash.ts
-scripts/test-two-stage-multitask-thinking.mjs
-scripts/test-url-extract.mjs
-scripts/debug-grounding.ts
-scripts/debug-grounding-graph.ts
-scripts/check-today.mjs
-scripts/count-old-supabase.mjs
-scripts/inspect-old-supabase.mjs
-scripts/inspect-storage.mjs
-scripts/migrate-storage.mjs
-scripts/migrate-supabase.mjs
+# Scripts — test, debug, one-off utilities
+scripts/test-*
+scripts/debug-*
+scripts/check-*
+scripts/count-*
+scripts/inspect-*
+scripts/migrate-*
+scripts/verify-*
+scripts/sync-*
 scripts/card-preview.html
 scripts/image-gen-output/
-scripts/test-markdown-bold-regression.mjs
-scripts/sync-mfds-pills.mjs
-scripts/test-mfds-pill-api.mjs
-.mcp.json
-scripts/debug-magnes.mjs
-scripts/test-search-routing-lite.mjs
-scripts/test-search-routing-multilingual.mjs
-scripts/test-search-rules.mjs
-scripts/verify-intentrules-search.mts
-scripts/verify-search-integration.mts
-.claude/scheduled_tasks.lock
