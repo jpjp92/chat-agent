@@ -537,7 +537,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
               overflowWrap: 'anywhere',
               wordBreak: 'break-all'
             }}
-            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
+            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
           />
         </div>
 
