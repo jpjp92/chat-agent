@@ -98,3 +98,9 @@ scripts/sync-mfds-pills.mjs
 scripts/test-mfds-pill-api.mjs
 .mcp.json
 scripts/debug-magnes.mjs
+scripts/test-search-routing-lite.mjs
+scripts/test-search-routing-multilingual.mjs
+scripts/test-search-rules.mjs
+scripts/verify-intentrules-search.mts
+scripts/verify-search-integration.mts
+.claude/scheduled_tasks.lock

@@ -11,6 +11,7 @@ import { vetTool } from "../vet-tool";
 import { lawTool } from "../law-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt";
+import { classifySearchNeed, shouldSuppressSearchForFollowup } from "../intentRules";
 
 /**
  * Generator Node
@@ -311,6 +312,30 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         useGoogleSearch = false;
                     }
 
+                    // General intent: 라우터의 검색 필요 판정(state.needsSearch)을 반영 (게이트 6·7).
+                    // 위 게이트들이 이미 image/url/video/renderer를 off로 확정했으므로,
+                    // "순수 general"(useGoogleSearch가 아직 true)일 때만 적용 → 기존 13-intent 분기·tool 로직 전부 보존.
+                    // medical_qa/renderer는 intent!=='general'이라 제외, image/url/video는 useGoogleSearch===false라 제외.
+                    // 기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (6-2 게이트6/7, 6-3, 9-B)
+                    if (state.intent === 'general' && useGoogleSearch) {
+                        useGoogleSearch = state.needsSearch; // 게이트7: 라우터 판정 (default-on이라 누락 시 기존과 동일)
+                        // 게이트6: 검색결과 멀티턴 가드 — 직전 턴 검색됨 + follow-up 가공형이면 재검색 억제.
+                        // prevSearched = 직전 human 메시지 classifySearchNeed==='on' 근사 (9-B A안: grounding 마커 미영속).
+                        const humanMsgs = state.messages.filter((m: any) => m._getType() === 'human');
+                        const prevHuman = humanMsgs.length >= 2 ? humanMsgs[humanMsgs.length - 2] : undefined;
+                        const prevHumanText = prevHuman
+                            ? (Array.isArray(prevHuman.content)
+                                ? (prevHuman.content as any[]).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
+                                : String(prevHuman.content))
+                            : '';
+                        const prevSearched = prevHumanText ? classifySearchNeed(prevHumanText) === 'on' : false;
+                        if (shouldSuppressSearchForFollowup(latestUserText, prevSearched)) {
+                            useGoogleSearch = false;
+                            console.log('[LangGraph] Multi-turn follow-up guard — Google Search suppressed');
+                        }
+                        console.log(`[LangGraph] General search gate — needsSearch=${state.needsSearch}, prevSearched=${prevSearched}, useGoogleSearch=${useGoogleSearch}`);
+                    }
+
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
                     const resolvedMaxTokens = (() => {
                         if (hasDocumentContent) return 16384;               // PDF·문서 분석
@@ -410,6 +435,42 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 .filter(Boolean);
                         }
 
+                        // 2.5 + Search가 간헐적으로 grounding은 수행하되 텍스트를 비우는 경우가 있다.
+                        // 즉시 throw하면 LangChain 폴백(tool bind → 또 빈 응답)으로 떨어지므로,
+                        // 키를 교체해 stage1을 1회 재시도한다.
+                        if (!stage1Text) {
+                            console.warn('[LangGraph] Two-track stage1 empty — retrying once with next key');
+                            const s1RetryKey = getNextApiKey() ?? sdkApiKey;
+                            const s1Retry = await new GoogleGenAI({ apiKey: s1RetryKey }).models.generateContent({
+                                model: SEARCH_FALLBACK_MODEL,
+                                contents: sdkContents,
+                                config: {
+                                    systemInstruction: finalInstruction,
+                                    tools: [{ googleSearch: {} }],
+                                    temperature: 0.2,
+                                    topP: 0.8,
+                                    topK: 40,
+                                    maxOutputTokens: effectiveMaxTokens,
+                                    ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
+                                }
+                            });
+                            const s1rParts = s1Retry.candidates?.[0]?.content?.parts ?? [];
+                            stage1Text = (s1Retry.text ?? s1rParts
+                                .filter((p: any) => !p.thought)
+                                .map((p: any) => p.text || "")
+                                .join(""))
+                                .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
+                                .trim();
+                            const s1rGrounding = s1Retry.candidates?.[0]?.groundingMetadata;
+                            if (s1rGrounding?.groundingChunks) {
+                                groundingSources = s1rGrounding.groundingChunks
+                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                    .filter(Boolean);
+                            }
+                            if (stage1Text) {
+                                console.log('[LangGraph] Two-track stage1 retry succeeded');
+                            }
+                        }
                         if (!stage1Text) {
                             throw new Error('Two-track stage1 returned empty grounded text');
                         }
@@ -602,6 +663,39 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             console.error('[LangGraph] Empty response - finishReason:', finishReason, '| safetyRatings:', JSON.stringify(safetyRatings));
                             if (finishReason === 'SAFETY') {
                                 throw Object.assign(new Error('Content blocked by safety filters'), { safetyBlock: true });
+                            }
+                            // MALFORMED_FUNCTION_CALL: 3.5-flash가 멀티턴에서 함수호출 토큰을 잘못 뱉고
+                            // 빈 텍스트로 끝나는 케이스. minimal thinking 재시도도 동일하게 실패하므로
+                            // 더 견고한 2.5-flash로 1회 폴백한다 (tool 없이; useGoogleSearch면 grounding 유지).
+                            if (finishReason === 'MALFORMED_FUNCTION_CALL' && effectiveModel !== SEARCH_FALLBACK_MODEL) {
+                                console.warn('[LangGraph] MALFORMED_FUNCTION_CALL on', effectiveModel, '— retrying on', SEARCH_FALLBACK_MODEL);
+                                const mfRetry = await genai.models.generateContent({
+                                    model: SEARCH_FALLBACK_MODEL,
+                                    contents: sdkContents,
+                                    config: {
+                                        systemInstruction: finalInstruction,
+                                        ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
+                                        temperature: 0.2,
+                                        topP: 0.8,
+                                        topK: 40,
+                                        maxOutputTokens: effectiveMaxTokens,
+                                        thinkingConfig: { thinkingBudget: 0 },
+                                    }
+                                });
+                                const mfParts = mfRetry.candidates?.[0]?.content?.parts ?? [];
+                                responseText = (mfRetry.text || mfParts
+                                    .filter((p: any) => !p.thought)
+                                    .map((p: any) => p.text || '')
+                                    .join('')).trim();
+                                const mfGrounding = mfRetry.candidates?.[0]?.groundingMetadata;
+                                if (mfGrounding?.groundingChunks) {
+                                    groundingSources = mfGrounding.groundingChunks
+                                        .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                        .filter(Boolean);
+                                }
+                                if (responseText) {
+                                    console.log('[LangGraph] MALFORMED fallback to', SEARCH_FALLBACK_MODEL, 'succeeded');
+                                }
                             }
                         }
                     }
