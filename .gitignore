@@ -62,5 +62,7 @@ scripts/inspect-*
 scripts/migrate-*
 scripts/verify-*
 scripts/sync-*
+scripts/_*
 scripts/card-preview.html
 scripts/image-gen-output/
+scripts/openai-image2-pipeline-test.mjs
