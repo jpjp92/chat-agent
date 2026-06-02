@@ -82,26 +82,28 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 
 ### 2-1. Agent And Tool Overview
 
+Solid arrows = request (input) path · dashed arrows = response (output) path.
+
 ```mermaid
 flowchart TB
-    User([User])
+    In([User Input - prompt / image])
 
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
-        UI[Main UI & App State]
+        UI[Main UI and App State]
         Stream[useChatStream]
-        Renderers["Visualization Renderers\nDrug / Pharmacy / Hospital / Vet / Law / Science / Chart"]
+        Renderers["Visualization Renderers - Drug / Pharmacy / Hospital / Vet / Law / Science / Chart"]
     end
 
     subgraph ChatAPI ["Vercel /api/chat"]
-        Router["Semantic Router\nLLM + intentRules fallback"]
-        Vision["Vision Node\npill image preprocessing"]
-        Generator["Generator Node\nSDK path or LangChain path"]
-        ToolNode["ToolNode\nexecutes LLM tool_calls"]
+        Router["Semantic Router - LLM + intentRules fallback"]
+        Vision["Vision Node - pill image preprocessing"]
+        Generator["Generator Node - SDK path or LangChain path"]
+        ToolNode["ToolNode - executes LLM tool_calls"]
     end
 
     subgraph Tools ["Server Tools"]
-        DrugLookup["identify_pill\npharm.or.kr"]
-        DrugInfo["search_drug_info\nMFDS + DDG fallback"]
+        DrugLookup["identify_pill - pharm.or.kr"]
+        DrugInfo["search_drug_info - MFDS + DDG"]
         LocationTools["pharmacy / hospital / vet"]
         LawTool["lawTool"]
         WebSearch["search_web"]
@@ -110,86 +112,56 @@ flowchart TB
     subgraph External ["External Services"]
         Gemini[["Google Gemini AI"]]
         Supabase[("Supabase")]
-        PublicAPIs[["Public APIs\nMFDS / HIRA / Law / Vet"]]
-        DrugSites[["Drug Sources\npharm.or.kr / ConnectDI"]]
+        PublicAPIs[["Public APIs - MFDS / HIRA / Law / Vet"]]
+        DrugSites[["Drug Sources - pharm.or.kr / ConnectDI"]]
     end
 
-    User <--> UI
-    UI --> Stream
-    Stream --> Router
-    Router -- "drug_id image" --> Vision
-    Router -- "other intents" --> Generator
-    Vision --> Generator
-    Generator -- "tool_calls" --> ToolNode
-    ToolNode -- "ToolMessage" --> Generator
-    Generator -- "final response" --> Stream
-    Stream --> UI
-    UI --> Renderers
+    Out([Rendered Answer + source chips])
 
-    Generator <--> Gemini
-    Vision <--> Gemini
+    %% Request (input) path - solid
+    In --> UI
+    UI --> Stream
+    Stream -->|POST /api/chat| Router
+    Router -->|drug_id image| Vision
+    Router -->|other intents| Generator
+    Vision --> Generator
+    Generator -->|tool_calls| ToolNode
     ToolNode --> DrugLookup
     ToolNode --> DrugInfo
     ToolNode --> LocationTools
     ToolNode --> LawTool
     ToolNode --> WebSearch
+    Generator <--> Gemini
+    Vision <--> Gemini
     DrugLookup <--> DrugSites
     DrugInfo <--> PublicAPIs
     LocationTools <--> PublicAPIs
     LawTool <--> PublicAPIs
     WebSearch <--> DrugSites
-    Stream <--> Supabase
+
+    %% Response (output) path - dashed
+    ToolNode -.->|ToolMessage| Generator
+    Generator -.->|SSE stream| Stream
+    Stream -.-> UI
+    UI -.-> Renderers
+    Renderers -.-> Out
+    Stream <-->|persist| Supabase
+
+    classDef io fill:#16a34a,stroke:#15803d,color:#fff;
+    class In,Out io;
 ```
 
 ### 2-2. LangGraph Agent Flow
 
-```mermaid
-flowchart TB
-    User([User Prompt])
+High-level StateGraph node flow (router → vision/generator → tools → output).
 
-    subgraph StateGraph ["LangGraph.js StateGraph"]
-        StateNode[("AgentState")]
-        RouterNode{{"🧭 Semantic Router\n(10+ Intents)"}}
-        Vision["👁️ Vision Node\n(Pill image analysis)"]
-        Tools["🛠️ Tool Executor\n(MFDS / Pharmacy / Hospital / Vet / Law / DDG)"]
-        Generator["📝 Generator Node\n(Gemini LLM)"]
-    end
-
-    Output([Streaming Response])
-
-    User --> StateNode --> RouterNode
-    RouterNode -- "drug_id (pill+image)" --> Vision --> Generator
-    RouterNode -- "all other intents" --> Generator
-    Generator -- "tool_calls (drug_info/pharmacy/hospital/vet/law)" --> Tools --> Generator
-    Generator --> Output
-```
+> 📊 Diagram: [LangGraph Agent Flow](docs/guide/REF_Architecture.md#langgraph-agent-flow)
 
 ### 2-3. Agent Runtime Branches
 
 The agent uses two execution paths inside `generator.ts`.
 
-```mermaid
-flowchart TB
-    Intent["Router intent"]
-    SDK["SDK path\n@google/genai"]
-    LC["LangChain path\nChatGoogleGenerativeAI"]
-    GoogleSearch{"Google Search?"}
-    Stage1["Stage 1\n2.5 Flash + Search"]
-    Stage2["Stage 2\n3.5 Flash synthesis"]
-    Single["Single-pass response"]
-    ToolCall{"AIMessage.tool_calls?"}
-    Tools["ToolNode executes tool"]
-    Final["Final response"]
-
-    Intent --> SDK
-    Intent --> LC
-    SDK --> GoogleSearch
-    GoogleSearch -- "3.5 + search required" --> Stage1 --> Stage2 --> Final
-    GoogleSearch -- "no / 2.5 search" --> Single --> Final
-    LC --> ToolCall
-    ToolCall -- "yes" --> Tools --> LC
-    ToolCall -- "no" --> Final
-```
+> 📊 Diagram: [Agent Runtime Branches](docs/guide/REF_Architecture.md#agent-runtime-branches)
 
 Branch rules:
 
@@ -208,16 +180,17 @@ sequenceDiagram
     participant T as ToolNode
     participant E as External APIs / DBs
 
-    G->>L: Invoke selected model with bound tools
-    L-->>G: AIMessage
-    alt AIMessage has tool_calls
-        G->>T: Route to tools
-        T->>E: Execute selected tool
-        E-->>T: Tool result
-        T-->>G: ToolMessage appended to state
-        G->>L: Invoke again with tool result
-    else No tool_calls
-        G-->>G: End graph
+    loop Until AIMessage has no tool_calls
+        G->>L: Invoke selected model with bound tools
+        L-->>G: AIMessage
+        alt AIMessage has tool_calls
+            G->>T: Route to tools
+            T->>E: Execute selected tool
+            E-->>T: Tool result
+            T-->>G: ToolMessage appended to state (tools → generator)
+        else No tool_calls
+            G-->>G: End graph (exit loop)
+        end
     end
 ```
 
@@ -235,23 +208,9 @@ Tool-binding policy:
 
 ### 2-5. Pill Image Identification Flow
 
-```mermaid
-flowchart TB
-    Input["User image + identify request"]
-    Router["Router fast-path\nimage identification → drug_id"]
-    Vision["Vision node\n2.5 Flash extracts imprint/color/shape"]
-    State["state.pillData\ninternal only"]
-    Lookup["Generator direct DB lookup\nidentifyPillTool.invoke()"]
-    Exact{"match_type"}
-    Card["json:drug card\nexact only"]
-    Table["Markdown candidate table\nimprint_only / similar"]
-    Fail["Fixed no-match/error message"]
+Image identification fast-path: router → vision extraction → direct DB lookup → exact card / candidate table / failure.
 
-    Input --> Router --> Vision --> State --> Lookup --> Exact
-    Exact -- "exact" --> Card
-    Exact -- "imprint_only / similar" --> Table
-    Exact -- "none / error" --> Fail
-```
+> 📊 Diagram: [Pill Image Identification Flow](docs/guide/REF_Architecture.md#pill-image-identification-flow)
 
 ### 2-6. Tool Inventory
 
@@ -298,33 +257,9 @@ Router behavior:
 
 ### 2-9. Database And Storage Flow
 
-```mermaid
-flowchart TB
-    User([User])
-    AuthAPI["/api/auth"]
-    SessionsAPI["/api/sessions"]
-    ChatAPI["/api/chat"]
-    UploadAPI["/api/upload\n/api/create-signed-url"]
-    SyncAPI["/api/sync-drug-image"]
+How API routes write to PostgreSQL tables and Storage buckets.
 
-    subgraph Tables ["PostgreSQL Tables"]
-        Users[("users")]
-        Sessions[("chat_sessions")]
-        Messages[("chat_messages")]
-    end
-
-    subgraph Storage ["Storage Buckets"]
-        Imgs[("chat-imgs")]
-        Videos[("chat-videos")]
-        Docs[("chat-docs")]
-    end
-
-    User --> AuthAPI --> Users --> Sessions
-    User --> SessionsAPI <--> Sessions & Messages
-    User --> UploadAPI --> Imgs & Videos & Docs
-    User --> ChatAPI --> Messages & Sessions
-    SyncAPI --> Imgs & Messages
-```
+> 📊 Diagram: [Database And Storage Flow](docs/guide/REF_Architecture.md#database-and-storage-flow)
 
 | Table | Written by | Purpose |
 |---|---|---|
@@ -423,16 +358,35 @@ flowchart TB
 │       └── useChatStream.ts    # Message send orchestration
 ├── services/
 │   └── geminiService.ts        # API wrapper + session/user remote calls
-├── docs/
-│   ├── DEV_HISTORY.md
+├── docs/                       # See §4-1 for naming conventions
+│   ├── DEV_HISTORY.md          # Dev history index (one line per session)
 │   ├── TODO.md
-│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260531.md)
-│   └── Guide/REF_*.md          # Renderer test prompt guides
+│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260602.md)
+│   ├── plans/PLAN_*.md         # Plan / design / analysis docs
+│   └── guide/REF_*.md          # Renderer & feature reference guides
 ├── App.tsx                     # Root component (layout + hooks composition)
 ├── next.config.ts              # Security headers
 ├── types.ts                    # Shared TypeScript types
 └── tailwind.config.js
 ```
+
+### 4-1. Documentation Conventions (`docs/`)
+
+When adding a Markdown doc under `docs/`, place it in the right folder and follow the naming rule. **Date format is `YYMMDD`** (e.g. `260602` = 2026-06-02).
+
+| Folder | Purpose | Filename rule | Example |
+|---|---|---|---|
+| `docs/` | Top-level living index docs | Fixed names | `DEV_HISTORY.md`, `TODO.md` |
+| `docs/logs/` | Dated session work logs (one per work session) | `DEV_YYMMDD.md` | `DEV_260602.md` |
+| `docs/plans/` | Plans, designs, analyses, change summaries | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md` |
+| `docs/guide/` | Renderer / feature reference guides | `REF_<Topic>.md` | `REF_Chart.md` |
+
+Rules:
+- **`docs/plans/` — always `PLAN_` prefix**, `UPPER_SNAKE_CASE` topic. Add a `_YYMMDD` suffix for dated/one-off analyses; omit it for evergreen plans. Do **not** add a redundant `_PLAN` suffix (use `PLAN_DB_MIGRATION.md`, not `PLAN_DB_MIGRATION_PLAN.md`).
+- **`docs/logs/` — `DEV_YYMMDD.md`**, one file per session/day. Add a matching one-line entry to `DEV_HISTORY.md`.
+- **`docs/guide/` — `REF_` prefix** for renderer/feature references.
+- Each plan/log starts with a blockquote header: `> 작성일: YYYY-MM-DD` and `> 상태: …`.
+- When renaming a doc, update any `[text](../plans/…)` links that point to it.
 
 ---
 

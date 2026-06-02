@@ -416,7 +416,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 topP: 0.8,
                                 topK: 40,
                                 maxOutputTokens: effectiveMaxTokens,
-                                ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
+                                // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
+                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
+                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                             }
                         });
 
@@ -451,7 +453,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     topP: 0.8,
                                     topK: 40,
                                     maxOutputTokens: effectiveMaxTokens,
-                                    ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
+                                    // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
+                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
+                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                                 }
                             });
                             const s1rParts = s1Retry.candidates?.[0]?.content?.parts ?? [];
@@ -575,7 +579,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                             topP: 0.8,
                                             topK: 40,
                                             maxOutputTokens: effectiveMaxTokens,
-                                            ...(state.intent === 'medical_qa' ? { thinkingConfig: { thinkingBudget: 3000 } } : {}),
+                                            // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
+                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
+                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                                         },
                                     });
                                     responseText = fallbackResponse.text || stage1Text;
