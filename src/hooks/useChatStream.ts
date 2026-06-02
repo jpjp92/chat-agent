@@ -3,6 +3,7 @@ import { createSession, fetchUrlData, streamChatResponse, summarizeConversation,
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
+import { writeSessionsCache } from './useChatSessions';
 
 interface ChatStreamMessages {
   uploadFailed: string;
@@ -95,7 +96,11 @@ export const useChatStream = ({
           createdAt: new Date(session.created_at).getTime(),
           lastActiveDoc: lastDoc ?? undefined,
         };
-        setSessions(prev => [newSession, ...prev]);
+        setSessions(prev => {
+          const updated = [newSession, ...prev];
+          writeSessionsCache(updated);
+          return updated;
+        });
         setCurrentSessionId(session.id);
         activeSessionId = session.id;
       } catch (error: any) {
@@ -436,7 +441,11 @@ export const useChatStream = ({
           ...latestHistory,
           { id: modelMessageId, role: Role.MODEL, content: modelResponse, timestamp: Date.now() },
         ], language);
-        setSessions(prev => prev.map(session => (session.id === activeSessionId ? { ...session, title: newTitle } : session)));
+        setSessions(prev => {
+          const updated = prev.map(session => (session.id === activeSessionId ? { ...session, title: newTitle } : session));
+          writeSessionsCache(updated);
+          return updated;
+        });
         try {
           await updateSessionTitle(activeSessionId!, newTitle);
         } catch (error) {
