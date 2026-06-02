@@ -1,6 +1,6 @@
 # Chat Agent with Gemini
 
-An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 10 interactive visualization renderers.
+An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 10 interactive visualization renderers.
 
 ---
 
@@ -16,11 +16,12 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 
 ### 1-2. AI Intelligence
 
-- **Gemini 2.5 Flash** as the default chat model, with **Gemini 3.5 Flash** selectable for higher-quality synthesis
+- **Gemini 3.5 Flash** as the default chat model, with **Gemini 2.5 Flash** selectable as an alternative
 - **Gemini Flash-Lite** for semantic routing
 - **Model selector**: Header dropdown switches between models; `preferred_model` persisted locally
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **3.5 Search two-track**: 3.5 Flash on free tier can't ground directly — 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
+- **`general` needsSearch routing**: For `general` intent, a 3-gate classifier (rule-based OFF/ON + LLM gray-zone) determines whether Google Search is needed — suppresses unnecessary two-track latency for code/translation/math; default-on safety net for ambiguous cases; multi-turn follow-up guard suppresses re-search when previous turn was already searched
 - **Empty response auto-retry**: When 3.5 Flash returns empty text (thinking exhaustion), automatically retries with `thinkingLevel: "minimal"` before LangChain fallback
 - **Safety block detection**: `finishReason === 'SAFETY'` blocks propagate immediately with user-friendly localized messages (4 languages) instead of a generic error
 - **YouTube analysis**: Native Gemini video reading; supports standard URLs, `youtu.be`, and Shorts (`/shorts/`)
@@ -39,7 +40,7 @@ An intelligent AI messenger powered by **Gemini 2.5 Flash / 3.5 Flash**, combini
 | 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
 | 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
 | 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
-| ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas |
+| ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas + astronomy-engine |
 | 📊 Chart-Viz | `data_viz` | 데이터 / 통계 | ApexCharts |
 
 ### 1-4. 💊 Drug-Viz — Pill Identification Engine
@@ -287,7 +288,7 @@ flowchart TB
 | `law_search` | LangChain + Korean law Open API tool | selected model |
 | `medical_qa` | SDK + Google Search grounding | selected model, 3.5 uses two-track |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output | selected model, Search off unless explicitly requested |
-| `general` | SDK, Google Search enabled when applicable | selected model, 3.5 uses two-track |
+| `general` | SDK, Google Search gated by `needsSearch` 3-gate classifier | selected model, 3.5 uses two-track when search is on |
 
 Router behavior:
 
@@ -353,8 +354,8 @@ flowchart TB
 
 | Purpose | Model |
 |---|---|
-| Main chat (default) | `gemini-2.5-flash` |
-| User-selectable | `gemini-2.5-flash`, `gemini-3.5-flash` |
+| Main chat (default) | `gemini-3.5-flash` |
+| User-selectable | `gemini-3.5-flash`, `gemini-2.5-flash` |
 | Semantic router | `gemini-2.5-flash-lite` |
 | Pill vision preprocessing | `gemini-2.5-flash` |
 | 3.5 + Search grounding | Stage 1: `gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
@@ -379,6 +380,7 @@ flowchart TB
 │       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
 │       ├── upload/route.ts     # Supabase Storage upload proxy
 │       ├── fetch-url/route.ts  # Web scraping + Jina AI fallback
+│       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
 │       ├── auth/route.ts
 │       ├── create-signed-url/route.ts
 │       └── proxy-image/route.ts
@@ -424,7 +426,7 @@ flowchart TB
 ├── docs/
 │   ├── DEV_HISTORY.md
 │   ├── TODO.md
-│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260529.md)
+│   ├── logs/DEV_*.md           # Session work logs (latest: DEV_260531.md)
 │   └── Guide/REF_*.md          # Renderer test prompt guides
 ├── App.tsx                     # Root component (layout + hooks composition)
 ├── next.config.ts              # Security headers

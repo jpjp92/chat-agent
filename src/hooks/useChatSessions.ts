@@ -100,15 +100,17 @@ const mapDbMessage = (message: any): Message => ({
 
 const SESSIONS_CACHE_KEY = 'chat_sessions_cache_v1';
 const SESSION_PAGE_SIZE = 30;
+const DEFAULT_SESSION_TITLE = 'New Chat';
 
 const readSessionsCache = (): ChatSession[] => {
   try {
     const raw = localStorage.getItem(SESSIONS_CACHE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const cachedSessions: ChatSession[] = raw ? JSON.parse(raw) : [];
+    return cachedSessions.filter(session => !(session.title === DEFAULT_SESSION_TITLE && session.messages.length === 0));
   } catch { return []; }
 };
 
-const writeSessionsCache = (sessions: ChatSession[]) => {
+export const writeSessionsCache = (sessions: ChatSession[]) => {
   try {
     localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(sessions.slice(0, 30)));
   } catch {}
@@ -124,7 +126,7 @@ const mergeSessionsPreservingLocalMessages = (localSessions: ChatSession[], dbSe
 
     return {
       ...dbSession,
-      title: localSession.title !== 'New Chat' ? localSession.title : dbSession.title,
+      title: localSession.title !== DEFAULT_SESSION_TITLE ? localSession.title : dbSession.title,
       messages: localSession.messages.length > 0 ? localSession.messages : dbSession.messages,
       lastActiveDoc: localSession.lastActiveDoc ?? dbSession.lastActiveDoc,
     };
