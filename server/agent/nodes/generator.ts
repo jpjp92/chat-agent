@@ -11,7 +11,7 @@ import { vetTool } from "../vet-tool";
 import { lawTool } from "../law-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt";
-import { classifySearchNeed, shouldSuppressSearchForFollowup } from "../intentRules";
+import { classifySearchNeed, shouldSuppressSearchForFollowup, isFollowupReference } from "../intentRules";
 
 /**
  * Generator Node
@@ -296,7 +296,26 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             : String(lastMsg.content);
                         return /https?:\/\/\S+/.test(text) && !/(?:youtube\.com|youtu\.be)/.test(text);
                     })();
-                    if (historyHasUrl || currentMsgHasNonYtUrl) useGoogleSearch = false;
+                    // Fix A: historyHasUrl을 무조건 off로 두면, 1턴에 URL을 한 번 붙인 뒤
+                    // 그 대화 내내 모든 후속 질문의 검색이 영구히 꺼진다. 새 질문이 URL과 무관해도
+                    // 검색이 막혀 → 모델이 grounding 툴 없이 검색을 시도하다 [tool_code] print(google_search(...))
+                    // 환각을 본문으로 토출한다. 따라서:
+                    //  - 현재 메시지 자체에 URL이 있으면(요약 대상) 기존대로 off.
+                    //  - history에만 URL이 있으면, 현재 메시지가 직전 답변을 가공·참조하는 follow-up
+                    //    (요약/정리/비교/위에서…)이고 새 검색요구가 아닐 때만 off. 새 검색요구면
+                    //    grounding을 살려 아래 general 게이트가 판정하도록 위임.
+                    if (currentMsgHasNonYtUrl) {
+                        useGoogleSearch = false;
+                    } else if (historyHasUrl) {
+                        const isNewSearchQuery = classifySearchNeed(latestUserText) === 'on';
+                        const isUrlFollowup = isFollowupReference(latestUserText);
+                        if (isUrlFollowup && !isNewSearchQuery) {
+                            useGoogleSearch = false;
+                            console.log('[LangGraph] historyHasUrl follow-up reference — Google Search suppressed');
+                        } else {
+                            console.log(`[LangGraph] historyHasUrl but new query (followup=${isUrlFollowup}, newSearch=${isNewSearchQuery}) — keeping search gate open`);
+                        }
+                    }
                     // medical_qa: 이미지 없는 경우 Google Search 강제 활성화
                     // LLM 내부 지식 의존 → 실시간 의학 정보 + 출처 기반 답변으로 개선
                     // (이미지가 있으면 Gemini API 제약상 Search 불가 → hasMultimodalContent/historyHasImage 조건 유지)
@@ -703,6 +722,61 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     console.log('[LangGraph] MALFORMED fallback to', SEARCH_FALLBACK_MODEL, 'succeeded');
                                 }
                             }
+                        }
+                    }
+
+                    // Fix B: tool_code 환각 방어 가드.
+                    // Gemini Flash는 검색 의도가 강한데 grounding 툴이 안 붙어있으면
+                    // "[tool_code] print(google_search(...))[/tool_code]" 같은 내부 호출 코드를
+                    // 본문 텍스트로 토출한다(프롬프트 금지 지시만으로는 막히지 않음).
+                    // 감지 시 Google Search를 켜고 1회 재시도, 그래도 남으면 해당 블록을 제거한다.
+                    const TOOL_CODE_RE = /\[tool_code\]|print\s*\(\s*google_search/i;
+                    const stripToolCode = (t: string): string => t
+                        .replace(/\[tool_code\][\s\S]*?\[\/tool_code\]/gi, '')
+                        .replace(/```(?:tool_code|python|tool)?[\s\S]*?google_search[\s\S]*?```/gi, '')
+                        .replace(/^.*print\s*\(\s*google_search[\s\S]*?\)\s*$/gim, '')
+                        .replace(/\[\/?tool_code\]/gi, '')
+                        .trim();
+                    if (responseText && TOOL_CODE_RE.test(responseText)) {
+                        console.warn('[LangGraph] tool_code hallucination detected — retrying with Google Search grounding');
+                        try {
+                            const groundModel = needsSearchFallback ? SEARCH_FALLBACK_MODEL : effectiveModel;
+                            const groundRetry = await genai.models.generateContent({
+                                model: groundModel,
+                                contents: sdkContents,
+                                config: {
+                                    systemInstruction: finalInstruction,
+                                    tools: [{ googleSearch: {} }],
+                                    temperature: 0.2,
+                                    topP: 0.8,
+                                    topK: 40,
+                                    maxOutputTokens: effectiveMaxTokens,
+                                    thinkingConfig: { thinkingBudget: 0 },
+                                }
+                            });
+                            const grParts = groundRetry.candidates?.[0]?.content?.parts ?? [];
+                            const grText = (groundRetry.text || grParts
+                                .filter((p: any) => !p.thought)
+                                .map((p: any) => p.text || '')
+                                .join(''))
+                                .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
+                                .trim();
+                            const grGrounding = groundRetry.candidates?.[0]?.groundingMetadata;
+                            if (grGrounding?.groundingChunks) {
+                                groundingSources = grGrounding.groundingChunks
+                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                    .filter(Boolean);
+                            }
+                            if (grText && !TOOL_CODE_RE.test(grText)) {
+                                console.log('[LangGraph] tool_code grounding retry succeeded');
+                                responseText = grText;
+                            } else {
+                                responseText = stripToolCode(responseText);
+                                console.warn('[LangGraph] tool_code grounding retry inconclusive — stripped hallucinated block');
+                            }
+                        } catch (grErr: any) {
+                            responseText = stripToolCode(responseText);
+                            console.warn('[LangGraph] tool_code grounding retry errored — stripped block:', grErr?.message);
                         }
                     }
 

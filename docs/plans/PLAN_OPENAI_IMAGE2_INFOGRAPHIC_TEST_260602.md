@@ -401,7 +401,7 @@ high = 보류
 ```txt
 size = 1536x1024
 quality = low
-textLanguage = user language, but prompt should keep text short
+textLanguage = routed by intent/domain, not always user language
 density = normal
 layout = Gemini-selected(cards | diagram | pipeline ...)
 cards = 2~3, max 4 when layout=cards
@@ -424,6 +424,104 @@ Dense 사용 기준:
 4 cards dense = 위험
 6+ cards = 현재 크기에서는 비추천
 ```
+
+---
+
+## 이미지 텍스트 언어 라우팅 기준
+
+이미지 안 텍스트 언어는 사용자 채팅 언어만으로 결정하지 않는다. 이미지 텍스트의 목적, 도메인 정확도, canonical term 필요성, 텍스트 밀도를 함께 본다.
+
+기본 원칙:
+
+```txt
+default = user language
+override to English = academic diagram, engineering schematic, CS architecture, graph/circuit/reaction
+mixed = Korean explanation + English canonical labels
+minimal = photoreal/product/illustrative styles
+```
+
+라우팅 표:
+
+| 의도/도메인 | 권장 이미지 텍스트 언어 | 용어 정책 | 이유 |
+|---|---|---|---|
+| 일반 요약 카드 | 사용자 언어 | `translate` | 사용자가 바로 읽는 목적 |
+| 서비스 사용법/UX 설명 | 사용자 언어, 한국 사용자면 `ko` | `translate` | 안내/가이드 성격 |
+| Comic explainer | 사용자 언어 | `translate`, 짧은 말풍선 | 한국어 짧은 문장도 안정적 |
+| Whiteboard sketch | 사용자 언어 | `translate`, 짧은 질문/키워드 | 한국어 손글씨 스타일 안정적 |
+| 마케팅/소셜 포스터 | 타깃 사용자 언어 | `translate` | 메시지 전달 우선 |
+| 학술/논문/textbook figure | `en` 우선 | `keep_english` | canonical label 정확도 |
+| 생물/의학 diagram | `mixed` 또는 `en` | `bilingual_labels` 또는 `keep_english` | 용어 정확도 중요 |
+| 물리/수학 graph | `en` 우선 | `keep_english`, 축/단위 고정 | 축/단위/기호 안정성 |
+| 회로/화학 반응 | `en` 우선 | `keep_english`, 텍스트 최소화 | 심볼/전문 용어 안정성 |
+| 컴퓨터공학 architecture/pipeline | `en` 우선 | `keep_english` | API, cache, queue, DB 등 영어가 자연스러움 |
+| 국내 발표/교육자료 | `mixed` | `bilingual_labels` | 한국어 설명 + 핵심 영문 용어 |
+| Photoreal/product scene | `minimal` | `minimal_text` | 표면 텍스트 왜곡 리스크 |
+| Dense infographic | `en` 또는 `minimal` | `minimal_text` | 한글도 가능하지만 overflow 리스크 |
+
+라우팅 의사결정:
+
+```txt
+if user explicitly requests Korean:
+  use ko
+  if academic/technical canonical terms exist:
+    use mixed with English terms in parentheses
+
+else if layout is diagram and domain is academic/science/engineering:
+  use en
+
+else if domain is computer_science/system_architecture/protocol:
+  use en
+
+else if output is user-facing guide/comic/whiteboard/marketing:
+  use user language
+
+else if text density is high or exact labels matter:
+  use en or minimal
+
+else:
+  use user language
+```
+
+권장 JSON 필드:
+
+```json
+{
+  "image_text_language": "ko | en | mixed | minimal",
+  "language_reason": "user_facing | canonical_terms | technical_standard | text_accuracy_risk | explicit_user_request",
+  "term_policy": "translate | keep_english | bilingual_labels | minimal_text",
+  "canonical_terms": ["Node of Ranvier", "Action potential"],
+  "translated_terms": [
+    { "ko": "랑비에 결절", "en": "Node of Ranvier" }
+  ]
+}
+```
+
+Prompt builder 적용:
+
+```txt
+ko:
+- Use crisp readable Korean text only.
+- Keep labels short and avoid long sentences.
+
+en:
+- Use precise English labels only.
+- Do not translate canonical scientific/technical terms.
+
+mixed:
+- Use Korean headings with English canonical terms in parentheses.
+- Example: 랑비에 결절 (Node of Ranvier)
+
+minimal:
+- Avoid visible text except 1 short title or icon labels.
+- Prefer visual symbols, arrows, and UI mockups.
+```
+
+주의:
+
+- 사용자가 한국어로 질문해도 textbook figure, 회로도, 화학 반응 경로, CS architecture는 영어 라벨이 더 안정적일 수 있다.
+- 사용자-facing 가이드, comic, whiteboard, 마케팅 이미지는 한국어가 자연스럽고 실제 테스트에서도 가독성이 좋았다.
+- `mixed`는 너무 많은 병기를 넣으면 overflow가 생기므로 핵심 용어 3~6개까지만 병기한다.
+- 언어 라우팅 결정은 Gemini 구조화 단계에서 먼저 고정하고, OpenAI image prompt에는 동일 정책을 명시한다.
 
 ---
 
@@ -499,6 +597,9 @@ decision_tree
 ```json
 {
   "layout_type": "cards | diagram | pipeline | timeline | matrix | decision_tree | mindmap | poster",
+  "image_text_language": "ko | en | mixed | minimal",
+  "language_reason": "user_facing | canonical_terms | technical_standard | text_accuracy_risk | explicit_user_request",
+  "term_policy": "translate | keep_english | bilingual_labels | minimal_text",
   "title": "short title",
   "subtitle": "short subtitle",
   "language": "ko",
@@ -506,6 +607,8 @@ decision_tree
   "nodes": [],
   "edges": [],
   "flow": [],
+  "canonical_terms": [],
+  "translated_terms": [],
   "constraints": {
     "max_visible_words": 80,
     "max_cards": 4,
@@ -659,6 +762,10 @@ quality
 size
 layout_type
 text_language
+image_text_language
+language_reason
+term_policy
+canonical_terms
 prompt_hash
 input_prompt_tokens
 output_image_tokens
@@ -688,5 +795,6 @@ medium/high는 비용 baseline이 더 쌓일 때까지 명시적 옵션으로만
 - 기본 생성은 `low`, 재생성/고품질 옵션은 `medium`으로 분리한다.
 - 생성 결과는 prompt, model, quality, size, usage, latency를 함께 저장해 사후 비용 분석이 가능해야 한다.
 - 한국어 텍스트는 가능하지만 prompt builder에서 텍스트 길이 제한을 강하게 걸어야 한다.
+- 이미지 텍스트 언어는 사용자 언어가 아니라 도메인/의도/정확도 기준으로 라우팅해야 한다.
 - 학문/공학 도식은 보기 좋은 결과보다 라벨 정확도가 우선이므로, Gemini JSON 단계에서 `must_show`, `avoid`, `labels`, `edges`, `panels`를 먼저 고정한다.
 - 사람/손/팔이 포함된 스타일 이미지는 anatomy 오류 리스크가 있으므로 기본 prompt에서는 제외하고, 필요 시 `medium` regenerate 및 별도 QA 대상으로 둔다.
