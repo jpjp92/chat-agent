@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchRenderedUrlContent } from './playwright-fallback';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -12,6 +13,8 @@ const isJinaSecurityBlock = (text: string) => {
         t.includes('warning: this page maybe requiring captcha') ||
         t.includes('verifying you are not a bot') || t.includes('please enable cookies');
 };
+
+const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
 
 export async function POST(req: NextRequest) {
     const { url } = await req.json();
@@ -29,6 +32,8 @@ export async function POST(req: NextRequest) {
         if (url.includes('arxiv.org/pdf/')) {
             targetUrl = url.replace('arxiv.org/pdf/', 'arxiv.org/abs/').replace('.pdf', '');
         }
+        const targetHostname = new URL(targetUrl).hostname.toLowerCase();
+        const useWikidocsPlaywrightFallback = isWikidocsHost(targetHostname);
 
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const oembedCtrl = new AbortController();
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest) {
                 },
             });
             html = await response.text();
-            if (!response.ok || html.match(/<title[^>]*>\s*just a moment/i)) directFetchBlocked = true;
+            if (!response.ok || isJinaSecurityBlock(html) || html.match(/<title[^>]*>\s*just a moment/i)) directFetchBlocked = true;
         } catch (e: any) {
             directFetchBlocked = true;
         } finally {
@@ -96,6 +101,12 @@ export async function POST(req: NextRequest) {
         };
 
         if (directFetchBlocked) {
+            if (useWikidocsPlaywrightFallback) {
+                const renderedText = await fetchRenderedUrlContent(targetUrl);
+                if (renderedText) return NextResponse.json({ content: renderedText });
+                return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+            }
+
             const jinaText = await jinaFetch();
             if (jinaText) return NextResponse.json({ content: jinaText });
             return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
@@ -117,6 +128,12 @@ export async function POST(req: NextRequest) {
         const bodyText = bodyHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 15000);
 
         if (bodyText.length < 300) {
+            if (useWikidocsPlaywrightFallback) {
+                const renderedText = await fetchRenderedUrlContent(targetUrl);
+                if (renderedText) return NextResponse.json({ content: renderedText });
+                return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+            }
+
             const jinaText = await jinaFetch();
             if (jinaText) return NextResponse.json({ content: jinaText });
         }
