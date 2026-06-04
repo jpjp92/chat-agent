@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       './node_modules/@sparticuz/chromium/bin/al2023.tar.br',
       './node_modules/@sparticuz/chromium/bin/chromium.br',
       './node_modules/@sparticuz/chromium/bin/fonts.tar.br',
+      './node_modules/playwright-core/browsers.json',
     ],
   },
 
