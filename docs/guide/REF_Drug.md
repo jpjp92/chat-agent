@@ -58,6 +58,36 @@ Attach a pill photo and ask:
 - "사진 속 약 이름이랑 용법 알려줘"
 - "이 캡슐이 무슨 약이야?"
 
+### MFDS Local Pill DB (`mfds_pills`)
+
+`mfds_pills` is the local Supabase copy of MFDS pill identification data. The current production flow uses it primarily for image-based pill identification:
+
+1. Router detects image + medical/pill keyword.
+2. Vision node extracts `imprint_front`, `imprint_back`, `color`, `shape`.
+3. `identify_pill` calls `searchMfdsPills()` first.
+4. If local MFDS lookup fails, it falls back to `pharm.or.kr` scraping.
+
+Current runtime usage:
+
+- Strongly used: image-based visual identification.
+- Underused: text-based drug info lookup (`search_drug_info`) still calls the MFDS Open API directly.
+- Underused: `/api/pill-search` still uses the legacy `searchPill()` path only.
+
+DB audit snapshot (2026-06-04):
+
+- Total rows: `22,555`
+- `item_name`, `entp_name`, `chart`, `drug_shape`, `color_class1`, `item_image`, `etc_otc_name`: 100% populated
+- `class_name`: 22,553 rows
+- size fields (`leng_long`, `leng_short`, `thick`): about 99.8% populated
+- rows with actual `mark_codes`: 2,117 rows (9.4%)
+- rows without mark codes but with color/shape/image: 20,438 rows (90.6%)
+
+Implications:
+
+- The table is valuable beyond imprint search because name, class, OTC/Rx type, form, image, shape, color, and size are highly complete.
+- Imprint-based identification is strong when `mark_codes` exist, but most pills require candidate ranking based on visual metadata rather than imprint alone.
+- For text drug cards, `mfds_pills` can serve as a fast local source for visual/classification fields before or instead of a live MFDS API call.
+
 ## 5. Multi-Drug Comparison
 
 - "타이레놀이랑 애드빌 차이 알려줘" — should return two `json:drug` blocks or a comparison
