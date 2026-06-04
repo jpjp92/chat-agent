@@ -63,6 +63,10 @@
 
 - [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화 (`색상·모양` → `각인 검색 확장 및 색상/제형 유사도`)
 - [ ] `pill-logic.ts` — 추출 shape 기준 후보 정렬 보강 (타원형·장방형 상단 배치, 색상만 일치 후순위)
+- [ ] `drug-info-tool.ts` — 약품명 기반 조회에서 `mfds_pills` 로컬 1차 조회/fallback/cache 적용 검토 (`class_name`, `etc_otc_name`, `form_code_name`, `item_image`, 크기 필드 재사용)
+- [ ] `app/api/pill-search/route.ts` — `searchMfdsPills()` 우선 + `searchPill()` 폴백 구조 검토
+- [ ] `mfds-logic.ts` — 무각인/복수 후보 랭킹에 크기(`leng_long`/`leng_short`), 제형(`form_code_name`), 양면 색상(`color_class2`) 활용 검토
+- [ ] `mfds_pills` — 약품명 검색 랭킹 설계 (`mg`↔`밀리그램/밀리그람` 정규화, 정확 제품명/용량 일치 우선, 부분 문자열 오탐 방지)
 
 ### 5. ChartRenderer 차트 품질 개선
 
