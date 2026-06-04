@@ -162,18 +162,25 @@
 - [ ] 법령용어/관련법령 지식베이스 검색 보강
 - [ ] 별표·서식 목록 조회 및 원문 링크 카드
 
-### 이미지 생성 (Imagen 4) — 키: `GEMINI_IMAGEN`
+### 이미지 생성 (OpenAI Image2) — 키: `OPENAI_API_KEY`
 
-> 모델: Imagen 4 Standard ($0.04) / Fast ($0.02) / Gemini Flash-Image. 상세 테스트 결과: `logs/DEV_260504.md`
+> 1차 테스트 기준: `gpt-image-2-2026-04-21`, 기본 `low + 1536x1024`, 상세 계획: `plans/PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md`
 
-- [ ] `server/agent/state.ts` — `image_gen` intent 추가
-- [ ] `server/agent/tools.ts` — `generateImageTool` (Imagen 4 API)
-- [ ] `server/agent/nodes/router.ts` — 감지 패턴 추가 (`그려줘`, `draw`, `generate image` 등)
-- [ ] `server/agent/nodes/generator.ts` — `LANGCHAIN_INTENTS`에 `image_gen` 추가
-- [ ] `server/agent/prompt.ts` — `image_gen` intent focus hint 추가
-- [ ] `components/ImageGenRenderer.tsx` — 이미지 카드 렌더러 (다운로드 + 프롬프트 복사)
+**검증 선행**
+- [ ] 기존 `scripts/image-gen-output/openai-image2-pipeline/report-*.json` 집계 스크립트 추가 — quality/layout별 latency, output image tokens, 실패 원인 요약
+- [ ] `scripts/openai-image2-pipeline-test.mjs` — `--case-set korean` 추가
+- [ ] 한국어 QA 테스트 — 짧은 3카드, 4카드, 긴 문장, comic UI panel, whiteboard, mixed 생물 도식, CS architecture
+- [ ] layout smoke test — `pipeline`, `timeline`, `decision_tree`를 cards/diagram과 분리해 검증
+- [ ] `medium normal` 최소 1장 테스트 — dense가 아닌 medium 비용/latency baseline 확인
+
+**구현**
+- [ ] `server/agent/state.ts` — `image_gen` intent 및 image job 상태 필드 설계
+- [ ] `server/agent/nodes/router.ts` — 이미지 생성 감지 + intent/domain/layout/language 라우팅
+- [ ] 신규 prompt builder — rule-based guardrail 먼저 적용, Gemini는 구조화 JSON만 담당
+- [ ] 이미지 생성 API/worker — queue 기반 처리, user active job 1개, global concurrency 2
+- [ ] 사용량 제한 — free 3 images/day, medium은 premium/regenerate 전용
+- [ ] `components/ImageGenRenderer.tsx` — queued/running/succeeded/failed 상태 카드, 다운로드, 프롬프트 보기
 - [ ] `components/ChatMessage.tsx` — `image-gen` 블록 파서 + lazy import 연결
-- [ ] `.env.local` + Vercel에 `GEMINI_IMAGEN` 추가
 
 ---
 

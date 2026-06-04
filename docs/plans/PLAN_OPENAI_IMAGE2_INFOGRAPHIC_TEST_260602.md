@@ -525,6 +525,84 @@ minimal:
 
 ---
 
+## 사용자 의도 기반 생성 제어 체계
+
+이미지 생성 품질은 OpenAI image 모델에 바로 긴 prompt를 던지는 방식보다, 서비스가 먼저 생성 가능 범위와 실패 위험을 좁힌 뒤 모델에 넘기는 방식이 안정적이다.
+
+권장 구조:
+
+```txt
+User request
+  -> intent/domain classifier
+  -> layout router
+  -> language/term router
+  -> service guardrails
+  -> Gemini structuring JSON
+  -> deterministic prompt builder
+  -> OpenAI image generation
+  -> QA/check result
+  -> optional regenerate with stricter constraints
+```
+
+역할 분리:
+
+| 단계 | 담당 | 결정 내용 | 이유 |
+|---|---|---|---|
+| Intent/domain classifier | 서비스 + Gemini | 비교/요약/도식/스타일/학문 분야 | 사용자 표현은 자유롭지만 서비스 동작은 제한된 타입이어야 함 |
+| Layout router | 서비스 rule 우선 | `cards`, `diagram`, `pipeline`, `decision_tree` 등 | layout 실패는 결과 전체를 망치므로 사전 제약 필요 |
+| Language/term router | 서비스 rule + Gemini 보조 | `ko`, `en`, `mixed`, `minimal` | 사용자 언어와 이미지 텍스트 최적 언어가 다를 수 있음 |
+| Service guardrails | 서비스 rule | max cards/nodes/visible words, 금지 요소 | 비용/가독성/정확도 리스크를 줄이는 고정 정책 |
+| Structuring JSON | Gemini | title, labels, nodes, flow, constraints | 자유 텍스트를 이미지용 구조로 변환 |
+| Prompt builder | deterministic code | 최종 prompt 문장화 | 같은 입력 정책이면 일관된 prompt가 나와야 함 |
+| QA/check | 서비스 + 사용자/LLM 보조 | 텍스트 가독성, domain accuracy, anatomy risk | 생성 성공과 사용 가능 품질은 별개 |
+
+Rule-based로 먼저 고정할 항목:
+
+```txt
+quality default = low
+size default = 1536x1024
+density default = normal
+max cards = 3 default, 4 only for explicit comparison
+max visible Korean text = short labels/phrases only
+academic/science/engineering diagrams = en or mixed by default
+human hands/arms/people holding devices = disabled by default
+photoreal/product scene = minimal visible text
+medium = explicit regenerate/premium only
+high = disabled until cost baseline confirmed
+```
+
+Gemini에 맡길 항목:
+
+```txt
+topic normalization
+domain detection
+candidate layout reason
+canonical term extraction
+short Korean label drafting
+flow/node/edge draft
+must_show/avoid suggestions
+```
+
+서비스가 Gemini 결과를 검증해야 하는 항목:
+
+```txt
+layout_type is supported
+text_language is allowed for the domain
+card/node count is within limits
+Korean labels are short enough
+canonical_terms count is within limits
+forbidden visual elements are not requested
+technical diagrams include must_show/avoid
+```
+
+초기 구현 판단:
+
+- 생성 모델에 “알아서 예쁘게” 맡기는 방식은 카드형 요약에는 가능하지만, 학문/공학 도식과 한국어 텍스트에서는 실패 편차가 크다.
+- 서비스는 먼저 좁은 schema와 guardrail을 적용하고, Gemini는 그 안에서 구조화만 담당하는 편이 맞다.
+- 사용자가 “멋지게”, “자세히”, “한국어로 많이”처럼 위험한 요구를 해도 그대로 반영하지 말고, 이미지 안 텍스트는 짧게 제한한 뒤 나머지는 채팅 본문 설명으로 보완한다.
+
+---
+
 ## Layout 유형 확장
 
 이미지 생성은 단순 카드형 인포그래픽만으로 제한하지 않는다. Gemini 구조화 단계에서 `layout_type`을 먼저 결정하고, 해당 layout에 맞는 prompt builder를 사용한다.
@@ -703,6 +781,50 @@ Do not add extra labels.
 6. `diagram` 추가 테스트: `myelin sheath action potential`, 회로도, 화학 반응 경로
 7. `pipeline`, `timeline`, `decision_tree` layout별 1장씩 smoke test
 8. Rate limit 테스트: 5 images/min 제한에서 queue 필요성 확인
+
+### 한국어 추가 테스트 매트릭스
+
+한국어는 “생성 가능 여부”보다 텍스트 길이, 문장성, layout 밀도, domain term 처리에 따른 실패 경계를 확인해야 한다.
+
+우선순위 높은 테스트:
+
+| Test | Layout | Text policy | 목적 | 성공 기준 |
+|---|---|---|---|---|
+| 짧은 비교 카드 | `cards` | `ko` | 기본 한국어 카드 품질 재확인 | 제목/라벨/항목이 모두 읽힘 |
+| 4카드 비교 | `cards` | `ko` | 카드 수 한계 확인 | overflow 없이 핵심 라벨 판독 가능 |
+| 긴 문장 스트레스 | `cards` | `ko` | 문장형 텍스트 실패 경계 확인 | 긴 문장 왜곡 여부 기록, 기본값 제외 판단 |
+| 한국어 comic UI 설명 | `comic/panel` | `ko` | 사용자-facing 절차 설명 가능성 확인 | 사람/손 없이 UI panel 중심으로 생성 |
+| 한국어 whiteboard | `whiteboard` | `ko` | 짧은 키워드/질문형 설명 확인 | 손글씨 스타일 가독성 유지 |
+| 생물 도식 mixed | `diagram` | `mixed` | 한국어 설명 + 영문 canonical label 확인 | 핵심 용어 3~6개 병기, overflow 없음 |
+| CS architecture Korean request | `architecture` | `en` 또는 `mixed` | 사용자가 한국어로 물어도 영어 라벨 라우팅이 나은지 확인 | API/cache/queue/DB 라벨 안정성 |
+| photoreal Korean text | `photoreal` | `minimal` | 표면 텍스트 왜곡 리스크 확인 | 텍스트 최소화가 더 안정적인지 비교 |
+
+테스트 문장 후보:
+
+```txt
+CPU와 GPU 차이를 한국어 카드 3장으로 짧게 설명해줘
+Redis, Kafka, RabbitMQ를 한국어 4카드로 비교해줘
+초보자가 이해할 수 있게 각 카드에 긴 한국어 설명문을 넣어줘
+캐시 버그가 생기는 과정을 사람 없이 브라우저 화면과 화살표로 설명해줘
+제품 아이디어를 한국어 화이트보드 스케치로 정리해줘
+세포호흡 과정을 한국어 설명과 영어 핵심 용어를 함께 넣어 도식화해줘
+LangGraph agent pipeline을 한국어 사용자를 위한 구조도로 만들어줘
+AI 공부 도우미 책상 장면을 만들어줘. 이미지 안 텍스트는 최소화해줘
+```
+
+한국어 QA 항목:
+
+```txt
+title_readable
+section_labels_readable
+body_text_readable
+hangul_misspelling_or_garbling
+line_break_overflow
+mixed_term_accuracy
+english_label_intrusion_when_ko_required
+layout_followed
+visual_artifact_risk
+```
 
 ---
 

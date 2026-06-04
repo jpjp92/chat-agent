@@ -5,16 +5,59 @@ import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
 import { writeSessionsCache } from './useChatSessions';
 
-interface ChatStreamMessages {
+// 로딩/에러 상태 문자열 — 이 훅이 유일한 소비처이므로 App.tsx prop 배관 대신 여기서 직접 보유.
+// (이전: App.tsx가 statusMessages subset 객체를 만들어 prop으로 전달 → 중복 타입/배관)
+const STATUS: Record<Language, {
   uploadFailed: string;
+  identifyingPill: string;
+  analyzingLargeDoc: string;
   analyzingImage: string;
+  analyzingAttachment: string;
   analyzingPaper: string;
-  checkingYoutube: string;
-  analyzingTranscript: string;
   watchingVideo: string;
   fetchingUrl: string;
-  identifyingPill: string;
-}
+}> = {
+  ko: {
+    uploadFailed: '업로드 실패',
+    identifyingPill: '약품 식별 중... (약학정보원 DB 조회)',
+    analyzingLargeDoc: 'Gemini가 대용량 문서를 정교하게 분석 중입니다 (10~20초 소요 가능)...',
+    analyzingImage: '이미지를 분석 중입니다...',
+    analyzingAttachment: '첨부파일 분석 중...',
+    analyzingPaper: '논문 데이터를 정밀하게 분석 중입니다...',
+    watchingVideo: 'Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)',
+    fetchingUrl: 'URL에서 내용을 가져오는 중...',
+  },
+  en: {
+    uploadFailed: 'Upload failed',
+    identifyingPill: 'Identifying medication... (Searching database)',
+    analyzingLargeDoc: 'Gemini is analyzing a large document in detail (may take 10-20s)...',
+    analyzingImage: 'Analyzing image...',
+    analyzingAttachment: 'Analyzing attachment...',
+    analyzingPaper: 'Analyzing paper data in detail...',
+    watchingVideo: 'Gemini is watching the video... (May take about 1 min)',
+    fetchingUrl: 'Fetching content from URL...',
+  },
+  es: {
+    uploadFailed: 'Error de subida',
+    identifyingPill: 'Identificando medicamento... (Buscando base de datos)',
+    analyzingLargeDoc: 'Gemini está analizando un documento extenso en detalle (puede tomar 10-20s)...',
+    analyzingImage: 'Analizando imagen...',
+    analyzingAttachment: 'Analizando archivo adjunto...',
+    analyzingPaper: 'Analizando datos del artículo...',
+    watchingVideo: 'Gemini está viendo el video... (Puede tomar 1 min)',
+    fetchingUrl: 'Obteniendo contenido de URL...',
+  },
+  fr: {
+    uploadFailed: "Échec d'envoi",
+    identifyingPill: 'Identification du médicament... (Recherche database)',
+    analyzingLargeDoc: 'Gemini analyse un document volumineux en détail (peut prendre 10-20s)...',
+    analyzingImage: "Analyse de l'image...",
+    analyzingAttachment: 'Analyse de la pièce jointe...',
+    analyzingPaper: "Analyse des données de l'article...",
+    watchingVideo: 'Gemini regarde la vidéo... (Peut prendre 1 min)',
+    fetchingUrl: 'Récupération du contenu URL...',
+  },
+};
 
 interface UseChatStreamOptions {
   sessions: ChatSession[];
@@ -24,7 +67,6 @@ interface UseChatStreamOptions {
   currentUser: SupabaseUser | null;
   language: Language;
   selectedModel: ChatModelId;
-  statusMessages: ChatStreamMessages;
   onError: (message: string) => void;
 }
 
@@ -36,7 +78,6 @@ export const useChatStream = ({
   currentUser,
   language,
   selectedModel,
-  statusMessages,
   onError,
 }: UseChatStreamOptions) => {
   const [isTyping, setIsTyping] = useState(false);
@@ -60,6 +101,8 @@ export const useChatStream = ({
 
   const handleSendMessage = async (content: string, _oldAttachment?: MessageAttachment, attachments: MessageAttachment[] = []) => {
     if (!content.trim() && attachments.length === 0) return;
+
+    const status = STATUS[language] || STATUS.ko;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -159,7 +202,7 @@ export const useChatStream = ({
         }
       } catch (error: any) {
         console.error('Upload error:', error);
-        onError(statusMessages.uploadFailed);
+        onError(status.uploadFailed);
         setLoadingStatus(null);
         setIsTyping(false);
         return;
@@ -189,13 +232,13 @@ export const useChatStream = ({
     const hasImage = finalAttachments.some(attachment => attachment.mimeType.startsWith('image/'));
 
     if (hasPillKeyword && hasImage) {
-      setLoadingStatus(statusMessages.identifyingPill);
+      setLoadingStatus(status.identifyingPill);
     } else if (hasLargeFile) {
-      setLoadingStatus('Gemini가 대용량 문서를 정교하게 분석 중입니다 (10~20초 소요 가능)...');
+      setLoadingStatus(status.analyzingLargeDoc);
     } else if (hasImage) {
-      setLoadingStatus(statusMessages.analyzingImage);
+      setLoadingStatus(status.analyzingImage);
     } else if (finalAttachments.length > 0) {
-      setLoadingStatus('첨부파일 분석 중...');
+      setLoadingStatus(status.analyzingAttachment);
     }
 
     const activeSession = sessions.find(session => session.id === activeSessionId);
@@ -283,14 +326,14 @@ export const useChatStream = ({
       }
 
       if (isArxiv) {
-        setLoadingStatus(statusMessages.analyzingPaper);
+        setLoadingStatus(status.analyzingPaper);
         finalAttachments.push({ fileName: 'arxiv.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[ARXIV_PDF_LINK_QUEUED]';
         setLoadingStatus(null);
       } else if (isYoutube) {
         // fetch-url.ts 호출 제거: Gemini가 fileData로 영상을 직접 분석하므로 중복
         // 제목/채널/description 텍스트 사전 수집 불필요 → 8~10초 절감
-        setLoadingStatus(statusMessages.watchingVideo);
+        setLoadingStatus(status.watchingVideo);
         youtubeContextUrl = url;
         setTimeout(() => setLoadingStatus(null), 3000);
       } else if (isPdf) {
@@ -300,7 +343,7 @@ export const useChatStream = ({
         // URL 파싱 실패 — fetch 시도하지 않음
       } else {
         try {
-          setLoadingStatus(statusMessages.fetchingUrl);
+          setLoadingStatus(status.fetchingUrl);
           const urlData = await fetchUrlData(url);
           const { content } = urlData;
 
