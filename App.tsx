@@ -85,74 +85,10 @@ const App: React.FC = () => {
 
 
   const i18n = {
-    ko: {
-      profileUpdated: "프로필 변경 완료",
-      profileUpdateFailed: "프로필 변경에 실패했습니다. 다시 시도해주세요.",
-      uploadFailed: "업로드 실패",
-      renameFailed: "이름 변경 실패",
-      analyzingImage: "이미지를 분석 중입니다...",
-      analyzingDoc: "문서를 분석 중입니다...",
-      analyzingFile: "파일을 분석 중입니다...",
-      analyzingPaper: "논문 데이터를 정밀하게 분석 중입니다...",
-      checkingYoutube: "유튜브 정보를 확인 중입니다...",
-      analyzingTranscript: "자막 데이터를 분석 중입니다...",
-      watchingVideo: "Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)",
-      analyzingVideo: "영상을 분석 중입니다...",
-      fetchingUrl: "URL에서 내용을 가져오는 중...",
-      preparingSession: "세션을 준비 중입니다",
-      identifyingPill: "약품 식별 중... (약학정보원 DB 조회)"
-    },
-    en: {
-      profileUpdated: "Profile updated",
-      profileUpdateFailed: "Failed to update profile. Please try again.",
-      uploadFailed: "Upload failed",
-      renameFailed: "Rename failed",
-      analyzingImage: "Analyzing image...",
-      analyzingDoc: "Analyzing document...",
-      analyzingFile: "Analyzing file...",
-      analyzingPaper: "Analyzing paper data in detail...",
-      checkingYoutube: "Checking YouTube info...",
-      analyzingTranscript: "Analyzing transcript data...",
-      watchingVideo: "Gemini is watching the video... (May take about 1 min)",
-      analyzingVideo: "Analyzing video...",
-      fetchingUrl: "Fetching content from URL...",
-      preparingSession: "Preparing session",
-      identifyingPill: "Identifying medication... (Searching database)"
-    },
-    es: {
-      profileUpdated: "Perfil actualizado",
-      profileUpdateFailed: "Error al actualizar el perfil. Por favor, inténtelo de nuevo.",
-      uploadFailed: "Error de subida",
-      renameFailed: "Error al renombrar",
-      analyzingImage: "Analizando imagen...",
-      analyzingDoc: "Analizando documento...",
-      analyzingFile: "Analizando archivo...",
-      analyzingPaper: "Analizando datos del artículo...",
-      checkingYoutube: "Comprobando información de YouTube...",
-      analyzingTranscript: "Analizando transcripción...",
-      watchingVideo: "Gemini está viendo el video... (Puede tomar 1 min)",
-      analyzingVideo: "Analizando video...",
-      fetchingUrl: "Obteniendo contenido de URL...",
-      preparingSession: "Preparando sesión",
-      identifyingPill: "Identificando medicamento... (Buscando base de datos)"
-    },
-    fr: {
-      profileUpdated: "Profil à jour",
-      profileUpdateFailed: "Échec de la mise à jour du profil. Veuillez réessayer.",
-      uploadFailed: "Échec d'envoi",
-      renameFailed: "Échec du renommage",
-      analyzingImage: "Analyse de l'image...",
-      analyzingDoc: "Analyse du document...",
-      analyzingFile: "Analyse du fichier...",
-      analyzingPaper: "Analyse des données de l'article...",
-      checkingYoutube: "Vérification des infos YouTube...",
-      analyzingTranscript: "Analyse de la transcription...",
-      watchingVideo: "Gemini regarde la vidéo... (Peut prendre 1 min)",
-      analyzingVideo: "Analyse de la vidéo...",
-      fetchingUrl: "Récupération du contenu URL...",
-      preparingSession: "Préparation de la session",
-      identifyingPill: "Identification du médicament... (Recherche database)"
-    }
+    ko: { profileUpdateFailed: "프로필 변경에 실패했습니다. 다시 시도해주세요." },
+    en: { profileUpdateFailed: "Failed to update profile. Please try again." },
+    es: { profileUpdateFailed: "Error al actualizar el perfil. Por favor, inténtelo de nuevo." },
+    fr: { profileUpdateFailed: "Échec de la mise à jour du profil. Veuillez réessayer." },
   };
 
   const t = i18n[language] || i18n.ko;
@@ -171,16 +107,6 @@ const App: React.FC = () => {
     currentUser,
     language,
     selectedModel,
-    statusMessages: {
-      uploadFailed: t.uploadFailed,
-      analyzingImage: t.analyzingImage,
-      analyzingPaper: t.analyzingPaper,
-      checkingYoutube: t.checkingYoutube,
-      analyzingTranscript: t.analyzingTranscript,
-      watchingVideo: t.watchingVideo,
-      fetchingUrl: t.fetchingUrl,
-      identifyingPill: t.identifyingPill,
-    },
     onError: (message) => showToast(message, 'error'),
   });
 
@@ -248,7 +174,6 @@ const App: React.FC = () => {
 
       // 3. UI 프로필 상태 업데이트
       setUserProfile(profile);
-      // showToast(t.profileUpdated, "success");
     } catch (e: any) {
       showToast(t.profileUpdateFailed, "error");
     }

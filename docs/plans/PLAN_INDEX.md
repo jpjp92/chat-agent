@@ -1,0 +1,62 @@
+# Plan Index
+
+> 작성일: 2026-06-03  
+> 상태: Living index — active priorities, historical plans, and backlog references  
+> Purpose: separate active work, completed historical plans, and backlog references.
+
+---
+
+## Active Priorities
+
+| Priority | Area | Plan | Status | Next action |
+|---:|---|---|---|---|
+| P0 | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Verification guide exists | Apply redirect-blocking fixes from `docs/TODO.md` P0 and rerun security checks |
+| P1 | Image generation (test/policy) | [PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md](PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md) | 1st test complete, policy/routing design done | Add Korean case-set, report aggregation, intent/layout guardrail tests |
+| P1 | Image generation (integration) | [PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md](PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md) | Integration design approved | Start P0: extract `server/image/` core modules from test script |
+| P1 | i18n cleanup | [PLAN_I18N_CLEANUP_260602.md](PLAN_I18N_CLEANUP_260602.md) | Steps 1·2 done (2026-06-04) | Decide step 3 shared-module boundary before extracting `src/i18n/` |
+| P1 | Mobile/session UX | [../TODO.md](../TODO.md) | Backlog item | Add minimum recovery for missing current session on mobile resume |
+| P2 | Frontend performance | [PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md](PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md) | Measured, selected quick wins | Apply quick wins after P0/P1 stability work |
+| P2 | Search/thinking latency | [PLAN_THINKING_LATENCY_260602.md](PLAN_THINKING_LATENCY_260602.md) | Major fix applied, residual checks remain | Recheck non-search `thinkingLevel: "low"` before changing |
+
+---
+
+## Image Generation Plan Split
+
+The current Image2 document is intentionally broad: it contains raw test results, service policy, routing design, Korean QA, and implementation notes. Before implementation, split the work mentally into these tracks:
+
+| Track | Source section | Deliverable |
+|---|---|---|
+| Test evidence | 1st generation results, subtype/style smoke tests, cost observation | Report aggregation script and quality/cost summary table |
+| Korean QA | Korean normal/dense/style tests, Korean test matrix | `--case-set korean` and manual QA checklist |
+| Routing design | Language routing, intent-based generation control, layout taxonomy | Typed schema and deterministic prompt builder rules |
+| Service limits | Usage limits, queue policy, metering fields | Job table/queue design and credit policy |
+| UI integration | Implementation considerations | Image job status UI and result renderer |
+
+Recommended next order:
+
+1. Add report aggregation for existing `report-*.json`.
+2. Add `--case-set korean` without changing production code.
+3. Run only low-cost Korean/layout tests needed to close decision gaps.
+4. Convert the tested schema into production router/prompt-builder code.
+5. Add queue/limit/metering before exposing image generation broadly.
+
+---
+
+## Completed Or Historical Plans
+
+| Plan | Current use |
+|---|---|
+| [PLAN_NEXTJS_MIGRATION.md](PLAN_NEXTJS_MIGRATION.md) | Historical reference. Next.js migration completed. |
+| [PLAN_LATENCY_SEARCH_ROUTING.md](PLAN_LATENCY_SEARCH_ROUTING.md) | Historical + residual reference. Main routing implementation completed. |
+| [PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md](PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md) | Change summary for completed latency search routing work. |
+| [PLAN_DB_MIGRATION.md](PLAN_DB_MIGRATION.md) | Evergreen migration/reference doc. Use only when Supabase project migration is active. |
+| [PLAN_ERROR_HANDLING.md](PLAN_ERROR_HANDLING.md) | Architecture reference and backlog. |
+
+---
+
+## Cleanup Rules
+
+- Keep detailed experiment logs in dated plan files.
+- Keep implementation priorities in this index and `docs/TODO.md`.
+- When a dated plan becomes implemented, record the implementation in `docs/logs/DEV_YYMMDD.md` and move remaining work into `docs/TODO.md`.
+- Avoid editing completed historical plans unless correcting factual errors or adding a clear completion note.
