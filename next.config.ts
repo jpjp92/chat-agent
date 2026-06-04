@@ -5,9 +5,7 @@ const nextConfig: NextConfig = {
   // Do NOT set runtime: 'edge' globally
   outputFileTracingIncludes: {
     '/api/fetch-url': [
-      './node_modules/@sparticuz/chromium/bin/al2023.tar.br',
-      './node_modules/@sparticuz/chromium/bin/chromium.br',
-      './node_modules/@sparticuz/chromium/bin/fonts.tar.br',
+      './node_modules/@sparticuz/chromium/bin/**/*',
       './node_modules/playwright-core/browsers.json',
     ],
   },
