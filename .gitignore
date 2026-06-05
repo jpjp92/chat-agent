@@ -66,3 +66,10 @@ scripts/_*
 scripts/card-preview.html
 scripts/image-gen-output/
 scripts/openai-image2-pipeline-test.mjs
+scripts/audit-browserless-unblock.mjs
+scripts/audit-scrapedo-url-fetch.mjs
+scripts/audit-scraperapi-url-fetch.mjs
+scripts/audit-scrapingbee-url-fetch.mjs
+scripts/audit-wikidocs-markdown-cleaner.mjs
+scripts/audit-wikidocs-url-fetch.mjs
+scripts/lib/wikidocs-markdown-cleaner.mjs

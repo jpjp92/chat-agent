@@ -354,7 +354,7 @@ export const useChatStream = ({
             console.warn('[useChatStream] URL fetch failed —', isSecurityBlock ? 'security block' : 'empty/error');
             urlFetchError = true;
             if (isSecurityBlock) {
-              webContext += `\n\n[URL_SECURITY_BLOCKED: ${url}]\n이 URL은 보안 인증(CAPTCHA/Cloudflare 차단)으로 인해 서버에서 직접 접근할 수 없습니다. 사용자에게 이 사실을 알리고, 페이지 본문을 직접 붙여넣거나 접근 가능한 URL을 제공해달라고 안내하세요. 다른 검색 결과로 대체하지 마세요.`;
+              webContext += `\n\n[URL_SECURITY_BLOCKED: ${url}]\n이 URL은 보안 인증(CAPTCHA/Cloudflare 차단), 접속 제한 또는 사이트 정책으로 인해 서버에서 직접 접근할 수 없습니다. 사용자에게 이 사실을 간단히 알리세요. 다른 검색 결과로 대체하지 마세요.`;
             } else {
               webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
             }

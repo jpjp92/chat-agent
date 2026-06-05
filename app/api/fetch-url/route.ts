@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchRenderedUrlContent } from './playwright-fallback';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
 
 const SSRF_BLOCK = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i;
 
@@ -11,10 +12,48 @@ const isJinaSecurityBlock = (text: string) => {
     return t.includes('just a moment') || t.includes('performing security verification') ||
         t.includes('security service to protect') || t.includes('warning: target url returned error 403') ||
         t.includes('warning: this page maybe requiring captcha') ||
-        t.includes('verifying you are not a bot') || t.includes('please enable cookies');
+        t.includes('verifying you are not a bot') || t.includes('please enable cookies') ||
+        t.includes('cloudflare') || t.includes('cf-ray') ||
+        t.includes('보안 확인 수행 중') || t.includes('악의적인 봇') ||
+        t.includes('잠시만 기다리십시오');
 };
 
 const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
+
+const extractReadableContent = (html: string) => {
+    const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '';
+    const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] || html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] || '';
+
+    let cleaned = html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+        .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
+
+    const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i) || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+    const divMatch = !semanticMatch && (
+        cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:page[-_]content|book[-_]content|book_content|article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
+    );
+    const selector = semanticMatch
+        ? (semanticMatch[0].toLowerCase().startsWith('<article') ? 'article' : 'main')
+        : divMatch
+            ? 'content'
+            : 'body';
+    const bodyHtml = semanticMatch ? (semanticMatch[1] || semanticMatch[0]) : divMatch ? divMatch[2] : cleaned;
+    const bodyText = bodyHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 15000);
+
+    let content = '';
+    if (ogTitle) content += `제목: ${ogTitle.trim()}\n`;
+    if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
+    content += bodyText;
+
+    return {
+        content: content.trim().slice(0, 17000),
+        bodyText,
+        ogTitle,
+        ogDesc,
+        selector,
+    };
+};
 
 export async function POST(req: NextRequest) {
     const { url } = await req.json();
@@ -33,7 +72,7 @@ export async function POST(req: NextRequest) {
             targetUrl = url.replace('arxiv.org/pdf/', 'arxiv.org/abs/').replace('.pdf', '');
         }
         const targetHostname = new URL(targetUrl).hostname.toLowerCase();
-        const useWikidocsPlaywrightFallback = isWikidocsHost(targetHostname);
+        const useWikidocsScraperApiFallback = isWikidocsHost(targetHostname);
 
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const oembedCtrl = new AbortController();
@@ -100,52 +139,93 @@ export async function POST(req: NextRequest) {
             } catch { return null; } finally { clearTimeout(jt); }
         };
 
+        const scraperApiFetch = async () => {
+            const apiKey = process.env.SCRAPER_KEY || process.env.SCRAPERAPI_KEY;
+            if (!apiKey) {
+                console.warn('[fetch-url] ScraperAPI fallback skipped: SCRAPER_KEY missing', { url: targetUrl });
+                return null;
+            }
+
+            const sCtrl = new AbortController();
+            const st = setTimeout(() => sCtrl.abort(), 40000);
+            try {
+                const params = new URLSearchParams({
+                    api_key: apiKey,
+                    url: targetUrl,
+                    render: 'true',
+                });
+                const res = await fetch(`https://api.scraperapi.com/?${params.toString()}`, {
+                    signal: sCtrl.signal,
+                    headers: { Accept: 'text/html, text/plain, */*' },
+                });
+                const renderedHtml = await res.text();
+                const extracted = extractReadableContent(renderedHtml);
+                const cost = res.headers.get('sa-credit-cost');
+                const finalUrl = res.headers.get('sa-final-url');
+                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+
+                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock) {
+                    console.info('[fetch-url] ScraperAPI fallback succeeded', {
+                        url: targetUrl,
+                        status: res.status,
+                        finalUrl,
+                        selector: extracted.selector,
+                        textChars: extracted.bodyText.length,
+                        cost,
+                    });
+                    return extracted.content;
+                }
+
+                console.warn('[fetch-url] ScraperAPI fallback failed', {
+                    url: targetUrl,
+                    status: res.status,
+                    finalUrl,
+                    selector: extracted.selector,
+                    textChars: extracted.bodyText.length,
+                    cost,
+                    sample: extracted.bodyText.slice(0, 180),
+                });
+                return null;
+            } catch (error: any) {
+                console.warn('[fetch-url] ScraperAPI fallback error', {
+                    url: targetUrl,
+                    error: error?.message ?? String(error),
+                });
+                return null;
+            } finally {
+                clearTimeout(st);
+            }
+        };
+
         if (directFetchBlocked) {
-            if (useWikidocsPlaywrightFallback) {
-                const renderedText = await fetchRenderedUrlContent(targetUrl);
-                if (renderedText) return NextResponse.json({ content: renderedText });
-                return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+            if (useWikidocsScraperApiFallback) {
+                const scraperText = await scraperApiFetch();
+                if (scraperText) return NextResponse.json({ content: scraperText });
+                return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
             }
 
             const jinaText = await jinaFetch();
             if (jinaText) return NextResponse.json({ content: jinaText });
-            return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+            return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }
 
-        const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '';
-        const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] || html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] || '';
-
-        let cleaned = html
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-            .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
-
-        const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i) || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-        const divMatch = !semanticMatch && (
-            cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
-        );
-        const bodyHtml = semanticMatch ? (semanticMatch[1] || semanticMatch[0]) : divMatch ? divMatch[2] : cleaned;
-        const bodyText = bodyHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 15000);
+        const extracted = extractReadableContent(html);
+        const bodyText = extracted.bodyText;
 
         if (bodyText.length < 300) {
-            if (useWikidocsPlaywrightFallback) {
-                const renderedText = await fetchRenderedUrlContent(targetUrl);
-                if (renderedText) return NextResponse.json({ content: renderedText });
-                return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+            if (useWikidocsScraperApiFallback) {
+                const scraperText = await scraperApiFetch();
+                if (scraperText) return NextResponse.json({ content: scraperText });
+                return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
             }
 
             const jinaText = await jinaFetch();
             if (jinaText) return NextResponse.json({ content: jinaText });
         }
 
-        let content = '';
-        if (ogTitle) content += `제목: ${ogTitle.trim()}\n`;
-        if (ogDesc) content += `요약: ${ogDesc.trim()}\n\n`;
-        content += bodyText;
-
-        if (!content.trim()) return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
-        return NextResponse.json({ content: content.trim().slice(0, 17000) });
+        if (!extracted.content.trim()) return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
+        return NextResponse.json({ content: extracted.content });
     } catch (error: any) {
-        return NextResponse.json({ content: '[FETCH_ERROR: 페이지를 가져올 수 없습니다.]' }, { status: 502 });
+        return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
     }
 }
