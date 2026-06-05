@@ -2,6 +2,13 @@ import chromiumBinary from '@sparticuz/chromium';
 import { chromium, type Page } from 'playwright-core';
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const EXTRA_HEADERS = {
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+};
 
 chromiumBinary.setGraphicsMode = false;
 
@@ -113,14 +120,19 @@ export const fetchRenderedUrlContent = async (url: string) => {
         slotAcquired = true;
 
         browser = await chromium.launch({
-            args: chromiumBinary.args,
+            args: [
+                ...chromiumBinary.args,
+                '--disable-blink-features=AutomationControlled',
+            ],
             executablePath: await chromiumBinary.executablePath(),
             timeout: 10000,
         });
 
         const context = await browser.newContext({
             locale: 'ko-KR',
+            timezoneId: 'Asia/Seoul',
             userAgent: USER_AGENT,
+            extraHTTPHeaders: EXTRA_HEADERS,
             viewport: { width: 1365, height: 900 },
         });
 
@@ -142,8 +154,10 @@ export const fetchRenderedUrlContent = async (url: string) => {
                 console.warn('[fetch-url] Playwright fallback failed', {
                     url,
                     status: response?.status(),
+                    title,
                     selector: extracted.selector,
                     textChars: extracted.text.length,
+                    sample: extracted.text.slice(0, 240),
                 });
                 return null;
             }
