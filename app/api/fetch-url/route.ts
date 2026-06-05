@@ -4,6 +4,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
+const SCRAPER_API_TIMEOUT_MS = 52000;
 
 const SSRF_BLOCK = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i;
 
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
             }
 
             const sCtrl = new AbortController();
-            const st = setTimeout(() => sCtrl.abort(), 40000);
+            const st = setTimeout(() => sCtrl.abort(), SCRAPER_API_TIMEOUT_MS);
             try {
                 const params = new URLSearchParams({
                     api_key: apiKey,
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
             } catch (error: any) {
                 console.warn('[fetch-url] ScraperAPI fallback error', {
                     url: targetUrl,
+                    timeoutMs: SCRAPER_API_TIMEOUT_MS,
                     error: error?.message ?? String(error),
                 });
                 return null;

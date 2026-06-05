@@ -32,7 +32,7 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 
 | Renderer | Intent | Trigger | Library |
 |---|---|---|---|
-| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별 | MFDS + pharm.or.kr + ConnectDI |
+| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별 | MFDS `mfds_pills` + MFDS API + ConnectDI |
 | 🏥 Pharmacy-Viz | `pharmacy_search` | 약국 위치 탐색 | 공공데이터포털 전국 약국 API ⚠️ 만료 2028-05-06 |
 | 🏨 Hospital-Viz | `hospital_search` | 병원·의원 위치 탐색 | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
 | 🐾 Vet-Viz | `vet_search` | 동물병원 위치 탐색 | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10 |
@@ -46,9 +46,9 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 ### 1-4. 💊 Drug-Viz — Pill Identification Engine
 
 - **Image-based pill identification**: Ambiguous image requests ("이거 뭐야?") route to Vision node and extract imprint / color / shape
-- **Deterministic DB lookup**: Extracted pill properties stored in `state.pillData`; server directly queries pharm.or.kr without an extra LLM call
+- **Deterministic DB lookup**: Extracted pill properties stored in `state.pillData`; server queries the local MFDS `mfds_pills` table before falling back to legacy lookup paths
 - **No raw vision JSON leakage**: Vision node streams are filtered from SSE; raw extraction JSON never reaches user-visible context
-- **Exact-match safety policy**: Only `match_type = exact` may become a `json:drug` card; `imprint_only` / `similar` results return a candidate table with pharm.or.kr detail links
+- **Exact-match safety policy**: Only `match_type = exact` may become a `json:drug` card; `imprint_only` / `similar` results return a candidate table
 - **ConnectDI image sync**: Drug cards use ConnectDI HTML parsing and Supabase caching for image reliability
 - **DDG fallback**: Text drug-info requests not found in MFDS fall back to DuckDuckGo search with source chips
 
@@ -74,7 +74,7 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null`
 - **Error sanitization**: Internal error details (`error.message`, stack) never forwarded to the client; status-code-based localized messages only
 - **Safety block handling**: `finishReason === 'SAFETY'` propagated as a distinct `safety` error type with 4-language user messages; no unnecessary key retry
-- **Request timeout protection**: All external fetches capped with `AbortController` (YouTube HTML 25s, MFDS/pharm.or.kr/DDG 8s, nedrug image 6s)
+- **Request timeout protection**: External fetches are capped with `AbortController` (`fetch-url` direct 10s / Jina 20s / ScraperAPI 52s, YouTube metadata 8-10s, MFDS/DDG 8s, nedrug image 6s)
 
 ---
 
@@ -94,6 +94,12 @@ flowchart TB
         Renderers["Visualization Renderers - Drug / Pharmacy / Hospital / Vet / Law / Science / Chart"]
     end
 
+    subgraph URLFetchAPI ["Vercel /api/fetch-url"]
+        DirectFetch["Direct HTML fetch"]
+        JinaFallback["Jina reader fallback"]
+        ScraperFallback["Wikidocs ScraperAPI render fallback"]
+    end
+
     subgraph ChatAPI ["Vercel /api/chat"]
         Router["Semantic Router - LLM + intentRules fallback"]
         Vision["Vision Node - pill image preprocessing"]
@@ -102,7 +108,7 @@ flowchart TB
     end
 
     subgraph Tools ["Server Tools"]
-        DrugLookup["identify_pill - pharm.or.kr"]
+        DrugLookup["identify_pill - MFDS mfds_pills"]
         DrugInfo["search_drug_info - MFDS + DDG"]
         LocationTools["pharmacy / hospital / vet"]
         LawTool["lawTool"]
@@ -113,7 +119,8 @@ flowchart TB
         Gemini[["Google Gemini AI"]]
         Supabase[("Supabase")]
         PublicAPIs[["Public APIs - MFDS / HIRA / Law / Vet"]]
-        DrugSites[["Drug Sources - pharm.or.kr / ConnectDI"]]
+        DrugSites[["Drug Sources - MFDS nedrug / ConnectDI"]]
+        URLProviders[["URL Providers - Jina / ScraperAPI"]]
     end
 
     Out([Rendered Answer + source chips])
@@ -121,6 +128,14 @@ flowchart TB
     %% Request (input) path - solid
     In --> UI
     UI --> Stream
+    Stream -->|URL prompt prefetch| DirectFetch
+    DirectFetch -->|non-wikidocs blocked or short body| JinaFallback
+    DirectFetch -->|wikidocs blocked or short body| ScraperFallback
+    JinaFallback <--> URLProviders
+    ScraperFallback <--> URLProviders
+    DirectFetch -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
+    JinaFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
+    ScraperFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
     Stream -->|POST /api/chat| Router
     Router -->|drug_id image| Vision
     Router -->|other intents| Generator
@@ -168,6 +183,8 @@ Branch rules:
 - SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`)
 - LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
+- Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
+- Wikidocs direct fetch failures use ScraperAPI `render=true` as a domain-specific fallback; other blocked/short pages use Jina before returning an exact-URL failure notice
 - Renderer intents disable Google Search unless the user explicitly requests search/sources/latest information
 - 3.5 Flash free-tier grounding uses a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
 
@@ -216,7 +233,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 
 | Tool | File | Purpose |
 |---|---|---|
-| `identify_pill` | `server/agent/tools.ts` | MFDS `mfds_pills` DB 1순위 → pharm.or.kr fallback; imprint / color / shape 3-stage match |
+| `identify_pill` | `server/agent/tools.ts` | MFDS `mfds_pills` DB first; imprint / color / shape 3-stage match with legacy fallback |
 | `search_web` | `server/agent/tools.ts` | DuckDuckGo HTML fallback search and source extraction |
 | `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback |
 | `pharmacyTool` | `server/agent/pharmacy-tool.ts` | National pharmacy search |
@@ -231,6 +248,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 - SDK responses send text directly via `sendEvent`
 - LangChain `on_chat_model_stream` chunks are sanitized before forwarding
 - Vision node chunks are filtered out (contain internal JSON extraction data)
+- Exact URL fetch failures are short-circuited to a localized access-limitation notice; the system does not summarize substitute search results for that URL
 - Tool source URLs parsed from `[WEB_SOURCE_URLS]` and emitted as source chips
 - Fast-pass renderers stream completed `json:pharmacy`, `json:hospital`, `json:vet`, `json:law` blocks without an extra LLM synthesis step
 - Final assistant content saved to Supabase after streaming completes
@@ -314,7 +332,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │       ├── pill-search/route.ts
 │       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
 │       ├── upload/route.ts     # Supabase Storage upload proxy
-│       ├── fetch-url/route.ts  # Web scraping + Jina AI fallback
+│       ├── fetch-url/route.ts  # URL prefetch: direct HTML + Jina + wikidocs ScraperAPI fallback
 │       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
 │       ├── auth/route.ts
 │       ├── create-signed-url/route.ts
@@ -361,9 +379,13 @@ How API routes write to PostgreSQL tables and Storage buckets.
 ├── docs/                       # See §4-1 for naming conventions
 │   ├── DEV_HISTORY.md          # Dev history index (one line per session)
 │   ├── TODO.md
-│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260602.md)
+│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260605.md)
 │   ├── plans/PLAN_*.md         # Plan / design / analysis docs (start with PLAN_INDEX.md)
 │   └── guide/REF_*.md          # Renderer & feature reference guides
+├── scripts/                    # Local audit, migration, and integration test scripts
+│   ├── audit-*.mjs             # URL/provider audits and feature diagnostics
+│   ├── test-*.mjs|ts|js        # Local integration/regression checks
+│   └── lib/                    # Script-only helpers
 ├── App.tsx                     # Root component (layout + hooks composition)
 ├── next.config.ts              # Security headers
 ├── types.ts                    # Shared TypeScript types
@@ -408,6 +430,10 @@ MFDS_API_KEY=your_mfds_key
 PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용 (만료 2028-05-06/07)
 VET_KEY=your_animal_hospital_api_key                    # 행정안전부 동물병원 (만료 2028-05-10)
 LAW_OC=your_law_openapi_oc                              # 국가법령정보센터 OC 코드
+
+# URL fetch fallback
+SCRAPER_KEY=your_scraperapi_key                         # optional: wikidocs render fallback
+# SCRAPERAPI_KEY=your_scraperapi_key                    # alternative env name
 ```
 
 ### 5-2. Install & run
