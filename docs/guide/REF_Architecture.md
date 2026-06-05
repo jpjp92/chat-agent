@@ -61,6 +61,37 @@ flowchart TB
 
 ---
 
+## URL Prefetch And Fallback Flow
+
+Exact URL prompts are fetched before `/api/chat` so the generator can use the page body as the primary source and disable Google Search for that turn.
+
+```mermaid
+flowchart TB
+    Prompt["User prompt with URL"]
+    Stream["useChatStream"]
+    FetchURL["/api/fetch-url\nnodejs runtime, maxDuration 60"]
+    Direct["Direct HTML fetch\n10s"]
+    Jina["Jina reader fallback\n20s"]
+    Scraper["ScraperAPI render fallback\nwikidocs only, 52s"]
+    Content["[URL_CONTENT]\npage text injected into webContent"]
+    Failed["[URL_FETCH_FAILED] / [URL_SECURITY_BLOCKED]\nlocalized access-limitation notice"]
+    Chat["/api/chat"]
+    Generator["Generator\nGoogle Search disabled when URL_CONTENT exists"]
+
+    Prompt --> Stream --> FetchURL --> Direct
+    Direct -- "ok + readable body" --> Content
+    Direct -- "blocked / short body, non-wikidocs" --> Jina
+    Direct -- "blocked / short body, wikidocs" --> Scraper
+    Jina -- "ok" --> Content
+    Jina -- "failed" --> Failed
+    Scraper -- "ok" --> Content
+    Scraper -- "failed" --> Failed
+    Content --> Chat --> Generator
+    Failed --> Chat
+```
+
+---
+
 ## Pill Image Identification Flow
 
 Image identification fast-path: router → vision extraction → direct DB lookup → exact card / candidate table / failure.
