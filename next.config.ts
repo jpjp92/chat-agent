@@ -3,13 +3,6 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // API routes use Node.js runtime (Gemini SDK, LangGraph, Supabase service role)
   // Do NOT set runtime: 'edge' globally
-  outputFileTracingIncludes: {
-    '/api/fetch-url': [
-      './node_modules/@sparticuz/chromium/bin/**/*',
-      './node_modules/playwright-core/browsers.json',
-    ],
-  },
-
   // Security headers (ported from vercel.json)
   async headers() {
     return [
