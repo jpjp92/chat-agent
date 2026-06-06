@@ -11,7 +11,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { Client } from '@notionhq/client';
@@ -31,6 +31,7 @@ for (const envFile of ['.env', '.env.local']) {
 // ── 설정 ──────────────────────────────────────────────────────────────────────
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const DATABASE_ID = process.env.NOTION_DEV_RECORDS_DB_ID;
+const CACHE_FILE = resolve(__dir, '.synced-hashes.json');
 
 if (!NOTION_TOKEN) {
   console.error('❌ NOTION_TOKEN 환경변수가 없습니다.');
@@ -42,6 +43,19 @@ if (!DATABASE_ID) {
 }
 
 const notion = new Client({ auth: NOTION_TOKEN });
+
+// ── 중복 방지 캐시 ────────────────────────────────────────────────────────────
+function loadCache() {
+  try {
+    return new Set(JSON.parse(readFileSync(CACHE_FILE, 'utf-8')));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCache(cache) {
+  writeFileSync(CACHE_FILE, JSON.stringify([...cache], null, 2));
+}
 
 // ── 인자 파싱 ─────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -71,20 +85,31 @@ function getCommits() {
 
   return output.split('\n').map(line => {
     const [hash, dateStr, subject, ...bodyParts] = line.split('|');
+    // dateStr 예: "2026-06-05 16:11:55 +0900"
+    const [datePart, timePart, tzPart] = (dateStr ?? '').trim().split(' ');
     return {
       hash: hash?.substring(0, 8),
-      date: dateStr?.split(' ')[0],
+      fullHash: hash?.trim(),
+      date: datePart,        // "2026-06-05"
+      time: timePart,        // "16:11:55"
+      tz: tzPart,            // "+0900"
       subject: subject?.trim(),
       body: bodyParts.join(' ').trim(),
     };
-  }).filter(c => c.hash && c.subject);
+  }).filter(c => c.hash && c.subject && c.date);
+}
+
+// ── ISO 8601 datetime (Notion date with time) ─────────────────────────────────
+function toNotionDatetime(commit) {
+  // "+0900" → "+09:00"
+  const tz = commit.tz?.replace(/([+-]\d{2})(\d{2})/, '$1:$2') ?? '+00:00';
+  return `${commit.date}T${commit.time}${tz}`;
 }
 
 // ── 커밋 → Notion 속성 매핑 ───────────────────────────────────────────────────
 function classifyCommit(subject) {
   const s = subject.toLowerCase();
 
-  // 카테고리 추론
   let categories = [];
   if (s.startsWith('feat')) categories.push('기능개발');
   if (s.startsWith('fix')) categories.push('버그수정');
@@ -94,7 +119,6 @@ function classifyCommit(subject) {
   if (s.startsWith('test') || s.includes('테스트')) categories.push('기능개발');
   if (categories.length === 0) categories.push('기능개발');
 
-  // 기술스택 추론
   const stacks = [];
   if (s.includes('react') || s.includes('tsx') || s.includes('컴포넌트')) stacks.push('React');
   if (s.includes('typescript') || s.includes('ts')) stacks.push('TypeScript');
@@ -103,10 +127,9 @@ function classifyCommit(subject) {
   if (s.includes('docker')) stacks.push('Docker');
   if (s.includes('aws')) stacks.push('AWS');
   if (s.includes('supabase') || s.includes('db') || s.includes('sql') || s.includes('데이터')) stacks.push('DB');
-  if (s.includes('vercel') || s.includes('playwright') || s.includes('scraperapi')) stacks.push('Node.js');
-  if (stacks.length === 0) stacks.push('TypeScript'); // 기본값
+  if (s.includes('vercel') || s.includes('playwright') || s.includes('scraperapi') || s.includes('notion')) stacks.push('Node.js');
+  if (stacks.length === 0) stacks.push('TypeScript');
 
-  // 중복 제거
   return {
     categories: [...new Set(categories)],
     stacks: [...new Set(stacks)],
@@ -116,7 +139,6 @@ function classifyCommit(subject) {
 function buildNotionPayload(commit) {
   const { categories, stacks } = classifyCommit(commit.subject);
 
-  // fix: / feat: / refactor: 프리픽스를 제거한 깔끔한 제목
   const cleanTitle = `[chat-agent] ${commit.subject
     .replace(/^(feat|fix|refactor|docs|test|chore|style|ci|build|perf):\s*/i, '')
     .trim()}`;
@@ -134,7 +156,10 @@ function buildNotionPayload(commit) {
         select: { name: '완료' },
       },
       '날짜': {
-        date: { start: commit.date },
+        date: {
+          start: toNotionDatetime(commit),
+          time_zone: 'Asia/Seoul',
+        },
       },
       '카테고리': {
         multi_select: categories.map(name => ({ name })),
@@ -143,7 +168,7 @@ function buildNotionPayload(commit) {
         multi_select: stacks.map(name => ({ name })),
       },
       '참고링크': {
-        url: `https://github.com/jpjp92/chat-agent/commit/${commit.hash}`,
+        url: `https://github.com/jpjp92/chat-agent/commit/${commit.fullHash}`,
       },
     },
   };
@@ -153,14 +178,16 @@ function buildNotionPayload(commit) {
 async function main() {
   console.log(`\n📋 Notion DEV Records 동기화 시작 ${dryRun ? '(dry-run)' : ''}\n`);
 
+  const cache = loadCache();
   const commits = getCommits();
+
   if (commits.length === 0) {
     console.log('⚠️  처리할 커밋이 없습니다.');
     return;
   }
 
   console.log(`🔍 커밋 ${commits.length}개 발견:\n`);
-  commits.forEach(c => console.log(`  ${c.hash} [${c.date}] ${c.subject}`));
+  commits.forEach(c => console.log(`  ${c.hash} [${c.date} ${c.time}] ${c.subject}`));
   console.log();
 
   let created = 0;
@@ -171,26 +198,29 @@ async function main() {
     const title = payload.properties['제목'].title[0].text.content;
     const { categories, stacks } = classifyCommit(commit.subject);
 
+    // 캐시 기반 중복 체크
+    if (cache.has(commit.fullHash)) {
+      console.log(`⏭️  이미 동기화됨: "${title}"`);
+      skipped++;
+      continue;
+    }
+
     if (dryRun) {
       console.log(`[dry-run] ✅ "${title}"`);
-      console.log(`         카테고리: ${categories.join(', ')} | 스택: ${stacks.join(', ')} | 날짜: ${commit.date}`);
+      console.log(`         카테고리: ${categories.join(', ')} | 스택: ${stacks.join(', ')} | 날짜: ${toNotionDatetime(commit)}`);
       continue;
     }
 
     try {
       await notion.pages.create(payload);
+      cache.add(commit.fullHash);
+      saveCache(cache);
       console.log(`✅ 생성됨: "${title}"`);
       created++;
-      // Notion API rate limit 방지 (3req/s 권장)
+      // Notion API rate limit 방지
       await new Promise(r => setTimeout(r, 350));
     } catch (err) {
-      // conflict(중복 URL) 에러는 스킵으로 처리
-      if (err.message?.includes('already exists') || err.status === 409) {
-        console.log(`⏭️  이미 존재함: "${title}"`);
-        skipped++;
-      } else {
-        console.error(`❌ 실패: "${title}" — ${err.message}`);
-      }
+      console.error(`❌ 실패: "${title}" — ${err.message}`);
     }
   }
 

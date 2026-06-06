@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase, supabaseAdmin } from '../../../server/supabase';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
-const SCRAPER_API_TIMEOUT_MS = 52000;
+const SCRAPER_API_TIMEOUT_MS = 45000;
+const BROWSERLESS_TIMEOUT_MS = 30000;
+const BROWSERLESS_BASE = (process.env.BROWSERLESS_REST_URL || 'https://production-sfo.browserless.io').replace(/\/+$/, '');
+const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14일
+
+// cache 쓰기는 서비스키 우선(없으면 anon). 근거: docs/logs/DEV_260606.md §11
+const db = supabaseAdmin ?? supabase;
 
 const SSRF_BLOCK = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i;
 
@@ -20,6 +27,28 @@ const isJinaSecurityBlock = (text: string) => {
 };
 
 const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
+
+const normalizeKey = (u: string) => {
+    try { const url = new URL(u); url.hash = ''; return url.toString(); } catch { return u; }
+};
+
+const getCached = async (key: string): Promise<string | null> => {
+    try {
+        const { data, error } = await db.from('url_cache').select('content, fetched_at').eq('url_key', key).maybeSingle();
+        if (error || !data) return null;
+        if (Date.now() - new Date(data.fetched_at).getTime() > CACHE_TTL_MS) return null;
+        return data.content as string;
+    } catch { return null; }
+};
+
+const setCached = async (key: string, content: string, provider: string): Promise<void> => {
+    try {
+        await db.from('url_cache').upsert(
+            { url_key: key, content, status: 'ok', provider, fetched_at: new Date().toISOString() },
+            { onConflict: 'url_key' },
+        );
+    } catch { /* 캐시는 best-effort */ }
+};
 
 const extractReadableContent = (html: string) => {
     const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1] || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '';
@@ -73,7 +102,15 @@ export async function POST(req: NextRequest) {
             targetUrl = url.replace('arxiv.org/pdf/', 'arxiv.org/abs/').replace('.pdf', '');
         }
         const targetHostname = new URL(targetUrl).hostname.toLowerCase();
-        const useWikidocsScraperApiFallback = isWikidocsHost(targetHostname);
+        const useCloudflareUnblock = isWikidocsHost(targetHostname);
+        const cacheKey = normalizeKey(targetUrl);
+
+        // 1) 캐시 조회 — HIT면 즉시 반환 (browserless/scraper unit 절약)
+        const cached = await getCached(cacheKey);
+        if (cached) {
+            console.info('[fetch-url] cache hit', { url: targetUrl });
+            return NextResponse.json({ content: cached, cached: true });
+        }
 
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const oembedCtrl = new AbortController();
@@ -140,6 +177,48 @@ export async function POST(req: NextRequest) {
             } catch { return null; } finally { clearTimeout(jt); }
         };
 
+        // browserless /unblock (datacenter) — Cloudflare 1차 우회. 근거: DEV_260606.md §11
+        const browserlessFetch = async () => {
+            const token = process.env.BROWSERLESS_KEY || process.env.BROWSERLESS_TOKEN;
+            if (!token) {
+                console.warn('[fetch-url] browserless skipped: BROWSERLESS_KEY missing', { url: targetUrl });
+                return null;
+            }
+            const bCtrl = new AbortController();
+            const bt = setTimeout(() => bCtrl.abort(), BROWSERLESS_TIMEOUT_MS);
+            try {
+                const res = await fetch(`${BROWSERLESS_BASE}/unblock?token=${encodeURIComponent(token)}`, {
+                    method: 'POST',
+                    signal: bCtrl.signal,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: targetUrl, content: true }),
+                });
+                const raw = await res.text();
+                if (!res.ok) {
+                    console.warn('[fetch-url] browserless non-ok', { url: targetUrl, status: res.status, sample: raw.slice(0, 120) });
+                    return null;
+                }
+                let json: any;
+                try { json = JSON.parse(raw); } catch { json = { content: raw }; }
+                const cv = json.content || json.html || '';
+                const content = typeof cv === 'string' ? cv : JSON.stringify(cv);
+                const extracted = extractReadableContent(content);
+                // security-block 판정은 추출 본문만 (raw JSON의 cf_clearance 오탐 방지)
+                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                if (extracted.bodyText.length >= 300 && !securityBlock) {
+                    console.info('[fetch-url] browserless succeeded', { url: targetUrl, selector: extracted.selector, textChars: extracted.bodyText.length });
+                    return extracted.content;
+                }
+                console.warn('[fetch-url] browserless failed', { url: targetUrl, textChars: extracted.bodyText.length, securityBlock });
+                return null;
+            } catch (error: any) {
+                console.warn('[fetch-url] browserless error', { url: targetUrl, timeoutMs: BROWSERLESS_TIMEOUT_MS, error: error?.message ?? String(error) });
+                return null;
+            } finally {
+                clearTimeout(bt);
+            }
+        };
+
         const scraperApiFetch = async () => {
             const apiKey = process.env.SCRAPER_KEY || process.env.SCRAPERAPI_KEY;
             if (!apiKey) {
@@ -199,15 +278,24 @@ export async function POST(req: NextRequest) {
             }
         };
 
+        // Cloudflare 차단 사이트(wikidocs): browserless 1차(+1 재시도) → ScraperAPI 폴백 → 캐시 저장
+        const cloudflareUnblock = async (): Promise<string | null> => {
+            const bl = (await browserlessFetch()) || (await browserlessFetch()); // 일시적 500 대비 1회 재시도
+            if (bl) { await setCached(cacheKey, bl, 'browserless'); return bl; }
+            const sc = await scraperApiFetch();
+            if (sc) { await setCached(cacheKey, sc, 'scraperapi'); return sc; }
+            return null;
+        };
+
         if (directFetchBlocked) {
-            if (useWikidocsScraperApiFallback) {
-                const scraperText = await scraperApiFetch();
-                if (scraperText) return NextResponse.json({ content: scraperText });
+            if (useCloudflareUnblock) {
+                const text = await cloudflareUnblock();
+                if (text) return NextResponse.json({ content: text });
                 return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
             }
 
             const jinaText = await jinaFetch();
-            if (jinaText) return NextResponse.json({ content: jinaText });
+            if (jinaText) { await setCached(cacheKey, jinaText, 'jina'); return NextResponse.json({ content: jinaText }); }
             return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }
 
@@ -215,17 +303,18 @@ export async function POST(req: NextRequest) {
         const bodyText = extracted.bodyText;
 
         if (bodyText.length < 300) {
-            if (useWikidocsScraperApiFallback) {
-                const scraperText = await scraperApiFetch();
-                if (scraperText) return NextResponse.json({ content: scraperText });
+            if (useCloudflareUnblock) {
+                const text = await cloudflareUnblock();
+                if (text) return NextResponse.json({ content: text });
                 return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
             }
 
             const jinaText = await jinaFetch();
-            if (jinaText) return NextResponse.json({ content: jinaText });
+            if (jinaText) { await setCached(cacheKey, jinaText, 'jina'); return NextResponse.json({ content: jinaText }); }
         }
 
         if (!extracted.content.trim()) return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
+        await setCached(cacheKey, extracted.content, 'direct');
         return NextResponse.json({ content: extracted.content });
     } catch (error: any) {
         return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
