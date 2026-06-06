@@ -125,7 +125,9 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
  */
 export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); // 15초: 서버사이드 10초 + 네트워크 여유
+  // 35초: browserless /unblock 1차(성공 ~10~24s, 일시 500 재시도 포함)를 커버.
+  // 서버는 maxDuration 120s로 폴백/캐시까지 완주하므로, 더 느린 경우라도 재요청 시 캐시 HIT로 즉시 성공.
+  const timeout = setTimeout(() => controller.abort(), 35000);
   try {
     const response = await fetch('/api/fetch-url', {
       method: 'POST',
