@@ -691,7 +691,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     : 'max-w-[95%] sm:max-w-[85%]';
 
   return (
-    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} ${isUser ? 'mb-8' : 'mb-16 sm:mb-8'} group animate-in fade-in duration-500`}>
+    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} ${isUser ? 'mb-8' : 'mt-4 mb-10 sm:mt-0 sm:mb-8'} group animate-in fade-in duration-500`}>
       <div className={`flex ${outerMaxWidth} ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 sm:gap-4`}>
 
         {!isUser && (
