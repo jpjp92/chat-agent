@@ -1,59 +1,58 @@
-
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────────
 node_modules/
-/.pnp
+.pnp
 .pnp.js
 
-# Testing
-/coverage
-
-# Build outputs
+# ── Build outputs ─────────────────────────────────────────────
+/.next
 /dist
 /build
-/.next
+/coverage
 
-# TypeScript
+# ── TypeScript ────────────────────────────────────────────────
 next-env.d.ts
 *.tsbuildinfo
 
-# Environment variables
+# ── Environment variables ─────────────────────────────────────
 .env
 .env.local
 .env*.local
 .env.vercel
 .env.vercel.prod
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-out.txt
 
-# IDE / Editor
+# ── IDE / Editor ──────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Deployment
+# ── Deployment ────────────────────────────────────────────────
 .vercel/
 
-# Tools & AI assistants
+# ── AI / Tools ────────────────────────────────────────────────
 .superpowers/
 .understand-anything/
 .mcp.json
 .claude/
 
-# Reference / internal docs
+# ── Internal / Reference ──────────────────────────────────────
 reference/
 docs/SECURITY_VERIFICATION.md
 docs/superpowers/
+docs/notion/.synced-hashes.json
 
-# Root-level scratch files
+# ── Root-level scratch files ──────────────────────────────────
+out.txt
 test-supabase.ts
 test-port.js
 
-# Scripts — test, debug, one-off utilities
+# ── Scripts — audit, test, debug, one-off utilities ──────────
+scripts/audit-*
 scripts/test-*
 scripts/debug-*
 scripts/check-*
@@ -63,13 +62,7 @@ scripts/migrate-*
 scripts/verify-*
 scripts/sync-*
 scripts/_*
+scripts/lib/
 scripts/card-preview.html
 scripts/image-gen-output/
 scripts/openai-image2-pipeline-test.mjs
-scripts/audit-browserless-unblock.mjs
-scripts/audit-scrapedo-url-fetch.mjs
-scripts/audit-scraperapi-url-fetch.mjs
-scripts/audit-scrapingbee-url-fetch.mjs
-scripts/audit-wikidocs-markdown-cleaner.mjs
-scripts/audit-wikidocs-url-fetch.mjs
-scripts/lib/wikidocs-markdown-cleaner.mjs
