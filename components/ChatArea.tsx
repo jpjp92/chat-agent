@@ -37,7 +37,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     }, [messages, isTyping, loadingStatus]);
 
     return (
-        <div className="flex min-h-0 flex-col space-y-2 pt-4">
+        <div className="flex min-h-0 flex-col pt-4">
             <Suspense fallback={null}>
             {messages.map((msg) => (
                 <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} onEdit={onEdit} />
