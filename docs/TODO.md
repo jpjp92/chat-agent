@@ -4,52 +4,9 @@
 
 ---
 
-## 🔴 P0 — 보안 즉시 수정
-
-### SSRF 리다이렉트 차단
-
-`fetch()`가 302/301 리다이렉트를 자동 추적해 hostname 블록리스트 우회 가능. 공개 배포 상태에서 현재 구조로 독립 수정 가능.
-
-- [ ] `app/api/fetch-url/route.ts` — 일반 URL fetch에 `redirect: 'manual'` 또는 `redirect: 'error'` 적용
-- [ ] `app/api/fetch-url/route.ts` — YouTube page fetch 동일 정책 적용 검토
-- [ ] `app/api/proxy-image/route.ts` — 외부 이미지 fetch 리다이렉트 차단
-- [ ] 공통 helper — hostname/IP 차단 로직 중복 제거 + Location 헤더 재검증 구조로 정리
-- [ ] 회귀 검증 — 정상 URL 요약, Jina fallback, 프록시 이미지, 리다이렉트 차단 케이스
-
----
-
 ## 🟡 P1 — 기능 개선
 
-> 진행 순서: 모바일 공백 → 프롬프트 언어 → 멀티턴 경고 → 알약/차트/동물병원
-
-### 1. 모바일 초기 세션 공백
-
-`loadUserSessions()` 병합 보정으로 재현 빈도 감소. 최소 방어만 우선.
-
-- [ ] `useChatSessions.ts` — `currentSessionId` 있지만 `sessions`에서 찾지 못할 때 자동 복구
-- [ ] `ChatArea.tsx` — `Suspense fallback={null}` → 메시지 skeleton 표시 검토
-- [ ] 모바일 새로고침/앱 재개 후 첫 쿼리 수동 검증
-
-후순위 보류:
-- `ChatArea.tsx` — lazy chunk 로드 실패 재시도
-- 모바일 uncaught error / unhandled rejection 로그 수집
-- `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락 보정
-- `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback
-- `ChatInput.tsx` — `onSend` 완료 전 입력값·첨부 상태 보존
-- `useChatStream.ts` — `currentUser` 없음/세션 생성 실패 시 사용자 알림 + 입력 보존
-
-### 2. 프롬프트 언어 혼합 정리
-
-날씨 외 URL 요약·YouTube fallback·알약 DB fallback·router 설명의 언어 불일치 정리.
-
-- [ ] `prompt.ts` — URL summary placeholder 문구 언어별 분리
-- [ ] `prompt.ts` — YouTube fallback 안내 문장 언어별 분리
-- [ ] `prompt.ts` — `getPillWarnFallback` 다국어화
-- [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
-- [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용 검토
-- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리 (Phase P-B)
-
-### 3. 멀티턴 경고·차단
+### 1. 멀티턴 경고·차단
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
 
@@ -59,31 +16,16 @@
 - [ ] `ChatArea.tsx` — 차단 배너 + 새 채팅 버튼
 - [ ] `generator.ts` — 멀티턴 길이 기준 도달 시 thought signatures 제거 또는 히스토리 슬라이딩 윈도우 검토 (3.5 Flash thought preservation 비용 방지)
 
-### 4. 알약 식별 후속 개선
+### 2. ChartRenderer 차트 품질 개선
 
-- [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화 (`색상·모양` → `각인 검색 확장 및 색상/제형 유사도`)
-- [ ] `pill-logic.ts` — 추출 shape 기준 후보 정렬 보강 (타원형·장방형 상단 배치, 색상만 일치 후순위)
-- [ ] `drug-info-tool.ts` — 약품명 기반 조회에서 `mfds_pills` 로컬 1차 조회/fallback/cache 적용 검토 (`class_name`, `etc_otc_name`, `form_code_name`, `item_image`, 크기 필드 재사용)
-- [ ] `app/api/pill-search/route.ts` — `searchMfdsPills()` 우선 + `searchPill()` 폴백 구조 검토
-- [ ] `mfds-logic.ts` — 무각인/복수 후보 랭킹에 크기(`leng_long`/`leng_short`), 제형(`form_code_name`), 양면 색상(`color_class2`) 활용 검토
-- [ ] `mfds_pills` — 약품명 검색 랭킹 설계 (`mg`↔`밀리그램/밀리그람` 정규화, 정확 제품명/용량 일치 우선, 부분 문자열 오탐 방지)
-
-### 5. ChartRenderer 차트 품질 개선
+> 테스트 스크립트로 케이스 확인 후 작업
 
 - [ ] `prompt.ts` — `data_viz` intent에 차트 타입 선택 기준 명시 (시계열→bar/line, 비율→pie, 상관→scatter)
 - [ ] `prompt.ts` — `chartType` 선택 가이드 주석 보강 + 레이블 10자 이내 지시
-- [ ] `ChartRenderer.tsx` — x축 레이블 길이 초과 시 `\n` 줄바꿈 또는 45°/90° 회전
+- [x] `ChartRenderer.tsx` — x축 레이블 45°/55° 회전 적용 완료 (line 160, 204)
+- [ ] `ChartRenderer.tsx` — x축 레이블 너무 길 때 `\n` 줄바꿈 추가 검토
 - [ ] `ChartRenderer.tsx` — y축 단위 자동 단축 (`1000000` → `1M`, `10000` → `1만`)
 - [ ] `ChartRenderer.tsx` — `pie` 선택인데 항목 수 > 8이면 `bar`로 자동 보정
-
-### 6. 동물병원 상세정보 선택형 보강
-
-공공데이터 기본 검색 유지, 웹검색 기반 상세정보는 사용자 요청 시만 실행.
-
-- [ ] `VetRenderer.tsx` — 병원별 `상세 정보 찾기` 액션 UX 검토
-- [ ] `vet_search` 후속 흐름 — 선택된 병원 1곳 웹검색으로 영업시간/홈페이지/연락처 보강
-- [ ] 자동 보강 시 상위 1~3개로 제한, 실패해도 기본 카드 유지
-- [ ] 웹검색 보강 결과 출처/최신성 표기 방식 검토
 
 ---
 
@@ -100,17 +42,12 @@
 - [x] `chat/route.ts` — `updated_at` 수동 업데이트(`sessions` 별도 write) → DB trigger 자동화 완료 (`trg_message_updates_session`)
 
 **인덱스 확인**
-- [ ] Supabase에서 `chat_messages(session_id, created_at)` 복합 인덱스 존재 여부 확인 — 메시지 정렬 쿼리 핵심
-- [ ] `chat_sessions(user_id, updated_at DESC)` 인덱스 확인 — 세션 목록 정렬 핵심
-- [ ] `users(nickname)` 인덱스 확인 — 로그인 시 nickname lookup
-
-**캐싱 레이어**
-- [ ] `sessions/route.ts` — Next.js `unstable_cache` 또는 `revalidateTag` 적용 검토 (세션 목록 단기 캐시, 새 메시지 전송 시 invalidate)
-- [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 시 외부 API 재호출 방지용 인메모리 캐시 또는 Supabase 임시 테이블 캐시 검토 (TTL 1시간)
-- [ ] `drug-info-tool.ts` Google Search 결과 — 동일 약품명 반복 검색 캐싱 검토
+- [x] Supabase에서 `chat_messages(session_id, created_at)` 복합 인덱스 존재 여부 확인 — 메시지 정렬 쿼리 핵심
+- [x] `chat_sessions(user_id, updated_at DESC)` 인덱스 확인 — 세션 목록 정렬 핵심
+- [x] `users(nickname)` 인덱스 확인 — 로그인 시 nickname lookup (UNIQUE 인덱스로 커버)
 
 **연결 관리**
-- [ ] `server/supabase.ts` — Vercel Fluid Compute 환경에서 인스턴스 재사용 시 연결 누수 여부 확인
+- [x] `server/supabase.ts` — 싱글톤 패턴으로 인스턴스 재사용 확인 완료 (누수 없음)
 - [ ] 요청량 증가 대비 Supabase connection pool 설정 점검 (현재 direct client, pgBouncer 전환 검토)
 
 ### LCP 개선 (~3,300ms — `isAuthLoading` 블로킹)
@@ -123,8 +60,8 @@
 
 ### 번들 최적화
 
-- [ ] FontAwesome CDN → `@fortawesome/fontawesome-svg-core` 전환 (18KB + 100ms)
-- [ ] `framer-motion` 실사용 여부 확인 (~50KB gzip)
+- [ ] FontAwesome — npm 패키지(`@fortawesome/fontawesome-svg-core`) 설치는 됐으나 CDN 병행 사용 중 → CDN 제거 후 npm 단일화 (18KB + 100ms 절감)
+- [x] `framer-motion` 실사용 확인 — `DrugRenderer.tsx`, `BioRenderer.tsx`에서 실사용 중 (유지)
 - [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
 
@@ -190,6 +127,38 @@
 
 ## ⚪ 백로그
 
+### 모바일 초기 세션 공백 (재현 빈도 낮음)
+- [ ] `useChatSessions.ts` — `currentSessionId` 있지만 `sessions`에서 찾지 못할 때 자동 복구
+- [ ] `ChatArea.tsx` — `Suspense fallback={null}` → 메시지 skeleton 표시 검토
+- [ ] `ChatArea.tsx` — lazy chunk 로드 실패 재시도
+- [ ] `useChatStream.ts` — 스트림 완료 후처리 미도달 시 제목 생성 누락 보정
+- [ ] `useChatSessions.ts` — 응답은 있으나 제목이 기본값인 세션의 제목 재생성 fallback
+- [ ] `ChatInput.tsx` — `onSend` 완료 전 입력값·첨부 상태 보존
+
+### 프롬프트 언어 혼합 (한국어 메인, 실체감 낮음)
+- [ ] `prompt.ts` — URL summary placeholder / YouTube fallback / `getPillWarnFallback` 언어별 분리
+- [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
+- [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용
+- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리
+
+### 알약 식별 후속 (각인 DB 구조적 한계로 보류)
+- [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
+- [ ] `pill-logic.ts` — 추출 shape 기준 후보 정렬 보강 (타원형·장방형 상단 배치)
+- [ ] `drug-info-tool.ts` — 약품명 기반 `mfds_pills` 로컬 1차 조회/fallback 구조
+- [ ] `app/api/pill-search/route.ts` — `searchMfdsPills()` 우선 + `searchPill()` 폴백
+- [ ] `mfds-logic.ts` — 무각인/복수 후보 랭킹에 크기·제형·양면 색상 활용
+- [ ] `mfds_pills` — 약품명 검색 랭킹 설계 (mg 정규화, 오탐 방지)
+
+### 동물병원 상세정보 선택형 보강 (복잡도 대비 사용 빈도 낮음)
+- [ ] `VetRenderer.tsx` — 병원별 `상세 정보 찾기` 액션 UX
+- [ ] `vet_search` 후속 — 선택 병원 1곳 웹검색으로 영업시간/홈페이지/연락처 보강
+- [ ] 자동 보강 시 상위 1~3개 제한, 실패 시 기본 카드 유지
+
+### 캐싱 (트래픽 증가 시 재검토)
+- [ ] `sessions/route.ts` — Next.js `unstable_cache` / `revalidateTag` (유저별 캐시 키 + 메시지 전송 시 invalidate)
+- [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 캐시 (Fluid Compute 메모리 비지속 문제로 Supabase TTL 테이블 필요)
+- [ ] `drug-info-tool.ts` — 동일 약품명 Google Search 결과 캐싱
+
 ### 핵심 UX
 - [ ] **메시지 재생성** — 같은 프롬프트 재실행
 - [ ] **메시지 편집** — 보낸 메시지 수정 후 해당 시점부터 재실행
@@ -224,6 +193,8 @@
 ### 코드 품질
 - [ ] ESLint / Prettier 설정
 - [ ] 단위 테스트 (Vitest)
+- [ ] `types.ts` Message — `attachment` + `attachments[]` 필드 혼용 상태 → 단일화 (현재 둘 다 존재)
+- [ ] `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
 
 ### 낮은 우선순위
 - [ ] ARC (Agent RAG Cache) — 트래픽 증가 시 재검토
