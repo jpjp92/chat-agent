@@ -8,6 +8,8 @@
  *   node docs/notion/sync-notion-dev-records.mjs --last 5           # 최근 N개
  *   node docs/notion/sync-notion-dev-records.mjs --after 2026-05-07 # 특정 날짜 이후 전체
  *   node docs/notion/sync-notion-dev-records.mjs --dry-run          # 실제 업로드 없이 미리보기
+ *   node docs/notion/sync-notion-dev-records.mjs --update-existing-times
+ *     # 기존 chat-agent 커밋 행의 날짜/시간과 full hash 링크 보정
  */
 
 import { spawnSync } from 'child_process';
@@ -18,9 +20,10 @@ import { Client } from '@notionhq/client';
 
 // .env / .env.local 로드
 const __dir = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dir, '../..');
 for (const envFile of ['.env', '.env.local']) {
   try {
-    const content = readFileSync(resolve(__dir, '../..', envFile), 'utf-8');
+    const content = readFileSync(resolve(REPO_ROOT, envFile), 'utf-8');
     for (const line of content.split('\n')) {
       const m = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)\s*$/);
       if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
@@ -31,6 +34,7 @@ for (const envFile of ['.env', '.env.local']) {
 // ── 설정 ──────────────────────────────────────────────────────────────────────
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
 const DATABASE_ID = process.env.NOTION_DEV_RECORDS_DB_ID;
+let dataSourceId = process.env.NOTION_DEV_RECORDS_DATA_SOURCE_ID;
 const CACHE_FILE = resolve(__dir, '.synced-hashes.json');
 
 if (!NOTION_TOKEN) {
@@ -43,6 +47,15 @@ if (!DATABASE_ID) {
 }
 
 const notion = new Client({ auth: NOTION_TOKEN });
+let duplicateLookupWarned = false;
+
+async function resolveDataSourceId() {
+  if (dataSourceId) return dataSourceId;
+
+  const database = await notion.databases.retrieve({ database_id: DATABASE_ID });
+  dataSourceId = database.data_sources?.[0]?.id;
+  return dataSourceId;
+}
 
 // ── 중복 방지 캐시 ────────────────────────────────────────────────────────────
 function loadCache() {
@@ -64,6 +77,7 @@ const lastIdx = args.indexOf('--last');
 const lastN = lastIdx !== -1 ? parseInt(args[lastIdx + 1], 10) : null;
 const afterIdx = args.indexOf('--after');
 const afterDate = afterIdx !== -1 ? args[afterIdx + 1] : null;
+const updateExistingTimes = args.includes('--update-existing-times');
 
 // ── 커밋 파싱 ─────────────────────────────────────────────────────────────────
 function getCommits() {
@@ -78,7 +92,7 @@ function getCommits() {
     gitArgs = ['log', format, `--after=${today} 00:00:00`];
   }
 
-  const result = spawnSync('git', gitArgs, { encoding: 'utf-8' });
+  const result = spawnSync('git', gitArgs, { cwd: REPO_ROOT, encoding: 'utf-8' });
   if (result.error) throw result.error;
   const output = result.stdout.trim();
   if (!output) return [];
@@ -99,11 +113,44 @@ function getCommits() {
   }).filter(c => c.hash && c.subject && c.date);
 }
 
+function parseCommitLine(line) {
+  const [hash, dateStr, subject, ...bodyParts] = line.split('|');
+  const [datePart, timePart, tzPart] = (dateStr ?? '').trim().split(' ');
+  return {
+    hash: hash?.substring(0, 8),
+    fullHash: hash?.trim(),
+    date: datePart,
+    time: timePart,
+    tz: tzPart,
+    subject: subject?.trim(),
+    body: bodyParts.join(' ').trim(),
+  };
+}
+
+function getCommitByRef(ref) {
+  const result = spawnSync('git', ['show', '-s', '--format=%H|%ai|%s|%b', ref], {
+    cwd: REPO_ROOT,
+    encoding: 'utf-8',
+  });
+  if (result.status !== 0) return null;
+
+  const line = result.stdout.trim();
+  if (!line) return null;
+
+  const commit = parseCommitLine(line);
+  return commit.hash && commit.subject && commit.date ? commit : null;
+}
+
 // ── ISO 8601 datetime (Notion date with time) ─────────────────────────────────
 function toNotionDatetime(commit) {
   // "+0900" → "+09:00"
   const tz = commit.tz?.replace(/([+-]\d{2})(\d{2})/, '$1:$2') ?? '+00:00';
   return `${commit.date}T${commit.time}${tz}`;
+}
+
+function toMinuteKey(dateText) {
+  if (!dateText) return '';
+  return dateText.substring(0, 16);
 }
 
 // ── 커밋 → Notion 속성 매핑 ───────────────────────────────────────────────────
@@ -158,7 +205,6 @@ function buildNotionPayload(commit) {
       '날짜': {
         date: {
           start: toNotionDatetime(commit),
-          time_zone: 'Asia/Seoul',
         },
       },
       '카테고리': {
@@ -174,8 +220,173 @@ function buildNotionPayload(commit) {
   };
 }
 
+function commitUrls(commit) {
+  const base = 'https://github.com/jpjp92/chat-agent/commit/';
+  return [
+    `${base}${commit.fullHash}`,
+    `${base}${commit.hash}`,
+  ];
+}
+
+function extractChatAgentCommitRef(url) {
+  const match = url?.match(/^https:\/\/github\.com\/jpjp92\/chat-agent\/commit\/([0-9a-f]{7,40})$/i);
+  return match?.[1] ?? null;
+}
+
+function pageTitle(page) {
+  return (page.properties?.['제목']?.title ?? []).map(part => part.plain_text).join('');
+}
+
+function pageCommitUrl(page) {
+  return page.properties?.['참고링크']?.url ?? '';
+}
+
+function pageDateStart(page) {
+  return page.properties?.['날짜']?.date?.start ?? '';
+}
+
+async function listDevRecordPages() {
+  const resolvedDataSourceId = await resolveDataSourceId();
+  if (!resolvedDataSourceId) throw new Error('Notion data source ID를 찾을 수 없습니다.');
+
+  const pages = [];
+  let cursor;
+  do {
+    const response = await notion.dataSources.query({
+      data_source_id: resolvedDataSourceId,
+      page_size: 100,
+      start_cursor: cursor,
+      in_trash: false,
+    });
+    pages.push(...response.results);
+    cursor = response.next_cursor;
+  } while (cursor);
+
+  return pages.filter(page => !page.in_trash && !page.archived);
+}
+
+async function findExistingPageByCommitUrl(commit) {
+  const resolvedDataSourceId = await resolveDataSourceId();
+  if (!resolvedDataSourceId) return null;
+
+  try {
+    for (const url of commitUrls(commit)) {
+      const response = await notion.dataSources.query({
+        data_source_id: resolvedDataSourceId,
+        filter: {
+          property: '참고링크',
+          url: { equals: url },
+        },
+        page_size: 1,
+      });
+
+      if (response.results[0]) return response.results[0];
+    }
+  } catch (err) {
+    if (!duplicateLookupWarned) {
+      console.warn(`⚠️  Notion 중복 조회를 건너뜁니다: ${err.message}`);
+      duplicateLookupWarned = true;
+    }
+  }
+
+  return null;
+}
+
+async function updateExistingCommitTimes() {
+  console.log(`\n📋 기존 chat-agent 커밋 행 시간 보정 시작 ${dryRun ? '(dry-run)' : ''}\n`);
+
+  const cache = loadCache();
+  const pages = await listDevRecordPages();
+  const candidates = [];
+  const skipped = {
+    notCommitUrl: 0,
+    missingGitCommit: 0,
+    alreadyCurrent: 0,
+  };
+
+  for (const page of pages) {
+    const currentUrl = pageCommitUrl(page);
+    const commitRef = extractChatAgentCommitRef(currentUrl);
+    if (!commitRef) {
+      skipped.notCommitUrl++;
+      continue;
+    }
+
+    const commit = getCommitByRef(commitRef);
+    if (!commit) {
+      skipped.missingGitCommit++;
+      continue;
+    }
+
+    const expectedDate = toNotionDatetime(commit);
+    const expectedUrl = `https://github.com/jpjp92/chat-agent/commit/${commit.fullHash}`;
+    const currentDate = pageDateStart(page);
+    const needsDateUpdate = toMinuteKey(currentDate) !== toMinuteKey(expectedDate);
+    const needsUrlUpdate = currentUrl !== expectedUrl;
+
+    if (!needsDateUpdate && !needsUrlUpdate) {
+      cache.add(commit.fullHash);
+      skipped.alreadyCurrent++;
+      continue;
+    }
+
+    candidates.push({
+      page,
+      commit,
+      currentUrl,
+      currentDate,
+      expectedUrl,
+      expectedDate,
+      needsDateUpdate,
+      needsUrlUpdate,
+    });
+  }
+
+  console.log(`🔍 active 페이지 ${pages.length}개 중 업데이트 후보 ${candidates.length}개`);
+  console.log(`   스킵: 비커밋 URL ${skipped.notCommitUrl}개, git 미발견 ${skipped.missingGitCommit}개, 최신 상태 ${skipped.alreadyCurrent}개\n`);
+
+  let updated = 0;
+  for (const item of candidates) {
+    const title = pageTitle(item.page);
+    const changes = [];
+    if (item.needsDateUpdate) changes.push(`${item.currentDate || '(empty)'} -> ${item.expectedDate}`);
+    if (item.needsUrlUpdate) changes.push(`${item.currentUrl} -> ${item.expectedUrl}`);
+
+    if (dryRun) {
+      console.log(`[dry-run] 🔧 ${title}`);
+      console.log(`          ${changes.join(' | ')}`);
+      continue;
+    }
+
+    await notion.pages.update({
+      page_id: item.page.id,
+      properties: {
+        '날짜': {
+          date: { start: item.expectedDate },
+        },
+        '참고링크': {
+          url: item.expectedUrl,
+        },
+      },
+    });
+    cache.add(item.commit.fullHash);
+    saveCache(cache);
+    updated++;
+    console.log(`✅ 업데이트됨: ${title}`);
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  if (!dryRun) saveCache(cache);
+  console.log(`\n완료: ${updated}개 업데이트, ${candidates.length - updated}개 미적용${dryRun ? ' (dry-run)' : ''}\n`);
+}
+
 // ── 메인 ──────────────────────────────────────────────────────────────────────
 async function main() {
+  if (updateExistingTimes) {
+    await updateExistingCommitTimes();
+    return;
+  }
+
   console.log(`\n📋 Notion DEV Records 동기화 시작 ${dryRun ? '(dry-run)' : ''}\n`);
 
   const cache = loadCache();
@@ -212,6 +423,16 @@ async function main() {
     }
 
     try {
+      const existingPage = await findExistingPageByCommitUrl(commit);
+      if (existingPage) {
+        cache.add(commit.fullHash);
+        saveCache(cache);
+        console.log(`⏭️  Notion에 이미 있음: "${title}"`);
+        skipped++;
+        await new Promise(r => setTimeout(r, 350));
+        continue;
+      }
+
       await notion.pages.create(payload);
       cache.add(commit.fullHash);
       saveCache(cache);
