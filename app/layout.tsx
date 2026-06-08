@@ -3,8 +3,8 @@ import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Chat Agent with Gemini',
-  description: 'AI messenger powered by Gemini 2.5 Flash',
+  title: 'Chat Agent',
+  description: 'AI messenger',
 };
 
 export const viewport: Viewport = {
