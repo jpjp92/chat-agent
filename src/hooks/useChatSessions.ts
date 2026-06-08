@@ -112,7 +112,11 @@ const readSessionsCache = (): ChatSession[] => {
 
 export const writeSessionsCache = (sessions: ChatSession[]) => {
   try {
-    localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(sessions.slice(0, 30)));
+    // 메시지는 캐시하지 않는다 — DB(chat_messages)가 메시지의 단일 출처.
+    // 과거엔 부분 스냅샷(1턴)만 캐시에 남아 멀티턴 재로드 시 나머지 턴이 가려졌다.
+    // 세션 목록 메타(title 등)만 캐시해 즉시 렌더하고, 메시지는 selectSession에서 DB lazy-load.
+    const metaOnly = sessions.slice(0, 30).map(session => ({ ...session, messages: [] }));
+    localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(metaOnly));
   } catch {}
 };
 
