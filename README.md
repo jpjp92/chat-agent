@@ -1,4 +1,4 @@
-# Chat Agent with Gemini
+# Chat Agent 
 
 An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 10 interactive visualization renderers.
 
@@ -30,18 +30,18 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 
 ### 1-3. Visualization Renderers (10)
 
-| Renderer | Intent | Trigger | Library |
-|---|---|---|---|
-| 💊 Drug-Viz | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별 | MFDS `mfds_pills` + MFDS API + ConnectDI |
-| 🏥 Pharmacy-Viz | `pharmacy_search` | 약국 위치 탐색 | 공공데이터포털 전국 약국 API ⚠️ 만료 2028-05-06 |
-| 🏨 Hospital-Viz | `hospital_search` | 병원·의원 위치 탐색 | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
-| 🐾 Vet-Viz | `vet_search` | 동물병원 위치 탐색 | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10 |
-| ⚖️ Law-Viz | `law_search` | 법령 목록 / 본문 / 조항호목 | 국가법령정보센터 Open API |
-| 🧪 Chem-Viz | `chemistry` | 분자 / 화학 구조 | smiles-drawer |
-| 🧬 Bio-Viz | `biology` | 단백질 / DNA | NGL Viewer (3D PDB) |
-| 📐 Diagram-Viz | `physics` | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D |
-| ✨ Constellation-Viz | `astronomy` | 별자리 / 천체 | HTML5 Canvas + astronomy-engine |
-| 📊 Chart-Viz | `data_viz` | 데이터 / 통계 | ApexCharts |
+| Renderer             | Intent                      | Trigger                             | Library                                                    |
+| -------------------- | --------------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| 💊 Drug-Viz          | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별      | MFDS `mfds_pills` + MFDS API + ConnectDI                 |
+| 🏥 Pharmacy-Viz      | `pharmacy_search`         | 약국 위치 탐색                      | 공공데이터포털 전국 약국 API ⚠️ 만료 2028-05-06          |
+| 🏨 Hospital-Viz      | `hospital_search`         | 병원·의원 위치 탐색                | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
+| 🐾 Vet-Viz           | `vet_search`              | 동물병원 위치 탐색                  | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10        |
+| ⚖️ Law-Viz         | `law_search`              | 법령 목록 / 본문 / 조항호목         | 국가법령정보센터 Open API                                  |
+| 🧪 Chem-Viz          | `chemistry`               | 분자 / 화학 구조                    | smiles-drawer                                              |
+| 🧬 Bio-Viz           | `biology`                 | 단백질 / DNA                        | NGL Viewer (3D PDB)                                        |
+| 📐 Diagram-Viz       | `physics`                 | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D                                                  |
+| ✨ Constellation-Viz | `astronomy`               | 별자리 / 천체                       | HTML5 Canvas + astronomy-engine                            |
+| 📊 Chart-Viz         | `data_viz`                | 데이터 / 통계                       | ApexCharts                                                 |
 
 ### 1-4. 💊 Drug-Viz — Pill Identification Engine
 
@@ -74,7 +74,7 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null`
 - **Error sanitization**: Internal error details (`error.message`, stack) never forwarded to the client; status-code-based localized messages only
 - **Safety block handling**: `finishReason === 'SAFETY'` propagated as a distinct `safety` error type with 4-language user messages; no unnecessary key retry
-- **Request timeout protection**: External fetches are capped with `AbortController` (`fetch-url` direct 10s / Jina 20s / ScraperAPI 52s, YouTube metadata 8-10s, MFDS/DDG 8s, nedrug image 6s)
+- **Request timeout protection**: External fetches are capped with `AbortController` (`fetch-url` direct 10s / Jina 20s / browserless 30s / ScraperAPI 45s, YouTube metadata 8-10s, MFDS/DDG 8s, nedrug image 6s)
 
 ---
 
@@ -95,9 +95,11 @@ flowchart TB
     end
 
     subgraph URLFetchAPI ["Vercel /api/fetch-url"]
+        URLCache["url_cache lookup - 14-day TTL"]
         DirectFetch["Direct HTML fetch"]
         JinaFallback["Jina reader fallback"]
-        ScraperFallback["Wikidocs ScraperAPI render fallback"]
+        BrowserlessFallback["browserless /unblock - Cloudflare bypass"]
+        ScraperFallback["ScraperAPI render fallback"]
     end
 
     subgraph ChatAPI ["Vercel /api/chat"]
@@ -120,7 +122,7 @@ flowchart TB
         Supabase[("Supabase")]
         PublicAPIs[["Public APIs - MFDS / HIRA / Law / Vet"]]
         DrugSites[["Drug Sources - MFDS nedrug / ConnectDI"]]
-        URLProviders[["URL Providers - Jina / ScraperAPI"]]
+        URLProviders[["URL Providers - Jina / browserless / ScraperAPI"]]
     end
 
     Out([Rendered Answer + source chips])
@@ -128,13 +130,19 @@ flowchart TB
     %% Request (input) path - solid
     In --> UI
     UI --> Stream
-    Stream -->|URL prompt prefetch| DirectFetch
+    Stream -->|URL prompt prefetch| URLCache
+    URLCache -->|miss| DirectFetch
+    URLCache <-->|read / write| Supabase
     DirectFetch -->|non-wikidocs blocked or short body| JinaFallback
-    DirectFetch -->|wikidocs blocked or short body| ScraperFallback
+    DirectFetch -->|wikidocs Cloudflare blocked| BrowserlessFallback
+    BrowserlessFallback -->|fail| ScraperFallback
     JinaFallback <--> URLProviders
+    BrowserlessFallback <--> URLProviders
     ScraperFallback <--> URLProviders
+    URLCache -.->|hit| Stream
     DirectFetch -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
     JinaFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
+    BrowserlessFallback -.->|URL_CONTENT| Stream
     ScraperFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
     Stream -->|POST /api/chat| Router
     Router -->|drug_id image| Vision
@@ -184,7 +192,8 @@ Branch rules:
 - LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
 - Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
-- Wikidocs direct fetch failures use ScraperAPI `render=true` as a domain-specific fallback; other blocked/short pages use Jina before returning an exact-URL failure notice
+- URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
+- Wikidocs (Cloudflare-blocked) direct fetch failures escalate to browserless `/unblock` (one retry) → ScraperAPI `render=true`; other blocked/short pages use Jina before returning an exact-URL failure notice
 - Renderer intents disable Google Search unless the user explicitly requests search/sources/latest information
 - 3.5 Flash free-tier grounding uses a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
 
@@ -213,15 +222,15 @@ sequenceDiagram
 
 Tool-binding policy:
 
-| Intent | Tools exposed to LLM | Notes |
-|---|---|---|
-| `drug_id` without `pillData` | `identify_pill`, `search_web` | Legacy/fallback path only |
-| `drug_id` with `pillData` | none after direct DB lookup | Prevents recursion; non-exact returns table before LLM |
-| `drug_info` | `search_drug_info`, `search_web` | MFDS first, DDG fallback |
-| `pharmacy_search` | `pharmacyTool`, `search_web` | Fast-passed as `json:pharmacy` |
-| `hospital_search` | `hospitalTool`, `search_web` | Fast-passed as `json:hospital` |
-| `vet_search` | `vetTool`, `search_web` | Fast-passed as `json:vet` |
-| `law_search` | `lawTool` | Handles query normalization and Open API calls |
+| Intent                           | Tools exposed to LLM                 | Notes                                                  |
+| -------------------------------- | ------------------------------------ | ------------------------------------------------------ |
+| `drug_id` without `pillData` | `identify_pill`, `search_web`    | Legacy/fallback path only                              |
+| `drug_id` with `pillData`    | none after direct DB lookup          | Prevents recursion; non-exact returns table before LLM |
+| `drug_info`                    | `search_drug_info`, `search_web` | MFDS first, DDG fallback                               |
+| `pharmacy_search`              | `pharmacyTool`, `search_web`     | Fast-passed as `json:pharmacy`                       |
+| `hospital_search`              | `hospitalTool`, `search_web`     | Fast-passed as `json:hospital`                       |
+| `vet_search`                   | `vetTool`, `search_web`          | Fast-passed as `json:vet`                            |
+| `law_search`                   | `lawTool`                          | Handles query normalization and Open API calls         |
 
 ### 2-5. Pill Image Identification Flow
 
@@ -231,15 +240,15 @@ Image identification fast-path: router → vision extraction → direct DB looku
 
 ### 2-6. Tool Inventory
 
-| Tool | File | Purpose |
-|---|---|---|
-| `identify_pill` | `server/agent/tools.ts` | MFDS `mfds_pills` DB first; imprint / color / shape 3-stage match with legacy fallback |
-| `search_web` | `server/agent/tools.ts` | DuckDuckGo HTML fallback search and source extraction |
-| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback |
-| `pharmacyTool` | `server/agent/pharmacy-tool.ts` | National pharmacy search |
-| `hospitalTool` | `server/agent/hospital-tool.ts` | HIRA hospital/clinic search |
-| `vetTool` | `server/agent/vet-tool.ts` | Animal hospital search |
-| `lawTool` | `server/agent/law-tool.ts` | Korean law list/body/article lookup |
+| Tool                 | File                               | Purpose                                                                                  |
+| -------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| `identify_pill`    | `server/agent/tools.ts`          | MFDS `mfds_pills` DB first; imprint / color / shape 3-stage match with legacy fallback |
+| `search_web`       | `server/agent/tools.ts`          | DuckDuckGo HTML fallback search and source extraction                                    |
+| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback                          |
+| `pharmacyTool`     | `server/agent/pharmacy-tool.ts`  | National pharmacy search                                                                 |
+| `hospitalTool`     | `server/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                                              |
+| `vetTool`          | `server/agent/vet-tool.ts`       | Animal hospital search                                                                   |
+| `lawTool`          | `server/agent/law-tool.ts`       | Korean law list/body/article lookup                                                      |
 
 ### 2-7. Streaming And Source Handling
 
@@ -255,17 +264,17 @@ Image identification fast-path: router → vision extraction → direct DB looku
 
 ### 2-8. Intent Routing
 
-| Intent | Path | Model |
-|---|---|---|
-| `drug_id` (image) | Router fast-path → Vision → direct DB lookup → exact card or candidate table | Vision: 2.5 Flash |
-| `drug_info` | LangChain + `search_drug_info` / DDG fallback | selected model |
-| `pharmacy_search` | LangChain + pharmacy public API tool | selected model |
-| `hospital_search` | LangChain + HIRA hospital API tool | selected model |
-| `vet_search` | LangChain + animal hospital API tool | selected model |
-| `law_search` | LangChain + Korean law Open API tool | selected model |
-| `medical_qa` | SDK + Google Search grounding | selected model, 3.5 uses two-track |
-| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output | selected model, Search off unless explicitly requested |
-| `general` | SDK, Google Search gated by `needsSearch` 3-gate classifier | selected model, 3.5 uses two-track when search is on |
+| Intent                                                                   | Path                                                                            | Model                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `drug_id` (image)                                                      | Router fast-path → Vision → direct DB lookup → exact card or candidate table | Vision: 2.5 Flash                                      |
+| `drug_info`                                                            | LangChain +`search_drug_info` / DDG fallback                                  | selected model                                         |
+| `pharmacy_search`                                                      | LangChain + pharmacy public API tool                                            | selected model                                         |
+| `hospital_search`                                                      | LangChain + HIRA hospital API tool                                              | selected model                                         |
+| `vet_search`                                                           | LangChain + animal hospital API tool                                            | selected model                                         |
+| `law_search`                                                           | LangChain + Korean law Open API tool                                            | selected model                                         |
+| `medical_qa`                                                           | SDK + Google Search grounding                                                   | selected model, 3.5 uses two-track                     |
+| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
+| `general`                                                              | SDK, Google Search gated by `needsSearch` 3-gate classifier                   | selected model, 3.5 uses two-track when search is on   |
 
 Router behavior:
 
@@ -279,41 +288,42 @@ How API routes write to PostgreSQL tables and Storage buckets.
 
 > 📊 Diagram: [Database And Storage Flow](docs/guide/REF_Architecture.md#database-and-storage-flow)
 
-| Table | Written by | Purpose |
-|---|---|---|
-| `users` | `/api/auth` | Guest profile: `id`, `nickname`, `display_name`, `avatar_url` |
-| `chat_sessions` | `/api/sessions`, `/api/chat` | Session metadata: owner, title, `updated_at` |
-| `chat_messages` | `/api/chat` | User/assistant messages, attachment URL, grounding sources |
+| Table             | Written by                       | Purpose                                                              |
+| ----------------- | -------------------------------- | -------------------------------------------------------------------- |
+| `users`         | `/api/auth`                    | Guest profile:`id`, `nickname`, `display_name`, `avatar_url` |
+| `chat_sessions` | `/api/sessions`, `/api/chat` | Session metadata: owner, title,`updated_at`                        |
+| `chat_messages` | `/api/chat`                    | User/assistant messages, attachment URL, grounding sources           |
+| `url_cache`     | `/api/fetch-url`               | Cached URL fetch results keyed by normalized URL (14-day TTL); avoids repeat browserless/ScraperAPI calls |
 
-| Bucket | Purpose |
-|---|---|
-| `chat-imgs` | User image uploads + cached drug-card images |
-| `chat-videos` | Uploaded videos |
-| `chat-docs` | Uploaded PDFs and documents |
+| Bucket          | Purpose                                      |
+| --------------- | -------------------------------------------- |
+| `chat-imgs`   | User image uploads + cached drug-card images |
+| `chat-videos` | Uploaded videos                              |
+| `chat-docs`   | Uploaded PDFs and documents                  |
 
 ---
 
 ## 3. Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
-| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas |
-| Backend | Next.js Route Handlers (Vercel), LangGraph.js |
-| AI | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain |
-| Database | Supabase (PostgreSQL, Storage) |
+| Layer         | Technology                                                               |
+| ------------- | ------------------------------------------------------------------------ |
+| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
+| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas                             |
+| Backend       | Next.js Route Handlers (Vercel), LangGraph.js                            |
+| AI            | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain  |
+| Database      | Supabase (PostgreSQL, Storage)                                           |
 
 ### 3-1. Model Usage
 
-| Purpose | Model |
-|---|---|
-| Main chat (default) | `gemini-3.5-flash` |
-| User-selectable | `gemini-3.5-flash`, `gemini-2.5-flash` |
-| Semantic router | `gemini-2.5-flash-lite` |
-| Pill vision preprocessing | `gemini-2.5-flash` |
-| 3.5 + Search grounding | Stage 1: `gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
-| TTS | `gemini-2.5-flash-preview-tts` |
-| Session title | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
+| Purpose                   | Model                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| Main chat (default)       | `gemini-3.5-flash`                                                             |
+| User-selectable           | `gemini-3.5-flash`, `gemini-2.5-flash`                                       |
+| Semantic router           | `gemini-2.5-flash-lite`                                                        |
+| Pill vision preprocessing | `gemini-2.5-flash`                                                             |
+| 3.5 + Search grounding    | Stage 1:`gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
+| TTS                       | `gemini-2.5-flash-preview-tts`                                                 |
+| Session title             | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback)            |
 
 ---
 
@@ -332,7 +342,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │       ├── pill-search/route.ts
 │       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
 │       ├── upload/route.ts     # Supabase Storage upload proxy
-│       ├── fetch-url/route.ts  # URL prefetch: direct HTML + Jina + wikidocs ScraperAPI fallback
+│       ├── fetch-url/route.ts  # URL prefetch: url_cache → direct HTML + Jina + wikidocs browserless/ScraperAPI fallback
 │       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
 │       ├── auth/route.ts
 │       ├── create-signed-url/route.ts
@@ -379,7 +389,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 ├── docs/                       # See §4-1 for naming conventions
 │   ├── DEV_HISTORY.md          # Dev history index (one line per session)
 │   ├── TODO.md
-│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260605.md)
+│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260608.md)
 │   ├── plans/PLAN_*.md         # Plan / design / analysis docs (start with PLAN_INDEX.md)
 │   └── guide/REF_*.md          # Renderer & feature reference guides
 ├── scripts/                    # Local audit, migration, and integration test scripts
@@ -396,14 +406,15 @@ How API routes write to PostgreSQL tables and Storage buckets.
 
 When adding a Markdown doc under `docs/`, place it in the right folder and follow the naming rule. **Date format is `YYMMDD`** (e.g. `260602` = 2026-06-02).
 
-| Folder | Purpose | Filename rule | Example |
-|---|---|---|---|
-| `docs/` | Top-level living index docs | Fixed names | `DEV_HISTORY.md`, `TODO.md` |
-| `docs/logs/` | Dated session work logs (one per work session) | `DEV_YYMMDD.md` | `DEV_260602.md` |
-| `docs/plans/` | Plans, designs, analyses, change summaries | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md` |
-| `docs/guide/` | Renderer / feature reference guides | `REF_<Topic>.md` | `REF_Chart.md` |
+| Folder          | Purpose                                        | Filename rule                | Example                             |
+| --------------- | ---------------------------------------------- | ---------------------------- | ----------------------------------- |
+| `docs/`       | Top-level living index docs                    | Fixed names                  | `DEV_HISTORY.md`, `TODO.md`     |
+| `docs/logs/`  | Dated session work logs (one per work session) | `DEV_YYMMDD.md`            | `DEV_260602.md`                   |
+| `docs/plans/` | Plans, designs, analyses, change summaries     | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md` |
+| `docs/guide/` | Renderer / feature reference guides            | `REF_<Topic>.md`           | `REF_Chart.md`                    |
 
 Rules:
+
 - **`docs/plans/` — always `PLAN_` prefix**, `UPPER_SNAKE_CASE` topic. Add a `_YYMMDD` suffix for dated/one-off analyses; omit it for evergreen plans. Do **not** add a redundant `_PLAN` suffix (use `PLAN_DB_MIGRATION.md`, not `PLAN_DB_MIGRATION_PLAN.md`).
 - **`docs/logs/` — `DEV_YYMMDD.md`**, one file per session/day. Add a matching one-line entry to `DEV_HISTORY.md`.
 - **`docs/guide/` — `REF_` prefix** for renderer/feature references.
@@ -434,6 +445,8 @@ LAW_OC=your_law_openapi_oc                              # 국가법령정보센�
 # URL fetch fallback
 SCRAPER_KEY=your_scraperapi_key                         # optional: wikidocs render fallback
 # SCRAPERAPI_KEY=your_scraperapi_key                    # alternative env name
+BROWSERLESS_KEY=your_browserless_token                  # optional: Cloudflare /unblock for wikidocs (BROWSERLESS_TOKEN also accepted)
+# BROWSERLESS_REST_URL=https://production-sfo.browserless.io  # optional: override browserless REST endpoint
 ```
 
 ### 5-2. Install & run
