@@ -22,9 +22,8 @@
 
 - [ ] `prompt.ts` — `data_viz` intent에 차트 타입 선택 기준 명시 (시계열→bar/line, 비율→pie, 상관→scatter)
 - [ ] `prompt.ts` — `chartType` 선택 가이드 주석 보강 + 레이블 10자 이내 지시
-- [x] `ChartRenderer.tsx` — x축 레이블 45°/55° 회전 적용 완료 (line 160, 204)
 - [ ] `ChartRenderer.tsx` — x축 레이블 너무 길 때 `\n` 줄바꿈 추가 검토
-- [ ] `ChartRenderer.tsx` — y축 단위 자동 단축 (`1000000` → `1M`, `10000` → `1만`)
+- [ ] `ChartRenderer.tsx` — y축 단위 단축 `1M`/`1만` 티어 추가 (현재 `≥1000 → k`만 구현, line 214)
 - [ ] `ChartRenderer.tsx` — `pie` 선택인데 항목 수 > 8이면 `bar`로 자동 보정
 
 ---
@@ -35,33 +34,19 @@
 
 ### DB 쿼리 최적화 및 캐싱
 
-**쿼리 효율화**
-- [x] `sessions/route.ts` GET — `select('*')` → `select('id, title, updated_at, created_at')` (사이드바에 content 불필요)
-- [x] `sessions/route.ts` GET — `count: 'exact'` 제거 + `hasMore: boolean` 패턴으로 교체 (매 페이지 `COUNT(*)` 제거)
-- [x] `sessions/route.ts` GET messages — `select('*')` → `select('id, role, content, attachment_url, grounding_sources, created_at')`
-- [x] `chat/route.ts` — `updated_at` 수동 업데이트(`sessions` 별도 write) → DB trigger 자동화 완료 (`trg_message_updates_session`)
+> 쿼리 효율화(select 컬럼 축소·`hasMore` 패턴·`updated_at` trigger), 인덱스 3종 확인, 싱글톤 연결 확인 완료 (DEV_HISTORY 참조). 남은 항목:
 
-**인덱스 확인**
-- [x] Supabase에서 `chat_messages(session_id, created_at)` 복합 인덱스 존재 여부 확인 — 메시지 정렬 쿼리 핵심
-- [x] `chat_sessions(user_id, updated_at DESC)` 인덱스 확인 — 세션 목록 정렬 핵심
-- [x] `users(nickname)` 인덱스 확인 — 로그인 시 nickname lookup (UNIQUE 인덱스로 커버)
-
-**연결 관리**
-- [x] `server/supabase.ts` — 싱글톤 패턴으로 인스턴스 재사용 확인 완료 (누수 없음)
 - [ ] 요청량 증가 대비 Supabase connection pool 설정 점검 (현재 direct client, pgBouncer 전환 검토)
 
 ### LCP 개선 (~3,300ms — `isAuthLoading` 블로킹)
 
-- [x] `App.tsx` — `isAuthLoading` 전체 차단 제거 + 백그라운드 인증 완료
-- [x] `ChatInput` — `isAuthLoading || isTyping` disabled 처리
-- [x] 사이드바 세션 로딩 중 스켈레톤 UI (기존 구현 확인)
-- [x] 세션 전환 중 `isLoadingMessages` 스켈레톤 (기존 구현 확인)
+> `isAuthLoading` 전체 차단 제거 + 백그라운드 인증, 세션/메시지 스켈레톤 UI 완료 (DEV_HISTORY 참조). 남은 항목:
+
 - [ ] `handleNewSession` Optimistic UI (tempId 패턴)
 
 ### 번들 최적화
 
 - [ ] FontAwesome — npm 패키지(`@fortawesome/fontawesome-svg-core`) 설치는 됐으나 CDN 병행 사용 중 → CDN 제거 후 npm 단일화 (18KB + 100ms 절감)
-- [x] `framer-motion` 실사용 확인 — `DrugRenderer.tsx`, `BioRenderer.tsx`에서 실사용 중 (유지)
 - [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
 
@@ -90,7 +75,18 @@
 - [ ] `components/SchoolRenderer.tsx`
 - [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
-> 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
+**④ 영화 상영정보 / 박스오피스** (★★★) — 키: `KOBIS_KEY` (포스터는 CGV/메가박스/롯데 CDN)
+
+박스오피스·예매율·관객수는 KOBIS(영화관입장권통합전산망) Open API, 포스터·예매 링크는 멀티플렉스(CGV/메가박스/롯데시네마) 수집. **carousel(가로 스크롤 슬라이드) 렌더러가 신규** — 기존 단일 카드 렌더러와 다른 첫 carousel UI.
+
+- [ ] `server/agent/tools/movie-tool.ts` — KOBIS `boxOfficeResult`(일일/주간 예매율·관객수) + 멀티플렉스 포스터/예매 URL 매핑
+- [ ] `components/MovieRenderer.tsx` — 가로 스크롤 carousel, 포스터 + 제목 + 메타(연령/장르/예매율/관객수) + `예매하기` CTA
+- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — `movie_search` intent + `json:movie` 블록 공통 패턴 적용
+- [ ] **포스터 hotlinking 대응** — CGV/메가박스 CDN은 Referer 차단(깨진 이미지) 가능 → 기존 [`app/api/proxy-image/route.ts`](../app/api/proxy-image/route.ts) 경유로 렌더, 수집 단계에서 URL 유효성 사전 검증
+- [ ] **`json:movie` 스키마 표준화** — 슬라이드 배열 `[{ image_url, title, sub_text, postback, buttons[] }]` 표준 JSON 준수(Kakao식 `type:N`/`0:{}` 표기 금지), 파서 견고성 확보
+- [ ] **메타 텍스트 예외 처리** — `sub_text` 줄바꿈(`\n`) 기반 메타에서 관객수/예매율 누락 시(예: 개봉 전·이벤트관) 빈 줄 제거 + 필드 조건부 렌더
+
+> 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 / KOBIS `boxOfficeResult` 키 부재·일자 미마감 응답 가드 + 포스터 URL은 반드시 `proxy-image` 경유
 
 ### 국가법령정보 후속 확장
 
@@ -155,13 +151,16 @@
 - [ ] 자동 보강 시 상위 1~3개 제한, 실패 시 기본 카드 유지
 
 ### 캐싱 (트래픽 증가 시 재검토)
+
+> 참조: `url_cache` 테이블(14일 TTL, `fetch-url`)로 Supabase TTL 캐시 패턴이 이미 구축됨 — 아래 구현 시 레퍼런스로 차용.
+
 - [ ] `sessions/route.ts` — Next.js `unstable_cache` / `revalidateTag` (유저별 캐시 키 + 메시지 전송 시 invalidate)
-- [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 캐시 (Fluid Compute 메모리 비지속 문제로 Supabase TTL 테이블 필요)
+- [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 캐시 (`url_cache` 패턴 차용, Fluid Compute 메모리 비지속 대응)
 - [ ] `drug-info-tool.ts` — 동일 약품명 Google Search 결과 캐싱
 
 ### 핵심 UX
 - [ ] **메시지 재생성** — 같은 프롬프트 재실행
-- [ ] **메시지 편집** — 보낸 메시지 수정 후 해당 시점부터 재실행
+- [ ] **메시지 편집** — 입력창 프리필은 구현됨(`editingMessageContent`/`editValue`, `ChatInput.tsx:100`); 남은 건 편집 시점 이후 히스토리 truncate 후 재실행
 - [ ] **세션 문서 컨텍스트 영구 저장** — `lastActiveDoc` Supabase 저장
 
 ### 보안 (인증 전환 후)
@@ -193,8 +192,8 @@
 ### 코드 품질
 - [ ] ESLint / Prettier 설정
 - [ ] 단위 테스트 (Vitest)
-- [ ] `types.ts` Message — `attachment` + `attachments[]` 필드 혼용 상태 → 단일화 (현재 둘 다 존재)
-- [ ] `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
+
+> `attachment`/`attachments` 단일화 · `ChatInput` 훅 분리는 §아키텍처 리팩토링 항목 참조 (중복 제거).
 
 ### 낮은 우선순위
 - [ ] ARC (Agent RAG Cache) — 트래픽 증가 시 재검토
@@ -258,8 +257,8 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 | M5 이미지 생성 | Imagen 4 → P3에서 선행 구현 가능 (M1 불필요) |
 | M6 프론트 UI | 멀티 프로바이더 그룹 표시, 세션별 모델 기억 |
 
-**Gemini 3.5 Flash 전환 시 확인 항목** (DEFAULT_CHAT_MODEL 변경 시):
-- `drug-info-tool.ts` — `temperature: 0.1` 제거 (`searchDrugViaGoogleSearch`, `extractImprintViaVision`)
-- `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토
-- 의학·YouTube·law 경로, Google Search two-track 동작 검증
-- PDF 토큰 증가 실측 (`hasDocumentContent` 경로), 필요 시 `media_resolution` 조정
+**Gemini 3.5 Flash 전환 완료 — 후속 점검** (`DEFAULT_CHAT_MODEL = gemini-3.5-flash` 이미 적용):
+- [ ] `drug-info-tool.ts` — `temperature: 0.1` 제거 검토 (line 27·93, `searchDrugViaGoogleSearch`/`extractImprintViaVision`)
+- [ ] `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토 (line 880·926)
+
+> 의학·YouTube·law 경로 및 Search two-track, PDF 토큰 증가는 3.5로 이미 운영 중 — 별도 검증 항목 제거.

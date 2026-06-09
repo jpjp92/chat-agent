@@ -10,6 +10,8 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
+// 서울 리전 고정: law.go.kr 등 한국 API 접근성·지연 개선 (기본 iad1 → icn1)
+export const preferredRegion = 'icn1';
 
 const CHAT_ERRORS: Record<string, Record<string, string>> = {
   rateLimit:      { ko: '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.', en: 'Too many requests. Please try again in a moment.', es: 'Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.', fr: 'Trop de requêtes. Veuillez réessayer dans un instant.' },

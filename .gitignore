@@ -65,4 +65,5 @@ scripts/_*
 scripts/lib/
 scripts/card-preview.html
 scripts/image-gen-output/
+scripts/movie-spike-output/
 scripts/openai-image2-pipeline-test.mjs
