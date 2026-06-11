@@ -78,6 +78,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
 - "law_search"      : Korean law/statute lookup, article text, legal provisions, law lists, legal interpretation requests
+- "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
 - "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
 - "physics"         : physics simulation, mechanics, force, motion, gravity, collision, electricity
@@ -97,7 +98,7 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }

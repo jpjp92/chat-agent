@@ -213,10 +213,10 @@ export async function POST(req: NextRequest) {
             }
             const stateSources: any[] = output?.groundingSources || [];
             if (stateSources.length > 0) { let added = false; stateSources.forEach((s: any) => { if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-          } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool'].includes(event.name)) {
+          } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool', 'movieTool'].includes(event.name)) {
             const rawOutput = data?.output;
             const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
-            const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : 'pharmacy';
+            const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : event.name === 'movieTool' ? 'movie' : 'pharmacy';
             const jsonMatch = toolOutput.match(new RegExp(`\`\`\`json:${blockType}\\n[\\s\\S]*?\\n\`\`\``));
             if (jsonMatch) { const jsonBlock = '\n' + jsonMatch[0] + '\n\n'; fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock }); }
           } else if (event.event === 'on_tool_end' && ['search_web', 'search_drug_info'].includes(event.name)) {

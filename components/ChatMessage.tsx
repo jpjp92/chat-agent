@@ -22,6 +22,7 @@ const PharmacyRenderer = lazy(() => import('./PharmacyRenderer').then(module => 
 const HospitalRenderer = lazy(() => import('./HospitalRenderer').then(module => ({ default: module.HospitalRenderer })));
 const VetRenderer = lazy(() => import('./VetRenderer').then(module => ({ default: module.VetRenderer })));
 const LawRenderer = lazy(() => import('./LawRenderer').then(module => ({ default: module.LawRenderer })));
+const MovieRenderer = lazy(() => import('./MovieRenderer').then(module => ({ default: module.MovieRenderer })));
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
@@ -424,8 +425,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -482,6 +483,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'vet', data: jsonData });
         } else if (blockType === 'law') {
           parts.push({ type: 'law', data: jsonData });
+        } else if (blockType === 'movie') {
+          parts.push({ type: 'movie', data: jsonData });
         }
       } catch (e) {
         // Silently skip invalid viz blocks — don't dump raw JSON into the chat
@@ -495,13 +498,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = content.substring(lastIndex);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -657,6 +660,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               </ErrorBoundary>
             );
           }
+          if (part.type === 'movie') {
+            return (
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <MovieRenderer data={part.data} />
+                </Suspense>
+              </ErrorBoundary>
+            );
+          }
           if (part.type === 'chart_loading') {
             return (
               <div key={idx} className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
@@ -686,9 +698,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   // Force a fixed-width container for pharmacy cards so width never varies with content length
   const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*(pharmacy|hospital|vet)/i);
   const hasChartBlock = !isUser && !!message.content?.match(/```json\s*:\s*chart/i);
+  // Movie cards: widen on desktop only (chips 2-col need the width); mobile keeps the default 95%
+  const hasMovieBlock = !isUser && !!message.content?.match(/```json\s*:\s*movie/i);
   const outerMaxWidth = (hasPharmacyBlock || hasChartBlock)
     ? 'w-[98%] sm:w-[92%] max-w-[98%] sm:max-w-[92%]'
-    : 'max-w-[95%] sm:max-w-[85%]';
+    : hasMovieBlock
+      ? 'max-w-[95%] sm:w-[92%] sm:max-w-[92%]'
+      : 'max-w-[95%] sm:max-w-[85%]';
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} ${isUser ? 'mb-8' : 'mt-4 mb-10 sm:mt-0 sm:mb-8'} group animate-in fade-in duration-500`}>

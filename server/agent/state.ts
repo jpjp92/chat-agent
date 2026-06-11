@@ -15,6 +15,7 @@ export type IntentType =
     | "hospital_search" // 병원 위치/영업시간 탐색 (서울 한정)
     | "vet_search"    // 동물병원 위치 탐색 (전국)
     | "law_search"    // 국가법령정보 조회
+    | "movie_search"  // 영화 상영시간표 (CGV/롯데/메가박스)
     | "general";     // 나머지 모든 것
 
 /**

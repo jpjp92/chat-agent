@@ -1,6 +1,6 @@
 # Chat Agent 
 
-An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 10 interactive visualization renderers.
+An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 11 interactive visualization renderers.
 
 ---
 
@@ -28,7 +28,7 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
 - **LangGraph agent**: Semantic Router → Vision / Generator / Tools with intent-based path routing and deterministic fallbacks
 
-### 1-3. Visualization Renderers (10)
+### 1-3. Visualization Renderers (11)
 
 | Renderer             | Intent                      | Trigger                             | Library                                                    |
 | -------------------- | --------------------------- | ----------------------------------- | ---------------------------------------------------------- |
@@ -37,6 +37,7 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 | 🏨 Hospital-Viz      | `hospital_search`         | 병원·의원 위치 탐색                | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
 | 🐾 Vet-Viz           | `vet_search`              | 동물병원 위치 탐색                  | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10        |
 | ⚖️ Law-Viz         | `law_search`              | 법령 목록 / 본문 / 조항호목         | 국가법령정보센터 Open API                                  |
+| 🎬 Movie-Viz         | `movie_search`            | 영화 상영시간표 / 영화관 질의       | 롯데시네마·메가박스 direct JSON + CGV browserless(HMAC)   |
 | 🧪 Chem-Viz          | `chemistry`               | 분자 / 화학 구조                    | smiles-drawer                                              |
 | 🧬 Bio-Viz           | `biology`                 | 단백질 / DNA                        | NGL Viewer (3D PDB)                                        |
 | 📐 Diagram-Viz       | `physics`                 | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D                                                  |
@@ -59,14 +60,23 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **Article links**: Body/article cards include per-article public source links without exposing `LAW_OC`
 - **Colloquial law names**: Aliases (`소방법`, `교통법`, `개인정보법`, `근로법`) normalized to official search candidates
 
-### 1-6. Performance
+### 1-6. 🎬 Movie-Viz — Multiplex Showtimes Cards
+
+- **3-chain live showtimes**: CGV / 롯데시네마 / 메가박스 today's schedule with seat availability (`잔여/총석`), rating, format, and poster per movie
+- **Client-fetch architecture**: `movieTool` returns only region-matched default branches (`json:movie`); `MovieRenderer` then calls `GET /api/showtimes` per chain on mount — chat response ends instantly, CGV's ~2.5s browserless latency stays out of the chat function
+- **Branch dropdown**: 532 branches (CGV 177 · Lotte 239 · Megabox 116) with search filter; region keywords ("강남", "홍대", "서면") auto-select the best branch per chain
+- **SWR cache + skeleton**: in-memory fresh 120s / stale 30min with background refresh (CGV cold 7.3s → warm 0.003s); skeleton cards with min 320ms display unify perceived latency across chains
+- **Cloudflare-aware fetching**: Lotte/Megabox use direct JSON endpoints; CGV requires browserless (real headless Chrome) — Node-direct HMAC calls are blocked by Cloudflare Bot Management
+- **Chat-variant card**: 1-col chips on mobile / 2-col on desktop, lightweight panel (chain-color top accent), movie 더보기 toggle, cleaned CGV screen names with full name on hover, per-branch homepage links
+
+### 1-7. Performance
 
 - Lighthouse **91 / 100** (up from 44)
 - JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
 - CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
 - CLS **0.00** / Best Practices **100 / 100**
 
-### 1-7. Security
+### 1-8. Security
 
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
 - **SSRF protection**: `fetch-url`, `proxy-image`, `sync-drug-image` enforce hostname blocklists (RFC 1918 + IPv6 private ranges) and whitelist-only patterns
@@ -91,7 +101,7 @@ flowchart TB
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
         UI[Main UI and App State]
         Stream[useChatStream]
-        Renderers["Visualization Renderers - Drug / Pharmacy / Hospital / Vet / Law / Science / Chart"]
+        Renderers["Visualization Renderers - Drug / Pharmacy / Hospital / Vet / Law / Movie / Science / Chart"]
     end
 
     subgraph URLFetchAPI ["Vercel /api/fetch-url"]
@@ -109,11 +119,17 @@ flowchart TB
         ToolNode["ToolNode - executes LLM tool_calls"]
     end
 
+    subgraph ShowtimesAPI ["Vercel /api/showtimes"]
+        ShowtimesCache["SWR cache - fresh 120s / stale 30min"]
+        ChainFetch["Lotte / Megabox direct + CGV browserless HMAC"]
+    end
+
     subgraph Tools ["Server Tools"]
         DrugLookup["identify_pill - MFDS mfds_pills"]
         DrugInfo["search_drug_info - MFDS + DDG"]
         LocationTools["pharmacy / hospital / vet"]
         LawTool["lawTool"]
+        MovieTool["movieTool - region to default branches"]
         WebSearch["search_web"]
     end
 
@@ -123,6 +139,7 @@ flowchart TB
         PublicAPIs[["Public APIs - MFDS / HIRA / Law / Vet"]]
         DrugSites[["Drug Sources - MFDS nedrug / ConnectDI"]]
         URLProviders[["URL Providers - Jina / browserless / ScraperAPI"]]
+        Multiplex[["Multiplex - CGV / Lotte Cinema / Megabox"]]
     end
 
     Out([Rendered Answer + source chips])
@@ -153,7 +170,12 @@ flowchart TB
     ToolNode --> DrugInfo
     ToolNode --> LocationTools
     ToolNode --> LawTool
+    ToolNode --> MovieTool
     ToolNode --> WebSearch
+    Renderers -->|movie card mount / branch change| ShowtimesCache
+    ShowtimesCache -->|miss or stale| ChainFetch
+    ChainFetch <--> Multiplex
+    ShowtimesCache -.->|showtimes JSON| Renderers
     Generator <--> Gemini
     Vision <--> Gemini
     DrugLookup <--> DrugSites
@@ -189,7 +211,7 @@ The agent uses two execution paths inside `generator.ts`.
 Branch rules:
 
 - SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`)
-- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`
+- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
 - Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
 - URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
@@ -231,6 +253,7 @@ Tool-binding policy:
 | `hospital_search`              | `hospitalTool`, `search_web`     | Fast-passed as `json:hospital`                       |
 | `vet_search`                   | `vetTool`, `search_web`          | Fast-passed as `json:vet`                            |
 | `law_search`                   | `lawTool`                          | Handles query normalization and Open API calls         |
+| `movie_search`                 | `movieTool`                        | Fast-passed as `json:movie`; card fetches live showtimes via `/api/showtimes` |
 
 ### 2-5. Pill Image Identification Flow
 
@@ -249,6 +272,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 | `hospitalTool`     | `server/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                                              |
 | `vetTool`          | `server/agent/vet-tool.ts`       | Animal hospital search                                                                   |
 | `lawTool`          | `server/agent/law-tool.ts`       | Korean law list/body/article lookup                                                      |
+| `movieTool`        | `server/agent/movie-tool.ts`     | Region → 3-chain default theater branches (`json:movie`); showtimes fetched client-side |
 
 ### 2-7. Streaming And Source Handling
 
@@ -259,7 +283,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 - Vision node chunks are filtered out (contain internal JSON extraction data)
 - Exact URL fetch failures are short-circuited to a localized access-limitation notice; the system does not summarize substitute search results for that URL
 - Tool source URLs parsed from `[WEB_SOURCE_URLS]` and emitted as source chips
-- Fast-pass renderers stream completed `json:pharmacy`, `json:hospital`, `json:vet`, `json:law` blocks without an extra LLM synthesis step
+- Fast-pass renderers stream completed `json:pharmacy`, `json:hospital`, `json:vet`, `json:law`, `json:movie` blocks without an extra LLM synthesis step
 - Final assistant content saved to Supabase after streaming completes
 
 ### 2-8. Intent Routing
@@ -272,6 +296,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 | `hospital_search`                                                      | LangChain + HIRA hospital API tool                                              | selected model                                         |
 | `vet_search`                                                           | LangChain + animal hospital API tool                                            | selected model                                         |
 | `law_search`                                                           | LangChain + Korean law Open API tool                                            | selected model                                         |
+| `movie_search`                                                         | LangChain + `movieTool` → card client-fetches `/api/showtimes`                | selected model                                         |
 | `medical_qa`                                                           | SDK + Google Search grounding                                                   | selected model, 3.5 uses two-track                     |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
 | `general`                                                              | SDK, Google Search gated by `needsSearch` 3-gate classifier                   | selected model, 3.5 uses two-track when search is on   |
@@ -341,6 +366,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │       ├── sync-drug-image/route.ts
 │       ├── pill-search/route.ts
 │       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
+│       ├── showtimes/route.ts  # 3-chain live showtimes (Lotte/Megabox direct, CGV browserless) + SWR cache, icn1
 │       ├── upload/route.ts     # Supabase Storage upload proxy
 │       ├── fetch-url/route.ts  # URL prefetch: url_cache → direct HTML + Jina + wikidocs browserless/ScraperAPI fallback
 │       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
@@ -361,7 +387,8 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   │   ├── pharmacy-tool.ts
 │   │   ├── hospital-tool.ts
 │   │   ├── vet-tool.ts
-│   │   └── law-tool.ts
+│   │   ├── law-tool.ts
+│   │   └── movie-tool.ts       # Region → 3-chain default branches (json:movie)
 │   ├── mfds-logic.ts           # MFDS mfds_pills Supabase 3-stage matching + sortByRelevance
 │   ├── pill-logic.ts
 │   └── supabase.ts
@@ -372,12 +399,17 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   ├── HospitalRenderer.tsx
 │   ├── VetRenderer.tsx
 │   ├── LawRenderer.tsx
+│   ├── MovieRenderer.tsx       # Showtimes cards: branch dropdown + skeleton + /api/showtimes fetch
 │   ├── BioRenderer.tsx         # 3D protein structure (NGL)
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
 │   ├── ConstellationRenderer.tsx
 │   ├── ChartRenderer.tsx
 │   ├── DiagramRenderer.tsx
 │   └── ...
+├── lib/
+│   └── theaters.ts             # Theater branch helpers (flatBranches / findDefaultBranch / branchUrl) — server+client shared
+├── data/
+│   └── theater-branches.json   # 3-chain branch snapshot (CGV 177 · Lotte 239 · Megabox 116) bundled at build time
 ├── src/
 │   ├── lib/models.ts           # Frontend chat model registry
 │   └── hooks/
@@ -389,7 +421,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 ├── docs/                       # See §4-1 for naming conventions
 │   ├── DEV_HISTORY.md          # Dev history index (one line per session)
 │   ├── TODO.md
-│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260608.md)
+│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260611.md)
 │   ├── plans/PLAN_*.md         # Plan / design / analysis docs (start with PLAN_INDEX.md)
 │   └── guide/REF_*.md          # Renderer & feature reference guides
 ├── scripts/                    # Local audit, migration, and integration test scripts
@@ -445,7 +477,7 @@ LAW_OC=your_law_openapi_oc                              # 국가법령정보센�
 # URL fetch fallback
 SCRAPER_KEY=your_scraperapi_key                         # optional: wikidocs render fallback
 # SCRAPERAPI_KEY=your_scraperapi_key                    # alternative env name
-BROWSERLESS_KEY=your_browserless_token                  # optional: Cloudflare /unblock for wikidocs (BROWSERLESS_TOKEN also accepted)
+BROWSERLESS_KEY=your_browserless_token                  # wikidocs Cloudflare /unblock + CGV showtimes (BROWSERLESS_TOKEN also accepted)
 # BROWSERLESS_REST_URL=https://production-sfo.browserless.io  # optional: override browserless REST endpoint
 ```
 
