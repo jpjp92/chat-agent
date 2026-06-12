@@ -421,7 +421,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 ├── docs/                       # See §4-1 for naming conventions
 │   ├── DEV_HISTORY.md          # Dev history index (one line per session)
 │   ├── TODO.md
-│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260611.md)
+│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260612.md)
 │   ├── plans/PLAN_*.md         # Plan / design / analysis docs (start with PLAN_INDEX.md)
 │   └── guide/REF_*.md          # Renderer & feature reference guides
 ├── scripts/                    # Local audit, migration, and integration test scripts
