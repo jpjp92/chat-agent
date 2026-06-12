@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CHAINS, flatBranches, branchUrl, type ChainKey, type Branch } from '../lib/theaters';
+import { setChainShowtimes } from '../lib/movieContext';
 
 /**
  * 영화 상영시간표 카드 — CGV·롯데시네마·메가박스.
@@ -186,7 +187,14 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
         const j: Payload = await r.json();
         const wait = MIN_SKELETON - (performance.now() - t0);
         if (wait > 0) await new Promise((res) => setTimeout(res, wait));
-        if (alive && id === reqId.current) { setPayload(j); setLoading(false); }
+        if (alive && id === reqId.current) {
+          setPayload(j);
+          setLoading(false);
+          // 멀티턴 후속 질문용: 화면 표시 상영표를 클라 스토어에 적재
+          setChainShowtimes(chainKey, (j.list && j.list.length)
+            ? { chainName: nm, cinema: j.cinema || `${nm} ${branch.nm}`, movies: j.list.map((m) => ({ movie: m.movie, rating: m.rating, format: m.format, showtimes: m.showtimes.map((s) => ({ start: s.start, screen: s.screen, left: s.left, total: s.total })) })) }
+            : null);
+        }
       } catch (e: any) {
         if (alive && id === reqId.current) { setPayload({ error: e?.message || '조회 실패', list: [] }); setLoading(false); }
       }

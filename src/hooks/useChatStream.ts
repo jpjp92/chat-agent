@@ -4,6 +4,7 @@ import { ChatSession, Language, Message, MessageAttachment, Role } from '../../t
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
 import { writeSessionsCache } from './useChatSessions';
+import { getMovieContextText } from '../../lib/movieContext';
 
 // 로딩/에러 상태 문자열 — 이 훅이 유일한 소비처이므로 App.tsx prop 배관 대신 여기서 직접 보유.
 // (이전: App.tsx가 statusMessages subset 객체를 만들어 prop으로 전달 → 중복 타입/배관)
@@ -444,6 +445,10 @@ export const useChatStream = ({
             return session;
           }));
         },
+        // 현재 대화에 영화 카드가 실제로 있을 때만 movieContext 전송(타 대화 stale 데이터 누출 방지)
+        ((activeSession?.messages || []).some(m => m.role === Role.MODEL && m.content?.includes('```json:movie'))
+          ? getMovieContextText() || undefined
+          : undefined),
       );
 
       const videoAttachment = finalAttachments.find(attachment => attachment.mimeType?.startsWith('video/'));
