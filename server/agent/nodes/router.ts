@@ -1,7 +1,7 @@
 import { AgentStateType, IntentType } from "../state";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config";
+import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
 import { classifyIntentByRules, hasMedicalIntentKeyword, classifySearchNeed } from "../intentRules";
 
@@ -68,8 +68,11 @@ export const routerNode = async (state: AgentStateType) => {
     }
 
     if (apiKey) {
+        // 무효 키(Gemini는 400 API_KEY_INVALID 반환)·일시 오류 대비: 키를 바꿔 1회 재시도 후 휴리스틱 폴백
+        let routerKey: string = apiKey;
+        for (let attempt = 0; attempt < 2; attempt++) {
         try {
-            const ai = new GoogleGenAI({ apiKey });
+            const ai = new GoogleGenAI({ apiKey: routerKey });
             const prompt = `Classify the strictly main intent of the user message into one of these categories:
 - "drug_id"         : pill/tablet image identification (user has an image AND asks to identify it)
 - "drug_info"       : text-based drug name lookup, dosage, side effects, ingredients
@@ -112,17 +115,28 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
             }
+            break; // LLM 응답 수신 — 재시도 불필요
         } catch (error: any) {
             const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
-            if (isRateLimit && apiKey) {
+            if (isRateLimit) {
                 if (isDailyQuotaError(error)) {
-                    markKeyDailyExhausted(apiKey);
+                    markKeyDailyExhausted(routerKey);
                 } else {
-                    markKeyRateLimited(apiKey);
+                    markKeyRateLimited(routerKey);
                 }
             }
-            console.warn('[LangGraph] Semantic Router LLM failed, falling back to heuristics:', error?.status ?? error);
+            // Gemini는 무효 API 키를 401이 아닌 400(API_KEY_INVALID)으로 반환 → 로테이션에서 영구 제외
+            const isInvalidKey = /api key not valid|API_KEY_INVALID/i.test(error?.message ?? '');
+            if (isInvalidKey) markKeyInvalid(routerKey);
+            console.warn(`[LangGraph] Semantic Router LLM failed (attempt ${attempt + 1}):`, error?.status ?? '', (error?.message ?? String(error)).slice(0, 140));
+            const nextKey = getNextApiKey();
+            if (attempt === 0 && nextKey && nextKey !== routerKey) {
+                routerKey = nextKey;
+                continue;
+            }
+            console.warn('[LangGraph] Semantic Router falling back to heuristics');
             intent = classifyIntentByRules(textContent, hasImage);
+        }
         }
     } else {
         intent = classifyIntentByRules(textContent, hasImage);

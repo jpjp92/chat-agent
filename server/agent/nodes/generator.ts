@@ -805,14 +805,15 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
                     const isUnavailable = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
                     const isTimeout = err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
-                    const isAuth = err?.status === 401 || err?.status === 403;
+                    // Gemini는 무효 API 키를 401이 아닌 400(API_KEY_INVALID)으로 반환
+                    const isAuth = err?.status === 401 || err?.status === 403 || /api key not valid|API_KEY_INVALID/i.test(err?.message ?? '');
                     if (isAuth) {
                         markKeyInvalid(sdkApiKey);
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
                             sdkAttempt++;
-                            console.warn(`[LangGraph] SDK 401/403: retrying with next key (attempt ${sdkAttempt + 1})`);
+                            console.warn(`[LangGraph] SDK invalid/unauthorized key: retrying with next key (attempt ${sdkAttempt + 1})`);
                             continue;
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
@@ -1092,7 +1093,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         continue;
                     }
                 }
-                const isAuth = err?.status === 401 || err?.status === 403;
+                const isAuth = err?.status === 401 || err?.status === 403 || /api key not valid|API_KEY_INVALID/i.test(err?.message ?? '');
                 if (isAuth) markKeyInvalid(lcApiKey);
                 console.error('[LangGraph] LangChain path fatal error:', err?.status, err?.message?.slice(0, 120));
                 throw err;
