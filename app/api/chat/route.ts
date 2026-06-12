@@ -24,7 +24,7 @@ const CHAT_ERRORS: Record<string, Record<string, string>> = {
 
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
-  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone } = await req.json();
+  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext } = await req.json();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
         messages: contents, webContent: enrichedWebContent, attachments: processedAttachments,
         contextInfo: '', pillData: null, sessionId: session_id || '',
         model: finalModel, timeZone: timeZone || 'Asia/Seoul', nextNode: 'router',
+        movieContext: typeof movieContext === 'string' ? movieContext : '',
       };
 
       const unhandledRejectionGuard = (reason: any) => {

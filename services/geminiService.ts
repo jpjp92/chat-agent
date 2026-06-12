@@ -213,6 +213,7 @@ export const streamChatResponse = async (
   attachments?: MessageAttachment[],
   model: string = 'gemini-3.5-flash',
   onCutOff?: () => void,
+  movieContext?: string,
 ) => {
   const controller = new AbortController();
   let lastActivity = Date.now();
@@ -249,7 +250,7 @@ export const streamChatResponse = async (
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone }),
+      body: JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext }),
       signal: controller.signal,
     });
 

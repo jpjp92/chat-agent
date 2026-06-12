@@ -35,6 +35,18 @@ export const GraphState = Annotation.Root({
         default: () => "",
     }),
 
+    // 현재 화면에 표시된 영화 상영표 요약(클라이언트 전달). 멀티턴 후속 질문 답변용.
+    movieContext: Annotation<string>({
+        reducer: (x, y) => y ?? x,
+        default: () => "",
+    }),
+
+    // 이번 턴이 영화 카드에 대한 후속 질문인지(라우터 판정). generator의 movieContext 주입 게이트.
+    movieFollowup: Annotation<boolean>({
+        reducer: (x, y) => y ?? x,
+        default: () => false,
+    }),
+
     // Any files, images, or media attached by the user.
     attachments: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? [...x, ...y] : x),
