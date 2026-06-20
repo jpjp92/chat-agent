@@ -101,7 +101,7 @@ flowchart TB
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
         UI[Main UI and App State]
         Stream[useChatStream]
-        Renderers["Visualization Renderers - Drug / Pharmacy / Hospital / Vet / Law / Movie / Science / Chart"]
+        Renderers["Visualization Renderers (11) — Drug / Pharmacy / Hospital / Vet / Law / Movie / Bio / Chem / Constellation / Diagram / Chart"]
     end
 
     subgraph URLFetchAPI ["Vercel /api/fetch-url"]
@@ -140,6 +140,7 @@ flowchart TB
         DrugSites[["Drug Sources - MFDS nedrug / ConnectDI"]]
         URLProviders[["URL Providers - Jina / browserless / ScraperAPI"]]
         Multiplex[["Multiplex - CGV / Lotte Cinema / Megabox"]]
+        DDG[["DuckDuckGo / Web"]]
     end
 
     Out([Rendered Answer + source chips])
@@ -182,7 +183,7 @@ flowchart TB
     DrugInfo <--> PublicAPIs
     LocationTools <--> PublicAPIs
     LawTool <--> PublicAPIs
-    WebSearch <--> DrugSites
+    WebSearch <--> DDG
 
     %% Response (output) path - dashed
     ToolNode -.->|ToolMessage| Generator
@@ -394,6 +395,16 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   └── supabase.ts
 ├── components/                 # UI components
 │   ├── ChatMessage.tsx         # Markdown + visualization block parser
+│   ├── ChatArea.tsx
+│   ├── ChatInput.tsx
+│   ├── ChatSidebar.tsx
+│   ├── Header.tsx
+│   ├── WelcomeMessage.tsx
+│   ├── LoadingScreen.tsx
+│   ├── Dialog.tsx
+│   ├── Toast.tsx
+│   ├── YoutubeEmbed.tsx
+│   ├── ErrorBoundary.tsx
 │   ├── DrugRenderer.tsx
 │   ├── PharmacyRenderer.tsx
 │   ├── HospitalRenderer.tsx
@@ -404,10 +415,13 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   ├── ChemicalRenderer.tsx    # SMILES molecular structure
 │   ├── ConstellationRenderer.tsx
 │   ├── ChartRenderer.tsx
-│   ├── DiagramRenderer.tsx
-│   └── ...
+│   └── DiagramRenderer.tsx
 ├── lib/
-│   └── theaters.ts             # Theater branch helpers (flatBranches / findDefaultBranch / branchUrl) — server+client shared
+│   ├── theaters.ts             # Theater branch helpers (flatBranches / findDefaultBranch / branchUrl) — server+client shared
+│   └── movieContext.ts         # Movie card context store (client-only; multi-turn follow-up support)
+├── utils/
+│   ├── astronomyHelper.ts      # Astronomy-engine sky calculations for constellation visualization
+│   └── celestialMath.ts        # Celestial coordinate transformation utilities
 ├── data/
 │   └── theater-branches.json   # 3-chain branch snapshot (CGV 177 · Lotte 239 · Megabox 116) bundled at build time
 ├── src/
