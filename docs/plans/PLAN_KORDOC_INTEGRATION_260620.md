@@ -1,6 +1,6 @@
-# kordoc 한글문서 파싱 연동 계획 — 2026-06-16
+# kordoc 한글문서 파싱 연동 계획 — 2026-06-20
 
-> 작성일: 2026-06-16
+> 작성일: 2026-06-20
 > 상태: **P0 검증 완료(파싱·파이프라인·레이턴시), P1 라우트 구현 대기**. 전송 설계 = 4MB 임계값 라우팅 확정.
 > 레퍼런스: `reference/kordoc/통합가이드.md`, `reference/kordoc/route.ts`, `reference/kordoc/kordoc-tester.html`
 > 패키지: [`kordoc`](https://www.npmjs.com/package/kordoc) v3.1.1 — HWP3/HWP/HWPX/HWPML/PDF/XLS/XLSX/DOCX → Markdown
@@ -25,7 +25,7 @@
 
 ---
 
-## 1.5 검증 결과 (2026-06-16) — `scripts/test-kordoc.mjs`
+## 1.5 검증 결과 (2026-06-20) — `scripts/test-kordoc.mjs`
 
 실제 정부 사업계획서 4종(사용자 제공)으로 서버 파싱 검증 완료. **전부 파싱 성공, 표 구조 완벽 보존**(`<table>` + colspan/rowspan).
 
@@ -138,7 +138,7 @@ kordoc API 표면(테스터 실측 기준):
 
 ## 4. 구현 단계
 
-### P0 — 서버 검증 ✅ 완료 (2026-06-16)
+### P0 — 서버 검증 ✅ 완료 (2026-06-20)
 - [x] `npm i kordoc` (v3.1.1, package.json 등록)
 - [x] `scripts/test-kordoc.mjs` — 라우트와 동일 경로(`parse`)로 파싱, 포맷/블록/표/길이/제목/마크다운 미리보기 출력
 - [x] fixtures — `reference/kordoc/` 정부 문서 4종 (사용자 제공)

@@ -1,6 +1,6 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-06-16)  
+> 작성일: 2026-06-03 (갱신: 2026-06-20)  
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
@@ -14,7 +14,7 @@
 | P1 | Image generation (test/policy) | [PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md](PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md) | 1st test complete, policy/routing design done | Add Korean case-set, report aggregation, intent/layout guardrail tests |
 | P1 | Image generation (integration) | [PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md](PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md) | Integration design approved | Start P0: extract `server/image/` core modules from test script |
 | P1 | i18n cleanup | [PLAN_I18N_CLEANUP_260602.md](PLAN_I18N_CLEANUP_260602.md) | Steps 1·2 done (2026-06-04) | Decide step 3 shared-module boundary before extracting `src/i18n/` |
-| P1 | HWP 문서 파싱 (kordoc) | [PLAN_KORDOC_INTEGRATION_260616.md](PLAN_KORDOC_INTEGRATION_260616.md) | P0 verified (parse·pipeline·latency); transport = 4MB threshold routing (direct multipart + Storage for large) | Build `app/api/parse-document` route (multipart + filePath inputs), then ChatInput wiring |
+| P1 | HWP 문서 파싱 (kordoc) | [PLAN_KORDOC_INTEGRATION_260620.md](PLAN_KORDOC_INTEGRATION_260620.md) | P0 verified (parse·pipeline·latency); transport = 4MB threshold routing (direct multipart + Storage for large) | Build `app/api/parse-document` route (multipart + filePath inputs), then ChatInput wiring |
 | P1 | Mobile/session UX | [../TODO.md](../TODO.md) | Backlog item | Add minimum recovery for missing current session on mobile resume |
 | P2 | Frontend performance | [PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md](PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md) | Measured, selected quick wins | Apply quick wins after P0/P1 stability work |
 | P2 | Search/thinking latency | [PLAN_THINKING_LATENCY_260602.md](PLAN_THINKING_LATENCY_260602.md) | Major fix applied, residual checks remain | Recheck non-search `thinkingLevel: "low"` before changing |

@@ -6,6 +6,17 @@
 
 ## 🟡 P1 — 기능 개선
 
+### 0. 🐞 이미지+검색 할루시네이션 — 가짜 출처 생성 (구현 완료 2026-06-20)
+
+**증상:** 이미지 첨부 후 후속턴에서 "검색해서 확인해줘" 요청 시, 실제 Google Search grounding 없이 "검색어:/검색 결과 분석:/`[1]` 인용/참고 자료: ScienceDaily URL"을 통째로 지어냄. grounding 메타데이터 없음 → 소스 칩 미표시(= 가짜 검색의 증거).
+
+**근본 원인:** [`generator.ts:275`](../server/agent/nodes/generator.ts#L275) `useGoogleSearch = !hasMultimodalContent && !historyHasImage`. 이미지가 history에 있으면 Google Search 강제 OFF(Gemini API: inline 이미지+Search 동시 불가). 라우터가 `needsSearch=true`로 정상 판정해도 [라인 345](../server/agent/nodes/generator.ts#L345) 게이트가 이미 false라 **명시적 검색 요청이 묵살**됨. 2차로 [`prompt.ts:103-104`](../server/agent/prompt.ts#L103)의 "검색 안 했으면 인용 지어내지 마라" 가드를 3.5-flash가 무시.
+
+- [x] **근본 수정** (2026-06-20) — [`generator.ts`](../server/agent/nodes/generator.ts) while 루프 진입 전 `dropImageForSearch`(general && 현재턴 이미지없음 && history 이미지있음 && `_explicitSearchForGuard`) 시 `forceTextOnly=true` → parts 루프가 이미지 스킵 → `hasMultimodalContent=false` → 검색 활성화. line 275 `|| dropImageForSearch` 보강. `_explicitSearchForGuard`는 `state.needsSearch === true`(라우터 LLM 판정) 1순위 + 키워드 정규식 보조로 구성 — 라우터가 문맥으로 이미 판정한 값을 제너레이터가 무시하던 구조적 불일치 해소. (실 차단자는 `historyHasImage`가 아니라 history 이미지가 inlineData로 변환되며 켜지는 `hasMultimodalContent`였음 — 진단 정정.)
+- [x] **하드 규칙(가짜 출처 절대 금지) + 최상단 이동** (2026-06-20) — [`prompt.ts`](../server/agent/prompt.ts) 언어 지시 직후 `[CRITICAL — ABSOLUTE RULE: NEVER FABRICATE SOURCES]` 신규(Google grounding 클로즈 기반). 기존 `[GROUNDING & CITATIONS]`는 긍정 지시만 남기고 부정 규칙 최상단 이관. (REF_Gemini_Prompt_Guide "critical instruction은 맨 앞" 원칙 적용)
+- [ ] **후처리 방어(보조, 선택)** — grounding 메타데이터 부재 시 응답 내 fabricated 인용/참고자료 블록 strip (기존 `[N]` strip 로직 확장, cf. v4.53). 근본 수정으로 대부분 해소돼 우선순위 낮음.
+- [x] **재현 테스트** (2026-06-20) — 이미지 첨부 → "팩트체크를 위해 웹에서 해당 연구가 있는지 검토해보자" 로컬 재시도. `dropImageForSearch` 미발동(초기 정규식 미매칭)이었으나 MALFORMED→2.5-flash 폴백→`tool_code` 감지→grounding 재시도 체인으로 `uni-bonn.de`·`thedebrief.org`·`miragenews.com` 실제 소스 칩 정상 표시, 가짜 출처 없음 확인. `needsSearch` 1순위 조건 추가 후 가드 직접 발동 경로로 개선.
+
 ### 1. 멀티턴 경고·차단
 
 20개 메시지 시 Toast 경고, 30개 시 전송 차단 + 인라인 배너.
@@ -249,7 +260,7 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 | M6 프론트 UI | 멀티 프로바이더 그룹 표시, 세션별 모델 기억 |
 
 **Gemini 3.5 Flash 전환 완료 — 후속 점검** (`DEFAULT_CHAT_MODEL = gemini-3.5-flash` 이미 적용):
-- [ ] `drug-info-tool.ts` — `temperature: 0.1` 제거 검토 (line 27·93, `searchDrugViaGoogleSearch`/`extractImprintViaVision`)
+- [x] `drug-info-tool.ts` — `temperature: 0.1` **유지 결정** (2026-06-20). Gemini 3.x 가이드는 <1.0 비권장이나, 약품 정보는 0.1이라야 일관된 답변이 나와 의도적 유지. (line 27·93)
 - [ ] `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토 (line 887·933)
 
 > 의학·YouTube·law 경로 및 Search two-track, PDF 토큰 증가는 3.5로 이미 운영 중 — 별도 검증 항목 제거.
