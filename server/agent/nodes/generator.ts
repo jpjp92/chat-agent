@@ -171,6 +171,29 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             // retry once without media parts + Google Search enabled.
             let forceTextOnly = false;
 
+            // [이미지+검색 할루시네이션 가드] 현재 턴엔 이미지가 없고 history에만 이미지가 있는데
+            // 사용자가 명시적으로 검색/팩트체크를 요청하면, 이번 요청에서 미디어를 빼고 실제
+            // Google Search grounding을 켠다. Gemini는 inline 이미지+Search 동시 불가 → 이미지를
+            // 보내면 parts 루프에서 hasMultimodalContent=true가 되어 검색이 막히고, 모델이 가짜
+            // 출처([1]·URL·"참고 자료")를 지어내기 때문(근본 원인). 이미지 내용은 직전 assistant
+            // 답변에 텍스트로 전사돼 있어 텍스트만으로도 팩트체크가 가능하다.
+            const _lastHumanMsg = [...state.messages].reverse().find((m: any) => m._getType() === 'human');
+            const _currentTurnHasImage = Array.isArray(_lastHumanMsg?.content) && (_lastHumanMsg!.content as any[]).some((p: any) =>
+                p.type === 'image_url' || p.inlineData?.mimeType?.startsWith?.('image/') || p.fileData?.mimeType?.startsWith?.('image/')
+            );
+            const _historyHasImageForGuard = state.messages.some((m: any) =>
+                Array.isArray(m.content) && (m.content as any[]).some((p: any) =>
+                    p.type === 'image_url' || p.inlineData?.mimeType?.startsWith?.('image/') || p.fileData?.mimeType?.startsWith?.('image/')
+                )
+            );
+            const _explicitSearchForGuard = state.needsSearch === true
+                || /(검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|팩트체크|팩트 체크|사실확인|사실 확인|확인해|검증|웹에서|온라인에서|인터넷에서|실제로.*있|연구가.*있|논문|latest|recent|search|source|cite|fact.?check|verify|online)/i.test(latestUserText);
+            const dropImageForSearch = state.intent === 'general' && !_currentTurnHasImage && _historyHasImageForGuard && _explicitSearchForGuard;
+            if (dropImageForSearch) {
+                forceTextOnly = true;
+                console.log('[LangGraph] 이미지+검색 가드: history 이미지 제외 + Google Search 활성화 (명시적 팩트체크 요청)');
+            }
+
             while (sdkAttempt < MAX_KEY_RETRIES) {
                 // Declare outside try so catch block can read them for duplicate-guard
                 let responseText = "";
@@ -272,7 +295,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // in webContent. Treat it the same as native video data — no Search needed.
                     const hasVideoSummary = state.webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
 
-                    let useGoogleSearch = !hasMultimodalContent && !historyHasImage;
+                    let useGoogleSearch = !hasMultimodalContent && (!historyHasImage || dropImageForSearch);
                     // 1턴: transcript/native video 있으면 Search 비활성
                     // 2턴+: VIDEO_ANALYSIS_SUMMARY가 있으면 Search 비활성 (1차 분석 결과가 컨텍스트)
                     if (isYoutubeRequest && (hasTranscript || hasVideoData || hasVideoSummary)) {

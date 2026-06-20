@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // API routes use Node.js runtime (Gemini SDK, LangGraph, Supabase service role)
   // Do NOT set runtime: 'edge' globally
+  allowedDevOrigins: ['127.0.0.1'],
   // Security headers (ported from vercel.json)
   async headers() {
     return [
