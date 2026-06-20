@@ -30,7 +30,7 @@
 
 ## 🟢 P2 — 성능
 
-현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-04-04)
+현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-06-02 재측정, 4/4과 동일)
 
 ### DB 쿼리 최적화 및 캐싱
 
@@ -46,7 +46,7 @@
 
 ### 번들 최적화
 
-- [ ] FontAwesome — npm 패키지(`@fortawesome/fontawesome-svg-core`) 설치는 됐으나 CDN 병행 사용 중 → CDN 제거 후 npm 단일화 (18KB + 100ms 절감)
+- [ ] FontAwesome — npm 패키지 4종 제거 완료(DEV_260613), 현재 CDN(`fa-solid` 클래스) 단일 사용. 자체 호스팅 전환 검토 (CSP 전제조건, ~18KB + 100ms)
 - [ ] KaTeX / Google Fonts 자체 호스팅 (CDN 의존성 제거 + CSP 전제조건)
 - [ ] `fonts.gstatic.com` preconnect `crossorigin="anonymous"` 추가
 
@@ -61,32 +61,23 @@
 공통 구현 패턴: `tools.ts` → `router.ts` → `generator.ts` → `prompt.ts` → `ChatMessage.tsx` → `Renderer.tsx`
 
 **① arXiv + PubMed 논문 검색** (★★★)
-- [ ] `server/agent/tools/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인
+- [ ] `server/agent/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인
 - [ ] `components/PaperRenderer.tsx`
 - [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
 **② 서울 문화행사** (★★) — 키: `CULTURE_API_KEY`
-- [ ] `server/agent/tools/culture-tool.ts` — 구 필터 + 오늘 이후 정렬 + 썸네일
+- [ ] `server/agent/culture-tool.ts` — 구 필터 + 오늘 이후 정렬 + 썸네일
 - [ ] `components/CultureRenderer.tsx`
 - [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
 **③ NEIS 학교기본정보** (★★) — 키: `EDU_KEY`
-- [ ] `server/agent/tools/school-tool.ts` — `SCHUL_NM`/`LCTN_SC_NM`/`SCHUL_KND_SC_NM` 파라미터
+- [ ] `server/agent/school-tool.ts` — `SCHUL_NM`/`LCTN_SC_NM`/`SCHUL_KND_SC_NM` 파라미터
 - [ ] `components/SchoolRenderer.tsx`
 - [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
-**④ 영화 상영정보 / 박스오피스** (★★★) — 키: `KOBIS_KEY` (포스터는 CGV/메가박스/롯데 CDN)
+> **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movieContext.ts`). 상세: DEV_260610~613.
 
-박스오피스·예매율·관객수는 KOBIS(영화관입장권통합전산망) Open API, 포스터·예매 링크는 멀티플렉스(CGV/메가박스/롯데시네마) 수집. **carousel(가로 스크롤 슬라이드) 렌더러가 신규** — 기존 단일 카드 렌더러와 다른 첫 carousel UI.
-
-- [ ] `server/agent/tools/movie-tool.ts` — KOBIS `boxOfficeResult`(일일/주간 예매율·관객수) + 멀티플렉스 포스터/예매 URL 매핑
-- [ ] `components/MovieRenderer.tsx` — 가로 스크롤 carousel, 포스터 + 제목 + 메타(연령/장르/예매율/관객수) + `예매하기` CTA
-- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` — `movie_search` intent + `json:movie` 블록 공통 패턴 적용
-- [ ] **포스터 hotlinking 대응** — CGV/메가박스 CDN은 Referer 차단(깨진 이미지) 가능 → 기존 [`app/api/proxy-image/route.ts`](../app/api/proxy-image/route.ts) 경유로 렌더, 수집 단계에서 URL 유효성 사전 검증
-- [ ] **`json:movie` 스키마 표준화** — 슬라이드 배열 `[{ image_url, title, sub_text, postback, buttons[] }]` 표준 JSON 준수(Kakao식 `type:N`/`0:{}` 표기 금지), 파서 견고성 확보
-- [ ] **메타 텍스트 예외 처리** — `sub_text` 줄바꿈(`\n`) 기반 메타에서 관객수/예매율 누락 시(예: 개봉 전·이벤트관) 빈 줄 제거 + 필드 조건부 렌더
-
-> 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수 / KOBIS `boxOfficeResult` 키 부재·일자 미마감 응답 가드 + 포스터 URL은 반드시 `proxy-image` 경유
+> 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
 
 ### 국가법령정보 후속 확장
 
@@ -259,6 +250,6 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 
 **Gemini 3.5 Flash 전환 완료 — 후속 점검** (`DEFAULT_CHAT_MODEL = gemini-3.5-flash` 이미 적용):
 - [ ] `drug-info-tool.ts` — `temperature: 0.1` 제거 검토 (line 27·93, `searchDrugViaGoogleSearch`/`extractImprintViaVision`)
-- [ ] `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토 (line 880·926)
+- [ ] `generator.ts` LangChain path — `maxOutputTokens: 8192` → 65k 상향 검토 (line 887·933)
 
 > 의학·YouTube·law 경로 및 Search two-track, PDF 토큰 증가는 3.5로 이미 운영 중 — 별도 검증 항목 제거.
