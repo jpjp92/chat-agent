@@ -43,8 +43,8 @@
 | **HWP 4종** `.hwp/.hwpx/.hwp3/.hwpml` | **kordoc** → 구조 보존 마크다운(진짜 `<table>`) via `/api/parse-document` | **서버** | ✅ `<table>` (colspan/rowspan) |
 | **XLSX** `.xlsx` | SheetJS → 마크다운 표(첫 시트) | 클라 | ✅ 마크다운 표 |
 | **CSV** `.csv` | 줄/콤마 파싱 → 마크다운 표 | 클라 | ✅ 마크다운 표 |
-| **DOCX** `.docx` | mammoth `extractRawText` | 클라 | ❌ 평문(표→텍스트) |
-| **PPTX** `.pptx` | JSZip `<a:t>` 슬라이드별 텍스트 | 클라 | ❌ 평문, 이미지 위주 슬라이드는 안내 문구 |
+| **DOCX** `.docx` | mammoth **`convertToHtml`** → `<table>` 보존 | 클라 | ✅ `<table>` (th/td) |
+| **PPTX** `.pptx` | JSZip — `<a:tbl>`→마크다운 표 + 비표 텍스트(슬라이드별) | 클라 | ✅ 마크다운 표(병합 셀은 근사), 이미지 위주 슬라이드는 안내 문구 |
 | **TXT/MD** `.txt/.md` | UTF-8 디코드(실패 시 EUC-KR 폴백) | 클라 | — |
 
 ---
@@ -130,15 +130,18 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 # XLSX/CSV — 표 인식
 (데이터.xlsx 첨부) 이 표에서 매출 1위 항목 알려줘
 
-# DOCX/PPTX — 평문 추출
-(보고서.docx 첨부) 핵심 3가지로 요약해줘
+# DOCX — 표 보존 (convertToHtml → <table>)
+(버전 히스토리 표가 있는 보고서.docx 첨부) 표 내용 정리해줘
+
+# PPTX — 표 보존 (<a:tbl> → 마크다운 표)
+(표가 든 발표.pptx 첨부) 마지막 슬라이드 표 정리해줘
 ```
 
 ---
 
 ## Tips
 
-- **표가 중요하면 HWP/XLSX/CSV** — kordoc·SheetJS가 표를 보존. DOCX/PPTX는 표가 평문으로 뭉개지므로, 표 질의가 핵심이면 해당 표를 XLSX/CSV로 변환하거나 PDF(멀티모달)로 첨부하는 편이 정확.
+- **표는 모든 텍스트 추출 포맷이 보존** — HWP(kordoc `<table>`)·DOCX(mammoth `convertToHtml` `<table>`)·XLSX/CSV(마크다운 표)·PPTX(`<a:tbl>`→마크다운 표). 단 **PPTX 병합 셀(gridSpan/rowSpan)은 마크다운 한계로 근사**(빈 셀 패딩)되므로, 병합이 많은 복잡한 표가 핵심이면 PDF(멀티모달)로 첨부하는 편이 정확.
 - **PDF는 그대로** — 레이아웃·이미지·스캔 인식이 필요하면 PDF 네이티브가 최선(kordoc 경유 금지).
 - **대용량 HWP(>4MB)** — 자동으로 Storage 경유. 최대 32MB도 왕복 ~4초로 `maxDuration=60` 여유.
 - **search-gate** — 문서 요약 중 웹 결과가 섞이길 원하면 "검색/최신/출처" 같은 단어를 명시.
