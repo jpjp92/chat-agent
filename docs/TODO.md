@@ -88,7 +88,14 @@
 
 > **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movieContext.ts`). 상세: DEV_260610~613.
 
-> **⑤ 스포츠(월드컵) — 구현 완료** (`lib/sports/football-data.ts`, `server/agent/worldcup-tool.ts`, `sports` intent). football-data.org 연동으로 WC 순위/대진/득점왕, grounding 우회. 상세: DEV_260621. 추후 확장: WC 외 리그(EPL/CL 등), 전용 카드 UI(crest 로고). 제약: 무료 티어 과거시즌 미지원·rate limit 분당 6회.
+> **⑤ 스포츠(월드컵) — 구현 완료** (`lib/sports/football-data.ts`, `server/agent/worldcup-tool.ts`, `sports` intent). football-data.org 연동으로 WC 순위/대진/득점왕, grounding 우회. 상세: DEV_260621. 제약: 무료 티어 과거시즌 미지원·rate limit 분당 6회.
+
+**⑤-확장 — 다른 리그/대회 지원** (추후): 현 `SPORTS_API_KEY`(TIER_ONE)로 WC 외에도 호출 가능한 대회가 많음 — **CL(챔피언스리그)**, EPL(PL)·라리가(PD)·분데스리가(BL1)·세리에A(SA)·리그1(FL1)·유로(EC)·에레디비시(DED)·프리메이라리가(PPL)·브라질세리에A(BSA)·챔피언십(ELC)·코파리베르타도레스(CLI). reference `chat_w_AI/utils/query_analyzer.py`의 `LEAGUE_MAPPING`(epl→PL 등) + CL 멀티그룹 파서 패턴 그대로 이식 가능.
+- [ ] `worldCupTool`을 범용 `sportsTool`로 일반화 — `competition` 인자(WC/CL/PL/PD…) 추가, 리그명 키워드→코드 매핑
+- [ ] 단판 리그는 단일 테이블(`standings[0].table`), CL/WC는 멀티그룹 — 기존 분기 재사용
+- [ ] 라우터 키워드 확장(프리미어리그/챔스/라리가 등), intent명 재고(sports 유지 가능)
+- [ ] 캐시 키에 competition 포함, rate limit 분당 6회 → 대회 추가 시 캐시 TTL 재점검
+- [ ] (선택) 전용 카드 UI(crest 로고/하이라이트)
 
 > 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
 
