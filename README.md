@@ -69,14 +69,21 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **Cloudflare-aware fetching**: Lotte/Megabox use direct JSON endpoints; CGV requires browserless (real headless Chrome) — Node-direct HMAC calls are blocked by Cloudflare Bot Management
 - **Chat-variant card**: 1-col chips on mobile / 2-col on desktop, lightweight panel (chain-color top accent), movie 더보기 toggle, cleaned CGV screen names with full name on hover, per-branch homepage links
 
-### 1-7. Performance
+### 1-7. ⚽ Sports — World Cup Tool
+
+- **Live World Cup data**: `worldCupTool` fetches the current FIFA World Cup standings (12 groups), fixtures/bracket, and top scorers from football-data.org (v4) — bypasses Gemini Search grounding, which is structurally unfit for real-time sports tables (organic pages only, inconsistent per-group freshness, no access to Google's sports knowledge panel)
+- **Selective fetch + cache**: LLM picks `resource` (standings / matches / scorers); in-memory cache (standings·scorers 5min, matches 10min, stale fallback on 429) absorbs the API's 6 req/min rate limit
+- **Markdown output (no custom renderer)**: tool returns a `[WORLDCUP_DATA]` block; the LLM formats tables, translates team names to Korean, reasons over free-form questions ("한국 16강 가능성?"), and reports undetermined brackets honestly instead of fabricating
+- **Past tournaments → training knowledge**: free tier serves the current tournament only (past seasons return 403), so the router sends "2022 월드컵" style queries to `general` with a not-real-time note
+
+### 1-8. Performance
 
 - Lighthouse **91 / 100** (up from 44)
 - JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
 - CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
 - CLS **0.00** / Best Practices **100 / 100**
 
-### 1-8. Security
+### 1-9. Security
 
 - **Presigned URL architecture**: Supabase credentials never exposed to the frontend
 - **SSRF protection**: `fetch-url`, `proxy-image`, `sync-drug-image` enforce hostname blocklists (RFC 1918 + IPv6 private ranges) and whitelist-only patterns
@@ -130,6 +137,7 @@ flowchart TB
         LocationTools["pharmacy / hospital / vet"]
         LawTool["lawTool"]
         MovieTool["movieTool - region to default branches"]
+        WorldCupTool["worldCupTool - football-data.org WC"]
         WebSearch["search_web"]
     end
 
@@ -212,7 +220,7 @@ The agent uses two execution paths inside `generator.ts`.
 Branch rules:
 
 - SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`)
-- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`
+- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
 - Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
 - URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
@@ -255,6 +263,7 @@ Tool-binding policy:
 | `vet_search`                   | `vetTool`, `search_web`          | Fast-passed as `json:vet`                            |
 | `law_search`                   | `lawTool`                          | Handles query normalization and Open API calls         |
 | `movie_search`                 | `movieTool`                        | Fast-passed as `json:movie`; card fetches live showtimes via `/api/showtimes` |
+| `sports`                       | `worldCupTool`                     | football-data.org WC standings/matches/scorers; markdown output, past seasons → `general` |
 
 ### 2-5. Pill Image Identification Flow
 
@@ -298,6 +307,7 @@ Image identification fast-path: router → vision extraction → direct DB looku
 | `vet_search`                                                           | LangChain + animal hospital API tool                                            | selected model                                         |
 | `law_search`                                                           | LangChain + Korean law Open API tool                                            | selected model                                         |
 | `movie_search`                                                         | LangChain + `movieTool` → card client-fetches `/api/showtimes`                | selected model                                         |
+| `sports`                                                              | LangChain + `worldCupTool` → football-data.org (markdown), past → `general` | selected model                                         |
 | `medical_qa`                                                           | SDK + Google Search grounding                                                   | selected model, 3.5 uses two-track                     |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
 | `general`                                                              | SDK, Google Search gated by `needsSearch` 3-gate classifier                   | selected model, 3.5 uses two-track when search is on   |
@@ -487,6 +497,7 @@ MFDS_API_KEY=your_mfds_key
 PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용 (만료 2028-05-06/07)
 VET_KEY=your_animal_hospital_api_key                    # 행정안전부 동물병원 (만료 2028-05-10)
 LAW_OC=your_law_openapi_oc                              # 국가법령정보센터 OC 코드
+SPORTS_API_KEY=your_football_data_org_token             # football-data.org v4 (월드컵 순위/대진/득점왕, TIER_ONE)
 
 # URL fetch fallback
 SCRAPER_KEY=your_scraperapi_key                         # optional: wikidocs render fallback
