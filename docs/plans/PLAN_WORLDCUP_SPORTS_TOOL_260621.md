@@ -28,10 +28,15 @@ API 검증 완료 (현재 `SPORTS_API_KEY`, plan=TIER_ONE): 월드컵 12조 순�
 | 현재 대회 | football-data.org API |
 | 과거 대회(2022 등) | **LLM 학습지식**으로 답변 + 실시간 아님 고지 (API 403이므로). grounding/API 안 씀 — 안정적 역사 데이터라 신선도 무관 |
 
+### 렌더 경로 (확정)
+- **마크다운 경로** 사용 — tool이 마크다운 표를 내보내면 `ChatMessage.tsx:296`의 `table` 오버라이드가 기존 스타일(rounded-2xl·다크모드·`prose dark:prose-invert`) 자동 적용. 새 UI 컴포넌트 0개. 다른 텍스트 의도와 동일 배경/스타일.
+- 영화식 **전용 카드(MovieRenderer 패턴)는 추후 고려** — 자유 질문 유연성 위해 현재는 마크다운 채택.
+
 ### 비범위 (YAGNI)
 - WC 외 리그(EPL/CL 등) — 추후 확장 여지만 남김
 - 과거 시즌 API 유료 업그레이드
 - head2head, teams, persons 등 기타 엔드포인트
+- 전용 카드 UI 컴포넌트 (crest 로고/하이라이트 등) — 추후
 
 ---
 
@@ -67,6 +72,8 @@ fetchStandings(): 12조 정형  — GET /v4/competitions/WC/standings
 fetchMatches({stage?, status?}): 경기/대진 — GET /v4/competitions/WC/matches?stage=&status=
 fetchScorers({limit=10}): 득점왕 — GET /v4/competitions/WC/scorers?limit=
 ```
+- **scorers 가용 필드 (WC)**: `goals`(득점), `penalties`(PK골), `playedMatches`(출전수). **`assists`·`rating(평점)`은 WC 미제공**(assists는 null로 옴, rating은 API에 없음) → 득점왕 표는 득점/PK/출전수 컬럼으로 구성.
+- 팀명은 영문 원본(+`tla` 약자, `crest` 로고 URL) 그대로 반환 → **한글화는 LLM이 처리**(하드코딩 안 함, 검증 완료).
 - 인증: `headers: { 'X-Auth-Token': process.env.SPORTS_API_KEY }`
 - 파서: reference `utils/football.py`의 CL 멀티그룹 로직 이식 — `standings[]` 순회 → `group.table[]` → `{순위, 그룹, 팀, 경기, 승, 무, 패, 득점, 실점, 득실차, 승점}`
 - 캐시: 리소스별 차등 TTL — **standings/scorers 5분, matches 10분** (분당 6회 제약 대응)
@@ -81,7 +88,10 @@ schema: {
   status?:  "SCHEDULED"|"FINISHED"|"LIVE"|"IN_PLAY",
 }
 ```
-- return: `[WORLDCUP_DATA]\n<정형 데이터>\n` + 지시문("이 데이터만 근거로 답하고 순위·점수·선수명을 지어내지 말 것. 실시간 기준 데이터임")
+- return: `[WORLDCUP_DATA]\n<정형 데이터>\n` + 지시문:
+  - "이 데이터만 근거로 답하고 순위·점수·선수명을 지어내지 말 것. 실시간 기준 데이터임"
+  - "팀명은 한국어로 번역해 표기할 것"
+  - "**미확정 항목(미정 대진 등)은 표로 나열하지 말고 '아직 경기가 진행되지 않았습니다'로 안내**할 것" (16강 대진이 조별리그 진행 중일 때 등 — 검증서 미정 8경기 확인)
 - description: "**현재 진행 중인** FIFA 월드컵의 조별 순위/대진·경기일정/득점왕을 조회. 과거 대회는 미지원."
 
 ### 4.3 라우팅 `router.ts`

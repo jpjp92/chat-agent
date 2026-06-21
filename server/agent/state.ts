@@ -16,6 +16,7 @@ export type IntentType =
     | "vet_search"    // 동물병원 위치 탐색 (전국)
     | "law_search"    // 국가법령정보 조회
     | "movie_search"  // 영화 상영시간표 (CGV/롯데/메가박스)
+    | "sports"        // 월드컵 순위/대진/득점왕 (football-data.org)
     | "general";     // 나머지 모든 것
 
 /**

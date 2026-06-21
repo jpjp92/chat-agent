@@ -52,6 +52,7 @@ Recommended next order:
 | [PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md](PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md) | Change summary for completed latency search routing work. |
 | [PLAN_DB_MIGRATION.md](PLAN_DB_MIGRATION.md) | Evergreen migration/reference doc. Use only when Supabase project migration is active. |
 | [PLAN_ERROR_HANDLING.md](PLAN_ERROR_HANDLING.md) | Architecture reference and backlog. |
+| [PLAN_WORLDCUP_SPORTS_TOOL_260621.md](PLAN_WORLDCUP_SPORTS_TOOL_260621.md) · [PLAN_WORLDCUP_IMPL_260621.md](PLAN_WORLDCUP_IMPL_260621.md) | **구현 완료 (2026-06-21)**. football-data.org `sports` intent tool (월드컵 순위/대진/득점왕), grounding 우회. 로그 [DEV_260621](../logs/DEV_260621.md). 추후: WC 외 리그·전용 카드 UI. |
 
 ---
 
