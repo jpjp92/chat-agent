@@ -272,7 +272,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     try {
       if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx")) {
         const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
+        // convertToHtml로 표를 <table>(th/td)로 보존 — extractRawText는 셀을 평문으로 뭉갬.
+        // kordoc HWP·XLSX와 동일하게 모델이 키-값/행열을 정확히 인식. 추출 시점 +~10ms(첨부 시점, 응답 critical path 밖).
+        const result = await mammoth.convertToHtml({ arrayBuffer });
         extractedText = result.value;
       } else if (file.name.endsWith(".xlsx") || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
         const arrayBuffer = await file.arrayBuffer();
@@ -364,18 +366,40 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             return numA - numB;
           });
 
+        // [\s\S]로 개행 포함 텍스트 런까지 추출('.'은 개행 포함 <a:t>를 통째로 누락)
+        const decodeEnt = (s: string) => (s || '')
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+        const runs = (xml: string) => decodeEnt((xml.match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g) || [])
+          .map(m => m.replace(/<[^>]+>/g, '')).join(' ')).replace(/\s+/g, ' ').trim();
+        // <a:tc> 셀 — 문단(<a:p>)별 런을 합쳐 셀 1칸으로
+        const cellText = (tc: string) => {
+          const ps = tc.match(/<a:p>[\s\S]*?<\/a:p>/g) || [tc];
+          return ps.map(p => decodeEnt((p.match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g) || [])
+            .map(m => m.replace(/<[^>]+>/g, '')).join(''))).join(' ').replace(/\s+/g, ' ').trim();
+        };
+        // <a:tbl> → 마크다운 표. 병합 셀(gridSpan/rowSpan)은 마크다운 한계로 근사(빈 셀 패딩)
+        const tableToMd = (tbl: string) => {
+          const rows = (tbl.match(/<a:tr[\s\S]*?<\/a:tr>/g) || [])
+            .map(tr => (tr.match(/<a:tc[\s\S]*?<\/a:tc>/g) || []).map(cellText));
+          if (!rows.length) return '';
+          const cols = Math.max(...rows.map(r => r.length));
+          const pad = (r: string[]) => r.concat(Array(Math.max(0, cols - r.length)).fill(''));
+          let md = `| ${pad(rows[0]).join(' | ')} |\n| ${Array(cols).fill('---').join(' | ')} |\n`;
+          rows.slice(1).forEach(r => md += `| ${pad(r).join(' | ')} |\n`);
+          return md.trim();
+        };
+
         let fullText = "";
         for (let i = 0; i < slideFiles.length; i++) {
-          const slidePath = slideFiles[i];
-          const xmlContent = await zip.file(slidePath)!.async("string");
-          const textMatches = xmlContent.match(/<a:t[^>]*>(.*?)<\/a:t>/g);
-          if (textMatches) {
-            const slideText = textMatches
-              .map(m => m.replace(/<[^>]+>/g, ''))
-              .map(t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
-              .join(' ');
-            fullText += `[Slide ${i + 1}]\n${slideText}\n\n`;
+          const xmlContent = await zip.file(slideFiles[i])!.async("string");
+          // <a:tbl> 블록은 마크다운 표로, 그 외 영역은 텍스트로 읽기순서 유지하며 추출
+          let slideOut = "";
+          for (const part of xmlContent.split(/(<a:tbl[\s\S]*?<\/a:tbl>)/g)) {
+            if (part.startsWith('<a:tbl')) { const t = tableToMd(part); if (t) slideOut += '\n' + t + '\n'; }
+            else { const t = runs(part); if (t) slideOut += t + '\n'; }
           }
+          slideOut = slideOut.trim();
+          if (slideOut) fullText += `[Slide ${i + 1}]\n${slideOut}\n\n`;
         }
 
         if (fullText.trim().length < 10) {
