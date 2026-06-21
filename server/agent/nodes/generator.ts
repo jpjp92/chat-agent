@@ -1,7 +1,7 @@
 import { AgentStateType } from "../state";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
+import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../../models";
 import { identifyPillTool, searchWebTool } from "../tools";
 import { searchDrugInfoTool } from "../drug-info-tool";
@@ -17,6 +17,7 @@ import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillC
 import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
+import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 
 /**
  * Generator Node
@@ -592,9 +593,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
                     const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
                     const isUnavailable = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('UNAVAILABLE');
-                    const isTimeout = err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
-                    // Gemini는 무효 API 키를 401이 아닌 400(API_KEY_INVALID)으로 반환
-                    const isAuth = err?.status === 401 || err?.status === 403 || /api key not valid|API_KEY_INVALID/i.test(err?.message ?? '');
+                    const isTimeout = isTimeoutError(err);
+                    const isAuth = isAuthError(err);
                     if (isAuth) {
                         markKeyInvalid(sdkApiKey);
                         const nextKey = getNextApiKey();
@@ -605,13 +605,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             continue;
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
-                        if (isRateLimit) {
-                            if (isDailyQuotaError(err)) {
-                                markKeyDailyExhausted(sdkApiKey);
-                            } else {
-                                markKeyRateLimited(sdkApiKey);
-                            }
-                        }
+                        if (isRateLimit) markRateLimitKey(sdkApiKey, err);
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
@@ -864,16 +858,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     err.message.includes('INTERNAL') ||
                     err.message.includes('503')
                 );
-                const isTimeout = err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
+                const isTimeout = isTimeoutError(err);
                 const isUnavailable = err?.status === 503 || err?.message?.includes('UNAVAILABLE');
                 if (isRateLimit || isStreamError || isTimeout || isUnavailable) {
-                    if (isRateLimit) {
-                        if (isDailyQuotaError(err)) {
-                            markKeyDailyExhausted(lcApiKey);
-                        } else {
-                            markKeyRateLimited(lcApiKey);
-                        }
-                    }
+                    if (isRateLimit) markRateLimitKey(lcApiKey, err);
                     const nextKey = getNextApiKey();
                     if (nextKey && nextKey !== lcApiKey) {
                         lcApiKey = nextKey;
@@ -883,7 +871,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         continue;
                     }
                 }
-                const isAuth = err?.status === 401 || err?.status === 403 || /api key not valid|API_KEY_INVALID/i.test(err?.message ?? '');
+                const isAuth = isAuthError(err);
                 if (isAuth) markKeyInvalid(lcApiKey);
                 console.error('[LangGraph] LangChain path fatal error:', err?.status, err?.message?.slice(0, 120));
                 throw err;
