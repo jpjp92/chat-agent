@@ -180,6 +180,8 @@
 
 - [ ] **IDOR-1** `app/api/auth/route.ts` — PATCH 소유권 검증 (Bearer 토큰 → `authenticatedUserId === id`)
 - [ ] **IDOR-2** `app/api/sessions/route.ts` — GET/DELETE/PATCH 전 `user_id === authenticatedUser` 검증
+- [ ] **IDOR-3** `app/api/parse-document/route.ts` — `{filePath}` 소유권 검증 (현재는 형식 검증으로 blast radius만 제한 + route-side `remove()` 제거로 파괴 차단). 근본해결=유저별 storage prefix → `${user.id}/...` 강제 + RLS 유저 스코프 클라이언트. 인증 전환(L1) 후 처리. (DEV_260621 §6)
+- [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
 - [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
 

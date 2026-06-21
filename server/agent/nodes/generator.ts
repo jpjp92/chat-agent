@@ -361,6 +361,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         useGoogleSearch = false;
                     }
 
+                    // 첨부 문서 게이트: 추출 텍스트(hwp/docx/xlsx/txt…)는 그 자체가 답변 근거이므로
+                    // grounding 기본 off. 문서 요약·검토 요청에 불필요한 웹검색이 붙어 레이턴시/환각이
+                    // 늘던 문제 해결. 단, 사용자가 "문서 외 추가 검증"(검색/조사/최신/출처 등)을 명시 요청하면
+                    // 게이트를 열어둬 아래 general 게이트(needsSearch)가 판정 → URL 게이트와 동일 철학.
+                    // 마커: [EXTRACTED_CONTENT:](현재 턴 첨부) / [PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:](후속 턴).
+                    const hasDocContent = state.webContent.includes('[EXTRACTED_CONTENT:')
+                        || state.webContent.includes('[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:');
+                    if (hasDocContent && !explicitSearchRequested) {
+                        useGoogleSearch = false;
+                        console.log('[LangGraph] Doc content present, no explicit external-search request — Google Search suppressed');
+                    }
+
                     // General intent: 라우터의 검색 필요 판정(state.needsSearch)을 반영 (게이트 6·7).
                     // 위 게이트들이 이미 image/url/video/renderer를 off로 확정했으므로,
                     // "순수 general"(useGoogleSearch가 아직 true)일 때만 적용 → 기존 13-intent 분기·tool 로직 전부 보존.

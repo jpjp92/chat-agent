@@ -16,6 +16,42 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_ATTACHMENTS = 3;
 
+// HWP 계열 4종 — kordoc 경유로 구조 보존 마크다운(표 포함) 추출
+const HWP_EXTS = ['.hwp', '.hwpx', '.hwp3', '.hwpml'];
+const isHwpFile = (name: string) => HWP_EXTS.some((ext) => name.toLowerCase().endsWith(ext));
+// raw ≤ 4MB는 직행 multipart(55~62% 빠름), 초과는 Storage 경유(Vercel 4.5MB 본문 한도 우회)
+const INLINE_MAX = 4 * 1024 * 1024;
+
+// HWP 계열 → /api/parse-document. 4MB 임계값 라우팅(직행 multipart / 대용량 Storage).
+// 설계: docs/plans/PLAN_KORDOC_INTEGRATION_260620.md §3
+async function parseViaKordoc(file: File): Promise<string> {
+  if (file.size <= INLINE_MAX) {
+    // 직행 — multipart raw 바이너리
+    const form = new FormData();
+    form.append('file', file, file.name);
+    const res = await fetch('/api/parse-document', { method: 'POST', body: form });
+    if (!res.ok) throw new Error(`parse-document ${res.status}: ${(await res.json().catch(() => ({}))).error || res.statusText}`);
+    return (await res.json()).markdown ?? '';
+  }
+  // 대용량 — create-signed-url → Storage PUT → { filePath }
+  const signRes = await fetch('/api/create-signed-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: file.name, bucket: 'chat-docs', mimeType: file.type || 'application/octet-stream' }),
+  });
+  if (!signRes.ok) throw new Error(`create-signed-url ${signRes.status}`);
+  const { signedUrl, filePath } = await signRes.json();
+  const putRes = await fetch(signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+  if (!putRes.ok) throw new Error(`Storage PUT ${putRes.status}`);
+  const res = await fetch('/api/parse-document', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filePath }),
+  });
+  if (!res.ok) throw new Error(`parse-document ${res.status}: ${(await res.json().catch(() => ({}))).error || res.statusText}`);
+  return (await res.json()).markdown ?? '';
+}
+
 // 이미지를 최대 1920px / JPEG 85%로 압축 — Vercel 4.5MB 페이로드 제한 대응
 // GIF는 Canvas 변환 시 애니메이션 프레임 소실로 원본 유지
 const compressImage = (dataUrl: string, mimeType: string): Promise<string> => {
@@ -287,26 +323,36 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             extractedText = `[CSV DATA CONVERTED TO MARKDOWN TABLE]\n${markdownTable}`;
           }
         }
-      } else if (file.name.endsWith(".hwpx")) {
-        const arrayBuffer = await file.arrayBuffer();
-        const zip = await JSZip.loadAsync(arrayBuffer);
-        const sectionFiles = Object.keys(zip.files)
-          .filter(name => name.match(/Contents\/section\d+\.xml/i))
-          .sort();
+      } else if (isHwpFile(file.name)) {
+        // HWP 계열 4종 — kordoc 경유(구조 보존 마크다운, 표 포함). 실패 시 .hwpx만 JSZip 폴백.
+        try {
+          extractedText = await parseViaKordoc(file);
+        } catch (err) {
+          console.error("kordoc parse failed:", err);
+          if (file.name.toLowerCase().endsWith(".hwpx")) {
+            const arrayBuffer = await file.arrayBuffer();
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const sectionFiles = Object.keys(zip.files)
+              .filter(name => name.match(/Contents\/section\d+\.xml/i))
+              .sort();
 
-        let fullText = "";
-        for (const sectionPath of sectionFiles) {
-          const xmlContent = await zip.file(sectionPath)!.async("string");
-          const textMatches = xmlContent.match(/<hp:t[^>]*>(.*?)<\/hp:t>/g);
-          if (textMatches) {
-            const sectionText = textMatches
-              .map(m => m.replace(/<[^>]+>/g, ''))
-              .map(t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
-              .join(' ');
-            fullText += sectionText + "\n";
+            let fullText = "";
+            for (const sectionPath of sectionFiles) {
+              const xmlContent = await zip.file(sectionPath)!.async("string");
+              const textMatches = xmlContent.match(/<hp:t[^>]*>(.*?)<\/hp:t>/g);
+              if (textMatches) {
+                const sectionText = textMatches
+                  .map(m => m.replace(/<[^>]+>/g, ''))
+                  .map(t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"))
+                  .join(' ');
+                fullText += sectionText + "\n";
+              }
+            }
+            extractedText = fullText.trim();
+          } else {
+            throw err; // .hwp/.hwp3/.hwpml은 폴백 없음 — 상위 catch가 에러 로그
           }
         }
-        extractedText = fullText.trim();
       } else if (file.name.endsWith(".pptx") || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
         const arrayBuffer = await file.arrayBuffer();
         const zip = await JSZip.loadAsync(arrayBuffer);
@@ -416,7 +462,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
       Array.from(e.dataTransfer.files).forEach(file => {
         if (file.type.startsWith('image/') || file.type.startsWith('video/') || allowedMimeTypes.includes(file.type) ||
-          file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.name.endsWith('.hwpx') || file.name.endsWith('.pptx') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')) {
+          file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.md') || file.name.endsWith('.txt') || file.name.endsWith('.csv') || isHwpFile(file.name) || file.name.endsWith('.pptx') || file.name.endsWith('.mp4') || file.name.endsWith('.mov')) {
           processFile(file);
         } else {
           showToast(t.typeError, "error");
@@ -457,7 +503,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                         attachment.mimeType.includes('sheet') || attachment.fileName?.endsWith('.xlsx') ? 'fa-file-excel text-green-700' :
                           attachment.mimeType.includes('presentationml') || attachment.fileName?.endsWith('.pptx') ? 'fa-file-powerpoint text-orange-600' :
                             attachment.mimeType.includes('csv') || attachment.fileName?.endsWith('.csv') ? 'fa-file-csv text-green-600' :
-                              attachment.fileName?.endsWith('.hwpx') ? 'fa-file-lines text-blue-400' :
+                              (attachment.fileName ? isHwpFile(attachment.fileName) : false) ? 'fa-file-lines text-blue-400' :
                                 'fa-file-lines text-slate-500'
                       } text-2xl flex-shrink-0`}></i>
                     <div className="flex flex-col min-w-0">
@@ -500,7 +546,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*,video/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwpx,.pptx"
+          accept="image/*,video/*,application/pdf,.docx,.xlsx,.txt,.md,.csv,.hwp,.hwpx,.hwp3,.hwpml,.pptx"
           multiple
           className="hidden"
         />

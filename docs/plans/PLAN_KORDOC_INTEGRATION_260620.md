@@ -1,7 +1,7 @@
 # kordoc 한글문서 파싱 연동 계획 — 2026-06-20
 
 > 작성일: 2026-06-20
-> 상태: **P0 검증 완료(파싱·파이프라인·레이턴시), P1 라우트 구현 대기**. 전송 설계 = 4MB 임계값 라우팅 확정.
+> 상태: **P1~P3 구현·E2E 검증 완료 (2026-06-21)**. 직행/Storage/트렁케이트/415/정리 전 경로 통과. 구현 기록: `docs/logs/DEV_260621.md` §6.
 > 레퍼런스: `reference/kordoc/통합가이드.md`, `reference/kordoc/route.ts`, `reference/kordoc/kordoc-tester.html`
 > 패키지: [`kordoc`](https://www.npmjs.com/package/kordoc) v3.1.1 — HWP3/HWP/HWPX/HWPML/PDF/XLS/XLSX/DOCX → Markdown
 
@@ -144,27 +144,29 @@ kordoc API 표면(테스터 실측 기준):
 - [x] fixtures — `reference/kordoc/` 정부 문서 4종 (사용자 제공)
 - [x] 4종 전부 `success=true` + 표 보존 확인 → §1.5 결과표. **전송 방식 재설계 필요 발견**.
 
-### P1 — 서버 라우트
-- [ ] `app/api/parse-document/route.ts` 추가 (레퍼런스 route.ts 기반)
+### P1 — 서버 라우트 ✅ 완료 (2026-06-21)
+- [x] `app/api/parse-document/route.ts` 추가
   - **수정점 ①: `SUPPORTED = ['.hwp', '.hwpx', '.hwp3', '.hwpml']`** (`.pdf`/docx/xlsx 제외 — native/현행 유지)
-  - **수정점 ②: 입력 2종 수용** — ⓐ multipart/form-data raw 바이너리(직행, raw≤4MB) ⓑ `{ filePath }`(Storage download, 대용량). base64 인라인은 미채택(§1.5).
-  - `runtime='nodejs'`, `maxDuration=60`, 동적 `import('kordoc')`, Storage 경유 시 `remove()` 정리
-  - **`preferredRegion = 'icn1'` (L3 필수)** — chat/showtimes와 동일. 누락 시 기본 iad1 → 태평양 횡단 + Storage download leg 악화
-  - 응답은 `{ markdown, fileType, blockCount, tableCount, metadata }`만 — `blocks[]` 원본 미반환(L5)
+  - **수정점 ②: 입력 2종 수용** — ⓐ multipart/form-data raw 바이너리(직행, raw≤4MB) ⓑ `{ filePath }`(Storage download, 대용량). base64 인라인 미채택.
+  - `runtime='nodejs'`, `maxDuration=60`, 동적 `import('kordoc')`. (Storage 경유 정리 `remove()`는 보안 리뷰로 제거 → P3 참고)
+  - **`preferredRegion = 'icn1'` (L3)** 적용
+  - 응답 `{ markdown, truncated, fileType, blockCount, tableCount, metadata }` — `blocks[]` 미반환(L5)
+  - 🔴 **빌드 갭 발견·수정**: kordoc 번들링 시 webpack이 내부 `pdfjs-dist/legacy/build/pdf.worker.mjs`(PDF 경로용·미설치) 정적 import를 해석하려다 빌드 실패. `next.config.ts`에 `serverExternalPackages: ['kordoc']` 추가로 번들 제외(런타임 require는 정상).
 
-### P2 — 클라이언트 연동 ([components/ChatInput.tsx](../../components/ChatInput.tsx))
-- [ ] `parseViaKordoc(file)` 헬퍼 — **raw≤4MB(`INLINE_MAX`)는 multipart 직행 POST**, 초과는 `create-signed-url`→Storage PUT→`{filePath}` 전달 분기
-- [ ] **첨부 시점 백그라운드 파싱 유지** — docx/xlsx처럼 `processFile`에서 추출(전송 critical path 밖) → 2~4초 체감 제거, 첨부 칩 스피너
-- [ ] `.hwpx` 분기([:290](../../components/ChatInput.tsx#L290))를 HWP 계열 4종 분기로 교체, kordoc 우선 + `.hwpx` JSZip 폴백
-- [ ] `accept` 속성([:503](../../components/ChatInput.tsx#L503))에 `.hwp,.hwp3,.hwpml` 추가
-- [ ] **드롭 허용목록([:419](../../components/ChatInput.tsx#L419))에도 `.hwp,.hwp3,.hwpml` 추가** ← 가이드 누락분
-- [ ] 첨부 아이콘 매핑([:460](../../components/ChatInput.tsx#L460))에 hwp 계열 추가 (UX 일관성)
+### P2 — 클라이언트 연동 ✅ 완료 ([components/ChatInput.tsx](../../components/ChatInput.tsx))
+- [x] `parseViaKordoc(file)` 헬퍼 — raw≤4MB(`INLINE_MAX`) multipart 직행, 초과는 `create-signed-url`→Storage PUT→`{filePath}` 분기
+- [x] **첨부 시점 처리** — 기존 `processFile`가 이미 첨부 시점 추출(전송 critical path 밖). HWP 분기를 그 안에 통합.
+- [x] `.hwpx` 분기를 HWP 4종 분기(`isHwpFile`)로 교체, kordoc 우선 + `.hwpx` 실패 시 JSZip 폴백(`.hwp`/`.hwp3`/`.hwpml`은 폴백 없음=원래 미지원, 회귀 아님)
+- [x] `accept` 속성에 `.hwp,.hwp3,.hwpml` 추가
+- [x] 드롭 허용목록 `isHwpFile`로 교체(4종 허용)
+- [x] 첨부 아이콘 매핑 `isHwpFile`로 교체
 
-### P3 — 가드 & 안정화
-- [ ] **마크다운 길이 상한 (L4)** — NIA 159K자(≈5만 토큰) 사례. `/api/chat` 주입 전 트렁케이트/요약 정책. **토큰 비용 + LLM TTFT·생성 지연** 동시 절감(전송 최적화보다 큰 레버).
-- [ ] **Supabase 프로젝트 리전 검증** — ap-northeast(서울/도쿄) 여부 확인. iad1↔Supabase가 멀면 대용량 Storage 경로 지연 고착 → L3 효과 제한. (§3.5 벤치 지역성 주의)
-- [ ] `chat-docs` 고아 파일 방지 — 라우트 `remove()` 실패/중단 대비 TTL 또는 주기적 정리 (대용량 경로만 해당)
-- [ ] `maxDuration=60` 적정 확인 — §1.5 측정상 32MB도 600ms라 여유, 단 Storage fetch 왕복 시간 가산 고려
+### P3 — 가드 & 안정화 ✅ 완료
+- [x] **마크다운 길이 상한 (L4)** — `MARKDOWN_MAX = 100_000`자. 초과 시 트렁케이트 + 안내 문구, `truncated:true`. NIA 159K→100K 검증.
+- [x] **Supabase 리전 점검** — `cf-ray ...-ICN`(서울 엣지) 신호, gateway direct. origin 리전 확정은 대시보드 권장이나 ≤4MB 직행이라 영향 미미(블로커 아님).
+- [x] `chat-docs` 고아 파일 방지 — **보안 리뷰 반영해 라우트 `remove()` 제거**(아래). 정리는 버킷 TTL/스케줄로 위임(잔여 백로그).
+- [x] **🔴 보안 리뷰 대응 (IDOR)** — `{filePath}` Storage 경로가 service-role로 임의 HWP 파일 다운로드/삭제를 허용하던 문제. 무인증 앱이라 소유권 검증 불가 → ① `filePath`를 create-signed-url 산출 형식 `^\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$`로 엄격 검증(traversal·타 객체 차단), ② **파괴 벡터인 route-side `remove()` 제거**. 근본 해결(앱 전역 인증 + 유저별 storage prefix)은 백로그.
+- [x] `maxDuration=60` 유지 — 32MB도 왕복 4초로 여유.
 
 ---
 
@@ -176,8 +178,9 @@ kordoc API 표면(테스터 실측 기준):
 | Vercel 4.5MB 본문 한도 (실측 3/4 초과) | base64 POST 413 | **§3 4MB 임계값 라우팅으로 해소** (직행 multipart + 대용량 create-signed-url 재사용) |
 | 대형 마크다운(NIA 159K자) | 토큰 비용·컨텍스트 초과 | P3 길이 상한/트렁케이트 |
 | 폴백은 `.hwpx`만 커버 | `.hwp`/`.hwp3` 실패 시 대안 없음 | 원래 미지원이라 회귀 아님 / 명확한 에러 메시지 |
-| kordoc 신규 의존성 취약점 12건(7 mod·4 high) | 보안 | `npm audit` 점검, 배포 전 평가 (TODO 보안 섹션 연계) |
-| PDF 파싱(pdfjs-dist 37MB) | 번들/설치 부담 | 스코프 외 (PDF native) → 미설치 |
+| kordoc 신규 의존성 취약점 12건(7 mod·4 high) | 보안 | 점검 결과 12건은 전부 기존 의존성(ws/xlsx/uuid 등), **kordoc 의존성은 취약점 0건** |
+| PDF 파싱(pdfjs-dist 37MB) | 번들/설치 부담 | 스코프 외 (PDF native) → 미설치. webpack 번들 시 kordoc 내부 pdfjs import 충돌 → `serverExternalPackages:['kordoc']`로 해결 |
+| **🔴 IDOR — `{filePath}` 임의 파일 다운로드/삭제** (보안 리뷰) | service-role로 chat-docs 임의 HWP 유출·파괴 | ① filePath 형식 엄격 검증(traversal 차단) ② route-side `remove()` 제거. 근본 해결=앱 전역 인증+유저별 prefix(백로그) |
 
 ---
 
