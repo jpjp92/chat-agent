@@ -14,6 +14,9 @@ import { worldCupTool } from "../worldcup-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt";
 import { classifySearchNeed, shouldSuppressSearchForFollowup, isFollowupReference } from "../intentRules";
+import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage } from "./pill-messages";
+import { buildSdkContents } from "./sdk-contents";
+import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
 
 /**
  * Generator Node
@@ -42,75 +45,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             const lastHuman = [...state.messages].reverse().find(msg => msg._getType() === 'human');
             return lastHuman ? extractTextContent(lastHuman.content) : '';
         })();
-
-        const formatPillAttributes = (pillData: any): string => {
-            const parts = [
-                pillData?.imprint_front ? `앞면 각인: ${pillData.imprint_front}` : null,
-                pillData?.imprint_back ? `뒷면 각인: ${pillData.imprint_back}` : null,
-                pillData?.color ? `색상: ${pillData.color}` : null,
-                pillData?.shape ? `모양: ${pillData.shape}` : null,
-            ].filter(Boolean);
-            return parts.length > 0 ? parts.join(', ') : '이미지에서 추출한 특징';
-        };
-
-        const pillNoMatchMessage = (pillData: any): string =>
-            `이미지에서 추출한 특징(${formatPillAttributes(pillData)})과 일치하는 약품을 식품의약품안전처 DB에서 찾지 못했습니다.\n\n알약의 각인·색상·모양을 직접 알려주시면 재검색해드릴게요. 정확한 식별은 약사 또는 의사에게 확인하시기 바랍니다.`;
-
-        const pillLookupErrorMessage =
-            '식품의약품안전처 DB 조회 중 오류가 발생했습니다.\n\n잠시 후 다시 시도하거나, 알약의 각인·색상·모양을 텍스트로 알려주시면 다시 검색해드릴게요.';
-
-        const extractPillMatchType = (toolText: string): string => {
-            const match = toolText.match(/^match_type:\s*([^\n]+)/m);
-            return match?.[1]?.trim() || '';
-        };
-
-        const parsePillCandidates = (toolText: string) => {
-            const blocks = toolText.split(/\nCandidate\s+\d+:\n/g).slice(1);
-            return blocks.map(block => {
-                const read = (label: string) => {
-                    const match = block.match(new RegExp(`^- ${label}:\\s*(.*)$`, 'm'));
-                    return match?.[1]?.trim() || '';
-                };
-                return {
-                    name: read('Name'),
-                    company: read('Company'),
-                    imprint: read('Imprint'),
-                    color: read('Color'),
-                    shape: read('Shape'),
-                    detailUrl: read('Detail URL'),
-                };
-            }).filter(candidate => candidate.name);
-        };
-
-        const pillCandidateTableMessage = (pillData: any, matchType: string, toolText: string): string => {
-            const candidates = parsePillCandidates(toolText);
-            const matchLabel = matchType === 'imprint_only'
-                ? '각인 기준 유사 후보'
-                : '색상·모양 기준 유사 후보';
-
-            const rows = candidates.map(candidate => [
-                candidate.name,
-                candidate.company || '-',
-                candidate.imprint || '-',
-                candidate.color || '-',
-                candidate.shape || '-',
-                candidate.detailUrl ? `[약품정보](${candidate.detailUrl})` : '-',
-            ]);
-
-            const table = [
-                '| 제품명 | 제조사 | 식별표시 | 색상 | 모양 | 링크 |',
-                '|---|---|---|---|---|---|',
-                ...rows.map(row => `| ${row.join(' | ')} |`),
-            ].join('\n');
-
-            return [
-                `이미지에서 추출한 특징(${formatPillAttributes(pillData)})을 바탕으로 식품의약품안전처 DB에서 검색한 후보 약품입니다.`,
-                '',
-                `이미지만으로 약품을 단일 확정할 수 없으므로 복용 전 반드시 약사 또는 의사에게 확인하세요.`,
-                '',
-                table,
-            ].join('\n');
-        };
 
         let finalInstruction = systemInstructionBase;
 
@@ -208,66 +142,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     // Build contents from state messages
                     // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
-                    const sdkContents: any[] = [];
-                    let hasMultimodalContent = false; // track if any non-text parts exist
-                    let hasDocumentContent = false;  // track if PDF/doc (not pure image)
-
-                    for (const msg of state.messages) {
-                        if (msg._getType() === 'human') {
-                            const contentVal = msg.content;
-                            if (Array.isArray(contentVal)) {
-                                const parts: any[] = [];
-                                for (const part of contentVal as any[]) {
-                                    if (part.type === 'text') {
-                                        parts.push({ text: part.text || '' });
-                                    } else if (part.type === 'image_url' && part.image_url?.url) {
-                                        if (forceTextOnly) continue; // skip media on retry
-                                        const url: string = part.image_url.url;
-                                        if (url.startsWith('data:')) {
-                                            // base64 inline data URI (e.g. data:image/jpeg;base64,...)
-                                            let b64data = url;
-                                            let mimeType = 'application/octet-stream';
-                                            if (url.includes('base64,')) {
-                                                const partsArray = url.split('base64,');
-                                                b64data = partsArray[1];
-                                                mimeType = url.split(':')[1].split(';')[0];
-                                            }
-                                            parts.push({ inlineData: { mimeType, data: b64data } });
-                                            hasMultimodalContent = true;
-                                            hadMultimodalContent = true;
-                                            if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) hasDocumentContent = true;
-                                        } else if (url.startsWith('http')) {
-                                            // Public URL: pass directly as fileData (Gemini SDK supports public URLs natively)
-                                            // Fetching and re-encoding to base64 is unnecessary and adds 2~5s latency
-                                            const urlLower = url.toLowerCase();
-                                            const mimeTypeHint = urlLower.includes('.png') ? 'image/png'
-                                                : urlLower.includes('.webp') ? 'image/webp'
-                                                : urlLower.includes('.gif') ? 'image/gif'
-                                                : urlLower.includes('.pdf') || urlLower.includes('/pdf/') || urlLower.includes('chat-docs') ? 'application/pdf'
-                                                : 'image/jpeg';
-                                            parts.push({ fileData: { fileUri: url, mimeType: mimeTypeHint } });
-                                            hasMultimodalContent = true;
-                                            hadMultimodalContent = true;
-                                            if (mimeTypeHint === 'application/pdf') hasDocumentContent = true;
-                                        }
-                                    } else if (part.fileData?.fileUri) {
-                                        if (forceTextOnly) continue; // skip media on retry
-                                        // Native fileData (YouTube video URI or PDF) - supported natively by SDK
-                                        parts.push({ fileData: { fileUri: part.fileData.fileUri, mimeType: part.fileData.mimeType } });
-                                        hasMultimodalContent = true;
-                                        hadMultimodalContent = true;
-                                        if (part.fileData.mimeType === 'application/pdf') hasDocumentContent = true;
-                                    }
-                                }
-                                if (parts.length === 0) parts.push({ text: '' });
-                                sdkContents.push({ role: 'user', parts });
-                            } else {
-                                sdkContents.push({ role: 'user', parts: [{ text: String(contentVal) }] });
-                            }
-                        } else if (msg._getType() === 'ai') {
-                            sdkContents.push({ role: 'model', parts: [{ text: String(msg.content) }] });
-                        }
-                    }
+                    const { sdkContents, hasMultimodalContent, hasDocumentContent } = buildSdkContents(state.messages, forceTextOnly);
+                    // hadMultimodalContent (declared outside try for the catch-block 500 retry)
+                    // mirrors hasMultimodalContent — set here so the catch path can read it.
+                    if (hasMultimodalContent) hadMultimodalContent = true;
 
                     // Google Search is incompatible with multimodal content (images, video, PDF)
                     // Optimization: Disable Google Search for YouTube summaries when transcript OR video data is present
@@ -398,19 +276,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     }
 
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
-                    const resolvedMaxTokens = (() => {
-                        if (hasDocumentContent) return 16384;               // PDF·문서 분석
-                        if (isYoutubeRequest) return 8192;                  // YouTube 요약
-                        if (hasMultimodalContent) return 4096;              // 이미지 분석
-                        if (hasUrlContent) return 8192;                     // URL 요약
-                        if (state.intent === 'data_viz') return 8192;      // 차트 JSON + 설명
-                        if (state.intent === 'astronomy') return 8192;     // 별자리 JSON + 설명
-                        if (state.intent === 'biology') return 8192;       // PDB 구조 + 설명
-                        if (state.intent === 'chemistry') return 8192;     // SMILES + 설명 (grounding 대응)
-                        if (state.intent === 'physics') return 8192;       // 다이어그램 JSON + 설명 (grounding 대응)
-                        if (state.intent === 'medical_qa') return 8192;    // 의학 Q&A + 출처
-                        return 32768;                                        // 코드·일반
-                    })();
+                    const resolvedMaxTokens = resolveMaxTokens({
+                        hasDocumentContent, isYoutubeRequest, hasMultimodalContent, hasUrlContent, intent: state.intent,
+                    });
                     // Google Search grounding이 활성화되면 검색 결과 + 설명이 추가되어 토큰이 더 필요.
                     // 멀티턴에서도 히스토리가 쌓인 상태에서 grounding 응답이 길어질 수 있으므로 최소 8192 보장.
                     const effectiveMaxTokens = (useGoogleSearch && resolvedMaxTokens < 8192) ? 8192 : resolvedMaxTokens;
@@ -450,16 +318,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - medical_qa: budget 3000 (cap)
                     //   - Others: undefined (model default)
                     const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
-                    const rendererIntentSet = new Set(['astronomy', 'biology', 'chemistry', 'physics', 'data_viz']);
-                    const thinkingConfig = is3xModel
-                        ? ((isYoutubeRequest && hasVideoData) || rendererIntentSet.has(state.intent))
-                            ? { thinkingLevel: "minimal" as const }
-                            : { thinkingLevel: "low" as const }
-                        : isYoutubeRequest
-                            ? { thinkingBudget: 0 }
-                            : state.intent === 'medical_qa'
-                            ? { thinkingBudget: 3000 }
-                            : undefined;
+                    const thinkingConfig = resolveThinkingConfig({
+                        is3xModel, isYoutubeRequest, hasVideoData, intent: state.intent,
+                    });
 
                     // Two-track path for 3.5 + Google Search:
                     // 1) 2.5-flash with Google Search for grounded facts
