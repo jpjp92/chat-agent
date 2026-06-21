@@ -24,6 +24,12 @@ const dash = (y: string) => `${y.slice(0, 4)}-${y.slice(4, 6)}-${y.slice(6, 8)}`
 const hm = (t: string) => (t && /^\d{3,4}$/.test(t) ? `${t.slice(0, -2).padStart(2, '0')}:${t.slice(-2)}` : t || '');
 // CGV 상영관명 정제: "4관[SCREENX] (리클라이너,Laser)" → "4관 SCREENX". (...)잡음 제거 + [특수관] 유지.
 const cleanCgvScreen = (s: string) => (s || '').replace(/\([^)]*\)/g, '').replace(/\[([^\]]*)\]/g, ' $1').replace(/\s+/g, ' ').trim().slice(0, 16);
+// HTML 엔티티 디코드: 메가박스 영화명/포맷/지점명이 "2D&#40;더빙&#41;" 처럼 인코딩돼 옴 → "2D(더빙)".
+const NAMED: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const decodeEntities = (s: string): string => (s || '')
+  .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+  .replace(/&([a-zA-Z]+);/g, (m, n) => NAMED[n.toLowerCase()] ?? m);
 
 export interface Showtime { start: string; end: string; screen: string; screenFull?: string; left: number; total: number }
 export interface MovieEntry { chain: string; cinema: string; movie: string; date: string; poster: string; rating: string; format: string; showtimes: Showtime[] }
@@ -64,7 +70,7 @@ async function fetchMegabox(brchNo: string, today: string, tomorrow: string): Pr
     // 상영관명 잡음 제거: "9층 르 리클라이너 2관[Laser]" → "르 리클라이너 2관"
     const screen = (f.theabExpoNm || '').replace(/\s+/g, ' ').replace(/^\d+층\s*/, '').split(/[[(]|\s\d+석/)[0].trim().slice(0, 16);
     const mposter = f.moviePosterImg ? (f.moviePosterImg.startsWith('http') ? f.moviePosterImg : 'https://www.megabox.co.kr' + f.moviePosterImg) : '';
-    byMovie[key] = byMovie[key] || { chain: '메가박스', cinema: `메가박스 ${f.brchNm}`, movie: f.movieNm, date: f.playDe || date, poster: mposter, rating: f.admisClassCdNm || '', format: (f.playKindNm || '2D').replace(/\s+/g, ''), showtimes: [] };
+    byMovie[key] = byMovie[key] || { chain: '메가박스', cinema: `메가박스 ${decodeEntities(f.brchNm)}`, movie: decodeEntities(f.movieNm), date: f.playDe || date, poster: mposter, rating: f.admisClassCdNm || '', format: decodeEntities((f.playKindNm || '2D').replace(/\s+/g, '')), showtimes: [] };
     byMovie[key].showtimes.push({ start: f.playStartTime, end: f.playEndTime, screen, left: Number(f.restSeatCnt), total: Number(f.totSeatCnt) });
   }
   return Object.values(byMovie);
