@@ -22,10 +22,12 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 - **Google Search Grounding**: Real-time web search with source chip rendering
 - **3.5 Search two-track**: 3.5 Flash on free tier can't ground directly — 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
 - **`general` needsSearch routing**: For `general` intent, a 3-gate classifier (rule-based OFF/ON + LLM gray-zone) determines whether Google Search is needed — suppresses unnecessary two-track latency for code/translation/math; default-on safety net for ambiguous cases; multi-turn follow-up guard suppresses re-search when previous turn was already searched
+- **Attached-document search gate**: When a parsed document is present (`[EXTRACTED_CONTENT:]` / `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]`), grounding defaults OFF so the answer stays document-grounded — re-enabled only when the user explicitly asks for external verification (검색/조사/최신/출처…), same philosophy as the URL gate
 - **Empty response auto-retry**: When 3.5 Flash returns empty text (thinking exhaustion), automatically retries with `thinkingLevel: "minimal"` before LangChain fallback
 - **Safety block detection**: `finishReason === 'SAFETY'` blocks propagate immediately with user-friendly localized messages (4 languages) instead of a generic error
 - **YouTube analysis**: Native Gemini video reading; supports standard URLs, `youtu.be`, and Shorts (`/shorts/`)
-- **Multimodal input**: Images, PDF (30MB+), video, DOCX / HWPX / PPTX / XLSX
+- **Multimodal input**: Images, PDF (30MB+), video, DOCX / PPTX / XLSX
+- **HWP document parsing (kordoc)**: `.hwp` / `.hwpx` / `.hwp3` / `.hwpml` extracted to structure-preserving Markdown (real `<table>`) via `/api/parse-document` — 4MB threshold routing (direct multipart ≤4MB / Supabase Storage relay for larger), so summaries read tables and key-value cells correctly instead of collapsed plaintext
 - **LangGraph agent**: Semantic Router → Vision / Generator / Tools with intent-based path routing and deterministic fallbacks
 
 ### 1-3. Visualization Renderers (11)
@@ -379,6 +381,7 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
 │       ├── showtimes/route.ts  # 3-chain live showtimes (Lotte/Megabox direct, CGV browserless) + SWR cache, icn1
 │       ├── upload/route.ts     # Supabase Storage upload proxy
+│       ├── parse-document/route.ts  # HWP (.hwp/.hwpx/.hwp3/.hwpml) → kordoc Markdown; multipart ≤4MB / Storage {filePath} for larger, icn1
 │       ├── fetch-url/route.ts  # URL prefetch: url_cache → direct HTML + Jina + wikidocs browserless/ScraperAPI fallback
 │       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
 │       ├── auth/route.ts
