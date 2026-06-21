@@ -11,6 +11,10 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
 
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
     {
+        intent: "sports",
+        pattern: /(월드컵|world\s?cup|조별\s*리그|조별\s*순위|[A-L]조\s*순위|16강|8강|준결승|결승\s*대진|월드컵\s*대진|월드컵\s*득점왕|월드컵\s*일정)/i,
+    },
+    {
         intent: "movie_search",
         pattern: /(영화\s*(상영|시간|관|표|예매|정보|일정|스케줄|뭐)|상영\s*(시간|표|관|정보|중|작)|상영시간표|무슨\s*영화|볼만한\s*영화|개봉\s*영화|영화관|멀티플렉스|cgv|롯데\s*시네마|롯데시네마|메가박스|씨지브이|showtime|movie\s*time|now\s*showing|cinema\s*schedule)/i,
     },

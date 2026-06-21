@@ -1,5 +1,8 @@
 # World Cup Sports Tool 구현 계획
 
+> **상태: ✅ 구현 완료 (2026-06-21)** — 5개 Task 전부 완료, tsc 0 에러, E2E 5종 통과. 구현 로그: `docs/logs/DEV_260621.md`.
+> **⚠️ 플랜 갭(실행 중 수정)**: Task 3가 generator의 `allTools` 분기 sports 바인딩을 누락 → 추가함(이게 없으면 tool이 LLM에 안 붙음).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 진행 중인 FIFA 월드컵의 조별 순위·대진/일정·득점왕을 football-data.org API로 가져와 LangGraph tool로 응답한다 (Gemini grounding 우회).

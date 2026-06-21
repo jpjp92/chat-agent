@@ -28,10 +28,15 @@ API 검증 완료 (현재 `SPORTS_API_KEY`, plan=TIER_ONE): 월드컵 12조 순�
 | 현재 대회 | football-data.org API |
 | 과거 대회(2022 등) | **LLM 학습지식**으로 답변 + 실시간 아님 고지 (API 403이므로). grounding/API 안 씀 — 안정적 역사 데이터라 신선도 무관 |
 
+### 렌더 경로 (확정)
+- **마크다운 경로** 사용 — tool이 마크다운 표를 내보내면 `ChatMessage.tsx:296`의 `table` 오버라이드가 기존 스타일(rounded-2xl·다크모드·`prose dark:prose-invert`) 자동 적용. 새 UI 컴포넌트 0개. 다른 텍스트 의도와 동일 배경/스타일.
+- 영화식 **전용 카드(MovieRenderer 패턴)는 추후 고려** — 자유 질문 유연성 위해 현재는 마크다운 채택.
+
 ### 비범위 (YAGNI)
 - WC 외 리그(EPL/CL 등) — 추후 확장 여지만 남김
 - 과거 시즌 API 유료 업그레이드
 - head2head, teams, persons 등 기타 엔드포인트
+- 전용 카드 UI 컴포넌트 (crest 로고/하이라이트 등) — 추후
 
 ---
 

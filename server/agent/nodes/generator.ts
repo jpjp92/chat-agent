@@ -10,6 +10,7 @@ import { hospitalTool } from "../hospital-tool";
 import { vetTool } from "../vet-tool";
 import { lawTool } from "../law-tool";
 import { movieTool } from "../movie-tool";
+import { worldCupTool } from "../worldcup-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt";
 import { classifySearchNeed, shouldSuppressSearchForFollowup, isFollowupReference } from "../intentRules";
@@ -144,7 +145,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         const resolvedModel = state.model || DEFAULT_CHAT_MODEL;
@@ -1068,6 +1069,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     allTools = [lawTool];
                 } else if (state.intent === "movie_search") {
                     allTools = [movieTool];
+                } else if (state.intent === "sports") {
+                    allTools = [worldCupTool];
                 }
 
                 const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);

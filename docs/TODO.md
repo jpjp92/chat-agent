@@ -88,6 +88,8 @@
 
 > **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movieContext.ts`). 상세: DEV_260610~613.
 
+> **⑤ 스포츠(월드컵) — 구현 완료** (`lib/sports/football-data.ts`, `server/agent/worldcup-tool.ts`, `sports` intent). football-data.org 연동으로 WC 순위/대진/득점왕, grounding 우회. 상세: DEV_260621. 추후 확장: WC 외 리그(EPL/CL 등), 전용 카드 UI(crest 로고). 제약: 무료 티어 과거시즌 미지원·rate limit 분당 6회.
+
 > 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
 
 ### 국가법령정보 후속 확장
