@@ -66,11 +66,25 @@ export const runLangChainPath = async (args: {
 
     while (lcAttempt < API_KEYS.length) {
         try {
-            const is3xLcModel = resolvedModel === SERVER_MODELS.FLASH_3_5;
+            // 모델 선택 원칙: LangChain 경로 인텐트는 전부 외부 API 도구 기반(MFDS·약국·병원·동물병원·
+            // 법령·영화·football-data)이라 핵심은 API 데이터지 모델 추론이 아님 → 빠른 2.5-flash 사용.
+            // 일반 대화(SDK 경로)만 3.5 유지. 기본 모델 3.5 전환(1cd48c2, 2026-05-30) 전엔 이 경로가
+            // 전부 2.5였고 빨랐음 → 그 상태로 복원(이 전환이 도구 응답 전반을 느리게 한 회귀의 원인).
+            //   · fast-pass(출력 폐기, 카드=툴 JSON): thinking 완전 off(budget 0) — 순수 tool-router.
+            //   · drug_info/drug_id/sports(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
+            //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
+            const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search"]);
+            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports"]);
+            const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
+            const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
+            const is3xLcModel = pathModel === SERVER_MODELS.FLASH_3_5;
+            console.log(`[LangGraph] LangChain path: intent=${state.intent} → model=${pathModel}${isToolIntent ? ' (tool intent)' : ''}`);
             const llm = new ChatGoogleGenerativeAI({
-                model: resolvedModel,
+                model: pathModel,
                 apiKey: lcApiKey,
-                ...(is3xLcModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
+                ...(is3xLcModel
+                    ? { thinkingConfig: { thinkingLevel: "LOW" as const } }
+                    : { temperature: 0.2, topP: 0.8, topK: 40, ...(FAST_PASS_INTENTS.has(state.intent) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) }),
                 // Drug card JSON is compact — 8192 is sufficient and reduces Vercel 60s timeout risk
                 maxOutputTokens: 8192,
                 maxRetries: 0,

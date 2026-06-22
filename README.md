@@ -221,8 +221,9 @@ The generator node runs one of two execution paths: the SDK path in `generator.t
 
 Branch rules:
 
-- SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`)
-- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`
+- SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`) — runs on **3.5 Flash**
+- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports` — runs on the faster **2.5 Flash** (answer built from API data, not model reasoning; fast-pass intents disable thinking)
+- `sports` (World Cup tables) skips token streaming — the full markdown table is sent in one chunk at `on_chain_end` to avoid awkward cell-by-cell assembly
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
 - Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
 - URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
@@ -353,12 +354,15 @@ How API routes write to PostgreSQL tables and Storage buckets.
 
 ### 3-1. Model Usage
 
+Model policy: **external-API tool intents run on the faster 2.5 Flash** (the answer is built from API data / tool JSON, not model reasoning), while **general conversation keeps 3.5 Flash**. This restores tool-path latency after the 2026-05-30 default-model bump to 3.5 Flash.
+
 | Purpose                   | Model                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| Main chat (default)       | `gemini-3.5-flash`                                                             |
+| Main chat (default, SDK)  | `gemini-3.5-flash`                                                             |
+| Tool intents (LangChain)  | `gemini-2.5-flash` — drug_info/drug_id/pharmacy/hospital/vet/law/movie/sports (fast-pass intents disable thinking) |
 | User-selectable           | `gemini-3.5-flash`, `gemini-2.5-flash`                                       |
 | Semantic router           | `gemini-2.5-flash-lite`                                                        |
-| Pill vision preprocessing | `gemini-2.5-flash`                                                             |
+| Pill vision preprocessing | `gemini-2.5-flash` (vision node + drug-info imprint OCR, thinking off)         |
 | 3.5 + Search grounding    | Stage 1:`gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
 | TTS                       | `gemini-2.5-flash-preview-tts`                                                 |
 | Session title             | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback)            |
