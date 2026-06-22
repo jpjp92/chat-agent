@@ -1,7 +1,7 @@
 # generator.ts 리팩토링 계획 — 2026-06-21
 
 > 작성일: 2026-06-21
-> 상태: **1·2·4-A순위 구현·검증 완료**(1·2 커밋 `04d291c`·`cce3baf`, 4-A 커밋대기). 3-A 다음.
+> 상태: **1·2·4-A·3-A순위 구현·검증 완료**(1·2 커밋 `04d291c`·`cce3baf`·4-A `0fec111`, 3-A 커밋대기). generator.ts 1148→685줄(-40%). 3-B 다음.
 > 대상: [server/agent/nodes/generator.ts](../../server/agent/nodes/generator.ts)
 > 구현 기록: [docs/logs/DEV_260621.md §10](../logs/DEV_260621.md)
 
@@ -22,8 +22,8 @@
 | 1 | 순수함수 3모듈 — `pill-messages.ts`·`sdk-contents.ts`·`generation-config.ts` | ✅ `04d291c` | — | tsc + 동등성 223 |
 | 2 | 검색게이트 `search-gate.ts` (`decideGoogleSearch`) | ✅ `cce3baf` | — | tsc + 동등성 19,200 |
 | **4-A** | **에러 분류/로테이션 공통화 (완전 동일분만)** → `retry.ts` | ✅ 완료 | **낮음** | tsc + byte-identity diff |
-| **3-A** | **LangChain 경로 분리** → `langchain-path.ts` (가장 안전한 슬라이스) | ⬜ **다음** | 중 | tsc + 리뷰 + **dev E2E** |
-| **3-B** | **SDK 경로 + YouTube 폴백 분리** → `sdk-path.ts` | ⬜ 대기 | **높음** | tsc + 리뷰 + **dev E2E 필수** |
+| **3-A** | **LangChain 경로 분리** → `langchain-path.ts` (가장 안전한 슬라이스) | ✅ 완료 | 중 | tsc + move-identity diff + dev E2E 4종 |
+| **3-B** | **SDK 경로 + YouTube 폴백 분리** → `sdk-path.ts` | ⬜ **다음** | **높음** | tsc + 리뷰 + **dev E2E 필수** |
 | 4-B | 에러 술어 드리프트 수렴 통합 (선택·동작변경) | ⬜ 보류 | 중 | tsc + dev E2E |
 
 > **확정 순서: 4-A → 3-A → 3-B → (선택)4-B.** 장기 안전성·관리 효율 기준. 근거: ① 중복(에러 분류)은 두 catch가 **같은 파일에 나란히 있는 지금** 합치는 게 가장 쌈 — 3-A/3-B로 파일이 갈라지면 대조·통합 비용 증가. ② 4-A는 증명 가능(무위험·E2E 불요), 3은 dev E2E 필수. ③ 4-A로 `retry.ts`를 먼저 두면 3-A/3-B가 catch를 경로 파일로 옮길 때 이미 공통 헬퍼 import 상태라 깔끔.

@@ -90,17 +90,18 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         const model = new ChatGoogleGenerativeAI({
             model: DEFAULT_CHAT_MODEL,
             apiKey: apiKey,
-            temperature: 0.1,
+            // temperature 0: 로고형 각인이 실행마다 다른 글자로 흔들리던 비결정성 제거
+            temperature: 0,
         });
 
         const sideLabel = side === 'front' ? '앞면(왼쪽)' : '뒤면(오른쪽)';
-        const prompt = `이 의약품 식별 사진의 ${sideLabel} 알약에 새겨진 각인(텍스트, 숫자, 기호, 로고 등)을 정확히 읽어주세요.
+        const prompt = `이 의약품 식별 사진의 ${sideLabel} 알약에 새겨진 각인을 판독하세요.
 
 규칙:
-- 알파벳, 숫자, 특수문자(-) 등 보이는 그대로 대문자로 출력하세요.
-- 회사 로고 형태의 도형/심볼은 가장 유사한 알파벳 조합으로 표현하세요 (예: "d-P", "AZ", "Ω").
+- 명확하게 읽히는 숫자·알파벳·특수문자(-)만 보이는 그대로 대문자로 출력하세요.
+- 회사 로고·도형·심볼처럼 글자가 아니거나, 어떤 문자인지 명확하지 않으면 절대 글자로 추측하지 말고 "마크"를 출력하세요. (방향에 따라 M/W처럼 달리 보이는 애매한 기호도 "마크")
 - 각인이 전혀 없으면 "없음"을 출력하세요.
-- 각인 텍스트만 출력하고, 설명이나 부가 텍스트는 절대 포함하지 마세요.`;
+- 판독 결과만 출력하고, 설명이나 부가 텍스트는 절대 포함하지 마세요.`;
 
         const message = new HumanMessage({
             content: [
@@ -112,8 +113,9 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         const response = await model.invoke([message]);
         const text = typeof response.content === "string" ? response.content.trim() : "";
 
-
-        if (!text || text === '없음') return null;
+        // "없음"(각인 없음)·"마크"(로고/애매한 기호)는 override하지 않고 DB placeholder 유지.
+        // 명확한 숫자·문자만 override해 "틀린 글자 단정"을 방지.
+        if (!text || text === '없음' || text === '마크') return null;
         return text;
 
     } catch (e: any) {
