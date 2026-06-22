@@ -178,7 +178,11 @@ export async function POST(req: NextRequest) {
           const langGraphNode = (event as any).metadata?.langgraph_node;
 
           if (event.event === 'on_chat_model_stream') {
-            if (langGraphNode === 'vision') continue;
+            // Only stream prose tokens from the final generation node. Nested LLM calls in
+            // other nodes (vision OCR, and Gemini Vision imprint reads inside the `tools` node
+            // via searchDrugInfoTool) otherwise leak their output (e.g. "JP","W") into the
+            // user-facing answer ahead of the real json:drug block.
+            if (langGraphNode !== 'generator') continue;
             const chunk = data?.chunk;
             const chunkText = chunk?.content;
             if (chunkText && typeof chunkText === 'string') {

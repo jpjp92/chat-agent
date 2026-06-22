@@ -393,7 +393,15 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   ├── agent/
 │   │   ├── graph.ts            # LangGraph StateGraph definition
 │   │   ├── intentRules.ts      # Deterministic multilingual routing fallbacks
-│   │   ├── nodes/              # router.ts / vision.ts / generator.ts
+│   │   ├── nodes/              # LangGraph nodes + generator helper modules
+│   │   │   ├── router.ts       # Intent classification node
+│   │   │   ├── vision.ts       # Pill image → imprint/color/shape extraction
+│   │   │   ├── generator.ts    # Final SDK / LangChain generation node (orchestrator)
+│   │   │   ├── search-gate.ts  # decideGoogleSearch — grounding gate (multimodal/url/doc/general)
+│   │   │   ├── sdk-contents.ts # buildSdkContents — state messages → @google/genai contents
+│   │   │   ├── generation-config.ts # resolveMaxTokens / resolveThinkingConfig
+│   │   │   ├── pill-messages.ts     # drug_id user-facing message formatters
+│   │   │   └── retry.ts        # isTimeoutError / isAuthError / markRateLimitKey
 │   │   ├── prompt.ts           # System instruction builder
 │   │   ├── state.ts            # AgentState type definition
 │   │   ├── tools.ts            # identify_pill, search_web (DDG)
@@ -402,7 +410,8 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   │   ├── hospital-tool.ts
 │   │   ├── vet-tool.ts
 │   │   ├── law-tool.ts
-│   │   └── movie-tool.ts       # Region → 3-chain default branches (json:movie)
+│   │   ├── movie-tool.ts       # Region → 3-chain default branches (json:movie)
+│   │   └── worldcup-tool.ts    # World Cup standings/matches/scorers (football-data.org)
 │   ├── mfds-logic.ts           # MFDS mfds_pills Supabase 3-stage matching + sortByRelevance
 │   ├── pill-logic.ts
 │   └── supabase.ts
