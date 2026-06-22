@@ -359,6 +359,7 @@ Model policy: **external-API tool intents run on the faster 2.5 Flash** (the ans
 | Purpose                   | Model                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------- |
 | Main chat (default, SDK)  | `gemini-3.5-flash`                                                             |
+| YouTube analysis (SDK)    | `gemini-2.5-flash` — pinned on the **video-reading turn only** (`hasVideoData`, thinking off); heavy video tokens risk the 60s cap on 3.5 → 2.5 keeps margin, falls back to 3.5 if all 2.5 keys fail. Multiturn text follow-ups (video not re-sent) return to `gemini-3.5-flash`. |
 | Tool intents (LangChain)  | `gemini-2.5-flash` — drug_info/drug_id/pharmacy/hospital/vet/law/movie/sports (fast-pass intents disable thinking) |
 | User-selectable           | `gemini-3.5-flash`, `gemini-2.5-flash`                                       |
 | Semantic router           | `gemini-2.5-flash-lite`                                                        |

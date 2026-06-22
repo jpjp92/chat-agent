@@ -74,7 +74,24 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
-        const resolvedModel = state.model || DEFAULT_CHAT_MODEL;
+        // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube
+        // 폴백 블록이 함께 참조하므로 SDK 루프 밖으로 hoist.
+        const hasVideoData = state.messages.some((m: any) =>
+            Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
+        );
+
+        // YouTube는 영상 토큰이 무거워 60s 천장에 가장 위태로운 경로 — 영상을 실제 읽는 턴만
+        // thinking 없는 2.5로 고정한다(DEFAULT_CHAT_MODEL 3.5 전환(2026-05-30) 이전 원래 설계).
+        // 멀티턴 후속 질문(URL은 history에만 있고 영상 미재전송 → hasVideoData=false)은 영상
+        // 토큰이 없어 60s 위험이 낮으므로 일반 대화 정책(3.5)으로 복귀시킨다. 아래 ~625줄 폴백
+        // 블록도 isYoutubeRequest && hasVideoData 조건이라 영상 턴에서만 2.5→3.5 폴백이 동작.
+        const resolvedModel = (isYoutubeRequest && hasVideoData)
+            ? SERVER_MODELS.FLASH
+            : (state.model || DEFAULT_CHAT_MODEL);
+        if (isYoutubeRequest && hasVideoData) {
+            // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
+            console.log(`[LangGraph] YouTube video turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
+        }
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
         // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
@@ -85,10 +102,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
         const needsSearchFallback = resolvedModel === SERVER_MODELS.FLASH_3_5;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
-        // Hoist hasVideoData outside the SDK loop so YouTube fallback block can reference it.
-        const hasVideoData = state.messages.some((m: any) =>
-            Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
-        );
 
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;

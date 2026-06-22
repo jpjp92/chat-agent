@@ -109,7 +109,10 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: { temperature: 0, responseMimeType: "application/json" }
+                // 인텐트 분류는 얕은 패턴 작업이라 thinking 불필요. flash-lite 기본 off라도
+                // 명시 핀(API 기본값 변동 면역). 라우터는 매 턴 serial-blocking이라 영향 직접적.
+                // 같은 flash-lite인 summarize-title도 thinkingBudget:0 사용.
+                config: { temperature: 0, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
             });
 
             if (response.text) {
