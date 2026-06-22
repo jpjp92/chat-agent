@@ -215,7 +215,7 @@ High-level StateGraph node flow (router → vision/generator → tools → outpu
 
 ### 2-3. Agent Runtime Branches
 
-The agent uses two execution paths inside `generator.ts`.
+The generator node runs one of two execution paths: the SDK path in `generator.ts`, and the tool-bound LangChain path delegated to `langchain-path.ts`.
 
 > 📊 Diagram: [Agent Runtime Branches](docs/guide/REF_Architecture.md#agent-runtime-branches)
 
@@ -396,12 +396,13 @@ How API routes write to PostgreSQL tables and Storage buckets.
 │   │   ├── nodes/              # LangGraph nodes + generator helper modules
 │   │   │   ├── router.ts       # Intent classification node
 │   │   │   ├── vision.ts       # Pill image → imprint/color/shape extraction
-│   │   │   ├── generator.ts    # Final SDK / LangChain generation node (orchestrator)
+│   │   │   ├── generator.ts    # Generation node — SDK path + orchestration (LangChain path delegated)
+│   │   │   ├── langchain-path.ts # runLangChainPath — tool-bound LangChain path (drug/pharmacy/hospital/…)
 │   │   │   ├── search-gate.ts  # decideGoogleSearch — grounding gate (multimodal/url/doc/general)
 │   │   │   ├── sdk-contents.ts # buildSdkContents — state messages → @google/genai contents
 │   │   │   ├── generation-config.ts # resolveMaxTokens / resolveThinkingConfig
 │   │   │   ├── pill-messages.ts     # drug_id user-facing message formatters
-│   │   │   └── retry.ts        # isTimeoutError / isAuthError / markRateLimitKey
+│   │   │   └── retry.ts        # isTimeoutError / isAuthError / markRateLimitKey (SDK·LangChain 공용)
 │   │   ├── prompt.ts           # System instruction builder
 │   │   ├── state.ts            # AgentState type definition
 │   │   ├── tools.ts            # identify_pill, search_web (DDG)

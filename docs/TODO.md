@@ -186,6 +186,7 @@
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
 
 ### 아키텍처 리팩토링
+- [ ] **`generator.ts` 경로 분리 (진행 중)** — 1·2·4-A·3-A 완료(1148→685줄, -40%). 남은 3-B(SDK 경로 → `sdk-path.ts`)·4-B(에러 술어 수렴)는 [PLAN_GENERATOR_REFACTOR_260621](plans/PLAN_GENERATOR_REFACTOR_260621.md) 참조 (dev E2E 필수)
 - [ ] **DTO 레이어** — Route Handlers 경계에서 Zod 스키마 기반 요청·응답 DTO 정의
 - [ ] `app/api/chat/route.ts` — normalizer / stream-events / persistence 분리
 - [ ] `geminiService.ts` — 에러 계약 통일 (Result 패턴)
