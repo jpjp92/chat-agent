@@ -275,5 +275,12 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 - [x] **모델 정책 정리** (2026-06-22, [DEV_260622 §3](logs/DEV_260622.md)) — 5/30 3.5 전환이 외부 API 도구 경로 전반을 느리게 한 회귀(drug_info는 Vercel 60s 초과 무응답)를 수정. **외부 API 도구 인텐트(drug_*/pharmacy/hospital/vet/law/movie/sports)는 2.5-flash**(fast-pass는 thinking off), **일반 대화(SDK)만 3.5 유지**. `langchain-path.ts` `pathModel` 다운시프트.
 - [x] `drug-info-tool.ts` — 본문 `temperature: 0.1` **유지 결정** (2026-06-20, 약품 정보 일관성). 단 `extractImprintViaVision`(각인 OCR)은 2026-06-22 OCR 버그픽스로 `temperature: 0` + 2.5-flash + `thinkingBudget:0`으로 변경(각인 1자 판독 결정성·속도).
 - [ ] LangChain path `maxOutputTokens: 8192` → 상향 검토 — 경로는 3-A로 [`langchain-path.ts`](../server/agent/nodes/langchain-path.ts)로 이동(generator.ts 아님). 도구 인텐트가 2.5로 내려간 지금은 우선순위 낮음.
+- [x] **YouTube 영상 턴 2.5 고정** (2026-06-22, [DEV_260622 §7](logs/DEV_260622.md)) — 배포 실측 YouTube 요약 59.20s/60s(천장 0.8s)로 무응답 위험. `generator.ts:81`에서 `isYoutubeRequest && hasVideoData`(영상 실제 전송 턴)일 때만 `resolvedModel`을 2.5로 고정 → 16.4s. 멀티턴 후속 텍스트 Q&A는 영상 미재전송(hasVideoData=false)이라 3.5 일반 정책 복귀.
+- [ ] **도구 인텐트 후속 가드 부재(분석, [DEV_260622 §8](logs/DEV_260622.md))** — 약국/병원/법령/약품/축구는 영화(`movieContext`)와 달리 전용 후속 가드가 없어, 멀티턴 후속이 라우터 재분류 변동성에 노출(같은 입력이 general↔도구로 흔들릴 수 있음). 카드 데이터는 history에 저장돼 SDK general 후속이 읽을 수 있으나(fast-pass는 카드 JSON만 저장), "영화 정보" 변동성(§5)과 동종 잠재 이슈. 보고되면 movie식 후속 가드 확장 검토. 현재 버그 아님 → 우선순위 보류.
 
-> 의학·YouTube·law 경로 및 Search two-track, PDF 토큰 증가는 3.5로 이미 운영 중 — 별도 검증 항목 제거.
+> 의학·YouTube(영상 턴 2.5)·law 경로 및 Search two-track, PDF 토큰 증가는 3.5/2.5 정책으로 이미 운영 중 — 별도 검증 항목 제거.
+
+**라우터 레이턴시 검토 후속** ([DEV_260622 §9](logs/DEV_260622.md), 라우터는 START 직후 serial-blocking LLM 1회):
+- [x] **[A] 라우터 LLM `thinkingConfig:{thinkingBudget:0}` 추가** (2026-06-22, 저위험) — [`router.ts:112`](../server/agent/nodes/router.ts#L112) `config`에 thinking off 명시. 같은 flash-lite인 [`summarize-title/route.ts:44`](../app/api/summarize-title/route.ts#L44)와 동일 패턴. 순수 JSON 분류(15개 택1+boolean)는 얕은 작업이라 thinking 불필요 + 매 턴 blocking이라 영향 직접적. flash-lite 기본 off라도 API 기본값 변동 면역용 핀. tsc 0.
+- [ ] **[B] 고신뢰 인텐트 휴리스틱 short-circuit** (중위험·중효과) — 명백·고정밀 패턴(예: "CGV 상영시간표", "약국 찾아줘")은 LLM 호출 스킵해 round-trip 통째 제거. 최대 절감이나 regex 오발=오라우팅 위험 → 고정밀 소수 패턴만 opt-in + 회귀 테스트 필요.
+- 실패 재시도 2회(키 로테이션, [C])·전체 카테고리 프롬프트(~1.5KB, [D])는 현행 유지 결론(정확도/안정성 우선, 효과 작음).
