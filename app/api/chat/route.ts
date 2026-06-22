@@ -172,6 +172,9 @@ export async function POST(req: NextRequest) {
 
         let lcCitationBuffer = '';
         const incompletecitation = /\s?\[\d*(?:,\s*\d*)*$/;
+        // sports(월드컵 순위/일정 표)는 토큰 증분 스트리밍 시 마크다운 표가 셀 단위로 실시간
+        // 조립되며 어색함 → 스트리밍을 건너뛰고 generator on_chain_end에서 완성본을 한 번에 전송.
+        let detectedIntent = '';
 
         for await (const event of streamEvents) {
           const data = event.data;
@@ -183,6 +186,8 @@ export async function POST(req: NextRequest) {
             // via searchDrugInfoTool) otherwise leak their output (e.g. "JP","W") into the
             // user-facing answer ahead of the real json:drug block.
             if (langGraphNode !== 'generator') continue;
+            // sports: 증분 토큰을 흘리지 않고 generator on_chain_end에서 표 전체를 한 번에 전송.
+            if (detectedIntent === 'sports') continue;
             const chunk = data?.chunk;
             const chunkText = chunk?.content;
             if (chunkText && typeof chunkText === 'string') {
@@ -203,6 +208,10 @@ export async function POST(req: NextRequest) {
               const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
               if (sources.length > 0) { sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) allSources.push(s); }); sendEvent({ sources: allSources }); }
             }
+          } else if (event.event === 'on_chain_end' && event.name === 'router') {
+            // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
+            const ri = data?.output?.intent;
+            if (typeof ri === 'string') detectedIntent = ri;
           } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && lcCitationBuffer) {
             fullAiResponse += lcCitationBuffer; sendEvent({ text: lcCitationBuffer }); lcCitationBuffer = '';
           } else if (event.event === 'on_chain_end' && event.name === 'generator') {

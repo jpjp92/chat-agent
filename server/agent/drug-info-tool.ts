@@ -4,7 +4,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
 import { getNextApiKey } from "../config";
-import { DEFAULT_CHAT_MODEL } from "../models";
+import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../models";
 import { searchWebTool } from "./tools";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
@@ -88,10 +88,15 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
         const contentType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
         const model = new ChatGoogleGenerativeAI({
-            model: DEFAULT_CHAT_MODEL,
+            // 각인 1~2자 판독엔 3.5 품질 불필요 — 2.5-flash로 고정해 Vision fan-out(최대 10콜)
+            // 지연을 복원한다. 기본 모델 3.5 전환(2026-05-30) 후 이 fan-out이 Vercel 60s를 초과해
+            // drug_info 무응답이 발생했음.
+            model: SERVER_MODELS.FLASH,
             apiKey: apiKey,
             // temperature 0: 로고형 각인이 실행마다 다른 글자로 흔들리던 비결정성 제거
             temperature: 0,
+            // OCR은 토큰 1개만 출력 — thinking 불필요. budget 0으로 호출당 지연 최소화.
+            thinkingConfig: { thinkingBudget: 0 },
         });
 
         const sideLabel = side === 'front' ? '앞면(왼쪽)' : '뒤면(오른쪽)';
