@@ -227,7 +227,7 @@ Branch rules:
 - Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
 - Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
 - URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
-- Wikidocs (Cloudflare-blocked) direct fetch failures escalate to browserless `/unblock` (one retry) → ScraperAPI `render=true`; other blocked/short pages use Jina before returning an exact-URL failure notice
+- Wikidocs (Cloudflare-blocked) direct fetch failures escalate to ScrapingBee (`render_js` + `premium_proxy`) → browserless `/unblock` → ScraperAPI fallbacks; other blocked/short pages use Jina before returning an exact-URL failure notice. (browserless `/unblock` alone stopped bypassing wikidocs' Cloudflare in 2026-06; ScrapingBee now leads.) Successful fetches are cached in `url_cache` (14-day TTL)
 - Renderer intents disable Google Search unless the user explicitly requests search/sources/latest information
 - 3.5 Flash free-tier grounding uses a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
 

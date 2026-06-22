@@ -6,6 +6,7 @@ export const maxDuration = 120;
 
 const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
 const SCRAPER_API_TIMEOUT_MS = 45000;
+const SCRAPINGBEE_TIMEOUT_MS = 40000;
 const BROWSERLESS_TIMEOUT_MS = 30000;
 const BROWSERLESS_BASE = (process.env.BROWSERLESS_REST_URL || 'https://production-sfo.browserless.io').replace(/\/+$/, '');
 const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14일
@@ -278,9 +279,51 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Cloudflare 차단 사이트(wikidocs): browserless 1차(+1 재시도) → ScraperAPI 폴백 → 캐시 저장
+        // ScrapingBee (render_js + premium_proxy) — wikidocs Cloudflare 우회 검증됨(2026-06-22, ~4.6s).
+        // 기존 1차였던 browserless /unblock이 CF 강화로 "Just a moment" 챌린지만 반환(미우회)해 대체.
+        const scrapingBeeFetch = async () => {
+            const apiKey = process.env.SCRAPINGBEE_KEY;
+            if (!apiKey) {
+                console.warn('[fetch-url] ScrapingBee skipped: SCRAPINGBEE_KEY missing', { url: targetUrl });
+                return null;
+            }
+            const sbCtrl = new AbortController();
+            const sbt = setTimeout(() => sbCtrl.abort(), SCRAPINGBEE_TIMEOUT_MS);
+            try {
+                const params = new URLSearchParams({
+                    api_key: apiKey,
+                    url: targetUrl,
+                    render_js: 'true',
+                    premium_proxy: 'true',
+                    country_code: 'kr',
+                });
+                const res = await fetch(`https://app.scrapingbee.com/api/v1/?${params.toString()}`, {
+                    signal: sbCtrl.signal,
+                    headers: { Accept: 'text/html, text/plain, */*' },
+                });
+                const renderedHtml = await res.text();
+                const extracted = extractReadableContent(renderedHtml);
+                const cost = res.headers.get('spb-cost');
+                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock) {
+                    console.info('[fetch-url] ScrapingBee succeeded', { url: targetUrl, status: res.status, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
+                    return extracted.content;
+                }
+                console.warn('[fetch-url] ScrapingBee failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, cost, sample: extracted.bodyText.slice(0, 180) });
+                return null;
+            } catch (error: any) {
+                console.warn('[fetch-url] ScrapingBee error', { url: targetUrl, timeoutMs: SCRAPINGBEE_TIMEOUT_MS, error: error?.message ?? String(error) });
+                return null;
+            } finally {
+                clearTimeout(sbt);
+            }
+        };
+
+        // Cloudflare 차단 사이트(wikidocs): ScrapingBee 1차 → browserless /unblock 폴백 → ScraperAPI 폴백 → 캐시
         const cloudflareUnblock = async (): Promise<string | null> => {
-            const bl = (await browserlessFetch()) || (await browserlessFetch()); // 일시적 500 대비 1회 재시도
+            const sb = await scrapingBeeFetch();
+            if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
+            const bl = await browserlessFetch();
             if (bl) { await setCached(cacheKey, bl, 'browserless'); return bl; }
             const sc = await scraperApiFetch();
             if (sc) { await setCached(cacheKey, sc, 'scraperapi'); return sc; }
