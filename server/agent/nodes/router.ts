@@ -155,6 +155,15 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         intent = classifyIntentByRules(textContent, hasImage);
     }
 
+    // 영화 의도 구제: 라우터 LLM이 "영화 정보"처럼 명백한 영화 질의를 간헐적으로 general(+검색)로
+    // 오분류하는 변동성이 있음(503 폴백 시엔 휴리스틱이 movie_search로 정상 분류돼 결과 불일치).
+    // LLM이 general로 봤어도 휴리스틱 regex가 movie_search로 잡으면 deterministic하게 movie_search로
+    // 교정. 활성 카드(movieContext) 세션은 아래 후속 가드가 처리하므로 제외.
+    if (intent === "general" && !state.movieContext && classifyIntentByRules(textContent, hasImage) === "movie_search") {
+        console.log('[LangGraph] Movie intent rescue (general→movie_search): heuristic matched');
+        intent = "movie_search";
+    }
+
     // 과거/완료 월드컵(연도 명시 또는 "지난/과거 월드컵")은 API 미지원(403) → general로 보내 학습지식으로 답.
     if (intent === "sports" && /(20\d\d|지난|과거|역대|작년|예전)\s*(년)?\s*(월드컵|world\s?cup)|(월드컵|world\s?cup)\s*(20\d\d|역대|역사)/i.test(textContent)) {
         console.log('[LangGraph] Sports: 과거 대회 질의 → general (API는 현재 대회만)');
