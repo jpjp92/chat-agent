@@ -329,6 +329,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         let stage2ApiKey = sdkApiKey;
                         let stage2Attempt = 0;
                         let stage2QuotaExhausted = false;
+                        // 503(모델 전체 폭주)은 키 로테이션 무의미 — 짧은 백오프로 소수 재시도 후 2.5 폴백.
+                        let stage2OverloadAttempts = 0;
+                        const MAX_OVERLOAD_RETRIES = 2;
 
                         while (stage2Attempt < MAX_KEY_RETRIES) {
                             try {
@@ -349,16 +352,30 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             } catch (error: any) {
                                 const status = error?.status ?? error?.code;
                                 const isStage2Timeout = status === 504 || error?.message?.includes('DEADLINE_EXCEEDED') || error?.message?.includes('504') || error?.code === 'ERR_STREAM_DESTROYED';
-                                if (status === 429 || status === 503 || isStage2Timeout) {
-                                    stage2Attempt += 1;
-                                    // Daily/project-level quota exhausted — rotating keys won't help
-                                    // Skip remaining key retries and go directly to 2.5 fallback
-                                    if (isDailyQuotaError(error)) {
-                                        console.warn(`[LangGraph] Stage2 daily quota exhausted for ${resolvedModel}. Skipping key rotation → 2.5 fallback.`);
-                                        markKeyDailyExhausted(stage2ApiKey);
+                                // Daily/project-level quota exhausted — rotating keys won't help (429-family RESOURCE_EXHAUSTED)
+                                if (isDailyQuotaError(error)) {
+                                    console.warn(`[LangGraph] Stage2 daily quota exhausted for ${resolvedModel}. Skipping key rotation → 2.5 fallback.`);
+                                    markKeyDailyExhausted(stage2ApiKey);
+                                    stage2QuotaExhausted = true;
+                                    break;
+                                }
+                                // 503 = 모델 전체 폭주(high demand). 어느 키든 같은 3.5라 키 로테이션 무의미.
+                                // 일시 blip 흡수용 짧은 백오프로 동일 키 소수 재시도 후, 즉시 2.5 폴백.
+                                if (status === 503) {
+                                    stage2OverloadAttempts += 1;
+                                    if (stage2OverloadAttempts > MAX_OVERLOAD_RETRIES) {
+                                        console.warn(`[LangGraph] Stage2 503 (model overloaded) — ${MAX_OVERLOAD_RETRIES}회 백오프 후에도 폭주. 키 로테이션 건너뛰고 2.5 폴백.`);
                                         stage2QuotaExhausted = true;
                                         break;
                                     }
+                                    const backoffMs = 400 * stage2OverloadAttempts;
+                                    console.warn(`[LangGraph] Stage2 503 (high demand) attempt ${stage2OverloadAttempts}/${MAX_OVERLOAD_RETRIES} — ${backoffMs}ms 백오프 후 재시도(로테이션 무의미).`);
+                                    await new Promise(r => setTimeout(r, backoffMs));
+                                    continue;
+                                }
+                                // 429(키별 레이트리밋) / timeout — 키 로테이션이 유효
+                                if (status === 429 || isStage2Timeout) {
+                                    stage2Attempt += 1;
                                     const reason = isStage2Timeout ? 'timeout/504' : `quota(${status})`;
                                     console.warn(`[LangGraph] Stage2 error (${reason}) attempt ${stage2Attempt}/${MAX_KEY_RETRIES}. Rotating API key.`);
                                     if (stage2Attempt >= MAX_KEY_RETRIES) {

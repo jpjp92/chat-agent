@@ -5,8 +5,6 @@
  * dependent) around these results.
  */
 
-const RENDERER_INTENTS = new Set(['astronomy', 'biology', 'chemistry', 'physics', 'data_viz']);
-
 /**
  * Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s.
  * Note: the search-grounding floor (min 8192 when Google Search is on) is applied by the
@@ -38,7 +36,10 @@ export const resolveMaxTokens = (ctx: {
  *   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
  *   - Renderer intents (astronomy/data_viz/etc): "minimal" — structured JSON output;
  *     "low" budget can be exhausted by JSON reasoning → empty response
- *   - 1st turn / others: "low" — prevents 60s timeout on first complex queries
+ *   - general(비검색 코드·작문·추론) 포함 그 외 전부: "minimal"
+ *     2026-06-23 low→minimal 전환. 검증: 코드/수학/추론 5케이스 품질 저하 0 +
+ *     평균 25%(코드 58%) 단축 (scripts/test-low-vs-minimal-reasoning.ts, doc §3-3 연장).
+ *     (검색 답변의 3.5 종합=two-track Stage2는 generator.ts에서 이미 minimal 하드코딩)
  * 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
  *   - YouTube: budget 0 (disable — thinkingBudget>0 causes 503 with fileData on 2.5-flash)
  *   - medical_qa: budget 3000 (cap)
@@ -51,9 +52,7 @@ export const resolveThinkingConfig = (ctx: {
     intent: string;
 }) => {
     return ctx.is3xModel
-        ? ((ctx.isYoutubeRequest && ctx.hasVideoData) || RENDERER_INTENTS.has(ctx.intent))
-            ? { thinkingLevel: "minimal" as const }
-            : { thinkingLevel: "low" as const }
+        ? { thinkingLevel: "minimal" as const }   // 3.5 전 경로 minimal (renderer·youtube·general 통합, 2026-06-23)
         : ctx.isYoutubeRequest
             ? { thinkingBudget: 0 }
             : ctx.intent === 'medical_qa'

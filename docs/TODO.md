@@ -284,3 +284,11 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 - [x] **[A] 라우터 LLM `thinkingConfig:{thinkingBudget:0}` 추가** (2026-06-22, 저위험) — [`router.ts:112`](../server/agent/nodes/router.ts#L112) `config`에 thinking off 명시. 같은 flash-lite인 [`summarize-title/route.ts:44`](../app/api/summarize-title/route.ts#L44)와 동일 패턴. 순수 JSON 분류(15개 택1+boolean)는 얕은 작업이라 thinking 불필요 + 매 턴 blocking이라 영향 직접적. flash-lite 기본 off라도 API 기본값 변동 면역용 핀. tsc 0.
 - [ ] **[B] 고신뢰 인텐트 휴리스틱 short-circuit** (중위험·중효과) — 명백·고정밀 패턴(예: "CGV 상영시간표", "약국 찾아줘")은 LLM 호출 스킵해 round-trip 통째 제거. 최대 절감이나 regex 오발=오라우팅 위험 → 고정밀 소수 패턴만 opt-in + 회귀 테스트 필요.
 - 실패 재시도 2회(키 로테이션, [C])·전체 카테고리 프롬프트(~1.5KB, [D])는 현행 유지 결론(정확도/안정성 우선, 효과 작음).
+
+**지연 단축 후속** ([DEV_260624](logs/DEV_260624.md), 기획·재점검 [PLAN_STREAMING_PARTIAL_260623](plans/PLAN_STREAMING_PARTIAL_260623.md) §9·§10):
+- [x] **general `low → minimal`** (2026-06-24) — 비검색 general 3.5의 thinking을 minimal로. 코드·수학·추론 5케이스 실측 평균 −25%(코드 −58%)·품질 저하 0([scripts/test-low-vs-minimal-reasoning.ts](../scripts/test-low-vs-minimal-reasoning.ts)). [`generation-config.ts`](../server/agent/nodes/generation-config.ts) 3.5 분기 minimal 통합. 롤백=한 줄(`low` 복귀).
+- [x] **Stage2 503/429 분리** (2026-06-24) — 503(모델 폭주)에 키 로테이션 12회 헛돌던(~24s) 것을 백오프 최대 2회 후 2.5 폴백으로. 429/timeout만 로테이션 유지. [`generator.ts`](../server/agent/nodes/generator.ts) Stage2 catch.
+- [ ] **폭주 정상화 후 재측정** — minimal·Stage2 fix 효과는 Google 503 "high demand" 이벤트 중 측정돼 오염됨(비검색 minimal인데 18.8s). 정상 시 minimal ~5s·Stage2 28s→6s 확인 + §8 체크리스트 A~D prod 실측.
+- [ ] **503 처리 확장 점검** — Stage1·단일패스·라우터의 503 거동(Stage2만 수정). (후속/보류) 서킷 브레이커: 3.5 503 직후 ~30s 요청 2.5 우회.
+- [ ] **Phase 1 스트리밍 전환** (미착수) — general 산문 토큰 스트리밍(TTFT·모바일 셀룰러). 렌더러 JSON·LangChain 카드는 제외. PLAN §3~5 + 회귀 체크리스트.
+- [ ] **제목 미생성(모바일 간헐)** — summarize-title fetch가 스트림 완료 후 실행 → 모바일 백그라운딩 suspend, 또는 `updateSessionTitle` DB write 실패(삼킴). 로그로 갈래 판별 후 방어.
