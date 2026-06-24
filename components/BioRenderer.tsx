@@ -61,13 +61,19 @@ const SequenceView: React.FC<{
 }> = ({ seq, highlights, noSeqLabel }) => {
     if (!seq) return <div className="text-slate-400">{noSeqLabel}</div>;
 
+    // 중복 없는 도메인 목록 (label+start+end 기준)
+    const uniqueDomains = highlights
+        ? highlights.filter((h, i, arr) =>
+            arr.findIndex(x => x.label === h.label && x.start === h.start && x.end === h.end) === i
+          )
+        : [];
+
     return (
         <div className="w-full overflow-x-auto custom-scrollbar">
             <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center p-2">
                 {seq.split('').map((aa, idx) => {
                     const color = AMINO_ACID_COLORS[aa.toUpperCase()] || AMINO_ACID_COLORS['default'];
                     const isHighlighted = highlights?.some(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
-                    const highlight = highlights?.find(h => (idx + 1) >= h.start && (idx + 1) <= h.end);
 
                     return (
                         <div key={idx} className="flex flex-col items-center group relative mb-2">
@@ -82,15 +88,22 @@ const SequenceView: React.FC<{
                             >
                                 {aa}
                             </motion.div>
-                            {isHighlighted && highlight && (
-                                <div className="absolute top-[-28px] left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none z-20">
-                                    {highlight.label}
-                                </div>
-                            )}
                         </div>
                     );
                 })}
             </div>
+            {/* 도메인 범례 — 셀별 툴팁 대신 시퀀스 아래 고정 표시 (모바일 겹침 방지) */}
+            {uniqueDomains.length > 0 && (
+                <div className="mt-1 mb-2 px-3 flex flex-wrap gap-2 justify-center">
+                    {uniqueDomains.map((h, i) => (
+                        <div key={i} className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 leading-none">{h.label}</span>
+                            <span className="text-[9px] text-slate-400 font-mono leading-none">{h.start}–{h.end}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
