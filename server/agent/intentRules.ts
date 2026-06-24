@@ -89,14 +89,16 @@ export const classifyIntentByRules = (text: string, hasImage: boolean): IntentTy
 
 export type SearchDecision = "on" | "off" | "gray";
 
-// 강한 OFF 신호 (검색 불필요): 코드·번역·창작·계산·개념설명
+// 강한 OFF 신호 (검색 불필요): 코드·번역·창작·계산
+// 주의: "설명해/차이/원리/개념/어떻게 작동"은 강한 OFF에서 제외 → gray로 위임.
+//   "gpt 5.5 설명해줘"처럼 최근·불확실 엔티티 설명은 검증 검색이 필요하므로
+//   하드 OFF로 단정하지 말고 라우터 LLM(needs_search) 판정에 맡긴다. (DEV_260624 §5, A안)
 const SEARCH_OFF_PATTERNS: RegExp[] = [
     /```/,
     /\b(code|function|debug|refactor|algorithm)\b/i,
     /(코드|함수|디버그|에러|리팩터|리팩토링|구현|알고리즘)/,
     /(번역|translate)/i,
     /(작성해|써줘|써 줘|작성 해|이메일|문장.{0,4}다듬|교정해)/,
-    /(설명해|설명 해|차이.{0,3}(뭐|무엇|설명)|원리|개념|어떻게 (작동|동작|돌아))/,
     /(곱하기|나누기|더하기|빼기|\d+\s*[\+\-\*\/x×]\s*\d+)/,
 ];
 
