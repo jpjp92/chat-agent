@@ -103,8 +103,8 @@ export const routerNode = async (state: AgentStateType) => {
 - "general"         : everything else (code, writing, general chat, web search, video summary, etc.)
 
 Also decide "needs_search": whether answering the LATEST user message needs up-to-date Google Search grounding.
-- true  : real-time / current info (news, weather, prices, stocks, "latest/today/now", recent events), a person's current status or role, rankings, company metrics, or the user explicitly asks to search or cite sources.
-- false : timeless knowledge, concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true}`;
+- true  : real-time / current info (news, weather, prices, stocks, "latest/today/now", recent events), a person's current status or role, rankings, company metrics, the user explicitly asks to search or cite sources, OR the message asks about a specific named product/model/version/person that may be recent or that you are not certain exists (verify before denying existence).
+- false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true}`;
 
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,

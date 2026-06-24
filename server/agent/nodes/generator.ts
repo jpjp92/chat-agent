@@ -138,7 +138,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 // Declare outside try so catch block can read them for duplicate-guard
                 let responseText = "";
                 let groundingSources: any[] = [];
-                let stage1FallbackText = "";
                 // Track whether this attempt included multimodal parts (readable in catch)
                 let hadMultimodalContent = false;
 
@@ -194,9 +193,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
                     }
 
-                    // Multi-turn detection (shared by thinkingConfig and Stage2 synthesis)
-                    const isMultiTurn = sdkContents.length > 1;
-
                     // Thinking config — model-aware branching:
                     // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
                     //   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
@@ -213,11 +209,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         is3xModel, isYoutubeRequest, hasVideoData, intent: state.intent,
                     });
 
-                    // Two-track path for 3.5 + Google Search:
-                    // 1) 2.5-flash with Google Search for grounded facts
-                    // 2) 3.5-flash with minimal thinking for final synthesis
+                    // 3.5 + Google Search → 2.5 single-pass grounding (Stage2 3.5 재합성 제거, DEV_260624 §6).
+                    // 무료티어 3.5 grounding은 429라 2.5로 검색하고, 그 결과를 그대로 최종 답으로 사용.
                     if (useGoogleSearch && needsSearchFallback) {
-                        console.log('[LangGraph] Two-track enabled: stage1(2.5+search) -> stage2(3.5+minimal)');
+                        console.log('[LangGraph] Grounding via 2.5 single-pass (Stage2 3.5 synthesis removed)');
 
                         const stage1Response = await genai.models.generateContent({
                             model: SEARCH_FALLBACK_MODEL,
@@ -254,7 +249,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         // 즉시 throw하면 LangChain 폴백(tool bind → 또 빈 응답)으로 떨어지므로,
                         // 키를 교체해 stage1을 1회 재시도한다.
                         if (!stage1Text) {
-                            console.warn('[LangGraph] Two-track stage1 empty — retrying once with next key');
+                            console.warn('[LangGraph] Grounding stage1 empty — retrying once with next key');
                             const s1RetryKey = getNextApiKey() ?? sdkApiKey;
                             const s1Retry = await new GoogleGenAI({ apiKey: s1RetryKey }).models.generateContent({
                                 model: SEARCH_FALLBACK_MODEL,
@@ -285,162 +280,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     .filter(Boolean);
                             }
                             if (stage1Text) {
-                                console.log('[LangGraph] Two-track stage1 retry succeeded');
+                                console.log('[LangGraph] Grounding stage1 retry succeeded');
                             }
                         }
                         if (!stage1Text) {
-                            throw new Error('Two-track stage1 returned empty grounded text');
-                        }
-                        stage1FallbackText = stage1Text;
-
-                        // Keep synthesis input compact to reduce timeout risk.
-                        if (stage1Text.length > 8000) {
-                            stage1Text = stage1Text.slice(0, 8000);
+                            throw new Error('Stage1 grounding returned empty grounded text');
                         }
 
-                        const synthesisInstruction = [
-                            `[USER_REQUEST]\n${latestUserText}\n`,
-                            '[GROUNDING_NOTES_FROM_STAGE1]',
-                            stage1Text,
-                            '',
-                            '[SYNTHESIS_RULES]',
-                            '- Use ONLY the grounded notes above as factual source.',
-                            '- Do not add new external facts.',
-                            "- Do NOT mention the process or source handoff. Do not use source-context phrases (\"제시된 정보를 바탕으로\", \"제시된 내용을 바탕으로\", \"제공된 정보를 바탕으로\", \"Based on the provided information\", \"Based on the sources\", \"Según la información proporcionada\", \"D'après les informations fournies\", etc.) as boilerplate openers or formulaic transitions — these add no information and read as mechanical filler. Such phrases are only acceptable when they carry genuine meaning mid-sentence. Start directly with the answer content.",
-                            '- Start directly with the answer content.',
-                            ...(isMultiTurn
-                                ? [
-                                    "- This is a follow-up turn in an ongoing conversation. Respond naturally and conversationally — do NOT use a fixed section structure (no \"One-line summary\", no rigid headings).",
-                                    "- Match the tone and depth the conversation has established. Answer the user's specific follow-up directly.",
-                                    '- Use formatting (bullet points, bold, short paragraphs) only when it genuinely aids clarity.',
-                                ]
-                                : [
-                                    '- Use this structure, translating section labels into the target response language:',
-                                    '  1. A short "One-line summary" section with exactly one sentence.',
-                                    '  2. A "Key content" section with concrete, organized subsections.',
-                                    '  3. A "Considerations" section only if there are meaningful tradeoffs, limitations, risks, or adoption notes.',
-                                    '- Keep headings concise and avoid generic meta headings such as "Summary of provided information".',
-                                ]),
-                            '- IMPORTANT: For weather forecasts, daily/weekly schedules, comparisons, or any multi-row structured data, you MUST use a markdown table. Never use bullet points for data that has consistent columns across multiple rows.',
-                            '- Preserve useful structure, clarity, and brevity.',
-                            '- If evidence is insufficient, state that clearly.',
-                        ].join('\n');
-
-                        let stage2ApiKey = sdkApiKey;
-                        let stage2Attempt = 0;
-                        let stage2QuotaExhausted = false;
-                        // 503(모델 전체 폭주)은 키 로테이션 무의미 — 짧은 백오프로 소수 재시도 후 2.5 폴백.
-                        let stage2OverloadAttempts = 0;
-                        const MAX_OVERLOAD_RETRIES = 2;
-
-                        while (stage2Attempt < MAX_KEY_RETRIES) {
-                            try {
-                                const stage2Genai = new GoogleGenAI({ apiKey: stage2ApiKey });
-                                const stage2Response = await stage2Genai.models.generateContent({
-                                    // Stage2 synthesis must run on the originally selected model (3.5),
-                                    // not on effectiveModel (2.5 used only for Stage1 grounding).
-                                    model: resolvedModel,
-                                    contents: [{ role: 'user', parts: [{ text: synthesisInstruction }] }],
-                                    config: {
-                                        maxOutputTokens: effectiveMaxTokens,
-                                        thinkingConfig: { thinkingLevel: 'minimal' as any },
-                                    },
-                                });
-
-                                responseText = stage2Response.text || '';
-                                break;
-                            } catch (error: any) {
-                                const status = error?.status ?? error?.code;
-                                const isStage2Timeout = status === 504 || error?.message?.includes('DEADLINE_EXCEEDED') || error?.message?.includes('504') || error?.code === 'ERR_STREAM_DESTROYED';
-                                // Daily/project-level quota exhausted — rotating keys won't help (429-family RESOURCE_EXHAUSTED)
-                                if (isDailyQuotaError(error)) {
-                                    console.warn(`[LangGraph] Stage2 daily quota exhausted for ${resolvedModel}. Skipping key rotation → 2.5 fallback.`);
-                                    markKeyDailyExhausted(stage2ApiKey);
-                                    stage2QuotaExhausted = true;
-                                    break;
-                                }
-                                // 503 = 모델 전체 폭주(high demand). 어느 키든 같은 3.5라 키 로테이션 무의미.
-                                // 일시 blip 흡수용 짧은 백오프로 동일 키 소수 재시도 후, 즉시 2.5 폴백.
-                                if (status === 503) {
-                                    stage2OverloadAttempts += 1;
-                                    if (stage2OverloadAttempts > MAX_OVERLOAD_RETRIES) {
-                                        console.warn(`[LangGraph] Stage2 503 (model overloaded) — ${MAX_OVERLOAD_RETRIES}회 백오프 후에도 폭주. 키 로테이션 건너뛰고 2.5 폴백.`);
-                                        stage2QuotaExhausted = true;
-                                        break;
-                                    }
-                                    const backoffMs = 400 * stage2OverloadAttempts;
-                                    console.warn(`[LangGraph] Stage2 503 (high demand) attempt ${stage2OverloadAttempts}/${MAX_OVERLOAD_RETRIES} — ${backoffMs}ms 백오프 후 재시도(로테이션 무의미).`);
-                                    await new Promise(r => setTimeout(r, backoffMs));
-                                    continue;
-                                }
-                                // 429(키별 레이트리밋) / timeout — 키 로테이션이 유효
-                                if (status === 429 || isStage2Timeout) {
-                                    stage2Attempt += 1;
-                                    const reason = isStage2Timeout ? 'timeout/504' : `quota(${status})`;
-                                    console.warn(`[LangGraph] Stage2 error (${reason}) attempt ${stage2Attempt}/${MAX_KEY_RETRIES}. Rotating API key.`);
-                                    if (stage2Attempt >= MAX_KEY_RETRIES) {
-                                        stage2QuotaExhausted = true;
-                                        break;
-                                    }
-                                    const nextStage2Key = getNextApiKey();
-                                    if (!nextStage2Key) {
-                                        stage2QuotaExhausted = true;
-                                        break;
-                                    }
-                                    stage2ApiKey = nextStage2Key;
-                                    continue;
-                                }
-                                throw error;
-                            }
-                        }
-
-                        if (stage2QuotaExhausted) {
-                            console.warn('[LangGraph] Stage2 exhausted all API keys. Falling back to 2.5 synthesis.');
-                            let fallbackSuccess = false;
-                            for (let retryIdx = 0; retryIdx < MAX_KEY_RETRIES; retryIdx++) {
-                                try {
-                                    const fallbackKey = getNextApiKey() ?? sdkApiKey;
-                                    const fallbackGenai = new GoogleGenAI({ apiKey: fallbackKey });
-                                    const fallbackResponse = await fallbackGenai.models.generateContent({
-                                        model: SEARCH_FALLBACK_MODEL,
-                                        contents: [{ role: 'user', parts: [{ text: synthesisInstruction }] }],
-                                        config: {
-                                            temperature: 0.2,
-                                            topP: 0.8,
-                                            topK: 40,
-                                            maxOutputTokens: effectiveMaxTokens,
-                                            // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
-                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
-                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
-                                        },
-                                    });
-                                    responseText = fallbackResponse.text || stage1Text;
-                                    fallbackSuccess = true;
-                                    console.log('[LangGraph] Stage2 fallback to 2.5 succeeded');
-                                    break;
-                                } catch (fallbackError: any) {
-                                    const fbStatus = fallbackError?.status ?? fallbackError?.code;
-                                    const isFbTimeout = fbStatus === 504 || fallbackError?.message?.includes('DEADLINE_EXCEEDED') || fallbackError?.code === 'ERR_STREAM_DESTROYED';
-                                    if (fbStatus === 429 || fbStatus === 503 || fbStatus === 504 || isFbTimeout) {
-                                        console.warn(`[LangGraph] Stage2 fallback retry ${retryIdx + 1}/${MAX_KEY_RETRIES} failed with ${isFbTimeout ? 'timeout' : fbStatus}`);
-                                        continue;
-                                    }
-                                    console.error('[LangGraph] Stage2 fallback fatal error:', fallbackError.message);
-                                    break;
-                                }
-                            }
-                            
-                            // If all fallback attempts failed, use stage1Text as fallback
-                            if (!fallbackSuccess) {
-                                console.warn('[LangGraph] Stage2 fallback exhausted. Using Stage1 grounded text as response.');
-                                responseText = stage1Text;
-                            }
-                        }
-
-                        if (!responseText && stage1FallbackText) {
-                            console.warn('[LangGraph] Stage2 returned empty text. Using Stage1 grounded text as safe fallback.');
-                            responseText = stage1FallbackText;
-                        }
+                        // Stage2(3.5 재합성) 제거 — Stage1(2.5+search)이 finalInstruction로 완결 답변 생성.
+                        // DEV_260624 §6: 2.5 single-pass가 two-track 대비 ~40% 빠르고 품질 동등,
+                        // production의 throttled 3.5 무료티어(§3)를 회피. weather 표 등 포맷은 base 프롬프트가 담당.
+                        responseText = stage1Text;
                     } else {
                         // thinkingLevel may exhaust the thinking budget → only thought parts returned → empty text.
                         // Retry once with "minimal" thinking before giving up.
@@ -597,7 +447,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     if (sendEvent && responseText) sendEvent({ text: responseText });
                     if (groundingSources.length > 0) {
-                        console.log(`[LangGraph] Two-track grounding sources: ${groundingSources.length}`);
+                        console.log(`[LangGraph] Grounding sources: ${groundingSources.length}`);
                     }
 
                     sdkSuccess = true;

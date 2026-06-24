@@ -39,8 +39,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return (
         <div className="flex min-h-0 flex-col pt-4">
             <Suspense fallback={null}>
-            {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} userProfile={userProfile} language={language} onEdit={onEdit} />
+            {messages.map((msg, idx) => (
+                <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    userProfile={userProfile}
+                    language={language}
+                    onEdit={onEdit}
+                    isStreaming={isTyping && idx === messages.length - 1 && msg.role === Role.MODEL}
+                />
             ))}
             </Suspense>
 

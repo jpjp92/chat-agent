@@ -9,6 +9,7 @@ import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
+import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
 
 // Lazy load visualization components for better performance
@@ -48,9 +49,10 @@ interface ChatMessageFullProps extends ChatMessageProps {
   userProfile?: UserProfile;
   language?: Language;
   onEdit?: (content: string) => void;
+  isStreaming?: boolean;
 }
 
-const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko', onEdit }) => {
+const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko', onEdit, isStreaming = false }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -495,7 +497,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     // Add remaining text
     if (lastIndex < content.length) {
-      const remainingText = content.substring(lastIndex);
+      // Hide trailing in-progress table while streaming so it appears whole (PLAN §11-1)
+      const remainingText = gateStreamingTables(content.substring(lastIndex), isStreaming);
 
       // Check for incomplete viz block or unclosed math block (streaming)
       const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)/i.test(remainingText);
@@ -682,7 +685,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           return (
             <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed [overflow-wrap:anywhere] [word-break:break-word] prose-table:[word-break:normal] prose-table:[overflow-wrap:normal]">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
+                remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
                 rehypePlugins={[rehypeKatex]}
                 components={MarkdownComponents as any}
               >
