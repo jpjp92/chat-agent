@@ -534,8 +534,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             content: processedVisible
           });
         }
-        // Add loading placeholder
-        parts.push({ type: 'chart_loading' } as any);
+        // 스트리밍 중에만 로딩 플레이스홀더 표시 — 스트림 종료 후 미완성 블록은 조용히 드롭
+        if (isStreaming) {
+          parts.push({ type: 'chart_loading' } as any);
+        }
       } else {
         // Process for numeric ranges (1~10 -> 1&#126;10)
         let processedRemaining = remainingText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
