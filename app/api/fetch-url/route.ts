@@ -29,6 +29,16 @@ const isJinaSecurityBlock = (text: string) => {
 
 const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
 
+// 본문 없이 푸터·약관·robots 공지만 추출된 경우(SPA 정적 셸·embed 카드 등) 판정.
+// 예: fotmob /embed/news는 React SPA라 직접 fetch·jina가 © Copyright/Terms/"robots, crawler not permitted"
+// 푸터만 긁어옴 → 모델이 본문으로 오인해 제목 기반 추정을 유발. 이런 결과는 실패로 처리한다.
+const isBoilerplateOnly = (text: string): boolean => {
+    const t = text.toLowerCase();
+    const hasLegal = t.includes('copyright') || t.includes('©') || t.includes('terms of use') || t.includes('privacy policy');
+    const hasFooter = t.includes('automatic services') || t.includes('robots, crawler') || t.includes('cookie policy') || t.includes('follow us');
+    return hasLegal && hasFooter && text.length < 1500;
+};
+
 const normalizeKey = (u: string) => {
     try { const url = new URL(u); url.hash = ''; return url.toString(); } catch { return u; }
 };
@@ -164,20 +174,6 @@ export async function POST(req: NextRequest) {
             clearTimeout(t);
         }
 
-        const jinaFetch = async () => {
-            const jCtrl = new AbortController();
-            const jt = setTimeout(() => jCtrl.abort(), 20000);
-            try {
-                const res = await fetch(`https://r.jina.ai/${targetUrl}`, { signal: jCtrl.signal, headers: { Accept: 'text/plain, text/markdown, */*' } });
-                const text = await res.text();
-                if (res.ok && text.trim().length >= 100) {
-                    if (isJinaSecurityBlock(text)) return null;
-                    return text.replace(/\s+/g, ' ').trim().slice(0, 17000);
-                }
-                return null;
-            } catch { return null; } finally { clearTimeout(jt); }
-        };
-
         // browserless /unblock (datacenter) — Cloudflare 1차 우회. 근거: DEV_260606.md §11
         const browserlessFetch = async () => {
             const token = process.env.BROWSERLESS_KEY || process.env.BROWSERLESS_TOKEN;
@@ -305,11 +301,12 @@ export async function POST(req: NextRequest) {
                 const extracted = extractReadableContent(renderedHtml);
                 const cost = res.headers.get('spb-cost');
                 const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
-                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock) {
+                const boilerplate = isBoilerplateOnly(extracted.bodyText);
+                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock && !boilerplate) {
                     console.info('[fetch-url] ScrapingBee succeeded', { url: targetUrl, status: res.status, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
                     return extracted.content;
                 }
-                console.warn('[fetch-url] ScrapingBee failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, cost, sample: extracted.bodyText.slice(0, 180) });
+                console.warn('[fetch-url] ScrapingBee failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost, sample: extracted.bodyText.slice(0, 180) });
                 return null;
             } catch (error: any) {
                 console.warn('[fetch-url] ScrapingBee error', { url: targetUrl, timeoutMs: SCRAPINGBEE_TIMEOUT_MS, error: error?.message ?? String(error) });
@@ -330,30 +327,28 @@ export async function POST(req: NextRequest) {
             return null;
         };
 
-        if (directFetchBlocked) {
-            if (useCloudflareUnblock) {
-                const text = await cloudflareUnblock();
-                if (text) return NextResponse.json({ content: text });
-                return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
-            }
+        // 차단 또는 본문 부족(SPA 정적 셸) 시 폴백: wikidocs는 CF 우회 체인, 그 외는 ScrapingBee(render_js) 단일.
+        // 폴백 실패 시 제목만 반환하지 않고 실패 메시지(FETCH_FAILED)로 종료 — 모델의 제목 기반 추정 차단.
+        const renderFallback = async (): Promise<string | null> => {
+            if (useCloudflareUnblock) return await cloudflareUnblock();
+            const sb = await scrapingBeeFetch();
+            if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
+            return null;
+        };
 
-            const jinaText = await jinaFetch();
-            if (jinaText) { await setCached(cacheKey, jinaText, 'jina'); return NextResponse.json({ content: jinaText }); }
+        if (directFetchBlocked) {
+            const text = await renderFallback();
+            if (text) return NextResponse.json({ content: text });
             return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }
 
         const extracted = extractReadableContent(html);
         const bodyText = extracted.bodyText;
 
-        if (bodyText.length < 300) {
-            if (useCloudflareUnblock) {
-                const text = await cloudflareUnblock();
-                if (text) return NextResponse.json({ content: text });
-                return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
-            }
-
-            const jinaText = await jinaFetch();
-            if (jinaText) { await setCached(cacheKey, jinaText, 'jina'); return NextResponse.json({ content: jinaText }); }
+        if (bodyText.length < 300 || isBoilerplateOnly(bodyText)) {
+            const text = await renderFallback();
+            if (text) return NextResponse.json({ content: text });
+            return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }
 
         if (!extracted.content.trim()) return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
