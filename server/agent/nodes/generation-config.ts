@@ -42,6 +42,8 @@ export const resolveMaxTokens = (ctx: {
  *     (검색 답변의 3.5 종합=two-track Stage2는 generator.ts에서 이미 minimal 하드코딩)
  * 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
  *   - YouTube: budget 0 (disable — thinkingBudget>0 causes 503 with fileData on 2.5-flash)
+ *   - URL 요약: budget 0 (추출성 작업 — 기본 thinking ON 시 무료티어 100s+ 지연. 2026-06-26)
+ *   - 이미지/영상 미디어 턴: budget 0 (멀티모달 지연 최소화. 2026-06-26)
  *   - medical_qa: budget 3000 (cap)
  *   - Others: undefined (model default)
  */
@@ -49,11 +51,13 @@ export const resolveThinkingConfig = (ctx: {
     is3xModel: boolean;
     isYoutubeRequest: boolean;
     hasVideoData: boolean;
+    hasUrlContent: boolean;
+    isMediaTurn: boolean;
     intent: string;
 }) => {
     return ctx.is3xModel
         ? { thinkingLevel: "minimal" as const }   // 3.5 전 경로 minimal (renderer·youtube·general 통합, 2026-06-23)
-        : ctx.isYoutubeRequest
+        : ctx.isYoutubeRequest || ctx.hasUrlContent || ctx.isMediaTurn
             ? { thinkingBudget: 0 }
             : ctx.intent === 'medical_qa'
             ? { thinkingBudget: 3000 }
