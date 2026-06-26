@@ -64,8 +64,9 @@ export async function POST(req: NextRequest) {
               if (!isRecent) { parts[0].text += `\n[Attached File: ${att.fileName || att.mimeType}]`; continue; }
               const isPublicUrl = att.data.startsWith('http');
               if (isPublicUrl) {
-                if (att.mimeType === 'application/pdf') parts.push({ fileData: { fileUri: att.data, mimeType: 'application/pdf' } });
-                else parts.push({ type: 'image_url', image_url: { url: att.data } });
+                // 영상/오디오/PDF는 실제 mimeType 단 fileData로(image_url 래핑 시 image/jpeg 오추론).
+                if (att.mimeType.startsWith('image/')) parts.push({ type: 'image_url', image_url: { url: att.data } });
+                else parts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
               } else {
                 const b64 = att.data.includes(',') ? att.data.split(',')[1] : att.data;
                 parts.push({ type: 'image_url', image_url: { url: `data:${att.mimeType};base64,${b64}` } });
@@ -103,8 +104,10 @@ export async function POST(req: NextRequest) {
           processedAttachments.push(att);
           const isPublicUrl = att.data.startsWith('http');
           if (isPublicUrl) {
-            if (att.mimeType === 'application/pdf') humanMessageParts.push({ fileData: { fileUri: att.data, mimeType: 'application/pdf' } });
-            else humanMessageParts.push({ type: 'image_url', image_url: { url: att.data } });
+            // 이미지는 image_url(SDK가 http 이미지 fetch 지원), 그 외(영상/오디오/PDF)는 실제 mimeType을
+            // 단 fileData로 — image_url로 감싸면 sdk-contents가 mime을 image/jpeg로 오추론(영상 분석 실패).
+            if (att.mimeType.startsWith('image/')) humanMessageParts.push({ type: 'image_url', image_url: { url: att.data } });
+            else humanMessageParts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
           } else {
             const b64 = att.data.includes(',') ? att.data.split(',')[1] : att.data;
             humanMessageParts.push({ type: 'image_url', image_url: { url: `data:${att.mimeType};base64,${b64}` } });
