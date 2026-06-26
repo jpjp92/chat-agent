@@ -80,6 +80,39 @@
 
 ---
 
+### `url_cache`
+
+URL 프리페치 결과 캐시. browserless/ScrapingBee/ScraperAPI 유닛 절약 목적.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `url_key` | `text` | PK | 정규화된 URL (fragment 제거) |
+| `content` | `text` | NOT NULL | 추출된 본문 |
+| `status` | `text` | NOT NULL, DEFAULT `'ok'` | `'ok'` (성공 응답만 저장) |
+| `provider` | `text` | nullable | `'direct'` \| `'scrapingbee'` \| `'browserless'` \| `'scraperapi'` |
+| `fetched_at` | `timestamptz` | NOT NULL, DEFAULT now() | 캐시 기록 시각 |
+
+**TTL:** 14일 (애플리케이션 레벨 판정 — `fetch-url/route.ts`에서 `fetched_at < now() - 14 days` 체크).  
+오래된 행 수동 정리:
+```sql
+delete from public.url_cache where fetched_at < now() - interval '30 days';
+```
+
+**DDL:**
+```sql
+create table if not exists public.url_cache (
+  url_key    text primary key,
+  content    text not null,
+  status     text not null default 'ok',
+  provider   text,
+  fetched_at timestamptz not null default now()
+);
+```
+
+**API 접근:** `app/api/fetch-url/route.ts` — 캐시 조회(SELECT) 및 성공 결과 upsert(INSERT ON CONFLICT)
+
+---
+
 ## Storage 버킷
 
 허용 버킷 화이트리스트: `ALLOWED_BUCKETS = ['chat-imgs', 'chat-videos', 'chat-docs']`  
@@ -140,7 +173,7 @@
 
 | 키 | 내용 | 위치 |
 |---|---|---|
-| `preferred_model` | 선택된 AI 모델 (gemini-2.5-flash 등) | `App.tsx` |
+| `preferred_model` | 선택된 AI 모델 (기본 `gemini-3.5-flash`) | `App.tsx` |
 | `language` | UI 언어 (ko/en/es/fr) | `App.tsx` |
 | `chat_user` | 로그인 사용자 정보 캐시 | `useAuthSession.ts` |
 | `chat_sessions_cache` | 세션 목록 로컬 캐시 | `useChatSessions.ts` |
