@@ -6,16 +6,11 @@
 
 ## 🟡 P1 — 기능 개선
 
-### 0. 🐞 이미지+검색 할루시네이션 — 가짜 출처 생성 (구현 완료 2026-06-20)
+### 0. 이미지+검색 할루시네이션 — 가짜 출처 생성
 
-**증상:** 이미지 첨부 후 후속턴에서 "검색해서 확인해줘" 요청 시, 실제 Google Search grounding 없이 "검색어:/검색 결과 분석:/`[1]` 인용/참고 자료: ScienceDaily URL"을 통째로 지어냄. grounding 메타데이터 없음 → 소스 칩 미표시(= 가짜 검색의 증거).
+> **구현 완료 (2026-06-20)** — 이미지 첨부 후 후속턴 "검색해서 확인" 요청이 실제 grounding 없이 가짜 출처(`[1]`·ScienceDaily URL 등)를 지어내던 버그 근본 수정. `generator.ts`에 `dropImageForSearch` 가드 신설(general·현재턴 이미지없음·history 이미지있음·명시적 검색요청 시 이미지 파트 제거 후 grounding 활성화) + `prompt.ts`에 `[CRITICAL — NEVER FABRICATE SOURCES]` 절대 규칙을 모든 포맷 지시보다 최상단 배치. 상세·재현테스트: [DEV_260620](./logs/2026/06/DEV_260620.md).
 
-**근본 원인:** [`generator.ts:275`](../server/agent/nodes/generator.ts#L275) `useGoogleSearch = !hasMultimodalContent && !historyHasImage`. 이미지가 history에 있으면 Google Search 강제 OFF(Gemini API: inline 이미지+Search 동시 불가). 라우터가 `needsSearch=true`로 정상 판정해도 [라인 345](../server/agent/nodes/generator.ts#L345) 게이트가 이미 false라 **명시적 검색 요청이 묵살**됨. 2차로 [`prompt.ts:103-104`](../server/agent/prompt.ts#L103)의 "검색 안 했으면 인용 지어내지 마라" 가드를 3.5-flash가 무시.
-
-- [x] **근본 수정** (2026-06-20) — [`generator.ts`](../server/agent/nodes/generator.ts) while 루프 진입 전 `dropImageForSearch`(general && 현재턴 이미지없음 && history 이미지있음 && `_explicitSearchForGuard`) 시 `forceTextOnly=true` → parts 루프가 이미지 스킵 → `hasMultimodalContent=false` → 검색 활성화. line 275 `|| dropImageForSearch` 보강. `_explicitSearchForGuard`는 `state.needsSearch === true`(라우터 LLM 판정) 1순위 + 키워드 정규식 보조로 구성 — 라우터가 문맥으로 이미 판정한 값을 제너레이터가 무시하던 구조적 불일치 해소. (실 차단자는 `historyHasImage`가 아니라 history 이미지가 inlineData로 변환되며 켜지는 `hasMultimodalContent`였음 — 진단 정정.)
-- [x] **하드 규칙(가짜 출처 절대 금지) + 최상단 이동** (2026-06-20) — [`prompt.ts`](../server/agent/prompt.ts) 언어 지시 직후 `[CRITICAL — ABSOLUTE RULE: NEVER FABRICATE SOURCES]` 신규(Google grounding 클로즈 기반). 기존 `[GROUNDING & CITATIONS]`는 긍정 지시만 남기고 부정 규칙 최상단 이관. (REF_Gemini_Prompt_Guide "critical instruction은 맨 앞" 원칙 적용)
-- [ ] **후처리 방어(보조, 선택)** — grounding 메타데이터 부재 시 응답 내 fabricated 인용/참고자료 블록 strip (기존 `[N]` strip 로직 확장, cf. v4.53). 근본 수정으로 대부분 해소돼 우선순위 낮음.
-- [x] **재현 테스트** (2026-06-20) — 이미지 첨부 → "팩트체크를 위해 웹에서 해당 연구가 있는지 검토해보자" 로컬 재시도. `dropImageForSearch` 미발동(초기 정규식 미매칭)이었으나 MALFORMED→2.5-flash 폴백→`tool_code` 감지→grounding 재시도 체인으로 `uni-bonn.de`·`thedebrief.org`·`miragenews.com` 실제 소스 칩 정상 표시, 가짜 출처 없음 확인. `needsSearch` 1순위 조건 추가 후 가드 직접 발동 경로로 개선.
+- [ ] **후처리 방어(보조, 선택)** — grounding 메타데이터 부재 시 응답 내 fabricated 인용/참고자료 블록 strip (기존 `[N]` strip 로직 확장). 근본 수정으로 대부분 해소돼 우선순위 낮음.
 
 ### 1. 멀티턴 경고·차단
 
@@ -272,23 +267,29 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 | M6 프론트 UI | 멀티 프로바이더 그룹 표시, 세션별 모델 기억 |
 
 **Gemini 3.5 Flash 전환 완료 — 후속 점검** (`DEFAULT_CHAT_MODEL = gemini-3.5-flash` 이미 적용):
-- [x] **모델 정책 정리** (2026-06-22, [DEV_260622 §3](logs/DEV_260622.md)) — 5/30 3.5 전환이 외부 API 도구 경로 전반을 느리게 한 회귀(drug_info는 Vercel 60s 초과 무응답)를 수정. **외부 API 도구 인텐트(drug_*/pharmacy/hospital/vet/law/movie/sports)는 2.5-flash**(fast-pass는 thinking off), **일반 대화(SDK)만 3.5 유지**. `langchain-path.ts` `pathModel` 다운시프트.
+- [x] **모델 정책 정리** (2026-06-22, [DEV_260622 §3](./logs/2026/06/DEV_260622.md)) — 5/30 3.5 전환이 외부 API 도구 경로 전반을 느리게 한 회귀(drug_info는 Vercel 60s 초과 무응답)를 수정. **외부 API 도구 인텐트(drug_*/pharmacy/hospital/vet/law/movie/sports)는 2.5-flash**(fast-pass는 thinking off), **일반 대화(SDK)만 3.5 유지**. `langchain-path.ts` `pathModel` 다운시프트.
 - [x] `drug-info-tool.ts` — 본문 `temperature: 0.1` **유지 결정** (2026-06-20, 약품 정보 일관성). 단 `extractImprintViaVision`(각인 OCR)은 2026-06-22 OCR 버그픽스로 `temperature: 0` + 2.5-flash + `thinkingBudget:0`으로 변경(각인 1자 판독 결정성·속도).
 - [ ] LangChain path `maxOutputTokens: 8192` → 상향 검토 — 경로는 3-A로 [`langchain-path.ts`](../server/agent/nodes/langchain-path.ts)로 이동(generator.ts 아님). 도구 인텐트가 2.5로 내려간 지금은 우선순위 낮음.
-- [x] **YouTube 영상 턴 2.5 고정** (2026-06-22, [DEV_260622 §7](logs/DEV_260622.md)) — 배포 실측 YouTube 요약 59.20s/60s(천장 0.8s)로 무응답 위험. `generator.ts:81`에서 `isYoutubeRequest && hasVideoData`(영상 실제 전송 턴)일 때만 `resolvedModel`을 2.5로 고정 → 16.4s. 멀티턴 후속 텍스트 Q&A는 영상 미재전송(hasVideoData=false)이라 3.5 일반 정책 복귀.
-- [ ] **도구 인텐트 후속 가드 부재(분석, [DEV_260622 §8](logs/DEV_260622.md))** — 약국/병원/법령/약품/축구는 영화(`movieContext`)와 달리 전용 후속 가드가 없어, 멀티턴 후속이 라우터 재분류 변동성에 노출(같은 입력이 general↔도구로 흔들릴 수 있음). 카드 데이터는 history에 저장돼 SDK general 후속이 읽을 수 있으나(fast-pass는 카드 JSON만 저장), "영화 정보" 변동성(§5)과 동종 잠재 이슈. 보고되면 movie식 후속 가드 확장 검토. 현재 버그 아님 → 우선순위 보류.
+- [x] **YouTube 영상 턴 2.5 고정** (2026-06-22, [DEV_260622 §7](./logs/2026/06/DEV_260622.md)) — 배포 실측 YouTube 요약 59.20s/60s(천장 0.8s)로 무응답 위험. `generator.ts:81`에서 `isYoutubeRequest && hasVideoData`(영상 실제 전송 턴)일 때만 `resolvedModel`을 2.5로 고정 → 16.4s. 멀티턴 후속 텍스트 Q&A는 영상 미재전송(hasVideoData=false)이라 3.5 일반 정책 복귀.
+- [ ] **도구 인텐트 후속 가드 부재(분석, [DEV_260622 §8](./logs/2026/06/DEV_260622.md))** — 약국/병원/법령/약품/축구는 영화(`movieContext`)와 달리 전용 후속 가드가 없어, 멀티턴 후속이 라우터 재분류 변동성에 노출(같은 입력이 general↔도구로 흔들릴 수 있음). 카드 데이터는 history에 저장돼 SDK general 후속이 읽을 수 있으나(fast-pass는 카드 JSON만 저장), "영화 정보" 변동성(§5)과 동종 잠재 이슈. 보고되면 movie식 후속 가드 확장 검토. 현재 버그 아님 → 우선순위 보류.
 
 > 의학·YouTube(영상 턴 2.5)·law 경로 및 Search two-track, PDF 토큰 증가는 3.5/2.5 정책으로 이미 운영 중 — 별도 검증 항목 제거.
 
-**라우터 레이턴시 검토 후속** ([DEV_260622 §9](logs/DEV_260622.md), 라우터는 START 직후 serial-blocking LLM 1회):
+**라우터 레이턴시 검토 후속** ([DEV_260622 §9](./logs/2026/06/DEV_260622.md), 라우터는 START 직후 serial-blocking LLM 1회):
 - [x] **[A] 라우터 LLM `thinkingConfig:{thinkingBudget:0}` 추가** (2026-06-22, 저위험) — [`router.ts:112`](../server/agent/nodes/router.ts#L112) `config`에 thinking off 명시. 같은 flash-lite인 [`summarize-title/route.ts:44`](../app/api/summarize-title/route.ts#L44)와 동일 패턴. 순수 JSON 분류(15개 택1+boolean)는 얕은 작업이라 thinking 불필요 + 매 턴 blocking이라 영향 직접적. flash-lite 기본 off라도 API 기본값 변동 면역용 핀. tsc 0.
 - [ ] **[B] 고신뢰 인텐트 휴리스틱 short-circuit** (중위험·중효과) — 명백·고정밀 패턴(예: "CGV 상영시간표", "약국 찾아줘")은 LLM 호출 스킵해 round-trip 통째 제거. 최대 절감이나 regex 오발=오라우팅 위험 → 고정밀 소수 패턴만 opt-in + 회귀 테스트 필요.
 - 실패 재시도 2회(키 로테이션, [C])·전체 카테고리 프롬프트(~1.5KB, [D])는 현행 유지 결론(정확도/안정성 우선, 효과 작음).
 
-**지연 단축 후속** ([DEV_260624](logs/DEV_260624.md), 기획·재점검 [PLAN_STREAMING_PARTIAL_260623](plans/PLAN_STREAMING_PARTIAL_260623.md) §9·§10):
+**지연 단축 후속** ([DEV_260624](./logs/2026/06/DEV_260624.md), 기획·재점검 [PLAN_STREAMING_PARTIAL_260623](plans/PLAN_STREAMING_PARTIAL_260623.md) §9·§10):
 - [x] **general `low → minimal`** (2026-06-24) — 비검색 general 3.5의 thinking을 minimal로. 코드·수학·추론 5케이스 실측 평균 −25%(코드 −58%)·품질 저하 0([scripts/test-low-vs-minimal-reasoning.ts](../scripts/test-low-vs-minimal-reasoning.ts)). [`generation-config.ts`](../server/agent/nodes/generation-config.ts) 3.5 분기 minimal 통합. 롤백=한 줄(`low` 복귀).
 - [x] **Stage2 503/429 분리** (2026-06-24) — 503(모델 폭주)에 키 로테이션 12회 헛돌던(~24s) 것을 백오프 최대 2회 후 2.5 폴백으로. 429/timeout만 로테이션 유지. [`generator.ts`](../server/agent/nodes/generator.ts) Stage2 catch.
 - [ ] **폭주 정상화 후 재측정** — minimal·Stage2 fix 효과는 Google 503 "high demand" 이벤트 중 측정돼 오염됨(비검색 minimal인데 18.8s). 정상 시 minimal ~5s·Stage2 28s→6s 확인 + §8 체크리스트 A~D prod 실측.
 - [ ] **503 처리 확장 점검** — Stage1·단일패스·라우터의 503 거동(Stage2만 수정). (후속/보류) 서킷 브레이커: 3.5 503 직후 ~30s 요청 2.5 우회.
 - [ ] **Phase 1 스트리밍 전환** (미착수) — general 산문 토큰 스트리밍(TTFT·모바일 셀룰러). 렌더러 JSON·LangChain 카드는 제외. PLAN §3~5 + 회귀 체크리스트.
 - [ ] **제목 미생성(모바일 간헐)** — summarize-title fetch가 스트림 완료 후 실행 → 모바일 백그라운딩 suspend, 또는 `updateSessionTitle` DB write 실패(삼킴). 로그로 갈래 판별 후 방어.
+
+**URL 요약·이미지/영상 모델 정책 + 503 거동** (2026-06-26):
+- [x] **URL 요약 = 2.5-flash + thinking off 고정** — URL 본문 주입 턴(`[URL_CONTENT:`)은 Search OFF + 본문이 답을 결정하는 추출성 작업. 3.5 무료티어 throughput 한계(20~30s)로 지연 → 외부 도구 인텐트와 같은 논리로 2.5 고정. [`generator.ts`](../server/agent/nodes/generator.ts) `hasUrlContentForModel` 분기 + [`generation-config.ts`](../server/agent/nodes/generation-config.ts) `hasUrlContent → thinkingBudget:0`. 실측 근거: 2.5 OFF가 5~15s·60s안전·품질 동등(일반/뉴스/기술 3유형), 3.5 무료는 86~97s 또는 전키 503. 스크립트 `scripts/test-url-summary-*.ts`.
+- [x] **이미지·영상 미디어 턴 = 2.5 + thinking off 고정** — 멀티모달(이미지/업로드 영상)도 무료 3.5에서 throughput 한계로 60s 캡 초과(이미지 56s vs 2.5 5s, Tier1 3.5는 3.5s). `isMediaTurn = hasMultimodalContent && !hasDocumentContent`(PDF/문서 제외)로 [`generator.ts`](../server/agent/nodes/generator.ts) effectiveModel 2.5 핀 + [`generation-config.ts`](../server/agent/nodes/generation-config.ts) thinkingBudget0. YouTube 핀이 못 잡는 업로드 영상까지 커버. 멀티턴: chat route `isRecent`(최근 3턴) 윈도우 동안 미디어 재전송 → 2.5 유지, 윈도우 밖 → 3.5 복귀. PDF/문서는 별도 측정 후 결정(보류).
+- [x] **SDK 경로 503 다운그레이드** — 3.5 첫 503에서 키 로테이션 대신 2.5로 강등(`unavailableDowngrade`). 같은 혼잡 모델에 12키 헛도는 것 방지. [`generator.ts`](../server/agent/nodes/generator.ts). (line 287 "서킷 브레이커: 3.5 503 직후 2.5 우회"의 SDK 경로분 해당)
+- [ ] **하이브리드 Tier1 폴백 (검토)** — Tier1(유료) 키 실측 시 3.5가 **빠르고 안정**(URL 6~9s, 이미지 3.5s) + 품질 미세 우위(무료 86~97s/ERROR·이미지 56s는 3.5 탓이 아니라 무료티어 throughput/503 혼잡 탓으로 판명, 2026-06-26). **URL 요약·이미지·영상**을 무료 2.5 우선 → 503·전키 소진 시 Tier1 3.5 폴백하면 비용 최소화 + 혼잡 내성 + 고품질. 전제: `config.ts`가 현재 `API_KEY_TIER1` 미사용 → 별도 배선(Tier1 전용 getter 또는 경로별 키 오버라이드) 필요. 결정: 기본값은 무료 2.5 유지, 하이브리드는 추후.
