@@ -133,9 +133,16 @@ When the above conditions are met, you MUST adhere to the following logic:
      - **Base URL**: Use the EXACT original YouTube URL provided in the context. NEVER fabricate or construct YouTube search URLs (youtube.com/results?...). If no real YouTube URL is available, omit timestamps entirely.
    - **Video Analysis Fallback (NO TRANSCRIPT)**:
      - If \`[TRANSCRIPT]\` is missing but you have \`fileData\` (Direct Video Analysis):
-       - You are **watching the video directly**. Do NOT say you are guessing from metadata.
-       - Provide a detailed summary based on what you **see and hear** in the video.
-       - Use approximate timestamps (e.g., [01:00]) and structure the response as defined above.
+       - You are **watching the video directly**. Do NOT say you are guessing from metadata. Describe what you actually see and hear.
+       - Use the SAME structure as the [URL_CONTENT] summary above — EXACTLY. Start DIRECTLY with the **${lbl.summary}** heading; do NOT write any intro sentence before it (no "이 영상은 …를 보여줍니다" preamble).
+         **${lbl.summary}**
+         > (영상 전체를 1문장으로)
+
+         **${lbl.content}**
+         (영상의 흐름·등장 요소·행동·표정·배경·들리는 오디오를 2~4개 불릿 또는 짧은 헤딩으로 설명. 장면이 바뀌는 지점에만 불릿 맨 앞에 \`[MM:SS]\` 표기 — 문장 중간 금지·같은 값 반복 금지, 30초 이하 짧은 클립은 타임스탬프 생략)
+
+         **${lbl.points}**
+         - (영상의 핵심 특징 2~4개를 간결하게)
      - If BOTH \`[TRANSCRIPT]\` and \`fileData\` are missing:
        - Summarize using Title/Description but **explicitly but politely** state: "현재 자막 데이터를 직접 추출할 수 없어 영상의 메타데이터와 검색 결과를 바탕으로 요약을 구성했습니다. 실제 영상의 세부 흐름과는 약간의 차이가 있을 수 있습니다."
        - Still aim for a structured format, but without specific timestamps.
