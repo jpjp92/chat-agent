@@ -2,7 +2,7 @@
 
 `sports` intent와 `worldCupTool`(football-data.org 연동) 테스트용 레퍼런스. 현재 진행 중인 FIFA 월드컵의 조별 순위·대진/일정·득점왕을 실시간 조회한다.
 
-> 기술 상세(grounding 한계 진단·API 검증·구현): [`../logs/DEV_260620.md`](../logs/DEV_260620.md) §5, [`../logs/DEV_260621.md`](../logs/DEV_260621.md)
+> 기술 상세(grounding 한계 진단·API 검증·구현): [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §5, [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md)
 > 설계/계획: [`../plans/PLAN_WORLDCUP_SPORTS_TOOL_260621.md`](../plans/PLAN_WORLDCUP_SPORTS_TOOL_260621.md), [`../plans/PLAN_WORLDCUP_IMPL_260621.md`](../plans/PLAN_WORLDCUP_IMPL_260621.md)
 > ⚠️ `SPORTS_API_KEY`(football-data.org v4, TIER_ONE) 필요. rate limit **분당 6회** → 인메모리 캐시 필수.
 

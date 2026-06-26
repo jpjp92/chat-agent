@@ -3,7 +3,7 @@
 > 작성일: 2026-06-21
 > 상태: **1·2·4-A·3-A순위 구현·검증 완료**(1·2 커밋 `04d291c`·`cce3baf`·4-A `0fec111`, 3-A 커밋대기). generator.ts 1148→685줄(-40%). 3-B 다음.
 > 대상: [server/agent/nodes/generator.ts](../../server/agent/nodes/generator.ts)
-> 구현 기록: [docs/logs/DEV_260621.md §10](../logs/DEV_260621.md)
+> 구현 기록: [docs/logs/DEV_260621.md §10](../logs/2026/06/DEV_260621.md)
 
 ---
 
