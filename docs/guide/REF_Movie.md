@@ -2,7 +2,7 @@
 
 Reference prompts for testing the `json:movie` renderer and the multiplex showtimes pipeline (CGV · 롯데시네마 · 메가박스).
 
-> 기술 상세(스파이크·엔드포인트 발견·캐시·CGV 콜드 최적화): [`../logs/DEV_260610.md`](../logs/DEV_260610.md), [`../logs/DEV_260611.md`](../logs/DEV_260611.md) §6
+> 기술 상세(스파이크·엔드포인트 발견·캐시·CGV 콜드 최적화): [`../logs/DEV_260610.md`](../logs/2026/06/DEV_260610.md), [`../logs/DEV_260611.md`](../logs/2026/06/DEV_260611.md) §6
 > ⚠️ CGV 조회는 `BROWSERLESS_KEY` 필요 (Cloudflare Bot Management 우회 — 실 헤드리스 Chrome). 롯데·메가박스는 direct JSON.
 
 ---

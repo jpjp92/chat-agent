@@ -2,7 +2,7 @@
 
 업로드 가능한 모든 파일 타입과 각 처리 경로(멀티모달 네이티브 vs 텍스트 추출) 레퍼런스. 첨부 → 추출/전달 → 모델 입력까지의 흐름과 한도·동작을 한 곳에 정리한다.
 
-> 관련: kordoc HWP 연동 [`../logs/DEV_260621.md`](../logs/DEV_260621.md) §6·§7, 검증·설계 [`../logs/DEV_260620.md`](../logs/DEV_260620.md) §2, [`../plans/PLAN_KORDOC_INTEGRATION_260620.md`](../plans/PLAN_KORDOC_INTEGRATION_260620.md)
+> 관련: kordoc HWP 연동 [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md) §6·§7, 검증·설계 [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §2, [`../plans/PLAN_KORDOC_INTEGRATION_260620.md`](../plans/PLAN_KORDOC_INTEGRATION_260620.md)
 > 코드: 첨부 처리 [`components/ChatInput.tsx`](../../components/ChatInput.tsx) `processFile`, 서버 파싱 [`app/api/parse-document/route.ts`](../../app/api/parse-document/route.ts), 컨텍스트 주입 [`src/hooks/useChatStream.ts`](../../src/hooks/useChatStream.ts)
 
 ---
