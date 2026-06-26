@@ -70,16 +70,22 @@ const extractReadableContent = (html: string) => {
         .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
         .replace(/<(nav|header|footer|aside|iframe|noscript|figure|form)[^>]*>[\s\S]*?<\/\1>/gi, '');
 
-    const semanticMatch = cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i) || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-    const divMatch = !semanticMatch && (
+    const htmlTextLen = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+    // 모든 <article>/<main> 블록 중 텍스트가 가장 많은 것 선택.
+    // (aitimes 등은 폰트크기 위젯 <article>이 본문 <article>보다 HTML상 먼저 나와 first-match가 깨짐)
+    const semanticBlocks: { html: string; tag: 'article' | 'main' }[] = [];
+    for (const re of [/<article[^>]*>([\s\S]*?)<\/article>/gi, /<main[^>]*>([\s\S]*?)<\/main>/gi]) {
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(cleaned))) semanticBlocks.push({ html: m[1] || '', tag: m[0].toLowerCase().startsWith('<article') ? 'article' : 'main' });
+    }
+    semanticBlocks.sort((a, b) => htmlTextLen(b.html) - htmlTextLen(a.html));
+    const semanticBest = semanticBlocks[0] && htmlTextLen(semanticBlocks[0].html) >= 300 ? semanticBlocks[0] : null;
+
+    const divMatch = !semanticBest && (
         cleaned.match(/(<(?:div|section)[^>]*(?:class|id)=["'][^"']*(?:page[-_]content|book[-_]content|book_content|article[-_](?:view[-_](?:content|body|text)|content|body|text)|post[-_](?:content|body|text)|news[-_](?:view|content|body|text)|view[-_](?:content|body|con)|read[-_](?:body|content)|content[-_](?:area|wrap|body|view))[^"']*["'][^>]*>)([\s\S]+)/i)
     );
-    const selector = semanticMatch
-        ? (semanticMatch[0].toLowerCase().startsWith('<article') ? 'article' : 'main')
-        : divMatch
-            ? 'content'
-            : 'body';
-    const bodyHtml = semanticMatch ? (semanticMatch[1] || semanticMatch[0]) : divMatch ? divMatch[2] : cleaned;
+    const selector = semanticBest ? semanticBest.tag : divMatch ? 'content' : 'body';
+    const bodyHtml = semanticBest ? semanticBest.html : divMatch ? divMatch[2] : cleaned;
     const bodyText = bodyHtml.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 15000);
 
     let content = '';
