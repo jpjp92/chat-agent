@@ -7,6 +7,7 @@ export const maxDuration = 120;
 const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
 const SCRAPER_API_TIMEOUT_MS = 45000;
 const SCRAPINGBEE_TIMEOUT_MS = 40000;
+const SCRAPINGBEE_STATIC_TIMEOUT_MS = 15000; // no render_js — SSR 사이트용 빠른 경로
 const BROWSERLESS_TIMEOUT_MS = 30000;
 const BROWSERLESS_BASE = (process.env.BROWSERLESS_REST_URL || 'https://production-sfo.browserless.io').replace(/\/+$/, '');
 const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14일
@@ -16,7 +17,7 @@ const db = supabaseAdmin ?? supabase;
 
 const SSRF_BLOCK = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i;
 
-const isJinaSecurityBlock = (text: string) => {
+const isSecurityBlock = (text: string) => {
     const t = text.toLowerCase();
     return t.includes('just a moment') || t.includes('performing security verification') ||
         t.includes('security service to protect') || t.includes('warning: target url returned error 403') ||
@@ -30,7 +31,7 @@ const isJinaSecurityBlock = (text: string) => {
 const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
 
 // 본문 없이 푸터·약관·robots 공지만 추출된 경우(SPA 정적 셸·embed 카드 등) 판정.
-// 예: fotmob /embed/news는 React SPA라 직접 fetch·jina가 © Copyright/Terms/"robots, crawler not permitted"
+// 예: fotmob /embed/news는 React SPA라 직접 fetch가 © Copyright/Terms/"robots, crawler not permitted"
 // 푸터만 긁어옴 → 모델이 본문으로 오인해 제목 기반 추정을 유발. 이런 결과는 실패로 처리한다.
 const isBoilerplateOnly = (text: string): boolean => {
     const t = text.toLowerCase();
@@ -159,25 +160,29 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 10000);
         let html = '';
-        let directFetchBlocked = false;
-        try {
-            const response = await fetch(targetUrl, {
-                signal: ctrl.signal,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-                },
-            });
-            html = await response.text();
-            if (!response.ok || isJinaSecurityBlock(html) || html.match(/<title[^>]*>\s*just a moment/i)) directFetchBlocked = true;
-        } catch (e: any) {
-            directFetchBlocked = true;
-        } finally {
-            clearTimeout(t);
+        // wikidocs는 Cloudflare가 항상 403 "Just a moment" 챌린지를 반환 → direct fetch 10s는 순수 낭비.
+        // 바로 ScrapingBee(render_js) CF 우회 체인으로 보낸다 (캐시 미스 시 ~10s 단축).
+        let directFetchBlocked = useCloudflareUnblock;
+        if (!useCloudflareUnblock) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 10000);
+            try {
+                const response = await fetch(targetUrl, {
+                    signal: ctrl.signal,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+                    },
+                });
+                html = await response.text();
+                if (!response.ok || isSecurityBlock(html) || html.match(/<title[^>]*>\s*just a moment/i)) directFetchBlocked = true;
+            } catch (e: any) {
+                directFetchBlocked = true;
+            } finally {
+                clearTimeout(t);
+            }
         }
 
         // browserless /unblock (datacenter) — Cloudflare 1차 우회. 근거: DEV_260606.md §11
@@ -207,7 +212,7 @@ export async function POST(req: NextRequest) {
                 const content = typeof cv === 'string' ? cv : JSON.stringify(cv);
                 const extracted = extractReadableContent(content);
                 // security-block 판정은 추출 본문만 (raw JSON의 cf_clearance 오탐 방지)
-                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                const securityBlock = isSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
                 if (extracted.bodyText.length >= 300 && !securityBlock) {
                     console.info('[fetch-url] browserless succeeded', { url: targetUrl, selector: extracted.selector, textChars: extracted.bodyText.length });
                     return extracted.content;
@@ -245,7 +250,7 @@ export async function POST(req: NextRequest) {
                 const extracted = extractReadableContent(renderedHtml);
                 const cost = res.headers.get('sa-credit-cost');
                 const finalUrl = res.headers.get('sa-final-url');
-                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                const securityBlock = isSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
 
                 if (res.ok && extracted.bodyText.length >= 300 && !securityBlock) {
                     console.info('[fetch-url] ScraperAPI fallback succeeded', {
@@ -281,8 +286,45 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // ScrapingBee (render_js + premium_proxy) — wikidocs Cloudflare 우회 검증됨(2026-06-22, ~4.6s).
-        // 기존 1차였던 browserless /unblock이 CF 강화로 "Just a moment" 챌린지만 반환(미우회)해 대체.
+        // ScrapingBee static (no render_js) — SSR 뉴스/블로그 사이트용 빠른 경로 (~3-5s).
+        // render_js=false이므로 Chrome headless 불필요 → 크레딧 절약 + 지연 최소화.
+        const scrapingBeeStaticFetch = async () => {
+            const apiKey = process.env.SCRAPINGBEE_KEY;
+            if (!apiKey) return null;
+            const sbCtrl = new AbortController();
+            const sbt = setTimeout(() => sbCtrl.abort(), SCRAPINGBEE_STATIC_TIMEOUT_MS);
+            try {
+                const params = new URLSearchParams({
+                    api_key: apiKey,
+                    url: targetUrl,
+                    render_js: 'false',
+                    country_code: 'kr',
+                });
+                const res = await fetch(`https://app.scrapingbee.com/api/v1/?${params.toString()}`, {
+                    signal: sbCtrl.signal,
+                    headers: { Accept: 'text/html, text/plain, */*' },
+                });
+                const renderedHtml = await res.text();
+                const extracted = extractReadableContent(renderedHtml);
+                const cost = res.headers.get('spb-cost');
+                const securityBlock = isSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                const boilerplate = isBoilerplateOnly(extracted.bodyText);
+                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock && !boilerplate) {
+                    console.info('[fetch-url] ScrapingBee(static) succeeded', { url: targetUrl, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
+                    return extracted.content;
+                }
+                console.warn('[fetch-url] ScrapingBee(static) failed', { url: targetUrl, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost });
+                return null;
+            } catch (error: any) {
+                console.warn('[fetch-url] ScrapingBee(static) error', { url: targetUrl, error: error?.message ?? String(error) });
+                return null;
+            } finally {
+                clearTimeout(sbt);
+            }
+        };
+
+        // ScrapingBee render_js (render_js + premium_proxy) — wikidocs Cloudflare 우회 검증됨(2026-06-22, ~4.6s).
+        // SPA·CF 챌린지 사이트 전용. 느리지만(~15-40s) JS 렌더링 필요 시 사용.
         const scrapingBeeFetch = async () => {
             const apiKey = process.env.SCRAPINGBEE_KEY;
             if (!apiKey) {
@@ -306,23 +348,23 @@ export async function POST(req: NextRequest) {
                 const renderedHtml = await res.text();
                 const extracted = extractReadableContent(renderedHtml);
                 const cost = res.headers.get('spb-cost');
-                const securityBlock = isJinaSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
+                const securityBlock = isSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
                 const boilerplate = isBoilerplateOnly(extracted.bodyText);
                 if (res.ok && extracted.bodyText.length >= 300 && !securityBlock && !boilerplate) {
-                    console.info('[fetch-url] ScrapingBee succeeded', { url: targetUrl, status: res.status, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
+                    console.info('[fetch-url] ScrapingBee(render) succeeded', { url: targetUrl, status: res.status, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
                     return extracted.content;
                 }
-                console.warn('[fetch-url] ScrapingBee failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost, sample: extracted.bodyText.slice(0, 180) });
+                console.warn('[fetch-url] ScrapingBee(render) failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost, sample: extracted.bodyText.slice(0, 180) });
                 return null;
             } catch (error: any) {
-                console.warn('[fetch-url] ScrapingBee error', { url: targetUrl, timeoutMs: SCRAPINGBEE_TIMEOUT_MS, error: error?.message ?? String(error) });
+                console.warn('[fetch-url] ScrapingBee(render) error', { url: targetUrl, timeoutMs: SCRAPINGBEE_TIMEOUT_MS, error: error?.message ?? String(error) });
                 return null;
             } finally {
                 clearTimeout(sbt);
             }
         };
 
-        // Cloudflare 차단 사이트(wikidocs): ScrapingBee 1차 → browserless /unblock 폴백 → ScraperAPI 폴백 → 캐시
+        // Cloudflare 차단 사이트(wikidocs): ScrapingBee(render) 1차 → browserless /unblock → ScraperAPI
         const cloudflareUnblock = async (): Promise<string | null> => {
             const sb = await scrapingBeeFetch();
             if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
@@ -333,10 +375,13 @@ export async function POST(req: NextRequest) {
             return null;
         };
 
-        // 차단 또는 본문 부족(SPA 정적 셸) 시 폴백: wikidocs는 CF 우회 체인, 그 외는 ScrapingBee(render_js) 단일.
-        // 폴백 실패 시 제목만 반환하지 않고 실패 메시지(FETCH_FAILED)로 종료 — 모델의 제목 기반 추정 차단.
+        // 비-wikidocs 폴백: static(~3s) → render_js(~40s) 2단계.
+        // SSR 사이트(뉴스·블로그)는 static으로 충분. SPA만 render_js까지 진행.
+        // 폴백 실패 시 FETCH_FAILED — 모델의 제목 기반 추정 차단.
         const renderFallback = async (): Promise<string | null> => {
             if (useCloudflareUnblock) return await cloudflareUnblock();
+            const sbStatic = await scrapingBeeStaticFetch();
+            if (sbStatic) { await setCached(cacheKey, sbStatic, 'scrapingbee-static'); return sbStatic; }
             const sb = await scrapingBeeFetch();
             if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
             return null;
