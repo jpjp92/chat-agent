@@ -1,6 +1,6 @@
-# Chat Agent 
+# Chat Agent
 
-An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combining **Supabase** persistent storage, a **LangGraph.js** agentic pipeline, Google Search grounding, multimodal analysis, and 11 interactive visualization renderers.
+Gemini 3.5 Flash / 2.5 Flash 기반 AI 메신저. LangGraph.js 에이전트 파이프라인, Google Search grounding, 멀티모달 입력, 11종 인터랙티브 시각화 렌더러.
 
 ---
 
@@ -8,230 +8,119 @@ An intelligent AI messenger powered by **Gemini 3.5 Flash / 2.5 Flash**, combini
 
 ### 1-1. Conversation & Auth
 
-- **Login-less**: Start instantly with an auto-assigned random nickname and avatar
-- **Persistent history**: Sessions and messages stored in Supabase (PostgreSQL)
-- **Auto-title**: Session titles generated automatically from conversation content
-- **Sidebar infinite scroll**: Session list loads 30 items at a time; additional sessions fetched on scroll
-- **Localization**: Full support for KO / EN / ES / FR
+- **Login-less**: 자동 닉네임·아바타로 즉시 시작
+- **Persistent history**: Supabase(PostgreSQL)에 세션·메시지 저장
+- **Auto-title**: 대화 내용 기반 세션 제목 자동 생성
+- **Sidebar infinite scroll**: 30개 단위 로드, 스크롤 시 추가 fetch
+- **Localization**: KO / EN / ES / FR
 
 ### 1-2. AI Intelligence
 
-- **Gemini 3.5 Flash** as the default chat model, with **Gemini 2.5 Flash** selectable as an alternative
-- **Gemini Flash-Lite** for semantic routing
-- **Model selector**: Header dropdown switches between models; `preferred_model` persisted locally
-- **Google Search Grounding**: Real-time web search with source chip rendering
-- **3.5 Search two-track**: 3.5 Flash on free tier can't ground directly — 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
-- **`general` needsSearch routing**: For `general` intent, a 3-gate classifier (rule-based OFF/ON + LLM gray-zone) determines whether Google Search is needed — suppresses unnecessary two-track latency for code/translation/math; default-on safety net for ambiguous cases; multi-turn follow-up guard suppresses re-search when previous turn was already searched
-- **Attached-document search gate**: When a parsed document is present (`[EXTRACTED_CONTENT:]` / `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]`), grounding defaults OFF so the answer stays document-grounded — re-enabled only when the user explicitly asks for external verification (검색/조사/최신/출처…), same philosophy as the URL gate
-- **Empty response auto-retry**: When 3.5 Flash returns empty text (thinking exhaustion), automatically retries with `thinkingLevel: "minimal"` before LangChain fallback
-- **Safety block detection**: `finishReason === 'SAFETY'` blocks propagate immediately with user-friendly localized messages (4 languages) instead of a generic error
-- **YouTube analysis**: Native Gemini video reading; supports standard URLs, `youtu.be`, and Shorts (`/shorts/`)
-- **Multimodal input**: Images, PDF (30MB+), video, DOCX / PPTX / XLSX
-- **HWP document parsing (kordoc)**: `.hwp` / `.hwpx` / `.hwp3` / `.hwpml` extracted to structure-preserving Markdown (real `<table>`) via `/api/parse-document` — 4MB threshold routing (direct multipart ≤4MB / Supabase Storage relay for larger), so summaries read tables and key-value cells correctly instead of collapsed plaintext
-- **LangGraph agent**: Semantic Router → Vision / Generator / Tools with intent-based path routing and deterministic fallbacks
+- **Models**: `gemini-3.5-flash`(기본) / `gemini-2.5-flash`(선택) — 헤더 드롭다운, `preferred_model` 로컬 저장
+- **Google Search Grounding**: 실시간 웹 검색 + 소스 칩 렌더링. 3.5 무료 티어는 2.5 single-pass로 폴백
+- **Intent routing**: `gemini-2.5-flash-lite` 라우터 + 규칙 기반 폴백(`intentRules.ts`). `general` intent는 3-게이트 `needsSearch` 분류기로 검색 게이트 결정
+- **Multimodal**: 이미지, PDF(30MB+), 동영상, DOCX/PPTX/XLSX, HWP/HWPX(kordoc)
+- **YouTube**: 네이티브 Gemini 동영상 분석 (표준 URL / youtu.be / Shorts)
+- **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
+
+상세(인텐트 라우팅·툴 바인딩·모델 정책·스트리밍): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
 
 ### 1-3. Visualization Renderers (11)
 
-| Renderer             | Intent                      | Trigger                             | Library                                                    |
-| -------------------- | --------------------------- | ----------------------------------- | ---------------------------------------------------------- |
-| 💊 Drug-Viz          | `drug_id` / `drug_info` | 약품명 질의 / 알약 이미지 식별      | MFDS `mfds_pills` + MFDS API + ConnectDI                 |
-| 🏥 Pharmacy-Viz      | `pharmacy_search`         | 약국 위치 탐색                      | 공공데이터포털 전국 약국 API ⚠️ 만료 2028-05-06          |
-| 🏨 Hospital-Viz      | `hospital_search`         | 병원·의원 위치 탐색                | 건강보험심사평가원 병원정보서비스 API ⚠️ 만료 2028-05-07 |
-| 🐾 Vet-Viz           | `vet_search`              | 동물병원 위치 탐색                  | 행정안전부 동물병원 조회서비스 ⚠️ 만료 2028-05-10        |
-| ⚖️ Law-Viz         | `law_search`              | 법령 목록 / 본문 / 조항호목         | 국가법령정보센터 Open API                                  |
-| 🎬 Movie-Viz         | `movie_search`            | 영화 상영시간표 / 영화관 질의       | 롯데시네마·메가박스 direct JSON + CGV browserless(HMAC)   |
-| 🧪 Chem-Viz          | `chemistry`               | 분자 / 화학 구조                    | smiles-drawer                                              |
-| 🧬 Bio-Viz           | `biology`                 | 단백질 / DNA                        | NGL Viewer (3D PDB)                                        |
-| 📐 Diagram-Viz       | `physics`                 | 자유물체도 / 포물선 / 충돌 / 경사면 | Canvas 2D                                                  |
-| ✨ Constellation-Viz | `astronomy`               | 별자리 / 천체                       | HTML5 Canvas + astronomy-engine                            |
-| 📊 Chart-Viz         | `data_viz`                | 데이터 / 통계                       | ApexCharts                                                 |
+| Renderer             | Intent                          | Library / API                                     |
+| -------------------- | ------------------------------- | ------------------------------------------------- |
+| 💊 Drug-Viz          | `drug_id` / `drug_info`     | MFDS `mfds_pills` + ConnectDI                   |
+| 🏥 Pharmacy-Viz      | `pharmacy_search`             | 공공데이터포털 전국 약국 API (만료 2028-05-06)    |
+| 🏨 Hospital-Viz      | `hospital_search`             | 건강보험심사평가원 병원정보서비스 API (만료 2028-05-07) |
+| 🐾 Vet-Viz           | `vet_search`                  | 행정안전부 동물병원 조회서비스 (만료 2028-05-10)  |
+| ⚖️ Law-Viz          | `law_search`                  | 국가법령정보센터 Open API                         |
+| 🎬 Movie-Viz         | `movie_search`                | 롯데·메가박스 direct JSON + CGV browserless(HMAC) |
+| 🧪 Chem-Viz          | `chemistry`                   | smiles-drawer                                     |
+| 🧬 Bio-Viz           | `biology`                     | NGL Viewer (3D PDB)                               |
+| 📐 Diagram-Viz       | `physics`                     | Canvas 2D                                         |
+| ✨ Constellation-Viz | `astronomy`                   | HTML5 Canvas + astronomy-engine                   |
+| 📊 Chart-Viz         | `data_viz`                    | ApexCharts                                        |
 
-### 1-4. 💊 Drug-Viz — Pill Identification Engine
+렌더러별 상세(스키마·테스트 프롬프트): [docs/guide/](docs/guide/)
 
-- **Image-based pill identification**: Ambiguous image requests ("이거 뭐야?") route to Vision node and extract imprint / color / shape
-- **Deterministic DB lookup**: Extracted pill properties stored in `state.pillData`; server queries the local MFDS `mfds_pills` table before falling back to legacy lookup paths
-- **No raw vision JSON leakage**: Vision node streams are filtered from SSE; raw extraction JSON never reaches user-visible context
-- **Exact-match safety policy**: Only `match_type = exact` may become a `json:drug` card; `imprint_only` / `similar` results return a candidate table
-- **ConnectDI image sync**: Drug cards use ConnectDI HTML parsing and Supabase caching for image reliability
-- **DDG fallback**: Text drug-info requests not found in MFDS fall back to DuckDuckGo search with source chips
+### 1-4. Performance & Security
 
-### 1-5. ⚖️ Law-Viz — Korean Statute Cards
+**Lighthouse**: Performance 91 · Best Practices 100 · CLS 0.00  
+**Bundle**: JS 365 KB gzip / CSS ~15 KB
 
-- **Hybrid lookup**: `lawSearch.do?target=law` for candidate laws → `lawService.do?target=law` for body/article text
-- **Hybrid intent parsing**: Router selects `law_search`; `lawTool` then uses Gemini 2.5 Flash to normalize `{mode, law_name, article_no, query}` before Open API calls
-- **Article links**: Body/article cards include per-article public source links without exposing `LAW_OC`
-- **Colloquial law names**: Aliases (`소방법`, `교통법`, `개인정보법`, `근로법`) normalized to official search candidates
-
-### 1-6. 🎬 Movie-Viz — Multiplex Showtimes Cards
-
-- **3-chain live showtimes**: CGV / 롯데시네마 / 메가박스 today's schedule with seat availability (`잔여/총석`), rating, format, and poster per movie
-- **Client-fetch architecture**: `movieTool` returns only region-matched default branches (`json:movie`); `MovieRenderer` then calls `GET /api/showtimes` per chain on mount — chat response ends instantly, CGV's ~2.5s browserless latency stays out of the chat function
-- **Branch dropdown**: 532 branches (CGV 177 · Lotte 239 · Megabox 116) with search filter; region keywords ("강남", "홍대", "서면") auto-select the best branch per chain
-- **SWR cache + skeleton**: in-memory fresh 120s / stale 30min with background refresh (CGV cold 7.3s → warm 0.003s); skeleton cards with min 320ms display unify perceived latency across chains
-- **Cloudflare-aware fetching**: Lotte/Megabox use direct JSON endpoints; CGV requires browserless (real headless Chrome) — Node-direct HMAC calls are blocked by Cloudflare Bot Management
-- **Chat-variant card**: 1-col chips on mobile / 2-col on desktop, lightweight panel (chain-color top accent), movie 더보기 toggle, cleaned CGV screen names with full name on hover, per-branch homepage links
-
-### 1-7. ⚽ Sports — World Cup Tool
-
-- **Live World Cup data**: `worldCupTool` fetches the current FIFA World Cup standings (12 groups), fixtures/bracket, and top scorers from football-data.org (v4) — bypasses Gemini Search grounding, which is structurally unfit for real-time sports tables (organic pages only, inconsistent per-group freshness, no access to Google's sports knowledge panel)
-- **Selective fetch + cache**: LLM picks `resource` (standings / matches / scorers); in-memory cache (standings·scorers 5min, matches 10min, stale fallback on 429) absorbs the API's 6 req/min rate limit
-- **Markdown output (no custom renderer)**: tool returns a `[WORLDCUP_DATA]` block; the LLM formats tables, translates team names to Korean, reasons over free-form questions ("한국 16강 가능성?"), and reports undetermined brackets honestly instead of fabricating
-- **Past tournaments → training knowledge**: free tier serves the current tournament only (past seasons return 403), so the router sends "2022 월드컵" style queries to `general` with a not-real-time note
-
-### 1-8. Performance
-
-- Lighthouse **91 / 100** (up from 44)
-- JS bundle **365 KB** gzip (down from 1.0 MB via code splitting + lazy loading)
-- CSS bundle **~15 KB** (down from 124 KB via build-time Tailwind)
-- CLS **0.00** / Best Practices **100 / 100**
-
-### 1-9. Security
-
-- **Presigned URL architecture**: Supabase credentials never exposed to the frontend
-- **SSRF protection**: `fetch-url`, `proxy-image`, `sync-drug-image` enforce hostname blocklists (RFC 1918 + IPv6 private ranges) and whitelist-only patterns
-- **Bucket access control**: `create-signed-url`, `upload` enforce `ALLOWED_BUCKETS` whitelist — arbitrary bucket access blocked
-- **API key rotation**: 429 → 60s cooldown (`markKeyRateLimited`), 401/403 → 24h blacklist (`markKeyInvalid`); all-keys-exhausted returns `null`
-- **Error sanitization**: Internal error details (`error.message`, stack) never forwarded to the client; status-code-based localized messages only
-- **Safety block handling**: `finishReason === 'SAFETY'` propagated as a distinct `safety` error type with 4-language user messages; no unnecessary key retry
-- **Request timeout protection**: External fetches are capped with `AbortController` (`fetch-url` direct 10s / Jina 20s / browserless 30s / ScraperAPI 45s, YouTube metadata 8-10s, MFDS/DDG 8s, nedrug image 6s)
+**Security highlights:**
+- Presigned URL 아키텍처 — 프론트에 Supabase 자격증명 미노출
+- SSRF 방어 — `fetch-url` / `proxy-image` / `sync-drug-image` RFC 1918 + IPv6 private 범위 차단
+- API 키 로테이션 — 429 → 60s cooldown, 401/403 → 24h blacklist
+- 에러 sanitization — 내부 스택·메시지 클라이언트 미노출
 
 ---
 
 ## 2. Architecture
 
-### 2-1. Agent And Tool Overview
-
-Solid arrows = request (input) path · dashed arrows = response (output) path.
+### 2-1. Agent & Tool Overview
 
 ```mermaid
 flowchart TB
-    In([User Input - prompt / image])
+    In([User Input])
 
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
-        UI[Main UI and App State]
+        UI[Main UI]
         Stream[useChatStream]
-        Renderers["Visualization Renderers (11) — Drug / Pharmacy / Hospital / Vet / Law / Movie / Bio / Chem / Constellation / Diagram / Chart"]
+        Renderers["Renderers (11)"]
     end
 
-    subgraph URLFetchAPI ["Vercel /api/fetch-url"]
-        URLCache["url_cache lookup - 14-day TTL"]
-        DirectFetch["Direct HTML fetch"]
-        JinaFallback["Jina reader fallback"]
-        BrowserlessFallback["browserless /unblock - Cloudflare bypass"]
-        ScraperFallback["ScraperAPI render fallback"]
+    subgraph FetchAPI ["/api/fetch-url"]
+        URLCache["url_cache (14-day TTL)"]
+        Direct["Direct HTML fetch"]
+        ScrapingBee["ScrapingBee (non-wikidocs fallback)"]
+        CFChain["ScrapingBee → browserless → ScraperAPI\n(wikidocs CF bypass chain)"]
     end
 
-    subgraph ChatAPI ["Vercel /api/chat"]
-        Router["Semantic Router - LLM + intentRules fallback"]
-        Vision["Vision Node - pill image preprocessing"]
-        Generator["Generator Node - SDK path or LangChain path"]
-        ToolNode["ToolNode - executes LLM tool_calls"]
+    subgraph ChatAPI ["/api/chat"]
+        Router["Semantic Router"]
+        Vision["Vision Node (pill)"]
+        Generator["Generator Node"]
+        ToolNode["ToolNode"]
     end
 
-    subgraph ShowtimesAPI ["Vercel /api/showtimes"]
-        ShowtimesCache["SWR cache - fresh 120s / stale 30min"]
-        ChainFetch["Lotte / Megabox direct + CGV browserless HMAC"]
+    subgraph ShowtimesAPI ["/api/showtimes"]
+        SWR["SWR cache 120s/30min"]
+        ChainFetch["Lotte/Megabox direct + CGV browserless"]
     end
 
-    subgraph Tools ["Server Tools"]
-        DrugLookup["identify_pill - MFDS mfds_pills"]
-        DrugInfo["search_drug_info - MFDS + DDG"]
-        LocationTools["pharmacy / hospital / vet"]
-        LawTool["lawTool"]
-        MovieTool["movieTool - region to default branches"]
-        WorldCupTool["worldCupTool - football-data.org WC"]
-        WebSearch["search_web"]
-    end
-
-    subgraph External ["External Services"]
+    subgraph External ["External"]
         Gemini[["Google Gemini AI"]]
         Supabase[("Supabase")]
-        PublicAPIs[["Public APIs - MFDS / HIRA / Law / Vet"]]
-        DrugSites[["Drug Sources - MFDS nedrug / ConnectDI"]]
-        URLProviders[["URL Providers - Jina / browserless / ScraperAPI"]]
-        Multiplex[["Multiplex - CGV / Lotte Cinema / Megabox"]]
-        DDG[["DuckDuckGo / Web"]]
+        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org)"]]
+        Multiplex[["CGV / Lotte / Megabox"]]
     end
 
     Out([Rendered Answer + source chips])
 
-    %% Request (input) path - solid
-    In --> UI
-    UI --> Stream
-    Stream -->|URL prompt prefetch| URLCache
-    URLCache -->|miss| DirectFetch
-    URLCache <-->|read / write| Supabase
-    DirectFetch -->|non-wikidocs blocked or short body| JinaFallback
-    DirectFetch -->|wikidocs Cloudflare blocked| BrowserlessFallback
-    BrowserlessFallback -->|fail| ScraperFallback
-    JinaFallback <--> URLProviders
-    BrowserlessFallback <--> URLProviders
-    ScraperFallback <--> URLProviders
-    URLCache -.->|hit| Stream
-    DirectFetch -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
-    JinaFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
-    BrowserlessFallback -.->|URL_CONTENT| Stream
-    ScraperFallback -.->|URL_CONTENT or URL_FETCH_FAILED| Stream
+    In --> UI --> Stream
+    Stream -->|URL prefetch| URLCache -->|miss| Direct
+    Direct -->|blocked/boilerplate, wikidocs| CFChain
+    Direct -->|blocked/boilerplate, other| ScrapingBee
+    URLCache <--> Supabase
     Stream -->|POST /api/chat| Router
-    Router -->|drug_id image| Vision
+    Router -->|drug_id + image| Vision --> Generator
     Router -->|other intents| Generator
-    Vision --> Generator
-    Generator -->|tool_calls| ToolNode
-    ToolNode --> DrugLookup
-    ToolNode --> DrugInfo
-    ToolNode --> LocationTools
-    ToolNode --> LawTool
-    ToolNode --> MovieTool
-    ToolNode --> WebSearch
-    Renderers -->|movie card mount / branch change| ShowtimesCache
-    ShowtimesCache -->|miss or stale| ChainFetch
-    ChainFetch <--> Multiplex
-    ShowtimesCache -.->|showtimes JSON| Renderers
+    Generator -->|tool_calls| ToolNode --> APIs
+    Renderers -->|movie card| SWR --> ChainFetch <--> Multiplex
     Generator <--> Gemini
-    Vision <--> Gemini
-    DrugLookup <--> DrugSites
-    DrugInfo <--> PublicAPIs
-    LocationTools <--> PublicAPIs
-    LawTool <--> PublicAPIs
-    WebSearch <--> DDG
-
-    %% Response (output) path - dashed
     ToolNode -.->|ToolMessage| Generator
-    Generator -.->|SSE stream| Stream
-    Stream -.-> UI
-    UI -.-> Renderers
-    Renderers -.-> Out
-    Stream <-->|persist| Supabase
+    Generator -.->|SSE stream| Stream -.-> UI -.-> Renderers -.-> Out
+    Stream <--> Supabase
 
     classDef io fill:#16a34a,stroke:#15803d,color:#fff;
     class In,Out io;
 ```
 
-### 2-2. LangGraph Agent Flow
+상세 다이어그램(LangGraph flow, Runtime Branches, URL Prefetch, Pill ID, DB/Storage):  
+→ [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
 
-High-level StateGraph node flow (router → vision/generator → tools → output).
-
-> 📊 Diagram: [LangGraph Agent Flow](docs/guide/REF_Architecture.md#langgraph-agent-flow)
-
-### 2-3. Agent Runtime Branches
-
-The generator node runs one of two execution paths: the SDK path in `generator.ts`, and the tool-bound LangChain path delegated to `langchain-path.ts`.
-
-> 📊 Diagram: [Agent Runtime Branches](docs/guide/REF_Architecture.md#agent-runtime-branches)
-
-Branch rules:
-
-- SDK path handles `general`, `medical_qa`, and renderer intents (`astronomy`, `biology`, `chemistry`, `physics`, `data_viz`) — runs on **3.5 Flash**
-- LangChain path handles intents that need local tools: `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports` — runs on the faster **2.5 Flash** (answer built from API data, not model reasoning; fast-pass intents disable thinking)
-- `sports` (World Cup tables) skips token streaming — the full markdown table is sent in one chunk at `on_chain_end` to avoid awkward cell-by-cell assembly
-- Google Search is disabled for multimodal requests (Gemini grounding is incompatible with image/video/PDF parts)
-- Exact URL prompts are prefetched by `/api/fetch-url`; when `[URL_CONTENT]` is available, Google Search is disabled so the model summarizes the fetched page instead of similarly titled search results
-- URL prefetch results are cached in the `url_cache` table (14-day TTL); a cache hit short-circuits all providers to save browserless/ScraperAPI units
-- Wikidocs (Cloudflare-blocked) direct fetch failures escalate to ScrapingBee (`render_js` + `premium_proxy`) → browserless `/unblock` → ScraperAPI fallbacks; other blocked/short pages use Jina before returning an exact-URL failure notice. (browserless `/unblock` alone stopped bypassing wikidocs' Cloudflare in 2026-06; ScrapingBee now leads.) Successful fetches are cached in `url_cache` (14-day TTL)
-- Renderer intents disable Google Search unless the user explicitly requests search/sources/latest information
-- 3.5 Flash free-tier grounding uses a two-track route: 2.5 Flash gathers grounded facts, then 3.5 Flash synthesizes the final answer
-
-### 2-4. Tool-Calling Loop
+### 2-2. Tool-Calling Loop
 
 ```mermaid
 sequenceDiagram
@@ -241,296 +130,124 @@ sequenceDiagram
     participant E as External APIs / DBs
 
     loop Until AIMessage has no tool_calls
-        G->>L: Invoke selected model with bound tools
+        G->>L: Invoke with bound tools
         L-->>G: AIMessage
-        alt AIMessage has tool_calls
+        alt has tool_calls
             G->>T: Route to tools
-            T->>E: Execute selected tool
-            E-->>T: Tool result
-            T-->>G: ToolMessage appended to state (tools → generator)
-        else No tool_calls
-            G-->>G: End graph (exit loop)
+            T->>E: Execute tool
+            E-->>T: Result
+            T-->>G: ToolMessage → state
+        else no tool_calls
+            G-->>G: End graph
         end
     end
 ```
 
-Tool-binding policy:
-
-| Intent                           | Tools exposed to LLM                 | Notes                                                  |
-| -------------------------------- | ------------------------------------ | ------------------------------------------------------ |
-| `drug_id` without `pillData` | `identify_pill`, `search_web`    | Legacy/fallback path only                              |
-| `drug_id` with `pillData`    | none after direct DB lookup          | Prevents recursion; non-exact returns table before LLM |
-| `drug_info`                    | `search_drug_info`, `search_web` | MFDS first, DDG fallback                               |
-| `pharmacy_search`              | `pharmacyTool`, `search_web`     | Fast-passed as `json:pharmacy`                       |
-| `hospital_search`              | `hospitalTool`, `search_web`     | Fast-passed as `json:hospital`                       |
-| `vet_search`                   | `vetTool`, `search_web`          | Fast-passed as `json:vet`                            |
-| `law_search`                   | `lawTool`                          | Handles query normalization and Open API calls         |
-| `movie_search`                 | `movieTool`                        | Fast-passed as `json:movie`; card fetches live showtimes via `/api/showtimes` |
-| `sports`                       | `worldCupTool`                     | football-data.org WC standings/matches/scorers; markdown output, past seasons → `general` |
-
-### 2-5. Pill Image Identification Flow
-
-Image identification fast-path: router → vision extraction → direct DB lookup → exact card / candidate table / failure.
-
-> 📊 Diagram: [Pill Image Identification Flow](docs/guide/REF_Architecture.md#pill-image-identification-flow)
-
-### 2-6. Tool Inventory
-
-| Tool                 | File                               | Purpose                                                                                  |
-| -------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
-| `identify_pill`    | `server/agent/tools.ts`          | MFDS `mfds_pills` DB first; imprint / color / shape 3-stage match with legacy fallback |
-| `search_web`       | `server/agent/tools.ts`          | DuckDuckGo HTML fallback search and source extraction                                    |
-| `search_drug_info` | `server/agent/drug-info-tool.ts` | MFDS drug lookup, official image/detail data, non-pill fallback                          |
-| `pharmacyTool`     | `server/agent/pharmacy-tool.ts`  | National pharmacy search                                                                 |
-| `hospitalTool`     | `server/agent/hospital-tool.ts`  | HIRA hospital/clinic search                                                              |
-| `vetTool`          | `server/agent/vet-tool.ts`       | Animal hospital search                                                                   |
-| `lawTool`          | `server/agent/law-tool.ts`       | Korean law list/body/article lookup                                                      |
-| `movieTool`        | `server/agent/movie-tool.ts`     | Region → 3-chain default theater branches (`json:movie`); showtimes fetched client-side |
-
-### 2-7. Streaming And Source Handling
-
-`app/api/chat/route.ts` consumes LangGraph stream events and forwards clean SSE events to the client.
-
-- SDK responses send text directly via `sendEvent`
-- LangChain `on_chat_model_stream` chunks are sanitized before forwarding
-- Vision node chunks are filtered out (contain internal JSON extraction data)
-- Exact URL fetch failures are short-circuited to a localized access-limitation notice; the system does not summarize substitute search results for that URL
-- Tool source URLs parsed from `[WEB_SOURCE_URLS]` and emitted as source chips
-- Fast-pass renderers stream completed `json:pharmacy`, `json:hospital`, `json:vet`, `json:law`, `json:movie` blocks without an extra LLM synthesis step
-- Final assistant content saved to Supabase after streaming completes
-
-### 2-8. Intent Routing
-
-| Intent                                                                   | Path                                                                            | Model                                                  |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `drug_id` (image)                                                      | Router fast-path → Vision → direct DB lookup → exact card or candidate table | Vision: 2.5 Flash                                      |
-| `drug_info`                                                            | LangChain +`search_drug_info` / DDG fallback                                  | selected model                                         |
-| `pharmacy_search`                                                      | LangChain + pharmacy public API tool                                            | selected model                                         |
-| `hospital_search`                                                      | LangChain + HIRA hospital API tool                                              | selected model                                         |
-| `vet_search`                                                           | LangChain + animal hospital API tool                                            | selected model                                         |
-| `law_search`                                                           | LangChain + Korean law Open API tool                                            | selected model                                         |
-| `movie_search`                                                         | LangChain + `movieTool` → card client-fetches `/api/showtimes`                | selected model                                         |
-| `sports`                                                              | LangChain + `worldCupTool` → football-data.org (markdown), past → `general` | selected model                                         |
-| `medical_qa`                                                           | SDK + Google Search grounding                                                   | selected model, 3.5 uses two-track                     |
-| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer output                                                             | selected model, Search off unless explicitly requested |
-| `general`                                                              | SDK, Google Search gated by `needsSearch` 3-gate classifier                   | selected model, 3.5 uses two-track when search is on   |
-
-Router behavior:
-
-- Router LLM: `gemini-2.5-flash-lite`
-- Deterministic fallback rules in `server/agent/intentRules.ts` (KO / EN / ES / FR keywords)
-- Renderer intents disable Google Search by default; explicit "search/source/latest" requests re-enable it
-
-### 2-9. Database And Storage Flow
-
-How API routes write to PostgreSQL tables and Storage buckets.
-
-> 📊 Diagram: [Database And Storage Flow](docs/guide/REF_Architecture.md#database-and-storage-flow)
-
-| Table             | Written by                       | Purpose                                                              |
-| ----------------- | -------------------------------- | -------------------------------------------------------------------- |
-| `users`         | `/api/auth`                    | Guest profile:`id`, `nickname`, `display_name`, `avatar_url` |
-| `chat_sessions` | `/api/sessions`, `/api/chat` | Session metadata: owner, title,`updated_at`                        |
-| `chat_messages` | `/api/chat`                    | User/assistant messages, attachment URL, grounding sources           |
-| `url_cache`     | `/api/fetch-url`               | Cached URL fetch results keyed by normalized URL (14-day TTL); avoids repeat browserless/ScraperAPI calls |
-
-| Bucket          | Purpose                                      |
-| --------------- | -------------------------------------------- |
-| `chat-imgs`   | User image uploads + cached drug-card images |
-| `chat-videos` | Uploaded videos                              |
-| `chat-docs`   | Uploaded PDFs and documents                  |
+인텐트별 툴 바인딩·라우팅 상세: [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
 
 ---
 
 ## 3. Tech Stack
 
-| Layer         | Technology                                                               |
-| ------------- | ------------------------------------------------------------------------ |
-| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
-| Visualization | ApexCharts, smiles-drawer, NGL, HTML5 Canvas                             |
-| Backend       | Next.js Route Handlers (Vercel), LangGraph.js                            |
-| AI            | Gemini 2.5 Flash / 3.5 Flash / Flash-Lite, @google/genai SDK, LangChain  |
-| Database      | Supabase (PostgreSQL, Storage)                                           |
+| Layer         | Technology                                                                |
+| ------------- | ------------------------------------------------------------------------- |
+| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion  |
+| Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
+| Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
+| AI            | Gemini 3.5 Flash / 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain  |
+| Database      | Supabase (PostgreSQL + Storage)                                           |
 
-### 3-1. Model Usage
-
-Model policy: **external-API tool intents run on the faster 2.5 Flash** (the answer is built from API data / tool JSON, not model reasoning), while **general conversation keeps 3.5 Flash**. This restores tool-path latency after the 2026-05-30 default-model bump to 3.5 Flash.
-
-| Purpose                   | Model                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| Main chat (default, SDK)  | `gemini-3.5-flash`                                                             |
-| YouTube analysis (SDK)    | `gemini-2.5-flash` — pinned on the **video-reading turn only** (`hasVideoData`, thinking off); heavy video tokens risk the 60s cap on 3.5 → 2.5 keeps margin, falls back to 3.5 if all 2.5 keys fail. Multiturn text follow-ups (video not re-sent) return to `gemini-3.5-flash`. |
-| Tool intents (LangChain)  | `gemini-2.5-flash` — drug_info/drug_id/pharmacy/hospital/vet/law/movie/sports (fast-pass intents disable thinking) |
-| User-selectable           | `gemini-3.5-flash`, `gemini-2.5-flash`                                       |
-| Semantic router           | `gemini-2.5-flash-lite`                                                        |
-| Pill vision preprocessing | `gemini-2.5-flash` (vision node + drug-info imprint OCR, thinking off)         |
-| 3.5 + Search grounding    | Stage 1:`gemini-2.5-flash` + Search → Stage 2: `gemini-3.5-flash` synthesis |
-| TTS                       | `gemini-2.5-flash-preview-tts`                                                 |
-| Session title             | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback)            |
+모델별 사용 정책: [docs/guide/REF_Architecture.md#model-policy](docs/guide/REF_Architecture.md)  
+DB 스키마: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 
 ---
 
 ## 4. Project Structure
 
 ```
-├── app/                        # Next.js App Router
-│   ├── layout.tsx              # Root layout (HTML, CDN scripts, theme init)
-│   ├── page.tsx                # Entry point — dynamic import App (ssr: false)
-│   ├── globals.css
-│   └── api/                    # Route Handlers (maxDuration: 60, nodejs runtime)
-│       ├── chat/route.ts       # Main Gemini streaming endpoint (LangGraph, SSE)
-│       ├── speech/route.ts     # TTS (gemini-2.5-flash-preview-tts)
+├── app/
+│   ├── layout.tsx / page.tsx / globals.css
+│   └── api/
+│       ├── chat/route.ts               # LangGraph SSE streaming (maxDuration 60)
+│       ├── speech/route.ts             # TTS (gemini-2.5-flash-preview-tts)
+│       ├── showtimes/route.ts          # 3-chain showtimes + SWR cache
+│       ├── fetch-url/route.ts          # URL prefetch: cache → direct → ScrapingBee/CF chain
+│       ├── parse-document/route.ts     # HWP/DOCX/PPTX → kordoc Markdown
+│       ├── sessions/route.ts           # Session/message CRUD
+│       ├── upload/route.ts             # Supabase Storage upload proxy
 │       ├── summarize-title/route.ts
 │       ├── sync-drug-image/route.ts
 │       ├── pill-search/route.ts
-│       ├── sessions/route.ts   # Session / message CRUD (offset/limit pagination)
-│       ├── showtimes/route.ts  # 3-chain live showtimes (Lotte/Megabox direct, CGV browserless) + SWR cache, icn1
-│       ├── upload/route.ts     # Supabase Storage upload proxy
-│       ├── parse-document/route.ts  # HWP (.hwp/.hwpx/.hwp3/.hwpml) → kordoc Markdown; multipart ≤4MB / Storage {filePath} for larger, icn1
-│       ├── fetch-url/route.ts  # URL prefetch: url_cache → direct HTML + Jina + wikidocs browserless/ScraperAPI fallback
-│       ├── fetch-transcript/route.ts  # YouTube transcript stub (disabled; uses native Gemini video analysis)
 │       ├── auth/route.ts
 │       ├── create-signed-url/route.ts
 │       └── proxy-image/route.ts
-├── server/                     # Server-only utilities (never bundled to client)
-│   ├── config.ts               # API key pool + rotation logic
-│   ├── models.ts               # Server model registry
-│   ├── agent/
-│   │   ├── graph.ts            # LangGraph StateGraph definition
-│   │   ├── intentRules.ts      # Deterministic multilingual routing fallbacks
-│   │   ├── nodes/              # LangGraph nodes + generator helper modules
-│   │   │   ├── router.ts       # Intent classification node
-│   │   │   ├── vision.ts       # Pill image → imprint/color/shape extraction
-│   │   │   ├── generator.ts    # Generation node — SDK path + orchestration (LangChain path delegated)
-│   │   │   ├── langchain-path.ts # runLangChainPath — tool-bound LangChain path (drug/pharmacy/hospital/…)
-│   │   │   ├── search-gate.ts  # decideGoogleSearch — grounding gate (multimodal/url/doc/general)
-│   │   │   ├── sdk-contents.ts # buildSdkContents — state messages → @google/genai contents
-│   │   │   ├── generation-config.ts # resolveMaxTokens / resolveThinkingConfig
-│   │   │   ├── pill-messages.ts     # drug_id user-facing message formatters
-│   │   │   └── retry.ts        # isTimeoutError / isAuthError / markRateLimitKey (SDK·LangChain 공용)
-│   │   ├── prompt.ts           # System instruction builder
-│   │   ├── state.ts            # AgentState type definition
-│   │   ├── tools.ts            # identify_pill, search_web (DDG)
-│   │   ├── drug-info-tool.ts
-│   │   ├── pharmacy-tool.ts
-│   │   ├── hospital-tool.ts
-│   │   ├── vet-tool.ts
-│   │   ├── law-tool.ts
-│   │   ├── movie-tool.ts       # Region → 3-chain default branches (json:movie)
-│   │   └── worldcup-tool.ts    # World Cup standings/matches/scorers (football-data.org)
-│   ├── mfds-logic.ts           # MFDS mfds_pills Supabase 3-stage matching + sortByRelevance
-│   ├── pill-logic.ts
-│   └── supabase.ts
-├── components/                 # UI components
-│   ├── ChatMessage.tsx         # Markdown + visualization block parser
-│   ├── ChatArea.tsx
-│   ├── ChatInput.tsx
-│   ├── ChatSidebar.tsx
-│   ├── Header.tsx
-│   ├── WelcomeMessage.tsx
-│   ├── LoadingScreen.tsx
-│   ├── Dialog.tsx
-│   ├── Toast.tsx
-│   ├── YoutubeEmbed.tsx
-│   ├── ErrorBoundary.tsx
-│   ├── DrugRenderer.tsx
-│   ├── PharmacyRenderer.tsx
-│   ├── HospitalRenderer.tsx
-│   ├── VetRenderer.tsx
-│   ├── LawRenderer.tsx
-│   ├── MovieRenderer.tsx       # Showtimes cards: branch dropdown + skeleton + /api/showtimes fetch
-│   ├── BioRenderer.tsx         # 3D protein structure (NGL)
-│   ├── ChemicalRenderer.tsx    # SMILES molecular structure
-│   ├── ConstellationRenderer.tsx
-│   ├── ChartRenderer.tsx
-│   └── DiagramRenderer.tsx
+├── server/
+│   ├── config.ts                       # API key pool + rotation
+│   ├── models.ts                       # Server model registry
+│   ├── mfds-logic.ts / pill-logic.ts
+│   ├── supabase.ts
+│   └── agent/
+│       ├── graph.ts                    # LangGraph StateGraph
+│       ├── prompt.ts                   # System instruction builder
+│       ├── state.ts / intentRules.ts
+│       ├── tools.ts                    # identify_pill, search_web (DDG)
+│       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts
+│       ├── vet-tool.ts / law-tool.ts / movie-tool.ts / worldcup-tool.ts
+│       └── nodes/
+│           ├── router.ts / vision.ts / generator.ts / langchain-path.ts
+│           ├── search-gate.ts / sdk-contents.ts
+│           ├── generation-config.ts / pill-messages.ts / retry.ts
+├── components/                         # 22 UI components (11 renderers + core)
 ├── lib/
-│   ├── theaters.ts             # Theater branch helpers (flatBranches / findDefaultBranch / branchUrl) — server+client shared
-│   └── movieContext.ts         # Movie card context store (client-only; multi-turn follow-up support)
+│   ├── theaters.ts / movieContext.ts
+│   └── sports/football-data.ts         # football-data.org WC data layer
 ├── utils/
-│   ├── astronomyHelper.ts      # Astronomy-engine sky calculations for constellation visualization
-│   └── celestialMath.ts        # Celestial coordinate transformation utilities
-├── data/
-│   └── theater-branches.json   # 3-chain branch snapshot (CGV 177 · Lotte 239 · Megabox 116) bundled at build time
+│   ├── astronomyHelper.ts / celestialMath.ts
+│   └── streamingMarkdown.ts            # Anti-flicker table gating (mid-stream)
 ├── src/
-│   ├── lib/models.ts           # Frontend chat model registry
-│   └── hooks/
-│       ├── useAuthSession.ts
-│       ├── useChatSessions.ts  # Session CRUD + infinite scroll
-│       └── useChatStream.ts    # Message send orchestration
-├── services/
-│   └── geminiService.ts        # API wrapper + session/user remote calls
-├── docs/                       # See §4-1 for naming conventions
-│   ├── DEV_HISTORY.md          # Dev history index (one line per session)
-│   ├── TODO.md
-│   ├── logs/DEV_YYMMDD.md      # Dated session work logs (latest: DEV_260612.md)
-│   ├── plans/PLAN_*.md         # Plan / design / analysis docs (start with PLAN_INDEX.md)
-│   └── guide/REF_*.md          # Renderer & feature reference guides
-├── scripts/                    # Local audit, migration, and integration test scripts
-│   ├── audit-*.mjs             # URL/provider audits and feature diagnostics
-│   ├── test-*.mjs|ts|js        # Local integration/regression checks
-│   └── lib/                    # Script-only helpers
-├── App.tsx                     # Root component (layout + hooks composition)
-├── next.config.ts              # Security headers
-├── types.ts                    # Shared TypeScript types
-└── tailwind.config.js
+│   ├── lib/models.ts
+│   └── hooks/                          # useAuthSession / useChatSessions / useChatStream
+├── services/geminiService.ts
+├── data/theater-branches.json          # 532 branches (CGV 177 · Lotte 239 · Megabox 116)
+├── docs/                               # See §4-1 for conventions
+├── App.tsx / types.ts / next.config.ts / tailwind.config.js
 ```
 
 ### 4-1. Documentation Conventions (`docs/`)
 
-When adding a Markdown doc under `docs/`, place it in the right folder and follow the naming rule. **Date format is `YYMMDD`** (e.g. `260602` = 2026-06-02).
+**Date format: `YYMMDD`** (e.g. `260602` = 2026-06-02)
 
-| Folder          | Purpose                                        | Filename rule                | Example                             |
-| --------------- | ---------------------------------------------- | ---------------------------- | ----------------------------------- |
-| `docs/`       | Top-level living index docs                    | Fixed names                  | `DEV_HISTORY.md`, `TODO.md`     |
-| `docs/logs/`  | Dated session work logs (one per work session) | `DEV_YYMMDD.md`            | `DEV_260602.md`                   |
-| `docs/plans/` | Plans, designs, analyses, change summaries     | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md` |
-| `docs/guide/` | Renderer / feature reference guides            | `REF_<Topic>.md`           | `REF_Chart.md`                    |
+| Folder               | Purpose                      | Filename rule              | Example                            |
+| -------------------- | ---------------------------- | -------------------------- | ---------------------------------- |
+| `docs/`              | Living index docs            | Fixed names                | `DEV_HISTORY.md`, `TODO.md`        |
+| `docs/logs/YYYY/MM/` | Dated session work logs      | `DEV_YYMMDD.md`            | `docs/logs/2026/06/DEV_260602.md`  |
+| `docs/plans/`        | Plans, designs, analyses     | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md`  |
+| `docs/guide/`        | Renderer & feature reference | `REF_<Topic>.md`           | `REF_Chart.md`                     |
 
-Rules:
-
-- **`docs/plans/` — always `PLAN_` prefix**, `UPPER_SNAKE_CASE` topic. Add a `_YYMMDD` suffix for dated/one-off analyses; omit it for evergreen plans. Do **not** add a redundant `_PLAN` suffix (use `PLAN_DB_MIGRATION.md`, not `PLAN_DB_MIGRATION_PLAN.md`).
-- **`docs/logs/` — `DEV_YYMMDD.md`**, one file per session/day. Add a matching one-line entry to `DEV_HISTORY.md`.
-- **`docs/guide/` — `REF_` prefix** for renderer/feature references.
-- Each plan/log starts with a blockquote header: `> 작성일: YYYY-MM-DD` and `> 상태: …`.
-- When renaming a doc, update any `[text](../plans/…)` links that point to it.
+- 새 로그 파일 생성 시 `DEV_HISTORY.md`에 한 줄 추가.
+- `docs/plans/` — 항상 `PLAN_` 접두사, `UPPER_SNAKE_CASE`. 상세 분석엔 `_YYMMDD` 접미사.
 
 ---
 
 ## 5. Getting Started
 
-### 5-1. Environment variables (`.env.local`)
+### 5-1. Environment variables
 
-```env
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_service_role_key
-API_KEY=your_gemini_key_1
-API_KEY2=your_gemini_key_2   # optional: additional keys for rotation
+`.env.example`을 복사해 `.env.local`로 저장 후 각 항목을 채운다.
 
-# Drug Search APIs
-MFDS_API_ENDPOINT=your_mfds_endpoint
-MFDS_API_KEY=your_mfds_key
-
-# Public Info APIs
-PHARM_KEY=your_national_pharmacy_and_hospital_api_key   # 약국 + HIRA 병원 공용 (만료 2028-05-06/07)
-VET_KEY=your_animal_hospital_api_key                    # 행정안전부 동물병원 (만료 2028-05-10)
-LAW_OC=your_law_openapi_oc                              # 국가법령정보센터 OC 코드
-SPORTS_API_KEY=your_football_data_org_token             # football-data.org v4 (월드컵 순위/대진/득점왕, TIER_ONE)
-
-# URL fetch fallback
-SCRAPER_KEY=your_scraperapi_key                         # optional: wikidocs render fallback
-# SCRAPERAPI_KEY=your_scraperapi_key                    # alternative env name
-BROWSERLESS_KEY=your_browserless_token                  # wikidocs Cloudflare /unblock + CGV showtimes (BROWSERLESS_TOKEN also accepted)
-# BROWSERLESS_REST_URL=https://production-sfo.browserless.io  # optional: override browserless REST endpoint
+```bash
+cp .env.example .env.local
 ```
+
+전체 항목 설명: [.env.example](.env.example)
 
 ### 5-2. Install & run
 
 ```bash
 npm install
-npm run dev        # Next.js dev server (port 3001)
-npm run build      # Production build
-npm start          # Production server
+npm run dev        # Next.js dev server (default port 3000)
+npm run build
+npm start
 ```
 
 ---

@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   // pdfjs-dist worker(PDF 경로용·미설치) 정적 import를 해석하려다 빌드 실패 →
   // 외부 패키지로 지정해 번들 제외(HWP 경로만 사용하므로 런타임 정상). 설계: PLAN_KORDOC §2
   serverExternalPackages: ['kordoc'],
+  // 프로덕션 빌드에서 console.log/info/debug/warn 제거(브라우저 콘솔 내부 태그·구조 노출 최소화).
+  // console.error는 보존(프로덕션 에러 추적). dev는 영향 없음(프로덕션 빌드에만 적용).
+  compiler: {
+    removeConsole: { exclude: ['error'] },
+  },
   // Security headers (ported from vercel.json)
   async headers() {
     return [
