@@ -85,12 +85,20 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 멀티턴 후속 질문(URL은 history에만 있고 영상 미재전송 → hasVideoData=false)은 영상
         // 토큰이 없어 60s 위험이 낮으므로 일반 대화 정책(3.5)으로 복귀시킨다. 아래 ~625줄 폴백
         // 블록도 isYoutubeRequest && hasVideoData 조건이라 영상 턴에서만 2.5→3.5 폴백이 동작.
+        // URL 본문이 주입된 턴은 "주어진 기사 요약"이라 Search OFF + 모델 추론보다 본문이 답을 결정.
+        // 3.5 무료티어는 throughput이 나빠 20~30s를 끄는데(메모리 35-flash-free-tier-throughput),
+        // 외부 도구 인텐트와 같은 논리로 throughput 좋은 2.5에 고정해 지연을 줄인다.
+        const hasUrlContentForModel = (state.webContent || '').includes('[URL_CONTENT:');
         const resolvedModel = (isYoutubeRequest && hasVideoData)
             ? SERVER_MODELS.FLASH
-            : (state.model || DEFAULT_CHAT_MODEL);
+            : hasUrlContentForModel
+                ? SERVER_MODELS.FLASH
+                : (state.model || DEFAULT_CHAT_MODEL);
         if (isYoutubeRequest && hasVideoData) {
             // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
             console.log(`[LangGraph] YouTube video turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
+        } else if (hasUrlContentForModel) {
+            console.log(`[LangGraph] URL summary turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         }
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
@@ -110,6 +118,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             // When multimodal content (YouTube fileData, PDF URL) causes a 500,
             // retry once without media parts + Google Search enabled.
             let forceTextOnly = false;
+            // 503(UNAVAILABLE)은 API 키가 아니라 모델 측 혼잡 → 다음 키도 같은 모델이면 똑같이 503.
+            // 3.5-flash가 503이면 throughput 좋은 2.5-flash로 강등해 재시도 (전 키 소진 방지).
+            // 한 번 set되면 이후 attempt에서 유지.
+            let unavailableDowngrade = false;
 
             // [이미지+검색 할루시네이션 가드] 현재 턴엔 이미지가 없고 history에만 이미지가 있는데
             // 사용자가 명시적으로 검색/팩트체크를 요청하면, 이번 요청에서 미디어를 빼고 실제
@@ -183,15 +195,24 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         console.log('[LangGraph] Renderer intent — Google Search disabled to preserve structured visualization output');
                     }
 
-                    console.log('[LangGraph] Starting SDK stream | model:', resolvedModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
+                    // 이미지·영상 미디어 턴은 2.5로 고정(PDF/문서 제외). 무료티어 3.5 멀티모달은
+                    // throughput 한계로 이미지 ~56s·영상 더 느림 → 60s 캡 초과(웹 타임아웃). 2.5는 ~5s.
+                    // hasMultimodalContent는 isRecent 윈도우(최근 3턴) 미디어를 반영 → 멀티턴 후속도 자동 커버,
+                    // 미디어가 윈도우 밖으로 밀려 텍스트로 강등되면 3.5 복귀. (DEV_260626 §2 측정 패밀리)
+                    const isMediaTurn = hasMultimodalContent && !hasDocumentContent;
                     // gemini-3.5-flash Search grounding is not available on the free tier.
                     // Fall back to 2.5 Flash for grounded calls; non-search calls keep the selected model.
-                    const effectiveModel = (useGoogleSearch && needsSearchFallback)
+                    // 503 다운그레이드가 걸리면 검색 여부와 무관하게 2.5로 강등.
+                    const effectiveModel = ((useGoogleSearch && needsSearchFallback) || unavailableDowngrade || isMediaTurn)
                         ? SEARCH_FALLBACK_MODEL
                         : resolvedModel;
                     if (useGoogleSearch && needsSearchFallback) {
                         console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
                     }
+                    if (isMediaTurn && resolvedModel === SERVER_MODELS.FLASH_3_5) {
+                        console.log('[LangGraph] Image/video turn → pinning to', SEARCH_FALLBACK_MODEL, '(free-tier 3.5 multimodal exceeds 60s cap)');
+                    }
+                    console.log('[LangGraph] Starting SDK stream | model:', effectiveModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
 
                     // Thinking config — model-aware branching:
                     // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
@@ -206,7 +227,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - Others: undefined (model default)
                     const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
                     const thinkingConfig = resolveThinkingConfig({
-                        is3xModel, isYoutubeRequest, hasVideoData, intent: state.intent,
+                        is3xModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
                     });
 
                     // 3.5 + Google Search → 2.5 single-pass grounding (Stage2 3.5 재합성 제거, DEV_260624 §6).
@@ -477,6 +498,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) markRateLimitKey(sdkApiKey, err);
+                        // 503은 모델 혼잡 → 키만 돌리면 같은 3.5에 또 503. 첫 503에서 2.5로 강등.
+                        if (isUnavailable && !unavailableDowngrade && resolvedModel === SERVER_MODELS.FLASH_3_5) {
+                            unavailableDowngrade = true;
+                            console.log('[LangGraph] 503 on 3.5-flash — downgrading retries to 2.5-flash (better free-tier throughput)');
+                        }
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
