@@ -14,6 +14,9 @@ import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages
 import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 
+// LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. Vercel 60s 캡 아래에서 빠른 실패.
+const LC_CALL_TIMEOUT_MS = 25_000;
+
 /**
  * LangChain generation path (extracted from generator.ts, 3-A — move-only).
  *
@@ -226,7 +229,8 @@ export const runLangChainPath = async (args: {
                 ...safeMessages,
             ];
 
-            const response = await llmWithTools.invoke(messages);
+            // 행 방지: fetch 끊김/혼잡 시 ~5분 매달림 대신 25s에 abort(Vercel 60s 캡 아래). DEV_260627 §3.
+            const response = await llmWithTools.invoke(messages, { signal: AbortSignal.timeout(LC_CALL_TIMEOUT_MS) });
             return { messages: [response] };
 
         } catch (err: any) {
