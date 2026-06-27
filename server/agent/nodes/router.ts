@@ -167,6 +167,22 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         intent = "movie_search";
     }
 
+    // 영화 "지역 되묻기" 후속 구제: 직전 봇이 영화 지역을 되물었고("어떤 지역의 영화 상영…")
+    // 사용자가 영화 키워드 없이 지역만 답하면("서울 중곡동") general/약국 등으로 빠진다.
+    // 카드가 안 떠 movieContext가 없는 상태라 위 가드들이 못 잡으므로 여기서 deterministic 교정.
+    if (intent !== "movie_search" && !state.movieContext) {
+        const prevAskedMovieRegion = /지역.*(영화|상영)|(영화|상영).*지역|어떤\s*지역/.test(String(lastAssistantMsg?.content ?? ''));
+        const looksLikeRegionAnswer =
+            textContent.trim().length <= 20 && !/[?？]/.test(textContent)
+            && !/날씨|뉴스|코드|번역|뭐야|누구|어때|알려줘\s*$/.test(textContent);
+        // 사용자가 명시적으로 다른 도메인(약국/병원/법령 등)으로 전환한 게 아닐 때만 영화로 이어줌.
+        const ruleIntent = classifyIntentByRules(textContent, hasImage);
+        if (prevAskedMovieRegion && looksLikeRegionAnswer && ruleIntent === "general") {
+            console.log('[LangGraph] Movie region follow-up rescue (→movie_search): bot asked region, user gave region');
+            intent = "movie_search";
+        }
+    }
+
     // 과거/완료 월드컵(연도 명시 또는 "지난/과거 월드컵")은 API 미지원(403) → general로 보내 학습지식으로 답.
     if (intent === "sports" && /(20\d\d|지난|과거|역대|작년|예전)\s*(년)?\s*(월드컵|world\s?cup)|(월드컵|world\s?cup)\s*(20\d\d|역대|역사)/i.test(textContent)) {
         console.log('[LangGraph] Sports: 과거 대회 질의 → general (API는 현재 대회만)');
