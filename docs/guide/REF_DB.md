@@ -89,7 +89,7 @@ URL 프리페치 결과 캐시. browserless/ScrapingBee/ScraperAPI 유닛 절약
 | `url_key` | `text` | PK | 정규화된 URL (fragment 제거) |
 | `content` | `text` | NOT NULL | 추출된 본문 |
 | `status` | `text` | NOT NULL, DEFAULT `'ok'` | `'ok'` (성공 응답만 저장) |
-| `provider` | `text` | nullable | `'direct'` \| `'scrapingbee'` \| `'browserless'` \| `'scraperapi'` |
+| `provider` | `text` | nullable | `'direct'` \| `'scrapingbee'` \| `'scrapingbee-static'` \| `'browserless'` \| `'scraperapi'` |
 | `fetched_at` | `timestamptz` | NOT NULL, DEFAULT now() | 캐시 기록 시각 |
 
 **TTL:** 14일 (애플리케이션 레벨 판정 — `fetch-url/route.ts`에서 `fetched_at < now() - 14 days` 체크).  
@@ -160,12 +160,12 @@ create table if not exists public.url_cache (
 
 ### 업로드 경로 비교
 
-| 경로 | API | 방식 | bodyParser 한도 |
+| 경로 | API | 방식 | 본문 한도 |
 |---|---|---|---|
-| 서버 경유 | `app/api/upload/route.ts` | 서버가 base64 수신 → Buffer 변환 → Storage PUT | 30MB |
+| 서버 경유 | `app/api/upload/route.ts` | 서버가 base64 수신 → Buffer 변환 → Storage PUT | Vercel 함수 본문 4.5MB (App Router라 `bodyParser` 설정 없음; `runtime=nodejs`, `maxDuration=60`) |
 | 클라이언트 직접 | `app/api/create-signed-url/route.ts` → 클라이언트 PUT | Signed URL 발급 → 브라우저가 Storage 직접 PUT | 없음 (브라우저 제한) |
 
-현재 이미지는 클라이언트 직접 경로(`create-signed-url`), 문서 1MB+ 도 동일. `api/upload.ts`는 서버사이드 처리가 필요한 케이스용 레거시 경로.
+현재 이미지는 클라이언트 직접 경로(`create-signed-url`), 문서 1MB+ 도 동일. `api/upload.ts`는 서버사이드 처리가 필요한 케이스용 레거시 경로이며, Vercel 4.5MB 본문 캡 때문에 대용량은 클라이언트 직접 경로로 흐른다.
 
 ---
 

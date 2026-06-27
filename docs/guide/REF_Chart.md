@@ -8,7 +8,7 @@ Reference prompts for testing the `json:chart` renderer (ApexCharts).
 
 ```json
 {
-  "type": "bar" | "line" | "pie" | "donut" | "scatter" | "radar" | "treemap",
+  "type": "bar" | "line" | "area" | "pie" | "donut" | "scatter" | "radar" | "treemap",
   "title": "Chart Title",
   "data": {
     "categories": ["Jan", "Feb", "Mar"],
@@ -27,7 +27,7 @@ For `scatter`: `"data": [{ "x": 1.5, "y": 3.2 }, ...]`
 
 | Use Case | Type |
 |----------|------|
-| Trend over time | `line` |
+| Trend over time | `line` (`area` for filled) |
 | Category comparison | `bar` |
 | Part-of-whole | `pie` or `donut` |
 | X vs Y correlation | `scatter` |
