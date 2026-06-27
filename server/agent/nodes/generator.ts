@@ -14,6 +14,11 @@ import { runLangChainPath } from "./langchain-path";
 // 2.5로 강등 재시도할 예산을 남기기 위해 25s. (25s×2 attempt ≈ 50s < 60s)
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
 export const SDK_CALL_TIMEOUT_MS = 25_000;
+// YouTube 영상 턴은 프로파일이 정반대 — 영상 토큰이 무거운 단일 heavy 호출이 60s 예산
+// 대부분을 정당하게 소모하고(보통 ~30~40s), 폴백 3.5는 무료티어 영상에서 오히려 더 느리다.
+// 25s 일률 컷은 정상 분석을 끊어 키 로테이션·3.5 폴백이 각 25s씩 쌓여 60s 천장을 초과 →
+// 전부 타임아웃(DEV_260627 회귀). 영상 턴은 단일 시도에 예산 대부분을 배정한다.
+export const YOUTUBE_CALL_TIMEOUT_MS = 48_000;
 
 /**
  * Generator Node
@@ -84,6 +89,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const hasVideoData = state.messages.some((m: any) =>
             Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
         );
+        // 영상을 실제 읽는 YouTube 턴 — 예산형 단일 데드라인(YOUTUBE_CALL_TIMEOUT_MS) 대상.
+        const isYtVideoTurn = isYoutubeRequest && hasVideoData;
 
         // YouTube는 영상 토큰이 무거워 60s 천장에 가장 위태로운 경로 — 영상을 실제 읽는 턴만
         // thinking 없는 2.5로 고정한다(DEFAULT_CHAT_MODEL 3.5 전환(2026-05-30) 이전 원래 설계).
@@ -115,6 +122,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
         const needsSearchFallback = resolvedModel === SERVER_MODELS.FLASH_3_5;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
+        // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
+        // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
+        let ytPrimaryTimedOut = false;
 
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
@@ -161,7 +171,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 try {
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
                     // 이 attempt의 모든 SDK 서브콜을 한 데드라인으로 묶음 — 행/혼잡 시 catch의 timeout 강등 경로로.
-                    const attemptSignal = AbortSignal.timeout(SDK_CALL_TIMEOUT_MS);
+                    // 영상 턴만 예산형 긴 데드라인(48s) — 25s는 정상 영상 분석을 끊는다(DEV_260627 회귀).
+                    const attemptTimeoutMs = isYtVideoTurn ? YOUTUBE_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS;
+                    const attemptSignal = AbortSignal.timeout(attemptTimeoutMs);
 
                     // Build contents from state messages
                     // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
@@ -511,6 +523,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) markRateLimitKey(sdkApiKey, err);
+                        // 영상 턴 timeout은 이미 ~48s 소진 → 또 다른 48s 시도/3.5 폴백은 60s 캡 초과.
+                        // 로테이션·폴백 모두 차단하고 즉시 종료(누적 타임아웃 폭주 방지).
+                        if (isYtVideoTurn && isTimeout) {
+                            ytPrimaryTimedOut = true;
+                            console.warn('[LangGraph] YouTube video timeout after', YOUTUBE_CALL_TIMEOUT_MS, 'ms — no budget for retry/fallback, stopping');
+                            break;
+                        }
                         // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
                         // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).
                         const justDowngraded = (isUnavailable || isTimeout) && !unavailableDowngrade && resolvedModel === SERVER_MODELS.FLASH_3_5;
@@ -549,7 +568,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         }
 
         // YouTube fallback: primary model (2.5-flash) exhausted → retry with 3.5-flash
-        if (!useLangChain && !sdkSuccess && isYoutubeRequest && hasVideoData && resolvedModel !== SERVER_MODELS.FLASH_3_5) {
+        // ytPrimaryTimedOut: primary가 48s를 다 써 timeout이면 3.5 폴백(더 느림)은 60s 캡 초과 →
+        // 빠른 실패(429/500/빈응답)에서만 폴백, timeout에서는 스킵.
+        if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel !== SERVER_MODELS.FLASH_3_5) {
             console.log('[LangGraph] YouTube fallback: all', resolvedModel, 'keys failed — retrying with', SERVER_MODELS.FLASH_3_5);
             try {
                 const fbKey = getNextApiKey() ?? apiKey;
