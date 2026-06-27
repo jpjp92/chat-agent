@@ -10,8 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "refresh:theaters": "node scripts/test-branch-list.mjs"
+    "lint": "next lint"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",

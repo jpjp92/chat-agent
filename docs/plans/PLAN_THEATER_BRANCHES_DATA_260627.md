@@ -52,18 +52,17 @@ DB가 정당한 3조건(① 재배포 없이 갱신 ② 대용량 ③ 다중 서
 - **쓰레기 필터**: `nm === 'href'` / 빈 값 / 한글·영숫자 없는 항목 제거.
 - **폐점 필터**: `nm`에 `영업종료`(영구 폐점) 포함 시 제거. `휴관`(임시)은 라벨 유지하고 남김.
 
-### ③ npm 스크립트 추가
+### ③ 갱신 = 로컬 전용 스크립트
 
-[package.json](../../package.json):
-```json
-"refresh:theaters": "node scripts/test-branch-list.mjs"
+생성 스크립트(`scripts/test-branch-list.mjs`)는 `.gitignore`의 `scripts/test-*`로 **레포 미포함, 로컬 전용 도구**. 커밋되는 산출물은 `data/theater-branches.json`(데이터)뿐. (사용자 결정 2026-06-27: package.json `npm run refresh:theaters`는 커밋된 파일이 미추적 스크립트를 가리키는 모순이라 **제거**, 직접 실행으로 통일.)
+```bash
+node scripts/test-branch-list.mjs   # 로컬 전용 → data/theater-branches.json 갱신(게이트 통과 시)
 ```
-실행: `npm run refresh:theaters` → `data/theater-branches.json` 갱신(게이트 통과 시).
 
 ### ④ 문서화
 
 [REF_Movie.md](../guide/REF_Movie.md)에 "지점 데이터 갱신" 섹션 추가:
-- 갱신 명령(`npm run refresh:theaters`)
+- 갱신 명령(`node scripts/test-branch-list.mjs`, 로컬 전용)
 - 갱신 시점(분기 1회 또는 카드에서 지점 빠짐 신고 시)
 - `BROWSERLESS_KEY` 필요(CGV browserless), sanity 게이트 동작
 
@@ -101,6 +100,6 @@ DB가 정당한 3조건(① 재배포 없이 갱신 ② 대용량 ③ 다중 서
 
 ## 검증
 
-- `npm run refresh:theaters` → 개수 로그 + `data/` 갱신, mega에 `href`/`영업종료` 없음 확인.
+- `node scripts/test-branch-list.mjs` → 개수 로그 + `data/` 갱신, mega에 `href`/`영업종료` 없음 확인.
 - 게이트 테스트: 스크랩 일부 실패(빈 배열) 시 기존 파일 보존 + exit 1.
 - `npm run build` tsc 0, 영화 카드 기본 지점/드롭다운 정상.
