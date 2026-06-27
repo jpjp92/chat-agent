@@ -208,7 +208,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── lib/models.ts
 │   └── hooks/                          # useAuthSession / useChatSessions / useChatStream
 ├── services/geminiService.ts
-├── data/theater-branches.json          # 532 branches (CGV 177 · Lotte 239 · Megabox 116)
+├── data/theater-branches.json          # 424 branches (CGV 177 · Lotte 133 · Megabox 114) — refresh via `npm run refresh:theaters`
 ├── docs/                               # See §4-1 for conventions
 ├── App.tsx / types.ts / next.config.ts / tailwind.config.js
 ```

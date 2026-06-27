@@ -123,6 +123,21 @@ Reference prompts for testing the `json:movie` renderer and the multiplex showti
 
 ---
 
+## 지점 데이터 갱신 (`data/theater-branches.json`)
+
+3사 기본 지점·드롭다운 목록은 `data/theater-branches.json`(530지점)에서 온다. **런타임 fetch가 아니라 [lib/theaters.ts](../../lib/theaters.ts)가 빌드 타임에 번들로 import** — 0ms·네트워크 없음. DB로 옮기지 않는 이유와 정책: [PLAN_THEATER_BRANCHES_DATA_260627.md](../plans/PLAN_THEATER_BRANCHES_DATA_260627.md).
+
+```bash
+npm run refresh:theaters   # = node scripts/test-branch-list.mjs
+```
+
+- **언제**: 분기 1회, 또는 카드 드롭다운에서 지점이 빠졌다는 신고 시.
+- **요구**: `BROWSERLESS_KEY`(CGV browserless 스크랩). 롯데·메가박스는 direct.
+- **안전장치**: 스크랩 결과가 임계치 미만(`CGV<150`/`롯데<200`/`메가<100`)이면 **기존 파일을 덮지 않고 exit 1**(붕괴 방지). 통과 시 tmp→rename 원자적 교체.
+- **정규화(생성 시)**: HTML 엔티티 디코드 + 쓰레기(`href`·빈 값)·영구 폐점(`영업종료`) 제거. `휴관`은 라벨 유지하고 남김.
+
+---
+
 ## Tips
 
 - **3사 색상**: CGV 빨강(`#e6002d`) · 롯데시네마 블루(`#2563eb`) · 메가박스 보라(`#6b3fa0`). 롯데는 흰 배지 아웃라인(적색 중복 회피).

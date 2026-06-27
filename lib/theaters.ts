@@ -3,9 +3,9 @@
  * 순수 데이터/문자열 로직만 포함(브라우저·Node 어디서나 안전). 실제 상영시간표 fetch는 app/api/showtimes.
  *
  * 데이터 출처: scripts/test-branch-list.mjs → data/theater-branches.json
- *   CGV    : 9개 지역으로 그룹화, 각 site { nm, code(siteNo) }
- *   롯데시네마: flat, { nm, code(cinemaID="Division|int(Detail)|CinemaID"), addr }
- *   메가박스 : flat, { nm, brchNo }
+ *   CGV    : 9개 지역 그룹(region: 서울/경기/…), 각 site { nm, code(siteNo) }
+ *   롯데시네마: flat, { nm, code(cinemaID="Division|int(Detail)|CinemaID"), addr, region } (DivisionCode 1만; 2=중복 제거)
+ *   메가박스 : flat, { nm, brchNo, region } (region=/theater/list sel-city 그룹)
  */
 import branchesRaw from '../data/theater-branches.json';
 
@@ -18,8 +18,8 @@ export interface Branch {
 
 interface BranchesFile {
   cgv: { region: string; sites: { nm: string; code: string }[] }[];
-  lotte: { nm: string; code: string; division?: string; addr?: string }[];
-  mega: { brchNo: string; nm: string }[];
+  lotte: { nm: string; code: string; division?: string; addr?: string; region?: string }[];
+  mega: { brchNo: string; nm: string; region?: string }[];
 }
 
 const branches = branchesRaw as BranchesFile;
