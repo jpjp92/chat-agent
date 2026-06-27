@@ -10,7 +10,9 @@ import { markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "..
  */
 
 export const isTimeoutError = (err: any): boolean =>
-    err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED';
+    err?.status === 504 || err?.message?.includes('DEADLINE_EXCEEDED') || err?.message?.includes('504') || err?.code === 'ERR_STREAM_DESTROYED'
+    // AbortSignal.timeout() 발화(느린 3.5 무료티어 강제 중단) + fetch 끊김(네트워크 블립)
+    || err?.name === 'TimeoutError' || err?.name === 'AbortError' || /timed out|aborted|fetch failed/i.test(err?.message ?? '');
 
 // Gemini는 무효 API 키를 401이 아닌 400(API_KEY_INVALID)으로 반환
 export const isAuthError = (err: any): boolean =>

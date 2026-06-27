@@ -10,6 +10,11 @@ import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { runLangChainPath } from "./langchain-path";
 
+// SDK 호출 1회(attempt)당 상한. Vercel 60s 하드캡 아래에서 3.5 행/혼잡을 강제 중단하고
+// 2.5로 강등 재시도할 예산을 남기기 위해 25s. (25s×2 attempt ≈ 50s < 60s)
+// 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
+export const SDK_CALL_TIMEOUT_MS = 25_000;
+
 /**
  * Generator Node
  * Prepares the final System Message with all dynamic context and invokes the multimodal Chat model.
@@ -155,6 +160,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                 try {
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
+                    // 이 attempt의 모든 SDK 서브콜을 한 데드라인으로 묶음 — 행/혼잡 시 catch의 timeout 강등 경로로.
+                    const attemptSignal = AbortSignal.timeout(SDK_CALL_TIMEOUT_MS);
 
                     // Build contents from state messages
                     // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
@@ -239,6 +246,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             model: SEARCH_FALLBACK_MODEL,
                             contents: sdkContents,
                             config: {
+                                abortSignal: attemptSignal,
                                 systemInstruction: finalInstruction,
                                 tools: [{ googleSearch: {} }],
                                 temperature: 0.2,
@@ -276,6 +284,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 model: SEARCH_FALLBACK_MODEL,
                                 contents: sdkContents,
                                 config: {
+                                    abortSignal: attemptSignal,
                                     systemInstruction: finalInstruction,
                                     tools: [{ googleSearch: {} }],
                                     temperature: 0.2,
@@ -319,6 +328,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             model: effectiveModel,
                             contents: sdkContents,
                             config: {
+                                abortSignal: attemptSignal,
                                 systemInstruction: finalInstruction,
                                 ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                 ...(is3xModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
@@ -343,6 +353,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 model: effectiveModel,
                                 contents: sdkContents,
                                 config: {
+                                    abortSignal: attemptSignal,
                                     systemInstruction: finalInstruction,
                                     ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                     maxOutputTokens: effectiveMaxTokens,
@@ -380,6 +391,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     model: SEARCH_FALLBACK_MODEL,
                                     contents: sdkContents,
                                     config: {
+                                        abortSignal: attemptSignal,
                                         systemInstruction: finalInstruction,
                                         ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                         temperature: 0.2,
@@ -427,6 +439,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 model: groundModel,
                                 contents: sdkContents,
                                 config: {
+                                    abortSignal: attemptSignal,
                                     systemInstruction: finalInstruction,
                                     tools: [{ googleSearch: {} }],
                                     temperature: 0.2,
@@ -498,16 +511,24 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) markRateLimitKey(sdkApiKey, err);
-                        // 503은 모델 혼잡 → 키만 돌리면 같은 3.5에 또 503. 첫 503에서 2.5로 강등.
-                        if (isUnavailable && !unavailableDowngrade && resolvedModel === SERVER_MODELS.FLASH_3_5) {
+                        // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
+                        // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).
+                        const justDowngraded = (isUnavailable || isTimeout) && !unavailableDowngrade && resolvedModel === SERVER_MODELS.FLASH_3_5;
+                        if (justDowngraded) {
                             unavailableDowngrade = true;
-                            console.log('[LangGraph] 503 on 3.5-flash — downgrading retries to 2.5-flash (better free-tier throughput)');
+                            console.log(`[LangGraph] ${isTimeout ? 'timeout' : '503'} on 3.5-flash — downgrading retries to 2.5-flash (better free-tier throughput)`);
                         }
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
                             sdkApiKey = nextKey;
                             sdkAttempt++;
-                            console.log(`[LangGraph] Retrying SDK call with next key (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : isTimeout ? 'timeout/504' : '503');
+                            console.log(`[LangGraph] Retrying SDK call (attempt ${sdkAttempt + 1}) reason:`, isRateLimit ? '429' : isTimeout ? 'timeout' : '503', '| model:', unavailableDowngrade ? '2.5(downgraded)' : resolvedModel);
+                            continue;
+                        }
+                        // 다른 키가 없어도 방금 2.5로 강등했으면 같은 키로 재시도(모델이 바뀌므로 의미 있음).
+                        if (justDowngraded) {
+                            sdkAttempt++;
+                            console.log(`[LangGraph] Retrying on 2.5-flash (same key, attempt ${sdkAttempt + 1}) — downgrade after ${isTimeout ? 'timeout' : '503'}`);
                             continue;
                         }
                     } else if (err?.status === 500 && hadMultimodalContent && !forceTextOnly) {
@@ -556,6 +577,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     model: SERVER_MODELS.FLASH_3_5,
                     contents: fbContents,
                     config: {
+                        abortSignal: AbortSignal.timeout(SDK_CALL_TIMEOUT_MS),
                         systemInstruction: finalInstruction,
                         temperature: 0.2, topP: 0.8, topK: 40,
                         maxOutputTokens: 8192,

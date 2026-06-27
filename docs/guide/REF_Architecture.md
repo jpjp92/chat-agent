@@ -222,7 +222,7 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie/sports; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
 | 3.5 + Search grounding | `gemini-2.5-flash` single-pass (3.5 무료 티어 grounding 불가 → 2.5가 최종 답변 생성; Stage-2 재합성 제거 DEV_260624 §6) |
-| 3.5 SDK 503 발생 시 | `gemini-2.5-flash`로 강등 후 재시도 (`unavailableDowngrade`; 같은 혼잡 3.5에 키 로테이션 무용; DEV_260626 §3) |
+| 3.5 SDK 503/timeout 발생 시 | `gemini-2.5-flash`로 강등 후 재시도 (`unavailableDowngrade`; 같은 혼잡 3.5에 키 로테이션 무용). 호출당 25s `AbortSignal` 컷으로 Vercel 60s 캡 안에서 강등 예산 확보 (DEV_260626 §3 · DEV_260627 §3) |
 | TTS | `gemini-2.5-flash-preview-tts` |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 | 라우터 | `gemini-2.5-flash-lite`, thinkingBudget:0 |
