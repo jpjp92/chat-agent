@@ -3,6 +3,7 @@ import mammoth from "mammoth";
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
+import { CHAT_MODEL_OPTIONS, type ChatModelId } from '../src/lib/models';
 
 interface ChatInputProps {
   onSend: (message: string, attachment?: MessageAttachment, attachments?: MessageAttachment[]) => void;
@@ -10,6 +11,10 @@ interface ChatInputProps {
   language?: Language;
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
   editValue?: string;
+  selectedModel: ChatModelId;
+  onModelChange: (model: ChatModelId) => void;
+  welcome?: boolean;                               // 웰컴(입력창 중앙)=드롭다운 아래로 / 그 외=위로
+  prefill?: { text: string; ts: number } | null;   // 추천 칩 클릭 시 입력창 채움 (ts로 재클릭 재발화)
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -80,18 +85,20 @@ const compressImage = (dataUrl: string, mimeType: string): Promise<string> => {
   });
 };
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast, editValue }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast, editValue, selectedModel, onModelChange, welcome = false, prefill }) => {
   const [input, setInput] = useState('');
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isSTTSupported, setIsSTTSupported] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef('');
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const rafRef = useRef<number | null>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
 
   const i18n = {
     fr: { placeholder: "Posez une question", sizeError: "Trop lourd (Max 100Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers" },
@@ -101,6 +108,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   };
 
   const t = i18n[language] || i18n.ko;
+
+  // 모델 i18n — Header에서 이동(라벨은 4개 언어 공통, 설명만 번역). 드롭다운은 입력창 우측에 통합.
+  const modelI18n: Record<string, Record<string, string>> = {
+    ko: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "최신 모델, 강력한 성능", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "빠르고 균형 잡힌 응답" },
+    en: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Latest & most capable", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Fast & balanced" },
+    es: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Último modelo, más capaz", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rápido y equilibrado" },
+    fr: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Dernier modèle, plus puissant", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rapide et équilibré" },
+  };
+  const mt = modelI18n[language] || modelI18n.ko;
+  const selectedModelOption = CHAT_MODEL_OPTIONS.find(o => o.id === selectedModel) ?? CHAT_MODEL_OPTIONS[0];
 
   const adjustHeight = () => {
     // 이전에 예약된 rAF가 있으면 취소 (빠른 연속 타이핑 시 누적 방지)
@@ -141,6 +158,26 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       setTimeout(adjustHeight, 10);
     }
   }, [editValue]);
+
+  // 추천 칩 클릭 → 입력창 채움 (editValue와 동일 패턴, ts로 같은 칩 재클릭도 재발화)
+  useEffect(() => {
+    if (prefill && prefill.text) {
+      setInput(prefill.text);
+      finalTranscriptRef.current = prefill.text;
+      textareaRef.current?.focus();
+      setTimeout(adjustHeight, 10);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.ts]);
+
+  // 모델 드롭다운 바깥 클릭 시 닫기
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) setIsModelMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -559,7 +596,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1 rounded-[28px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] overflow-hidden ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1 rounded-[28px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
@@ -581,7 +618,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             onClick={() => fileInputRef.current?.click()}
             className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
           >
-            <i className="fa-solid fa-paperclip text-lg sm:text-base"></i>
+            <i className="fa-solid fa-plus text-lg"></i>
           </button>
         </div>
 
@@ -612,6 +649,31 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         </div>
 
         <div className="flex items-center space-x-0.5 pr-0.5 mb-0.5">
+          {/* 모델 선택기 — 데스크톱 전용(입력창 통합). 모바일은 헤더에 표시(md:hidden ↔ hidden md:block) */}
+          <div ref={modelMenuRef} className="hidden md:block relative">
+            <button
+              type="button"
+              onClick={() => setIsModelMenuOpen(prev => !prev)}
+              className="flex items-center gap-0.5 sm:gap-1 pl-1.5 pr-1 sm:pl-2.5 sm:pr-1.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
+            >
+              <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{mt[selectedModelOption.labelKey]}</span>
+              <i className={`fa-solid fa-chevron-down text-[10px] text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
+            </button>
+            {isModelMenuOpen && (
+              <div className={`absolute right-0 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden py-1 z-50 ${welcome ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+                {CHAT_MODEL_OPTIONS.map(option => (
+                  <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                    <div>
+                      <div className="font-semibold text-sm text-slate-800 dark:text-white/90">{mt[option.labelKey]}</div>
+                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{mt[option.descriptionKey]}</div>
+                    </div>
+                    {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {isSTTSupported && (
             <button
               type="button"

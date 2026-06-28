@@ -9,7 +9,7 @@ interface HeaderProps {
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
   onReset?: () => void;
   language: Language;
-  selectedModel: ChatModelId;
+  selectedModel: ChatModelId;          // 모바일 헤더 모델 선택기용 (데스크톱은 입력창에 통합)
   onModelChange: (model: ChatModelId) => void;
 }
 
@@ -97,16 +97,15 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
     }
   }, []);
 
-
+  // 모바일 모델 드롭다운 바깥 클릭 시 닫기
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
-        setIsModelMenuOpen(false);
-      }
+    const onDown = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) setIsModelMenuOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
   }, []);
+
 
   const toggleDarkMode = () => {
     const isDark = document.documentElement.classList.toggle('dark');
@@ -140,64 +139,58 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
   };
 
   return (
-    <header className="mx-3 mt-3 mb-1 sticky top-3 z-40">
-      <div className="bg-white/70 dark:bg-white/[0.07] backdrop-blur-xl rounded-full border border-indigo-200/50 dark:border-white/[0.12] shadow-[0_8px_40px_-12px_rgba(99,102,241,0.12)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] flex items-center justify-between px-4 sm:px-5 md:pl-1 py-1.5">
-        <div className="flex items-center space-x-2 sm:space-x-4">
+    <header className="sticky top-0 z-40 px-3 sm:px-4 pt-3">
+      {/* bare 플로팅 — 좌: 모바일 햄버거 + (모바일)모델 선택기 / 우: 프로필 아바타. 데스크톱 모델은 입력창에 통합 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
           <button
             onClick={onMenuClick}
-            className="md:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full text-slate-500 cursor-pointer transition-colors hover:bg-slate-200/60 dark:hover:bg-white/10 active:scale-95"
           >
             <i className="fa-solid fa-bars text-base"></i>
           </button>
 
-          <div ref={modelMenuRef} className="flex items-center relative z-50">
+          {/* 모바일 전용 모델 선택기 (데스크톱은 입력창에 통합 → md:hidden) */}
+          <div ref={modelMenuRef} className="md:hidden relative">
             <button
               onClick={() => setIsModelMenuOpen(prev => !prev)}
-              className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/10 px-2 sm:px-3 py-2 rounded-xl transition duration-200"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition"
             >
-              <span className="text-base sm:text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">
-                {t[selectedModelOption.labelKey]}
-              </span>
-              <i className={`fa-solid fa-chevron-down text-xs sm:text-sm text-indigo-400/70 dark:text-indigo-400/60 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
+              <span className="text-[15px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400">{t[selectedModelOption.labelKey]}</span>
+              <i className={`fa-solid fa-chevron-down text-xs text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
             </button>
-
-            {/* Click Dropdown Menu */}
             {isModelMenuOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
-                <div className="flex flex-col py-1">
-                  {CHAT_MODEL_OPTIONS.map(option => (
-                    <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
-                      <div>
-                        <div className="font-semibold text-sm sm:text-base text-slate-800 dark:text-white/90">{t[option.labelKey]}</div>
-                        <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t[option.descriptionKey]}</div>
-                      </div>
-                      {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden py-1 z-50">
+                {CHAT_MODEL_OPTIONS.map(option => (
+                  <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                    <div>
+                      <div className="font-semibold text-sm text-slate-800 dark:text-white/90">{t[option.labelKey]}</div>
+                      <div className="text-[10px] font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t[option.descriptionKey]}</div>
                     </div>
-                  ))}
-                </div>
+                    {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div
-            onClick={() => { setTempProfile(userProfile); setIsModalOpen(true); }}
-            className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
-          >
-            <div className="hidden lg:flex items-center gap-2 mr-1">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{userProfile.name}</span>
-              <i className="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
-            </div>
-            <img
-              src={userProfile.avatarUrl}
-              alt="Profile"
-              className="w-8 h-8 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-800"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userProfile.name);
-              }}
-            />
+        <div
+          onClick={() => { setTempProfile(userProfile); setIsModalOpen(true); }}
+          className="flex items-center gap-3 cursor-pointer pl-3 pr-1 py-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/5 active:scale-95"
+        >
+          <div className="hidden lg:flex items-center gap-2 mr-1">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{userProfile.name}</span>
+            <i className="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
           </div>
+          <img
+            src={userProfile.avatarUrl}
+            alt="Profile"
+            className="w-8 h-8 rounded-full shadow-sm object-cover ring-2 ring-white dark:ring-slate-800"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userProfile.name);
+            }}
+          />
         </div>
       </div>
 
