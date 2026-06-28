@@ -5,26 +5,22 @@ interface WelcomeMessageProps {
     language: Language;
 }
 
-const welcomeMessages = {
-    ko: { title: "반가워요!", subtitle: "오늘은 어떤 이야기를 나눌까요?", desc: "궁금한 질문이나 실시간 검색을 해보세요." },
-    en: { title: "Hello there!", subtitle: "What's on your mind?", desc: "Ask questions or search in real-time." },
-    es: { title: "¡Hola!", subtitle: "¿De qué hablamos hoy?", desc: "Haz preguntas or busca en tempo real." },
-    fr: { title: "Bonjour!", subtitle: "De quoi parlons-nous ?", desc: "Posez des questions ou cherchez en direct." }
+// 웰컴 한 줄 그리팅 (2단 → 1단 간결화). 중앙 정렬은 부모(App 웰컴 그룹)가 담당.
+const greetings: Record<string, string> = {
+    ko: "무엇을 도와드릴까요?",
+    en: "What's on your mind?",
+    es: "¿De qué hablamos hoy?",
+    fr: "De quoi parlons-nous ?",
 };
 
 const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ language }) => {
-    const currentWelcome = (welcomeMessages as any)[language] || welcomeMessages.ko;
+    const greeting = greetings[language] || greetings.ko;
 
     return (
-        <div className="flex flex-col items-center justify-center flex-1 py-4 sm:py-20">
-            <div className="text-center">
-                <h1 className="text-3xl sm:text-6xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent mb-3 sm:mb-6">
-                    {currentWelcome.title}
-                </h1>
-                <p className="text-slate-500 dark:text-slate-400 text-base sm:text-2xl font-medium px-4">
-                    {currentWelcome.subtitle}
-                </p>
-            </div>
+        <div className="text-center">
+            <h1 className="text-2xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 bg-clip-text text-transparent px-4">
+                {greeting}
+            </h1>
         </div>
     );
 };

@@ -8,6 +8,7 @@ import Dialog from './components/Dialog';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import WelcomeMessage from './components/WelcomeMessage';
+import SuggestChips from './components/SuggestChips';
 import ChatArea from './components/ChatArea';
 import { updateRemoteUserProfile } from './services/geminiService';
 import { UserProfile, Language, MessageAttachment } from './types';
@@ -26,6 +27,8 @@ const App: React.FC = () => {
     return isChatModelId(storedModel) ? storedModel : DEFAULT_CHAT_MODEL;
   });
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  // 추천 칩 클릭 → 입력창 채움 (ts로 같은 칩 재클릭도 재발화)
+  const [prefill, setPrefill] = useState<{ text: string; ts: number } | null>(null);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -229,6 +232,8 @@ const App: React.FC = () => {
     );
   }
 
+  const isWelcome = !currentSession || currentSession.messages.length === 0;
+
   return (
     <div
       className="flex h-screen h-dvh w-full text-slate-900 dark:text-[#e3e3e3] overflow-hidden font-sans"
@@ -287,7 +292,7 @@ const App: React.FC = () => {
 
 
         <main className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar flex flex-col">
-          <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto flex flex-col relative">
+          <div className="flex-1 min-h-0 max-w-4xl w-full mx-auto flex flex-col relative">
 
             {/* Loading overlay — dims welcome msg & past messages, shows spinner */}
             {isLoadingMessages && (
@@ -309,25 +314,54 @@ const App: React.FC = () => {
 
             {/* Content — dims when loading */}
             <div className={`flex-1 flex flex-col transition-all duration-300 ${isLoadingMessages ? 'opacity-25 blur-[1.5px] pointer-events-none select-none' : 'opacity-100 blur-0'}`}>
-              {(!currentSession || currentSession.messages.length === 0) && (
-                <WelcomeMessage language={language} />
+              {isWelcome ? (
+                /* 웰컴: 그리팅 → (데스크톱)입력창 중앙 → 칩. 모바일은 입력창을 하단(footer)에 둠 */
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-6 sm:gap-9 py-4">
+                  <WelcomeMessage language={language} />
+                  {/* 데스크톱만 중앙 입력창 (모바일은 footer 하단) */}
+                  <div className="hidden md:block w-full max-w-4xl px-1 sm:px-2 mt-4 sm:mt-7">
+                    <ChatInput
+                      onSend={handleSendMessage}
+                      disabled={isTyping || isAuthLoading}
+                      language={language}
+                      showToast={showToast}
+                      editValue={editingMessageContent}
+                      selectedModel={selectedModel}
+                      onModelChange={handleModelChange}
+                      welcome
+                      prefill={prefill}
+                    />
+                  </div>
+                  <SuggestChips language={language} onSelect={(s) => setPrefill({ text: s, ts: Date.now() })} />
+                </div>
+              ) : (
+                <ChatArea
+                  messages={currentSession?.messages || []}
+                  userProfile={userProfile}
+                  language={language}
+                  isTyping={isTyping}
+                  loadingStatus={loadingStatus}
+                  isLoadingHistory={isLoadingMessages}
+                  onEdit={handleEditMessage}
+                />
               )}
-
-              <ChatArea
-                messages={currentSession?.messages || []}
-                userProfile={userProfile}
-                language={language}
-                isTyping={isTyping}
-                loadingStatus={loadingStatus}
-                isLoadingHistory={isLoadingMessages}
-                onEdit={handleEditMessage}
-              />
             </div>
           </div>
         </main>
 
         <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
-          <ChatInput onSend={handleSendMessage} disabled={isTyping || isAuthLoading} language={language} showToast={showToast} editValue={editingMessageContent} />
+          {/* 입력창 하단 — 대화중: 항상 / 웰컴: 모바일만(데스크톱은 main 중앙이라 md:hidden) */}
+          <div className={isWelcome ? 'md:hidden' : ''}>
+            <ChatInput
+              onSend={handleSendMessage}
+              disabled={isTyping || isAuthLoading}
+              language={language}
+              showToast={showToast}
+              editValue={editingMessageContent}
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
+            />
+          </div>
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
               {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
