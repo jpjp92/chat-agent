@@ -596,10 +596,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative grid grid-cols-[auto_1fr_auto] items-end bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm p-0.5 sm:p-1 rounded-[28px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative flex flex-col bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm px-1.5 pt-1.5 pb-1 sm:px-2 sm:pt-2 sm:pb-1.5 rounded-[24px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[28px] sm:rounded-[32px] animate-in fade-in duration-200 pointer-events-none">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[24px] sm:rounded-[28px] animate-in fade-in duration-200 pointer-events-none">
             <p className="text-sm font-bold text-primary-600 dark:text-primary-400">{t.dropTitle}</p>
           </div>
         )}
@@ -612,87 +612,88 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           className="hidden"
         />
 
-        <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 mb-0.5 ml-0.5">
+        {/* 위 행 — textarea 전체 폭 사용 (컨트롤과 열을 나누지 않아 여러 줄에서도 폭 낭비 없음) */}
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => {
+            // 수동 타이핑 시 텍스트 중복 및 덮어쓰기 방어를 위해 STT 즉시 중단
+            if (isListening && recognitionRef.current) {
+              recognitionRef.current.stop();
+              setIsListening(false);
+            }
+            setInput(e.target.value);
+            finalTranscriptRef.current = e.target.value;
+          }}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={t.placeholder}
+          rows={1}
+          disabled={disabled}
+          style={{
+            // 일반 텍스트는 공백/단어 단위로, 끊을 곳 없는 초장문 토큰만 강제 줄바꿈
+            overflowWrap: 'anywhere',
+            wordBreak: 'normal'
+          }}
+          className="w-full bg-transparent px-2 sm:px-3 py-1 outline-none resize-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
+        />
+
+        {/* 아래 행 — 왼쪽: 첨부 / 오른쪽: 모델선택 · 마이크 · 전송 */}
+        <div className="flex items-center justify-between mt-0.5">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full h-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
+            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
           >
             <i className="fa-solid fa-plus text-lg"></i>
           </button>
-        </div>
 
-        <div className="min-w-0 w-full flex items-center overflow-hidden">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => {
-              // 수동 타이핑 시 텍스트 중복 및 덮어쓰기 방어를 위해 STT 즉시 중단
-              if (isListening && recognitionRef.current) {
-                recognitionRef.current.stop();
-                setIsListening(false);
-              }
-              setInput(e.target.value);
-              finalTranscriptRef.current = e.target.value;
-            }}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={t.placeholder}
-            rows={1}
-            disabled={disabled}
-            style={{
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-all'
-            }}
-            className="w-full bg-transparent px-2 sm:px-3 py-1 sm:py-2 outline-none resize-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
-          />
-        </div>
-
-        <div className="flex items-center space-x-0.5 pr-0.5 mb-0.5">
-          {/* 모델 선택기 — 데스크톱 전용(입력창 통합). 모바일은 헤더에 표시(md:hidden ↔ hidden md:block) */}
-          <div ref={modelMenuRef} className="hidden md:block relative">
-            <button
-              type="button"
-              onClick={() => setIsModelMenuOpen(prev => !prev)}
-              className="flex items-center gap-0.5 sm:gap-1 pl-1.5 pr-1 sm:pl-2.5 sm:pr-1.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
-            >
-              <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{mt[selectedModelOption.labelKey]}</span>
-              <i className={`fa-solid fa-chevron-down text-[10px] text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
-            </button>
-            {isModelMenuOpen && (
-              <div className={`absolute right-0 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden py-1 z-50 ${welcome ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
-                {CHAT_MODEL_OPTIONS.map(option => (
-                  <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
-                    <div>
-                      <div className="font-semibold text-sm text-slate-800 dark:text-white/90">{mt[option.labelKey]}</div>
-                      <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{mt[option.descriptionKey]}</div>
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            {/* 모델 선택기 — 데스크톱 전용(입력창 통합). 모바일은 헤더에 표시(md:hidden ↔ hidden md:block) */}
+            <div ref={modelMenuRef} className="hidden md:block relative">
+              <button
+                type="button"
+                onClick={() => setIsModelMenuOpen(prev => !prev)}
+                className="flex items-center gap-1 pl-2.5 pr-2 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
+              >
+                <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{mt[selectedModelOption.labelKey]}</span>
+                <i className={`fa-solid fa-chevron-down text-[10px] text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
+              </button>
+              {isModelMenuOpen && (
+                <div className={`absolute right-0 w-56 sm:w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden py-1 z-50 ${welcome ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+                  {CHAT_MODEL_OPTIONS.map(option => (
+                    <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
+                      <div>
+                        <div className="font-semibold text-sm text-slate-800 dark:text-white/90">{mt[option.labelKey]}</div>
+                        <div className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{mt[option.descriptionKey]}</div>
+                      </div>
+                      {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
                     </div>
-                    {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          {isSTTSupported && (
+            {isSTTSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
+                  }`}
+              >
+                <i className={`fa-solid ${isListening ? 'fa-microphone' : 'fa-microphone-lines'} text-sm`}></i>
+              </button>
+            )}
+
             <button
-              type="button"
-              onClick={toggleListening}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white shadow-lg animate-pulse' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5'
+              type="submit"
+              disabled={(!input.trim() && selectedAttachments.length === 0) || disabled}
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-white/20' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
                 }`}
             >
-              <i className={`fa-solid ${isListening ? 'fa-microphone' : 'fa-microphone-lines'} text-sm`}></i>
+              <i className="fa-solid fa-arrow-up text-base sm:text-sm"></i>
             </button>
-          )}
-
-          <button
-            type="submit"
-            disabled={(!input.trim() && selectedAttachments.length === 0) || disabled}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${(!input.trim() && selectedAttachments.length === 0) || disabled ? 'text-slate-300 dark:text-white/20' : 'text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10'
-              }`}
-          >
-            <i className="fa-solid fa-arrow-up text-base sm:text-sm"></i>
-          </button>
+          </div>
         </div>
       </form>
     </div>
