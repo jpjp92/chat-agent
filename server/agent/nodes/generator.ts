@@ -15,10 +15,16 @@ import { runLangChainPath } from "./langchain-path";
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
 export const SDK_CALL_TIMEOUT_MS = 25_000;
 // YouTube 영상 턴은 프로파일이 정반대 — 영상 토큰이 무거운 단일 heavy 호출이 60s 예산
-// 대부분을 정당하게 소모하고(보통 ~30~40s), 폴백 3.5는 무료티어 영상에서 오히려 더 느리다.
-// 25s 일률 컷은 정상 분석을 끊어 키 로테이션·3.5 폴백이 각 25s씩 쌓여 60s 천장을 초과 →
-// 전부 타임아웃(DEV_260627 회귀). 영상 턴은 단일 시도에 예산 대부분을 배정한다.
-export const YOUTUBE_CALL_TIMEOUT_MS = 48_000;
+// 대부분을 정당하게 소모하고(정상 ~30~48s, 메모리 youtube-call-timeout-profile), 폴백 3.5는
+// 무료티어 영상에서 오히려 더 느리다. 25s 일률 컷은 정상 분석을 끊어 키 로테이션·3.5 폴백이 각
+// 25s씩 쌓여 60s 천장을 초과 → 전부 타임아웃(DEV_260627 회귀).
+// 회귀 본질: aa9d701 이전엔 SDK 경로에 per-call 타임아웃이 없어 유튜브가 60s 캡 직전(~59s)까지
+// 예산을 다 썼고 잘 됐다. 48s는 정상 상한(~48s)과 겹쳐 살짝 초과한 정상 호출을 잘랐다
+// (DEV_260703: 48.38s 로그 = 우리 데드라인 발화). 원래 예산을 충실히 원복 — 57s로 상향.
+// abort 후 graceful 반환·supabase 저장 오버헤드는 ~0.4s(로그 관측)라 57s면 60s 캡까지 ~3s
+// (오버헤드의 7배) 여유가 남고, 도중 abort 시엔 스트리밍 부분 응답이 복구된다(아래 partial
+// stream 처리). maxDuration(60s, 무료티어 상향 불가)은 무관 — 우리가 건 데드라인이 병목이었다.
+export const YOUTUBE_CALL_TIMEOUT_MS = 57_000;
 
 /**
  * Generator Node
