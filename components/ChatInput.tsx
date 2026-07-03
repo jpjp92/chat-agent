@@ -596,7 +596,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         onDragOver={disabled ? undefined : handleDragOver}
         onDragLeave={disabled ? undefined : handleDragLeave}
         onDrop={disabled ? undefined : handleDrop}
-        className={`relative flex flex-col bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm px-1.5 pt-1.5 pb-1 sm:px-2 sm:pt-2 sm:pb-1.5 rounded-[24px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
+        className={`relative flex flex-wrap items-center justify-between gap-y-1 bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-[24px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[24px] sm:rounded-[28px] animate-in fade-in duration-200 pointer-events-none">
@@ -612,7 +612,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
           className="hidden"
         />
 
-        {/* 위 행 — textarea 전체 폭 사용 (컨트롤과 열을 나누지 않아 여러 줄에서도 폭 낭비 없음) */}
+        {/* 첨부(+) — 모바일: textarea 왼쪽 인라인(1행) / 데스크톱: flex-wrap으로 둘째 줄 왼쪽 */}
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex-shrink-0 flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
+        >
+          <i className="fa-solid fa-plus text-lg"></i>
+        </button>
+
+        {/* textarea — 모바일: flex-1 인라인(1행) / 데스크톱: basis-full+order-first로 첫 줄 전체 폭(2단) */}
         <textarea
           ref={textareaRef}
           value={input}
@@ -635,20 +644,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             overflowWrap: 'anywhere',
             wordBreak: 'normal'
           }}
-          className="w-full bg-transparent px-2 sm:px-3 py-1 outline-none resize-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
+          className="flex-1 min-w-0 sm:basis-full sm:order-first bg-transparent px-2 sm:px-3 py-1 outline-none resize-none text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 min-h-[32px] max-h-[140px] sm:max-h-[180px] leading-relaxed block overflow-y-auto scrollbar-hide font-medium whitespace-pre-wrap"
         />
 
-        {/* 아래 행 — 왼쪽: 첨부 / 오른쪽: 모델선택 · 마이크 · 전송 */}
-        <div className="flex items-center justify-between mt-0.5">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-white/5 rounded-full transition-colors"
-          >
-            <i className="fa-solid fa-plus text-lg"></i>
-          </button>
-
-          <div className="flex items-center gap-0.5 sm:gap-1">
+        {/* 컨트롤 — 모바일: textarea 오른쪽 인라인(1행) / 데스크톱: flex-wrap으로 둘째 줄 오른쪽 */}
+        <div className="flex-shrink-0 flex items-center gap-0.5 sm:gap-1">
             {/* 모델 선택기 — 데스크톱 전용(입력창 통합). 모바일은 헤더에 표시(md:hidden ↔ hidden md:block) */}
             <div ref={modelMenuRef} className="hidden md:block relative">
               <button
@@ -693,7 +693,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             >
               <i className="fa-solid fa-arrow-up text-base sm:text-sm"></i>
             </button>
-          </div>
         </div>
       </form>
     </div>
