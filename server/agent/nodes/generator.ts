@@ -98,6 +98,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 영상을 실제 읽는 YouTube 턴 — 예산형 단일 데드라인(YOUTUBE_CALL_TIMEOUT_MS) 대상.
         const isYtVideoTurn = isYoutubeRequest && hasVideoData;
 
+        // 영상 입력 토큰 절감 — YouTube 영상은 기본 해상도로 ~31만 토큰이라 인제스트가 93s+로 60s 캡을
+        // 초과했다(DEV_260703 실측). LOW 해상도는 프레임당 토큰을 대폭 줄여 ~11만 토큰·~23s(무료)로 캡
+        // 안에 들어온다(요약은 화질 무관). ← 유튜브 요약 실패의 근본 해결.
+        const videoMediaResolution: any = isYtVideoTurn ? { mediaResolution: 'MEDIA_RESOLUTION_LOW' } : {};
+
         // YouTube는 영상 토큰이 무거워 60s 천장에 가장 위태로운 경로 — 영상을 실제 읽는 턴만
         // thinking 없는 2.5로 고정한다(DEFAULT_CHAT_MODEL 3.5 전환(2026-05-30) 이전 원래 설계).
         // 멀티턴 후속 질문(URL은 history에만 있고 영상 미재전송 → hasVideoData=false)은 영상
@@ -351,6 +356,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                 ...(is3xModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
                                 maxOutputTokens: effectiveMaxTokens,
+                                ...videoMediaResolution,
                                 ...(thinkingConfig ? { thinkingConfig: thinkingConfig as any } : {}),
                             }
                         });
@@ -375,6 +381,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     systemInstruction: finalInstruction,
                                     ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                     maxOutputTokens: effectiveMaxTokens,
+                                    ...videoMediaResolution,
                                     thinkingConfig: { thinkingLevel: 'minimal' } as any,
                                 }
                             });
