@@ -301,7 +301,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         setEditingId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 text-xs bg-transparent border-b border-primary-500 outline-none"
+                      className="flex-1 min-w-0 mr-8 sm:mr-0 text-xs bg-transparent border-b border-primary-500 outline-none"
                       autoFocus
                     />
                   ) : (
