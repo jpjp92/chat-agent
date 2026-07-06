@@ -184,22 +184,50 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         }
     }
 
+    // 직전 assistant 응답에 날씨 카드(json:weather)가 있으면 = 화면에 카드가 떠 있는 상태.
+    // 후속 발화가 "카드 코멘트/해석"인지 "새 조회"인지 가르는 신호(멀티턴 카드 재생성 오작동 방지).
+    const weatherCardShown = /```json\s*:\s*weather/.test(String(lastAssistantMsg?.content ?? ''));
+
+    // 날씨 의도 구제(카드 없을 때만): 라우터 LLM 실패(무료티어 503/timeout)·오분류 시 명백한 날씨
+    // 질의를 weather로 교정. 카드가 떠 있을 땐 아래 후속 가드가 도맡으므로 제외 — "전주가 서울보다
+    // 기온 높네?" 같은 코멘트에도 '기온' 토큰이 있어 여기서 승격되면 카드가 재생성되던 버그의 원인.
+    if (intent === "general" && !weatherCardShown && classifyIntentByRules(textContent, hasImage) === "weather") {
+        console.log('[LangGraph] Weather intent rescue (general→weather): heuristic matched');
+        intent = "weather";
+    }
+
     // 과거/완료 월드컵(연도 명시 또는 "지난/과거 월드컵")은 API 미지원(403) → general로 보내 학습지식으로 답.
     if (intent === "sports" && /(20\d\d|지난|과거|역대|작년|예전)\s*(년)?\s*(월드컵|world\s?cup)|(월드컵|world\s?cup)\s*(20\d\d|역대|역사)/i.test(textContent)) {
         console.log('[LangGraph] Sports: 과거 대회 질의 → general (API는 현재 대회만)');
         intent = "general";
     }
 
-    // 날씨 후속 "카드 해석" 가드: flash-lite가 화면 날씨 카드에 대한 해석 질문("습도가 높은
-    // 편이야?", "우산 챙겨야 해?", "빨래 널어도 될까?")을 간헐적으로 weather(=재조회)로 오분류한다
-    // (DEV_260705 §9: 15/16의 유일한 오분류). 해석형 어휘가 있고 "새 날씨 조회" 신호(날씨/기온/비 와/
-    // 예보/몇 도 등)가 없으면 결정론적으로 general로 내려 화면 데이터로 답하게 한다. 새 도시/날짜
-    // 재조회("부산은?", "내일은?")는 해석 어휘가 없어 그대로 weather 유지(LLM 판정 존중).
-    if (intent === "weather") {
-        const interp = /왜|이유|우산|빨래|외출|나가도|입을|옷차림|뭐\s*입|괜찮을까|어떻게\s*해|심한\s*편|높은\s*편|낮은\s*편|감기|건강|이\s*정도|그\s*정도/;
-        const weatherRequest = /날씨|기상|기온|온도|몇\s*도|비\s*(와|올|오|내|온|많)|눈\s*(와|올|오|내|온)|강수|강우|예보|더[워울]|추[워울]|맑|흐[림려]|바람|영하|폭염|한파|미세먼지/;
+    // 날씨 후속 처리: 화면에 카드가 떠 있으면(weatherCardShown) 후속 발화를 두 갈래로 가른다.
+    //  · "새 조회" 신호(미래 시점·명시 요청·"부산은?"·"부산 날씨") → weather(카드 재생성)
+    //  · 그 외(코멘트·해석·비교 "전주가 서울보다 높네?", "우산 챙길까?", "습도 높은 편?") → general
+    //    (json:weather가 히스토리에 있어 general이 그 데이터로 답함 · needsSearch도 off로 재검색 억제)
+    // 카드가 없을 때(첫 발화 등)는 해석형 오분류만 방어.
+    let weatherFollowup = false;
+    if (weatherCardShown) {
+        const newFetch =
+            /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/.test(textContent)               // 미래/시점 이동
+            || (/(날씨|예보)/.test(textContent) && /(알려|보여|어때|어떄|어떻|찾아|줘|해\s*줘|궁금|부탁)/.test(textContent))          // 명시 요청
+            || /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/.test(textContent.trim())                                              // "부산은?" 도시 재조회
+            || /[가-힣A-Za-z]{1,12}\s*날씨/.test(textContent);                                                                    // "부산 날씨"
+        if (newFetch) {
+            if (intent !== "weather") { console.log('[LangGraph] Weather follow-up (→weather): new city/time fetch'); intent = "weather"; }
+        } else if (intent === "weather") {
+            console.log('[LangGraph] Weather follow-up (weather→general): comment/interpretation of shown card');
+            intent = "general";
+            weatherFollowup = true;
+        } else if (intent === "general") {
+            weatherFollowup = true; // 카드 데이터로 답하도록 검색만 off
+        }
+    } else if (intent === "weather") {
+        const interp = /왜|이유|우산|빨래|외출|나가도|입을|옷차림|괜찮을까|심한\s*편|높은\s*편|낮은\s*편/;
+        const weatherRequest = /날씨|기상|기온|온도|몇\s*도|비\s*(와|올|오|내|온|많)|눈\s*(와|올|오|내|온)|강수|예보|더[워울]|추[워울]|맑|흐[림려]|미세먼지/;
         if (interp.test(textContent) && !weatherRequest.test(textContent)) {
-            console.log('[LangGraph] Weather follow-up (weather→general): interpretation of shown card');
+            console.log('[LangGraph] Weather (no card) interpretation → general');
             intent = "general";
         }
     }
@@ -251,6 +279,9 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
     } else if (isMovieFollowup) {
         // 화면 상영표(movieContext)로 답해야 함 — 검색을 켜면 그 데이터를 무시하고 일반 표를 내므로 off.
         needsSearch = false;
+    } else if (weatherFollowup) {
+        // 화면 날씨 카드(히스토리 json:weather)로 답 — grounding 켜면 다른 수치로 답할 수 있어 off.
+        needsSearch = false;
     } else if (intent === "general") {
         const ruleDecision = classifySearchNeed(textContent);
         if (ruleDecision === "on") needsSearch = true;
@@ -258,6 +289,6 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         else needsSearch = llmNeedsSearch ?? true; // gray → LLM 판정, 없으면 default-on
     }
 
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}`);
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}`);
     return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup };
 };

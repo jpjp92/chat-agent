@@ -114,11 +114,11 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
     const e = (data as any) as { input?: string; code?: string };
     const msg = e.code === 'CITY_NOT_FOUND' ? tt.notFound : tt.fetchFail;
     return (
-      <div className="w-full max-w-[380px] sm:max-w-[540px] mx-auto my-3 rounded-[22px] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] px-5 py-4 flex items-center gap-3">
+      <div className="w-full max-w-[380px] sm:max-w-[540px] mx-auto my-3 rounded-[22px] border border-[#e7e0d4] dark:border-white/[0.07] bg-[#fbfaf6] dark:bg-[#1b1714] px-5 py-4 flex items-center gap-3">
         <span className="text-xl">🌫️</span>
         <div>
-          <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{msg}</div>
-          {e.input && <div className="text-xs text-slate-400 mt-0.5">“{e.input}”</div>}
+          <div className="text-sm font-bold text-[#26221d] dark:text-[#f2eee7]">{msg}</div>
+          {e.input && <div className="text-xs text-[#8a8479] dark:text-[#93897c] mt-0.5">“{e.input}”</div>}
         </div>
       </div>
     );
@@ -138,52 +138,52 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
 
   return (
     <div className="w-full max-w-[380px] sm:max-w-[540px] mx-auto my-3 font-[Inter,system-ui,sans-serif]">
-      <div className="relative rounded-[26px] overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1e] shadow-[0_1px_2px_rgba(15,23,42,.04),0_12px_34px_-12px_rgba(15,23,42,.14)] dark:shadow-[0_12px_40px_-14px_rgba(0,0,0,.7)]">
+      <div className="relative rounded-[26px] overflow-hidden border border-[#e7e0d4] dark:border-white/[0.07] bg-[#fbfaf6] dark:bg-[#1b1714] shadow-[0_1px_2px_rgba(60,45,30,.05),0_12px_34px_-12px_rgba(60,45,30,.16)] dark:shadow-[0_12px_40px_-14px_rgba(0,0,0,.7)]">
         {/* 하늘 그라디언트 */}
         <div className={`pointer-events-none absolute inset-x-0 top-0 h-[180px] ${skyClass(c.condition)}`} />
 
         <div className="relative p-[18px_20px_20px]">
           {/* 위치 + 출처 */}
           <div className="flex justify-between items-start gap-3">
-            <div className="flex items-center gap-[7px] text-[14px] font-bold text-slate-900 dark:text-slate-100">
-              <span className="opacity-85">📍</span>
+            <div className="flex items-center gap-[7px] text-[14px] font-bold text-[#26221d] dark:text-[#f2eee7]">
+              <i className="fa-solid fa-location-dot text-[#c0603a] dark:text-[#d7a36f] text-[13px]" aria-hidden />
               <span>{w.location.name}{w.location.country && w.location.country !== 'KR' ? `, ${w.location.country}` : ''}</span>
             </div>
             <span className={`text-[10.5px] font-extrabold tracking-wide px-2 py-[3px] rounded-full whitespace-nowrap border ${
               isKma
-                ? 'text-blue-600 border-blue-500/30 bg-blue-500/10 dark:text-blue-300 dark:bg-blue-400/15 dark:border-blue-300/25'
-                : 'text-slate-500 border-slate-200 bg-slate-100 dark:text-slate-400 dark:border-white/10 dark:bg-white/5'
+                ? 'text-[#b5722e] border-[#d7a36f]/45 bg-[#d7a36f]/12 dark:text-[#d7a36f] dark:bg-[#d7a36f]/12 dark:border-[#d7a36f]/25'
+                : 'text-[#8a8479] border-[#e7e0d4] bg-[#efe9dd] dark:text-[#93897c] dark:border-white/10 dark:bg-white/5'
             }`}>{w.source}</span>
           </div>
 
           {/* 온도 + 상태 */}
           <div className="flex items-baseline gap-1.5 mt-3.5">
-            <span className="text-[56px] font-black tracking-[-.04em] tabular-nums leading-[.92] text-slate-900 dark:text-slate-100">{c.temp}</span>
-            <span className="text-[22px] font-extrabold text-slate-400 dark:text-slate-500">°C</span>
+            <span className="text-[56px] font-black tracking-[-.04em] tabular-nums leading-[.92] text-[#26221d] dark:text-[#f2eee7]">{c.temp}</span>
+            <span className="text-[22px] font-extrabold text-[#a49a8b] dark:text-[#8f8579]">°C</span>
           </div>
-          <div className="text-[15px] font-bold mt-1.5 text-slate-800 dark:text-slate-200">
+          <div className="text-[15px] font-bold mt-1.5 text-[#3a352d] dark:text-[#e7e0d3]">
             {COND_LABEL[c.condition]?.[lang] ?? ''}
-            <span className="text-slate-400 dark:text-slate-500 font-semibold text-[13px] ml-2">{tt.feels} {c.feelsLike}°</span>
+            <span className="text-[#8a8479] dark:text-[#93897c] font-semibold text-[13px] ml-2">{tt.feels} {c.feelsLike}°</span>
           </div>
 
           {/* 강수 히어로 (없으면 생략) */}
           {precipState !== 'none' && (
-            <div className="mt-4 flex items-center gap-3 px-[15px] py-[13px] rounded-2xl border border-slate-200 dark:border-white/10 bg-[linear-gradient(180deg,rgba(139,92,246,.07),rgba(139,92,246,.02))] dark:bg-[linear-gradient(180deg,rgba(139,92,246,.14),rgba(139,92,246,.04))]">
-              <div className="w-[30px] h-[30px] shrink-0 grid place-items-center rounded-[9px] bg-violet-500/15 text-violet-500 text-[15px]">{snowy ? '🌨️' : '🌧️'}</div>
+            <div className="mt-4 flex items-center gap-3 px-[15px] py-[13px] rounded-2xl border border-[#e7ddcb] dark:border-[#d7a36f]/15 bg-[linear-gradient(180deg,rgba(215,163,111,.12),rgba(215,163,111,.03))] dark:bg-[linear-gradient(180deg,rgba(215,163,111,.13),rgba(215,163,111,.035))]">
+              <div className="w-[30px] h-[30px] shrink-0 grid place-items-center rounded-[9px] bg-[#d7a36f]/18 text-[#c0603a] dark:text-[#d7a36f] text-[15px]">{snowy ? '🌨️' : '🌧️'}</div>
               <div className="flex-1 min-w-0">
-                <div className="text-[16px] font-extrabold tabular-nums tracking-[-.01em] text-slate-900 dark:text-slate-100">
+                <div className="text-[16px] font-extrabold tabular-nums tracking-[-.01em] text-[#26221d] dark:text-[#f2eee7]">
                   {c.precip.mm}mm
                   <span className={`text-[10.5px] font-extrabold ml-1.5 px-1.5 py-0.5 rounded-md align-middle ${
                     precipState === 'now'
-                      ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300'
-                      : 'bg-violet-500/15 text-violet-500'
+                      ? 'bg-[#c0392b]/12 text-[#c0392b] dark:text-[#e79070] dark:bg-[#e79070]/15'
+                      : 'bg-[#d7a36f]/16 text-[#b5722e] dark:text-[#d7a36f]'
                   }`}>{precipState === 'now' ? tt.now : tt.expected}</span>
                 </div>
-                <div className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{precipSub}</div>
+                <div className="text-[12px] text-[#7d766a] dark:text-[#93897c] mt-0.5 truncate">{precipSub}</div>
               </div>
               <div className="shrink-0 text-right">
-                <div className="text-[15px] font-extrabold tabular-nums text-slate-900 dark:text-slate-100">{c.precip.pop}%</div>
-                <div className="text-[10px] text-slate-400 font-bold">{tt.chance}</div>
+                <div className="text-[15px] font-extrabold tabular-nums text-[#26221d] dark:text-[#f2eee7]">{c.precip.pop}%</div>
+                <div className="text-[10px] text-[#8a8479] dark:text-[#93897c] font-bold">{tt.chance}</div>
               </div>
             </div>
           )}
@@ -195,9 +195,9 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
               { l: tt.wind, v: `${c.windSpeed}m/s` },
               { l: tt.clouds, v: `${c.clouds}%` },
             ].map((s, i) => (
-              <div key={i} className="flex-1 py-2.5 px-1 rounded-[13px] text-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-                <div className="text-[10.5px] text-slate-400 font-bold">{s.l}</div>
-                <div className="text-[14px] font-extrabold mt-[3px] tabular-nums text-slate-800 dark:text-slate-200">{s.v}</div>
+              <div key={i} className="flex-1 py-2.5 px-1 rounded-[13px] text-center bg-[#f3eee4] dark:bg-white/[0.04] border border-[#e7e0d4] dark:border-white/[0.07]">
+                <div className="text-[10.5px] text-[#8a8479] dark:text-[#93897c] font-bold">{s.l}</div>
+                <div className="text-[14px] font-extrabold mt-[3px] tabular-nums text-[#3a352d] dark:text-[#e7e0d3]">{s.v}</div>
               </div>
             ))}
           </div>
@@ -205,24 +205,26 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           {/* 예보 스트립 */}
           {w.daily.length > 0 && (
             <>
-              <div className="flex items-center justify-between mx-0.5 mt-[18px] mb-[9px]">
-                <span className="text-[11px] font-extrabold text-slate-400 tracking-wide uppercase">{tt.forecast}</span>
-                <span className="text-[10.5px] text-slate-400">{forecastNote}</span>
+              <div className="flex items-center justify-between mx-0.5 mt-3 mb-1.5 sm:mt-[18px] sm:mb-[9px]">
+                <span className="text-[11px] font-extrabold text-[#8a8479] dark:text-[#93897c] tracking-wide uppercase">{tt.forecast}</span>
+                <span className="text-[10.5px] text-[#a49a8b] dark:text-[#8f8579]">{forecastNote}</span>
               </div>
-              <div className="grid grid-flow-col auto-cols-fr gap-2">
+              <div className="grid grid-flow-col auto-cols-fr gap-1.5 sm:gap-2">
                 {w.daily.slice(0, 5).map((d, i) => {
                   const today = d.date === todayYmd;
                   return (
-                    <div key={d.date + i} className={`py-[11px] px-1.5 rounded-[15px] text-center border ${
+                    <div key={d.date + i} className={`py-2 px-1 sm:py-[11px] sm:px-1.5 rounded-xl sm:rounded-[15px] text-center border transition-colors duration-200 cursor-default ${
                       today
-                        ? 'border-violet-500/40 bg-violet-500/[.06]'
-                        : 'border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5'
+                        ? 'border-[#d7a36f]/45 bg-[#d7a36f]/[.09] hover:border-[#d7a36f]/75 hover:bg-[#d7a36f]/[.17] dark:hover:bg-[#d7a36f]/[.2]'
+                        : 'border-[#e7e0d4] dark:border-white/[0.07] bg-[#f3eee4] dark:bg-white/[0.04] hover:border-[#dcd2c0] hover:bg-[#ede6d8] dark:hover:border-white/20 dark:hover:bg-white/[0.09]'
                     }`}>
-                      <div className="text-[11px] font-extrabold text-slate-400">{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
-                      <div className="text-[20px] my-[5px_0_4px] leading-none">{GLYPH[d.condition]}</div>
-                      <div className="text-[13px] font-extrabold tabular-nums text-slate-800 dark:text-slate-200">{d.maxTemp}°</div>
-                      <div className="text-[11px] font-semibold text-slate-400 tabular-nums">{d.minTemp}°</div>
-                      <div className="text-[10px] font-bold text-violet-500 mt-1 tabular-nums">{d.pop}%</div>
+                      <div className="text-[10px] sm:text-[11px] font-extrabold text-[#8a8479] dark:text-[#93897c]">{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
+                      <div className="text-[17px] sm:text-[20px] mt-1.5 mb-1.5 sm:mt-[5px] sm:mb-2 leading-none">{GLYPH[d.condition]}</div>
+                      <div className="flex items-baseline justify-center gap-1 tabular-nums">
+                        <span className="text-[10px] sm:text-[11px] font-semibold text-[#a49a8b] dark:text-[#8f8579]">{d.minTemp}°</span>
+                        <span className="text-[12.5px] sm:text-[13px] font-extrabold text-[#3a352d] dark:text-[#e7e0d3]">{d.maxTemp}°</span>
+                      </div>
+                      <div className="text-[9.5px] sm:text-[10px] font-bold text-[#b5722e] dark:text-[#d7a36f] mt-1.5 sm:mt-1 tabular-nums">{d.pop}%</div>
                     </div>
                   );
                 })}
@@ -231,7 +233,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           )}
 
           {/* 푸터 */}
-          <div className="flex items-center gap-2 mt-3.5 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2 mt-3.5 text-[11px] text-[#a49a8b] dark:text-[#8f8579]">
             <span>{tt.updated} {localHm(w.updatedAt, w.timezoneOffsetSec)}</span>
             <span className="w-[3px] h-[3px] rounded-full bg-current opacity-60" />
             <span>{isKma ? tt.kmaFoot : 'OpenWeather'}</span>

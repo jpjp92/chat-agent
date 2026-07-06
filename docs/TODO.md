@@ -77,14 +77,34 @@
 
 - [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
 - [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록
-- [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식. 강수 "현재 우선 + 예보 fallback"(state=now/expected/none). KMA 가변 예보일·결측 조건부. 에러카드. 모바일 380 / 웹 540 + 가운데 정렬
-- [x] `router.ts` — `weather` intent 분리(grounding 우회) + 후속 해석 가드(해석형→general 다운그레이드)
+- [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식. 강수 "현재 우선 + 예보 fallback"(state=now/expected/none). KMA 가변 예보일·결측 조건부. 에러카드. 모바일 380 / 웹 540 + 가운데 정렬. 예보 스트립 모바일 반응형 축소·최고/최저 한줄·셀 호버(오늘/타요일 차별). **팔레트=웜 앰버(레퍼런스 정렬)**: 웜 차콜/크림 표면 + 앰버/테라코타 액센트(DEV_260706 §6-2). 위치 아이콘 `fa-location-dot`
+- [x] `router.ts` + `intentRules.ts` — `weather` intent 분리(grounding 우회) + **멀티턴 후속 가드**(직전 assistant의 json:weather로 카드표시 판정 → 코멘트/해석은 general+카드데이터로 답·`needsSearch=false` / 새 조회는 weather 재조회, 스팟 10/10) + **폴백 규칙·구제**(라우터 LLM 실패 시 `classifyIntentByRules`가 weather 분류, 카드 있을 땐 구제 억제로 코멘트 승격 방지, 스팟 14/14)
 - [x] `prompt.ts` — `weather` focus hint(툴 강제 호출·표 금지). WEATHER_FORMATTING은 general 폴백 존치
 - [x] `state.ts`·`generator.ts`·`langchain-path.ts`·`graph.ts`·`ChatMessage.tsx`·`app/api/chat/route.ts` 배선 (LANGCHAIN/FAST_PASS 인텐트, on_tool_end 멀티블록 스트리밍)
 - [x] 다국어(ko/en/es/fr) — UI 라벨·상태·강수문구 딕셔너리 + 요일 `Intl` + 로컬 tz 시각. **렌더러 클라이언트 처리**(OWM lang 불필요)
 - [x] 예외/에러 — per-fetch 타임아웃(OWM 8s·KMA 9s, 60s 캡 방어) + KMA 빈데이터→OWM 폴백 + 렌더러 결측 가드
 - [ ] (선택) 캐시 레이어 — Supabase TTL 도시별 10분. **보류**(KMA `revalidate:600` + 쿼터 여유 2콜/조회)
 - [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인 ([scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts))
+
+**⓪-a 예보 범위 밖 처리 — 중기예보(6~10일) · 과거 기록** (백로그, 2026-07-06 제기)
+
+> **현재 커버리지**: KMA 실황+단기(오늘~+3일)·OWM 5일. **미지원**: ⓐ 6~10일(중기예보) ⓑ 과거/이전 기록("어제/지난주/작년 이맘때 날씨"). 사용자가 범위 밖을 물으면 현재는 라우터가 weather로 보내 **가진 범위(≤5일) 카드만** 나오거나, 시점 감지 실패 시 grounding 표로 샐 수 있음. 아래로 정리.
+
+- [ ] **라우터: 시점 범위 감지** — 발화에서 목표 시점을 파싱해 3분기. 현 후속 가드(`router.ts`)의 시간 정규식 확장.
+  - 단기(오늘~+5일: 오늘/내일/모레/이번주/주말) → **현 툴**(그대로)
+  - 중기(+6~+10일: "다음주 중반", "10일 뒤", "다음주 목요일" 등 D+6 이상) → **ⓐ 경로**
+  - 과거(어제/그저께/지난주/지난달/작년/특정 과거일자) → **ⓑ 경로**
+  - 애매/범위초과(+11일 이상·먼 미래) → 안내("예보는 최대 10일까지" 등) + (선택) grounding 폴백
+- [ ] **ⓐ 중기예보(6~10일)** — 후보 2개:
+  - **KMA 중기예보**: `getMidLandFcst`(육상 3~10일 날씨/강수확률) + `getMidTa`(기온 3~10일). ⚠️ **중기예보구역코드 `regId` 필요**(육상생략 때 피한 그 코드표 문제 재등장 — `dfsXyConv` 같은 공식 없음). 격자→중기구역 매핑표를 별도 확보해야(광역시/도 단위라 표는 작음 ~40여 개). 실황·단기와 시점 이어붙여 카드에 "중기" 섹션 or 별도 카드.
+  - **OWM One Call 3.0**: 8일 daily 한 콜. 단 **별도 구독 가입**(무료 1,000call/day 한도, 현 `OPENWEATHER_API_KEY`와 다른 상품일 수 있음 — 키 확인 필요). 국내외 통일 장점.
+  - 결정 포인트: 국내 정확도(KMA regId) vs 배선 단순성(OWM One Call). 실험 후 택1.
+- [ ] **ⓑ 과거/이전 기록** — 후보:
+  - **KMA 지상관측(ASOS/AWS) 과거자료**(API Hub): 관측소 `stnId` 기반 일/시간별 실측. ⚠️ `stnId`도 코드표(공식 없음) — geocode→최근접 관측소 매핑 필요. "정확한 실측"이 강점(예보 아닌 관측).
+  - **OWM History/Time Machine**: 대부분 **유료**(무료티어 미포함) → 비용 이슈로 후순위.
+  - UX: 과거는 예보 카드와 성격이 달라 **별도 렌더**(단일 관측 요약 or 기간 미니 차트) 검토. `data_viz` 차트 재사용 가능.
+- [ ] **임시 처리(구현 전 안전판)** — ⓐ/ⓑ 구현 전까지: 범위 밖 감지 시 **현재 카드 강행 대신** ① "현재 단기예보는 최대 N일까지 제공돼요" 안내 후 ② (과거/실시간성 질의면) grounding 폴백 or 학습지식 답. 즉, weather intent에서 **범위 초과 플래그**를 세워 툴 대신 general로 우회. 사용자에게 빈 카드/오해 없게.
+- [ ] **캐싱·쿼터** — 중기예보는 하루 2회(06:00/18:00 발표)라 캐시 수명 길게(수 시간). 과거자료는 불변이라 영구 캐시 가능.
 
 **① arXiv + PubMed 논문 검색** (★★★)
 - [ ] `server/agent/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인

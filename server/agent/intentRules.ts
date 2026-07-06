@@ -35,6 +35,12 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         pattern: /(병원|의원|응급실|hospital|clinic|emergency room|urgent care|doctor near|hôpital|hopital|clinique|urgences|médecin près|medecin pres|hospital|clínica|clinica|urgencias|médico cerca|medico cerca)/i,
     },
     {
+        // 날씨 — 라우터 LLM 실패(무료티어 503/timeout) 시 이 폴백이 general+grounding 대신 weather로 보낸다.
+        // 오발 방지 위해 명확한 기상 토큰만(모호한 '기상'(기상=wake) 단독·'tiempo' 단독 제외).
+        intent: "weather",
+        pattern: /(날씨|기온|기후|기상청|기상\s*(특보|상황|정보|예보)|폭염|한파|장마|열대야|미세먼지|황사|몇\s*도(예|야|니|인가|일까)?|영하\s*\d|체감\s*온도|소나기|비\s*(와|올|오|온|내리|많이)|눈\s*(와|올|오|온|내리)|weather|forecast|temperature|how\s*(hot|cold|warm)|m[eé]t[eé]o|pron[oó]stico\s*(del\s*)?(tiempo|clima)|clima\s*de)/i,
+    },
+    {
         intent: "astronomy",
         pattern: /(별자리|성좌|천문|천체|밤하늘|은하|우주|행성|항성|별\s|별$|태양|달|월식|일식|유성|혜성|오리온|북두칠성|카시오페이아|안드로메다|양자리|황소자리|쌍둥이자리|게자리|사자자리|처녀자리|천칭자리|전갈자리|궁수자리|염소자리|물병자리|물고기자리|aries|taurus|gemini|cancer|leo|virgo|libra|scorpius|sagittarius|capricorn|aquarius|pisces|orion|ursa major|cassiopeia|andromeda|constellation|star map|night sky|astronomy|celestial|galaxy|planet|meteor|comet|constelación|constelacion|mapa estelar|cielo nocturno|astronomía|astronomia|celeste|galaxia|planeta|meteoro|cometa|constellation|carte du ciel|ciel nocturne|astronomie|céleste|celeste|galaxie|planète|planete|météore|meteore|comète|comete)/i,
     },
