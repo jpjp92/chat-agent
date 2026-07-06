@@ -230,12 +230,13 @@ export async function POST(req: NextRequest) {
             }
             const stateSources: any[] = output?.groundingSources || [];
             if (stateSources.length > 0) { let added = false; stateSources.forEach((s: any) => { if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-          } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool', 'movieTool'].includes(event.name)) {
+          } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool', 'movieTool', 'weatherTool'].includes(event.name)) {
             const rawOutput = data?.output;
             const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
-            const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : event.name === 'movieTool' ? 'movie' : 'pharmacy';
-            const jsonMatch = toolOutput.match(new RegExp(`\`\`\`json:${blockType}\\n[\\s\\S]*?\\n\`\`\``));
-            if (jsonMatch) { const jsonBlock = '\n' + jsonMatch[0] + '\n\n'; fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock }); }
+            const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : event.name === 'movieTool' ? 'movie' : event.name === 'weatherTool' ? 'weather' : 'pharmacy';
+            // weatherTool은 멀티 도시 시 json:weather 블록을 여러 개 반환 → 전역 매칭으로 모두 스트리밍.
+            const blockMatches = toolOutput.match(new RegExp(`\`\`\`json:${blockType}\\n[\\s\\S]*?\\n\`\`\``, 'g'));
+            if (blockMatches) { const jsonBlock = '\n' + blockMatches.join('\n\n') + '\n\n'; fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock }); }
           } else if (event.event === 'on_tool_end' && ['search_web', 'search_drug_info'].includes(event.name)) {
             const rawOutput = data?.output;
             const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';

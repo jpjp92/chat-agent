@@ -66,7 +66,7 @@
 
 공통 구현 패턴: `tools.ts` → `router.ts` → `generator.ts` → `prompt.ts` → `ChatMessage.tsx` → `Renderer.tsx`
 
-**⓪ 날씨 전용 툴 — KMA + OpenWeather** (★★★, 키 둘 다 보유: `KMA_API_KEY`·`OPENWEATHER_API_KEY`) — 📋 **기획서: [PLAN_WEATHER_TOOL_260706](plans/PLAN_WEATHER_TOOL_260706.md)** (설계·검증·카드·다국어 종합)
+**⓪ 날씨 전용 툴 — KMA + OpenWeather** — ✅ **구현 완료 (2026-07-06, [DEV_260706](logs/2026/07/DEV_260706.md))** · 📋 기획서 [PLAN_WEATHER_TOOL_260706](plans/PLAN_WEATHER_TOOL_260706.md)
 
 > 검토 2026-07-05. **현재 문제**: 전용 툴 없이 "날씨"가 [intentRules.ts:108](../server/agent/intentRules.ts#L108) domain 태깅 → [router.ts:106](../server/agent/nodes/router.ts#L106) `search:true` → **Google Search grounding + LLM 마크다운 표 생성**([prompt.ts:10-35](../server/agent/prompt.ts#L10)). 느림(15s+ grounding 왕복)·부정확(숫자 할루시네이션)·비구조적(카드 아님). 전용 툴로 전환 시 **~1s 결정론적 카드**.
 > **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — [buildWeatherData](../reference/news/app/api/weather/route.ts#L722) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
@@ -75,14 +75,16 @@
 > **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](docs/TODO.md#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
 > **✅ 실험 검증 완료** (2026-07-05, [scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts), 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
 
-- [ ] `server/agent/weather-tool.ts` — `buildWeatherData` 코어 이식. KMA(실황+단기, **육상 생략**) + OpenWeather 폴백. **격자: `dfsXyConv` 공식**(하드코딩 X) + geocoding 재사용. **강수 파싱 강화**: KMA PCP 범위 문자열(`30.0~50.0mm`·`1.0mm 미만`·`50.0mm 이상`)이 `numericValue` naive replace로 `null`화되는 버그(폭우 때 강수량 소실). **레퍼런스 실제 수정본(commit `e8fe197`) `numericValue` 그대로 차용** — firstNumber 정규식 + `A~Bmm→(A+B)/2`·`미만→/2`·`없음→0` ([reference route.ts](../reference/news/app/api/weather/route.ts#L318), [DEV_260705 §7-2](logs/2026/07/DEV_260705.md))
-- [ ] `components/WeatherRenderer.tsx` — 레퍼런스 카드 UI 이식(챗용 컴팩트). KMA는 +3일만·`pressure`/`visibility`/`feelsLike` 결측 처리. **강수 지표 = "현재 우선 + 예보 fallback"** (레퍼런스 `e8fe197`: `현재>0 ? "Xmm 현재" : 예보>0 ? "Xmm 예상" : "0mm"`, 강수량·강수확률 StatItem 분리, 5일 카드 강수량 줄). 현재 관측 RN1은 대부분 0이라 예보 fallback 필수. `PTY>0 && RN1==0`은 "약한 비" 문구 ([DEV_260705 §7-1](logs/2026/07/DEV_260705.md))
-- [ ] `router.ts` — `weather` intent 분리(현재 general+search로 흘러감), `search:false`로 grounding 우회
-- [ ] `prompt.ts` — [10-35행 마크다운 표 지시 제거](../server/agent/prompt.ts#L10) → 카드 JSON 스키마로 교체
-- [ ] `state.ts`, `generator.ts`, `ChatMessage.tsx` 공통 패턴 적용 (외부 API 인텐트 → 2.5-flash 정책 정합)
-- [ ] 다국어(ko/en/es/fr) — UI 라벨 i18n 딕셔너리 + KMA 코드→`{ko,en,es,fr}` 맵 + OWM `lang` 파라미터 + 요일 `Intl.DateTimeFormat`. 프리뷰 [weather-card-sample.html](../preview/weather-card-sample.html) 4개 언어 확인
-- [ ] 캐시 레이어 — Supabase TTL(url_cache 패턴)로 도시별 날씨 10분 캐시(쿼터·레이턴시 방어)
-- [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인. `dfsXyConv` 공식·하이브리드 파이프라인 실측 통과 ([scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts))
+- [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
+- [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록
+- [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식. 강수 "현재 우선 + 예보 fallback"(state=now/expected/none). KMA 가변 예보일·결측 조건부. 에러카드. 모바일 380 / 웹 540 + 가운데 정렬
+- [x] `router.ts` — `weather` intent 분리(grounding 우회) + 후속 해석 가드(해석형→general 다운그레이드)
+- [x] `prompt.ts` — `weather` focus hint(툴 강제 호출·표 금지). WEATHER_FORMATTING은 general 폴백 존치
+- [x] `state.ts`·`generator.ts`·`langchain-path.ts`·`graph.ts`·`ChatMessage.tsx`·`app/api/chat/route.ts` 배선 (LANGCHAIN/FAST_PASS 인텐트, on_tool_end 멀티블록 스트리밍)
+- [x] 다국어(ko/en/es/fr) — UI 라벨·상태·강수문구 딕셔너리 + 요일 `Intl` + 로컬 tz 시각. **렌더러 클라이언트 처리**(OWM lang 불필요)
+- [x] 예외/에러 — per-fetch 타임아웃(OWM 8s·KMA 9s, 60s 캡 방어) + KMA 빈데이터→OWM 폴백 + 렌더러 결측 가드
+- [ ] (선택) 캐시 레이어 — Supabase TTL 도시별 10분. **보류**(KMA `revalidate:600` + 쿼터 여유 2콜/조회)
+- [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인 ([scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts))
 
 **① arXiv + PubMed 논문 검색** (★★★)
 - [ ] `server/agent/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인

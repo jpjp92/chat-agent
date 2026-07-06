@@ -13,6 +13,7 @@ import { vetTool } from "./vet-tool";
 import { lawTool } from "./law-tool";
 import { movieTool } from "./movie-tool";
 import { worldCupTool } from "./worldcup-tool";
+import { weatherTool } from "./weather-tool";
 
 /**
  * Compiles the LangGraph StateGraph instance.
@@ -21,7 +22,7 @@ import { worldCupTool } from "./worldcup-tool";
 export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
 
     const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent);
-    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, worldCupTool]);
+    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, worldCupTool, weatherTool]);
 
     // 2. Define Conditional Routing
     // Evaluates if the generator LLM decided to invoke a tool

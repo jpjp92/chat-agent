@@ -10,6 +10,7 @@ import { vetTool } from "../vet-tool";
 import { lawTool } from "../law-tool";
 import { movieTool } from "../movie-tool";
 import { worldCupTool } from "../worldcup-tool";
+import { weatherTool } from "../weather-tool";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
@@ -76,7 +77,7 @@ export const runLangChainPath = async (args: {
             //   · fast-pass(출력 폐기, 카드=툴 JSON): thinking 완전 off(budget 0) — 순수 tool-router.
             //   · drug_info/drug_id/sports(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
             //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
-            const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search"]);
+            const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
             const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports"]);
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
             const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
@@ -149,6 +150,13 @@ export const runLangChainPath = async (args: {
                     return { messages: [new AIMessage("")] };
                 }
             }
+            if (state.intent === "weather" && lastMsg._getType() === "tool" && lastMsg.name === "weatherTool") {
+                const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+                if (toolContent.includes('```json:weather')) {
+                    console.log('[LangGraph] Fast-passing weatherTool: Bypassing final LLM generation');
+                    return { messages: [new AIMessage("")] };
+                }
+            }
 
             let directPillLookupDone = false;
             if (state.intent === "drug_id" && state.pillData && lastMsg._getType() !== "tool") {
@@ -206,6 +214,8 @@ export const runLangChainPath = async (args: {
                 allTools = [movieTool];
             } else if (state.intent === "sports") {
                 allTools = [worldCupTool];
+            } else if (state.intent === "weather") {
+                allTools = [weatherTool];
             }
 
             const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);

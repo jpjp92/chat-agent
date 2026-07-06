@@ -24,6 +24,7 @@ const HospitalRenderer = lazy(() => import('./HospitalRenderer').then(module => 
 const VetRenderer = lazy(() => import('./VetRenderer').then(module => ({ default: module.VetRenderer })));
 const LawRenderer = lazy(() => import('./LawRenderer').then(module => ({ default: module.LawRenderer })));
 const MovieRenderer = lazy(() => import('./MovieRenderer').then(module => ({ default: module.MovieRenderer })));
+const WeatherRenderer = lazy(() => import('./WeatherRenderer').then(module => ({ default: module.WeatherRenderer })));
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
@@ -427,8 +428,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'weather' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|weather)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -487,6 +488,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'law', data: jsonData });
         } else if (blockType === 'movie') {
           parts.push({ type: 'movie', data: jsonData });
+        } else if (blockType === 'weather') {
+          parts.push({ type: 'weather', data: jsonData });
         }
       } catch (e) {
         // Silently skip invalid viz blocks — don't dump raw JSON into the chat
@@ -501,13 +504,13 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       const remainingText = gateStreamingTables(content.substring(lastIndex), isStreaming);
 
       // Check for incomplete viz block or unclosed math block (streaming)
-      const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)/i.test(remainingText);
+      const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|weather)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
       if (hasIncompleteViz || hasUnclosedMath) {
         let visibleText = remainingText;
         if (hasIncompleteViz) {
-          visibleText = visibleText.split(/```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie)/i)[0];
+          visibleText = visibleText.split(/```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|weather)/i)[0];
         } else if (hasUnclosedMath) {
           visibleText = visibleText.substring(0, visibleText.lastIndexOf('$$'));
         }
@@ -674,6 +677,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               </ErrorBoundary>
             );
           }
+          if (part.type === 'weather') {
+            return (
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <WeatherRenderer data={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
+            );
+          }
           if (part.type === 'chart_loading') {
             return (
               <div key={idx} className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
@@ -705,9 +717,12 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   const hasChartBlock = !isUser && !!message.content?.match(/```json\s*:\s*chart/i);
   // Movie cards: widen on desktop only (chips 2-col need the width); mobile keeps the default 95%
   const hasMovieBlock = !isUser && !!message.content?.match(/```json\s*:\s*movie/i);
+  // Weather cards: 카드 자체가 sm:max-w-[480px]로 상한을 갖는다. 말풍선이 좁으면 그 상한이
+  // 발현 못 해 오히려 작아 보이므로, 데스크톱에서 말풍선을 넉넉히 열어 카드 상한이 폭을 결정하게 함.
+  const hasWeatherBlock = !isUser && !!message.content?.match(/```json\s*:\s*weather/i);
   const outerMaxWidth = (hasPharmacyBlock || hasChartBlock)
     ? 'w-[98%] sm:w-[92%] max-w-[98%] sm:max-w-[92%]'
-    : hasMovieBlock
+    : (hasMovieBlock || hasWeatherBlock)
       ? 'max-w-[95%] sm:w-[92%] sm:max-w-[92%]'
       : 'max-w-[95%] sm:max-w-[85%]';
 
