@@ -36,9 +36,11 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
     },
     {
         // 날씨 — 라우터 LLM 실패(무료티어 503/timeout) 시 이 폴백이 general+grounding 대신 weather로 보낸다.
-        // 오발 방지 위해 명확한 기상 토큰만(모호한 '기상'(기상=wake) 단독·'tiempo' 단독 제외).
+        // ⚠️ 카드 툴은 "특정 지역 현재날씨 + 단기예보"만 답한다. 장마 시작 시기·폭염 전망·미세먼지 농도
+        //    같은 계절/현상 질의는 카드가 못 답하므로 여기서 제외 → general+search가 처리("장마일정 조사").
+        //    오발 방지 위해 명확한 '현재 날씨' 토큰만(모호한 '기상'(기상=wake)·'tiempo' 단독 제외).
         intent: "weather",
-        pattern: /(날씨|기온|기후|기상청|기상\s*(특보|상황|정보|예보)|폭염|한파|장마|열대야|미세먼지|황사|몇\s*도(예|야|니|인가|일까)?|영하\s*\d|체감\s*온도|소나기|비\s*(와|올|오|온|내리|많이)|눈\s*(와|올|오|온|내리)|weather|forecast|temperature|how\s*(hot|cold|warm)|m[eé]t[eé]o|pron[oó]stico\s*(del\s*)?(tiempo|clima)|clima\s*de)/i,
+        pattern: /(날씨|기온|기후|기상청|기상\s*(특보|예보)|몇\s*도(예|야|니|인가|일까)?|체감\s*온도|소나기|비\s*(와|올|오|온|내리|많이\s*와)|눈\s*(와|올|오|온|내리)|weather|forecast|temperature|how\s*(hot|cold|warm)|m[eé]t[eé]o|pron[oó]stico\s*(del\s*)?(tiempo|clima)|clima\s*de)/i,
     },
     {
         intent: "astronomy",

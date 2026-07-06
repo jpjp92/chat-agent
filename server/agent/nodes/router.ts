@@ -232,6 +232,14 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         }
     }
 
+    // 카드가 다룰 수 없는 계절/현상·시기 질의는 weather로 분류돼도 general(+search)로 — 카드는 "특정 지역
+    // 현재날씨+단기예보"만 답한다. 장마 시작 시기·폭염 전망·미세먼지 농도·태풍 경로 등은 grounding이 정답.
+    // ("장마일정 조사하라고" → 카드 반복 대신 검색). weatherTool은 이런 데이터를 갖고 있지 않음.
+    if (intent === "weather" && /(장마|폭염|한파|열대야|미세먼지|초미세먼지|황사|태풍|가뭄|자외선\s*지수|꽃가루|오존)/.test(textContent)) {
+        console.log('[LangGraph] Weather → general: 계절/현상 질의(카드 범위 밖, 검색 처리)');
+        intent = "general";
+    }
+
     // 영화 멀티턴 후속 질문 가드: 직전 턴에 카드가 떠 있고(movieContext 존재) 현재 메시지가
     // 질문형(비교·필터·"~만"·"있어?" 등)이면, movie_search(=카드 재생성)가 아니라 general로 보내
     // 화면 상영표 요약(movieContext)으로 답하게 한다. 새 지역 카드 요청은 보통 질문형이 아니라 그대로 통과.

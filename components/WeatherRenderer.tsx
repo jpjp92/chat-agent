@@ -220,9 +220,9 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
                     }`}>
                       <div className="text-[10px] sm:text-[11px] font-extrabold text-[#8a8479] dark:text-[#93897c]">{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
                       <div className="text-[17px] sm:text-[20px] mt-1.5 mb-1.5 sm:mt-[5px] sm:mb-2 leading-none">{GLYPH[d.condition]}</div>
-                      <div className="flex items-baseline justify-center gap-1 tabular-nums">
-                        <span className="text-[10px] sm:text-[11px] font-semibold text-[#a49a8b] dark:text-[#8f8579]">{d.minTemp}°</span>
-                        <span className="text-[12.5px] sm:text-[13px] font-extrabold text-[#3a352d] dark:text-[#e7e0d3]">{d.maxTemp}°</span>
+                      <div className="flex flex-nowrap items-baseline justify-center gap-0.5 sm:gap-1 tabular-nums whitespace-nowrap">
+                        <span className="text-[9px] sm:text-[11px] font-semibold text-[#a49a8b] dark:text-[#8f8579] whitespace-nowrap">{d.minTemp}°</span>
+                        <span className="text-[11px] sm:text-[13px] font-extrabold text-[#3a352d] dark:text-[#e7e0d3] whitespace-nowrap">{d.maxTemp}°</span>
                       </div>
                       <div className="text-[9.5px] sm:text-[10px] font-bold text-[#b5722e] dark:text-[#d7a36f] mt-1.5 sm:mt-1 tabular-nums">{d.pop}%</div>
                     </div>
