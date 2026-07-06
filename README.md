@@ -25,7 +25,7 @@ A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Goo
 
 Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
 
-### 1-3. Visualization Renderers (11)
+### 1-3. Visualization Renderers (12)
 
 | Renderer             | Intent                          | Library / API                                     |
 | -------------------- | ------------------------------- | ------------------------------------------------- |
@@ -35,6 +35,7 @@ Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF
 | 🐾 Vet-Viz           | `vet_search`                  | MOIS animal hospital lookup service (expires 2028-05-10) |
 | ⚖️ Law-Viz          | `law_search`                  | Korea Law Information Center Open API              |
 | 🎬 Movie-Viz         | `movie_search`                | Lotte/Megabox direct JSON + CGV browserless (HMAC) |
+| 🌦️ Weather-Viz       | `weather`                     | KMA API Hub (한국, `dfsXyConv` 격자) + OpenWeather (해외·폴백) |
 | 🧪 Chem-Viz          | `chemistry`                   | smiles-drawer                                     |
 | 🧬 Bio-Viz           | `biology`                     | NGL Viewer (3D PDB)                               |
 | 📐 Diagram-Viz       | `physics`                     | Canvas 2D                                         |
@@ -92,7 +93,7 @@ flowchart TB
     subgraph External ["External"]
         Gemini[["Google Gemini AI"]]
         Supabase[("Supabase")]
-        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org)"]]
+        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org / KMA + OpenWeather)"]]
         Multiplex[["CGV / Lotte / Megabox"]]
     end
 
@@ -186,6 +187,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── models.ts                       # Server model registry
 │   ├── mfds-logic.ts / pill-logic.ts
 │   ├── supabase.ts
+│   ├── lib/weather/index.ts             # KMA + OpenWeather core (dfsXyConv, precip parse)
 │   └── agent/
 │       ├── graph.ts                    # LangGraph StateGraph
 │       ├── prompt.ts                   # System instruction builder
@@ -193,11 +195,12 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── tools.ts                    # identify_pill, search_web (DDG)
 │       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts
 │       ├── vet-tool.ts / law-tool.ts / movie-tool.ts / worldcup-tool.ts
+│       ├── weather-tool.ts              # weather intent (multi-city)
 │       └── nodes/
 │           ├── router.ts / vision.ts / generator.ts / langchain-path.ts
 │           ├── search-gate.ts / sdk-contents.ts
 │           ├── generation-config.ts / pill-messages.ts / retry.ts
-├── components/                         # 22 UI components (11 renderers + core)
+├── components/                         # 24 UI components (12 renderers + core)
 ├── lib/
 │   ├── theaters.ts / movieContext.ts
 │   └── sports/football-data.ts         # football-data.org WC data layer
