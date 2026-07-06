@@ -1,7 +1,7 @@
 # 기획: 날씨 전용 툴 (KMA + OpenWeather 하이브리드)
 
 > 작성일: 2026-07-06
-> 상태: **설계 기획 — 구현 대기** (실험 검증 완료, 리스크 해소)
+> 상태: **✅ 구현 완료 (2026-07-06, [DEV_260706](../logs/2026/07/DEV_260706.md))** — §5 체크리스트 참고
 > 트리거: reference `news` 프로젝트의 KMA+OpenWeather 하이브리드 날씨 구현 검토
 > 선행 검토·검증: [DEV_260705](../logs/2026/07/DEV_260705.md) (실험 결과·강수 파싱·언어 매핑)
 > 프리뷰: [preview/weather-card-sample.html](../../preview/weather-card-sample.html) (카드 디자인, 라이트/다크 + 4개 언어)
@@ -91,21 +91,27 @@ weather intent (router 분리, search:false)
 
 ---
 
-## 5. 구현 체크리스트 (공통 패턴: `tools.ts → router.ts → generator.ts → prompt.ts → ChatMessage.tsx → Renderer.tsx`)
+## 5. 구현 체크리스트 (공통 패턴: `tool → router.ts → generator.ts → langchain-path.ts → ChatMessage.tsx → Renderer.tsx`)
 
-- [ ] `server/agent/weather-tool.ts` — `buildWeatherData` 코어 이식
-  - [ ] `dfsXyConv` 공식 + OpenWeather geocoding 재사용 (격자 하드코딩 X)
-  - [ ] KMA 실황(`getUltraSrtNcst`)+단기(`getVilageFcst`) 병렬, **육상예보 생략**
-  - [ ] `numericValue` 강수 파싱 강화(범위/미만/없음)
-  - [ ] KMA 실패 try/catch → OpenWeather 폴백
-- [ ] `server/agent/state.ts` — `weather` intent + WeatherData 상태 필드
-- [ ] `server/agent/nodes/router.ts` — `weather` intent 분리, `search:false`(grounding 우회)
-- [ ] `server/agent/nodes/generator.ts` — weather 경로 배선 (외부 API 인텐트 → 2.5-flash 정책 정합)
-- [ ] `server/agent/prompt.ts` — [10-35행 마크다운 표 지시 제거](../../server/agent/prompt.ts#L10) → 카드 JSON 스키마
-- [ ] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식 (KMA +3일·`pressure`/`visibility`/`feelsLike` 결측 처리)
-- [ ] `components/ChatMessage.tsx` — `weather` 블록 파서 + lazy import
-- [ ] i18n — UI 라벨 4개 언어 딕셔너리 + KMA 코드→`{ko,en,es,fr}` 맵 + OWM `lang` 파라미터 + 요일 `Intl`
-- [ ] 캐시 레이어 — Supabase TTL(url_cache 패턴) 도시별 10분
+> **구현 완료 (2026-07-06)** — 아래 전부 배선·검증. `npx tsx scripts/test-weather-tool.ts`로 서울/전주/부산/Tokyo/없는도시 스모크 통과, `tsc --noEmit` 0.
+
+- [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어 (툴에서 분리, 렌더러와 타입 공유)
+  - [x] `dfsXyConv` 공식 + OpenWeather geocoding **1회** 재사용 (격자 하드코딩 X, 전국 커버). geocoding country=KR → KMA
+  - [x] KMA 실황(`getUltraSrtNcst`)+단기(`getVilageFcst`) 병렬, **육상예보 생략**(2콜)
+  - [x] `numericValue` 강수 파싱 강화(범위/미만/없음) — 전주 실측 40.5mm 정상(범위문자열 소실 방지 검증)
+  - [x] KMA 실패 try/catch → OpenWeather 폴백
+  - [x] 출력 **언어 중립**(condition/note 코드 + 숫자) — i18n은 렌더러가 담당(OWM `lang` 파라미터 불필요)
+- [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록 이어붙임
+- [x] `server/agent/state.ts` — `weather` intent 추가
+- [x] `server/agent/nodes/router.ts` — `weather` intent 분류 + LLM 프롬프트 카테고리 + **후속 해석 가드**(해석형 질문 weather→general 결정론 다운그레이드, DEV_260705 §9)
+- [x] `server/agent/nodes/generator.ts` + `langchain-path.ts` — `weather`를 LANGCHAIN/FAST_PASS 인텐트에 추가(grounding 우회, 2.5-flash) + weatherTool 바인딩 + fast-pass
+- [x] `server/agent/graph.ts` — ToolNode에 weatherTool 등록
+- [x] `app/api/chat/route.ts` — `on_tool_end`에 weatherTool 추가(멀티 블록 전역 매칭 스트리밍)
+- [x] `server/agent/prompt.ts` — `weather` focus hint(툴 강제 호출·표 금지). WEATHER_FORMATTING은 general 폴백용으로 존치
+- [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식 (KMA 가변 예보일·`pressure`/`visibility`/`feelsLike` 결측 처리·에러카드)
+- [x] `components/ChatMessage.tsx` — `weather` 블록 파서 + lazy import + 렌더 배선
+- [x] i18n — UI 라벨·상태(condition)·강수문구 4개 언어 딕셔너리 + 요일 `Intl.DateTimeFormat` + 로컬 tz 시각 포맷
+- [ ] (선택) 캐시 레이어 — Supabase TTL(url_cache 패턴) 도시별 10분. **미적용** — KMA `next:{revalidate:600}` + 쿼터 여유(2콜/조회)로 우선 보류
 - [x] 키 종류 검증 완료 — `KMA_API_KEY`=API Hub authKey ([DEV_260705 §4](../logs/2026/07/DEV_260705.md))
 
 ---

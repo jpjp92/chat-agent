@@ -95,6 +95,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "law_search"      : Korean law/statute lookup, article text, legal provisions, law lists, legal interpretation requests
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "sports"          : CURRENT/ONGOING FIFA World Cup standings, group rankings, fixtures/bracket (16강/8강 대진), match results, top scorers. ONLY for the tournament happening now — past World Cups (2022 등) go to "general".
+- "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
 - "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
 - "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
 - "physics"         : physics simulation, mechanics, force, motion, gravity, collision, electricity
@@ -117,7 +118,7 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }
@@ -187,6 +188,20 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
     if (intent === "sports" && /(20\d\d|지난|과거|역대|작년|예전)\s*(년)?\s*(월드컵|world\s?cup)|(월드컵|world\s?cup)\s*(20\d\d|역대|역사)/i.test(textContent)) {
         console.log('[LangGraph] Sports: 과거 대회 질의 → general (API는 현재 대회만)');
         intent = "general";
+    }
+
+    // 날씨 후속 "카드 해석" 가드: flash-lite가 화면 날씨 카드에 대한 해석 질문("습도가 높은
+    // 편이야?", "우산 챙겨야 해?", "빨래 널어도 될까?")을 간헐적으로 weather(=재조회)로 오분류한다
+    // (DEV_260705 §9: 15/16의 유일한 오분류). 해석형 어휘가 있고 "새 날씨 조회" 신호(날씨/기온/비 와/
+    // 예보/몇 도 등)가 없으면 결정론적으로 general로 내려 화면 데이터로 답하게 한다. 새 도시/날짜
+    // 재조회("부산은?", "내일은?")는 해석 어휘가 없어 그대로 weather 유지(LLM 판정 존중).
+    if (intent === "weather") {
+        const interp = /왜|이유|우산|빨래|외출|나가도|입을|옷차림|뭐\s*입|괜찮을까|어떻게\s*해|심한\s*편|높은\s*편|낮은\s*편|감기|건강|이\s*정도|그\s*정도/;
+        const weatherRequest = /날씨|기상|기온|온도|몇\s*도|비\s*(와|올|오|내|온|많)|눈\s*(와|올|오|내|온)|강수|강우|예보|더[워울]|추[워울]|맑|흐[림려]|바람|영하|폭염|한파|미세먼지/;
+        if (interp.test(textContent) && !weatherRequest.test(textContent)) {
+            console.log('[LangGraph] Weather follow-up (weather→general): interpretation of shown card');
+            intent = "general";
+        }
     }
 
     // 영화 멀티턴 후속 질문 가드: 직전 턴에 카드가 떠 있고(movieContext 존재) 현재 메시지가

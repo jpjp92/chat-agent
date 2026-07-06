@@ -17,6 +17,7 @@ export type IntentType =
     | "law_search"    // 국가법령정보 조회
     | "movie_search"  // 영화 상영시간표 (CGV/롯데/메가박스)
     | "sports"        // 월드컵 순위/대진/득점왕 (football-data.org)
+    | "weather"       // 날씨 카드 (KMA + OpenWeather 하이브리드)
     | "general";     // 나머지 모든 것
 
 /**
