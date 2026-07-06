@@ -66,6 +66,24 @@
 
 공통 구현 패턴: `tools.ts` → `router.ts` → `generator.ts` → `prompt.ts` → `ChatMessage.tsx` → `Renderer.tsx`
 
+**⓪ 날씨 전용 툴 — KMA + OpenWeather** (★★★, 키 둘 다 보유: `KMA_API_KEY`·`OPENWEATHER_API_KEY`) — 📋 **기획서: [PLAN_WEATHER_TOOL_260706](plans/PLAN_WEATHER_TOOL_260706.md)** (설계·검증·카드·다국어 종합)
+
+> 검토 2026-07-05. **현재 문제**: 전용 툴 없이 "날씨"가 [intentRules.ts:108](../server/agent/intentRules.ts#L108) domain 태깅 → [router.ts:106](../server/agent/nodes/router.ts#L106) `search:true` → **Google Search grounding + LLM 마크다운 표 생성**([prompt.ts:10-35](../server/agent/prompt.ts#L10)). 느림(15s+ grounding 왕복)·부정확(숫자 할루시네이션)·비구조적(카드 아님). 전용 툴로 전환 시 **~1s 결정론적 카드**.
+> **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — [buildWeatherData](../reference/news/app/api/weather/route.ts#L722) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
+> 설계: **KMA 우선(한국 정확도) + OpenWeather 보완(해외·geocoding·KMA 폴백)** 하이브리드. 레퍼런스가 KMA까지 다 풀어서 **처음부터 통째 이식 현실적**(단계 분리 불필요).
+> **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 [KMA_CITIES 표](../reference/news/app/api/weather/route.ts#L199)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
+> **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](docs/TODO.md#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
+> **✅ 실험 검증 완료** (2026-07-05, [scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts), 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
+
+- [ ] `server/agent/weather-tool.ts` — `buildWeatherData` 코어 이식. KMA(실황+단기, **육상 생략**) + OpenWeather 폴백. **격자: `dfsXyConv` 공식**(하드코딩 X) + geocoding 재사용. **강수 파싱 강화**: KMA PCP 범위 문자열(`30.0~50.0mm`·`1.0mm 미만`·`50.0mm 이상`)이 `numericValue` naive replace로 `null`화되는 버그(폭우 때 강수량 소실). **레퍼런스 실제 수정본(commit `e8fe197`) `numericValue` 그대로 차용** — firstNumber 정규식 + `A~Bmm→(A+B)/2`·`미만→/2`·`없음→0` ([reference route.ts](../reference/news/app/api/weather/route.ts#L318), [DEV_260705 §7-2](logs/2026/07/DEV_260705.md))
+- [ ] `components/WeatherRenderer.tsx` — 레퍼런스 카드 UI 이식(챗용 컴팩트). KMA는 +3일만·`pressure`/`visibility`/`feelsLike` 결측 처리. **강수 지표 = "현재 우선 + 예보 fallback"** (레퍼런스 `e8fe197`: `현재>0 ? "Xmm 현재" : 예보>0 ? "Xmm 예상" : "0mm"`, 강수량·강수확률 StatItem 분리, 5일 카드 강수량 줄). 현재 관측 RN1은 대부분 0이라 예보 fallback 필수. `PTY>0 && RN1==0`은 "약한 비" 문구 ([DEV_260705 §7-1](logs/2026/07/DEV_260705.md))
+- [ ] `router.ts` — `weather` intent 분리(현재 general+search로 흘러감), `search:false`로 grounding 우회
+- [ ] `prompt.ts` — [10-35행 마크다운 표 지시 제거](../server/agent/prompt.ts#L10) → 카드 JSON 스키마로 교체
+- [ ] `state.ts`, `generator.ts`, `ChatMessage.tsx` 공통 패턴 적용 (외부 API 인텐트 → 2.5-flash 정책 정합)
+- [ ] 다국어(ko/en/es/fr) — UI 라벨 i18n 딕셔너리 + KMA 코드→`{ko,en,es,fr}` 맵 + OWM `lang` 파라미터 + 요일 `Intl.DateTimeFormat`. 프리뷰 [weather-card-sample.html](../preview/weather-card-sample.html) 4개 언어 확인
+- [ ] 캐시 레이어 — Supabase TTL(url_cache 패턴)로 도시별 날씨 10분 캐시(쿼터·레이턴시 방어)
+- [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인. `dfsXyConv` 공식·하이브리드 파이프라인 실측 통과 ([scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts))
+
 **① arXiv + PubMed 논문 검색** (★★★)
 - [ ] `server/agent/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인
 - [ ] `components/PaperRenderer.tsx`
@@ -188,6 +206,14 @@
 - [ ] `attachment` + `attachments` 필드 단일화
 - [ ] `ChatInput.tsx` — `useSpeechInput` / `useAttachmentProcessor` 훅 분리
 - [ ] i18n 중앙화 (`src/i18n/messages.ts`)
+
+### 다크모드 웜 차콜 테마 (검토·보류)
+
+> reference `reference/news`(웜 종이+테라코타/틸 어시 팔레트) UI 이식 검토(2026-07-05). 결론: **다크 배경만** 안전, 라이트/오브 이식은 비추천. 프리뷰: [preview/dark-warm-charcoal.html](../preview/dark-warm-charcoal.html) (현재 `#131314` ↔ 웜 차콜 나란히 비교 + 오브 토글).
+
+- [ ] `app/layout.tsx:54` — 다크 `bg-[#131314]` → 웜 차콜 그라디언트(`#111316→#1b1a17` + 올리브/러스트 radial) 이동 검토. 명도 거의 동일해 저리스크.
+- [ ] 오브는 **바이올렛 톤 유지**(우리 아이덴티티) — 레퍼런스 어시(올리브/러스트) 오브는 바이올렛 액센트와 탁하게 충돌(프리뷰에서 확인). `globals.css` `.orb` 색만 조정.
+- ❌ **라이트 베이지 배경(`#f2f0ea`) 이식 비추천** — 액센트(바이올렛→테라코타/틸)까지 통째 리브랜딩 각오 아니면 웜 배경+쿨 보라가 muddy. `.warm-bg` radial 워시도 어시 전용이라 부적합.
 
 ### 시각화 카드 전체화면 팝업
 - [ ] `expandedViz` state + `VisualizationModal` Portal (`App.tsx`)
