@@ -83,5 +83,6 @@ weather in Madrid
 - **결측 필드**: KMA는 `feelsLike`=기온 동일·`pressure`/`visibility`/`windGust`=null → 카드 조건부 렌더.
 - **소스 불일치**: KMA(관측)와 OWM(모델)이 국지 강수에서 갈릴 수 있음. KMA primary 유지.
 - **라우터 폴백**: LLM 실패(무료티어 503/timeout) 시 `classifyIntentByRules`의 weather 규칙이 결정론 분류(grounding 표로 새는 것 방지).
+- **카드 범위 밖 = 검색으로**: weatherTool은 **특정 지역 현재날씨 + 단기예보(≤5일)**만 답한다. **장마 일정·폭염 전망·미세먼지 농도·태풍 경로** 같은 계절/현상/시기 질의는 데이터가 없어 `general`+grounding으로 라우팅(라우터 2겹 가드: 폴백 규칙에서 계절어 제외 + intent=weather여도 계절/현상어 매칭 시 general 강등). 예) "장마일정 조사해줘" → 검색 답변.
 - **팔레트**: 웜 앰버(레퍼런스 `news` 정렬) — 웜 차콜/크림 + 앰버/테라코타 액센트. 하늘 그라디언트는 날씨 의미라 유지.
 - **범위 밖(백로그)**: 6~10일 중기예보·과거 기록은 미지원 — 처리 방안은 [`../TODO.md`](../TODO.md) §P3 ⓪-a.

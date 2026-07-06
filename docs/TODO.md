@@ -78,7 +78,7 @@
 - [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
 - [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록
 - [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식. 강수 "현재 우선 + 예보 fallback"(state=now/expected/none). KMA 가변 예보일·결측 조건부. 에러카드. 모바일 380 / 웹 540 + 가운데 정렬. 예보 스트립 모바일 반응형 축소·최고/최저 한줄·셀 호버(오늘/타요일 차별). **팔레트=웜 앰버(레퍼런스 정렬)**: 웜 차콜/크림 표면 + 앰버/테라코타 액센트(DEV_260706 §6-2). 위치 아이콘 `fa-location-dot`
-- [x] `router.ts` + `intentRules.ts` — `weather` intent 분리(grounding 우회) + **멀티턴 후속 가드**(직전 assistant의 json:weather로 카드표시 판정 → 코멘트/해석은 general+카드데이터로 답·`needsSearch=false` / 새 조회는 weather 재조회, 스팟 10/10) + **폴백 규칙·구제**(라우터 LLM 실패 시 `classifyIntentByRules`가 weather 분류, 카드 있을 땐 구제 억제로 코멘트 승격 방지, 스팟 14/14)
+- [x] `router.ts` + `intentRules.ts` — `weather` intent 분리(grounding 우회) + **멀티턴 후속 가드**(직전 assistant의 json:weather로 카드표시 판정 → 코멘트/해석은 general+카드데이터로 답·`needsSearch=false` / 새 조회는 weather 재조회, 스팟 10/10) + **폴백 규칙·구제**(라우터 LLM 실패 시 `classifyIntentByRules`가 weather 분류, 카드 있을 땐 구제 억제로 코멘트 승격 방지, 스팟 14/14) + **계절/현상 강등**(장마·폭염·미세먼지·태풍 등은 카드 범위 밖 → general+search, 2겹 가드 스팟 8/8)
 - [x] `prompt.ts` — `weather` focus hint(툴 강제 호출·표 금지). WEATHER_FORMATTING은 general 폴백 존치
 - [x] `state.ts`·`generator.ts`·`langchain-path.ts`·`graph.ts`·`ChatMessage.tsx`·`app/api/chat/route.ts` 배선 (LANGCHAIN/FAST_PASS 인텐트, on_tool_end 멀티블록 스트리밍)
 - [x] 다국어(ko/en/es/fr) — UI 라벨·상태·강수문구 딕셔너리 + 요일 `Intl` + 로컬 tz 시각. **렌더러 클라이언트 처리**(OWM lang 불필요)
