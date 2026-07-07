@@ -83,3 +83,47 @@ export function magnitudeToOpacity(magnitude: number): number {
     // Brighter stars = more opaque
     return Math.max(0.3, Math.min(1, 1 - magnitude / 8));
 }
+
+/**
+ * Static "poster chart" projection: real RA/Dec relative positions, centered on the
+ * constellation centroid and auto-fit to the frame. Time/location independent.
+ * Sky orientation: RA increases to the LEFT, north (dec+) is up.
+ */
+export function projectStaticChart(
+    stars: { id: number; ra: number; dec: number }[],
+    width: number,
+    height: number,
+    padXFrac = 0.15,
+    padYFrac = 0.19,
+): { id: number; x: number; y: number }[] {
+    if (stars.length === 0) return [];
+    const cRA = stars.reduce((s, x) => s + x.ra, 0) / stars.length;
+    const cDec = stars.reduce((s, x) => s + x.dec, 0) / stars.length;
+    const cosD = Math.cos((cDec * Math.PI) / 180);
+    const raw = stars.map(s => ({
+        id: s.id,
+        px: -((s.ra - cRA) * 15) * cosD, // degrees, RA increases left
+        py: -(s.dec - cDec),             // degrees, north up
+    }));
+    const xs = raw.map(p => p.px), ys = raw.map(p => p.py);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const padX = width * padXFrac, padY = height * padYFrac;
+    const sc = Math.min((width - 2 * padX) / ((maxX - minX) || 1), (height - 2 * padY) / ((maxY - minY) || 1));
+    const ox = (width - (maxX + minX) * sc) / 2, oy = (height - (maxY + minY) * sc) / 2;
+    return raw.map(p => ({ id: p.id, x: p.px * sc + ox, y: p.py * sc + oy }));
+}
+
+/** Screen-space view transform (zoom + rotation + pan) around a center, shared by both projection modes. */
+export function applyViewTransform(
+    pts: { id: number; x: number; y: number }[],
+    cx: number,
+    cy: number,
+    view: { scale: number; rot: number; px: number; py: number },
+): { id: number; x: number; y: number }[] {
+    const cs = Math.cos(view.rot), sn = Math.sin(view.rot);
+    return pts.map(p => {
+        const dx = (p.x - cx) * view.scale, dy = (p.y - cy) * view.scale;
+        return { id: p.id, x: cx + dx * cs - dy * sn + view.px, y: cy + dx * sn + dy * cs + view.py };
+    });
+}
