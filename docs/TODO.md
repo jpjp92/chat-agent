@@ -211,6 +211,10 @@
 - [ ] **wikidocs 블로그 redundancy 부재** — 블로그형 페이지는 실질적으로 ScrapingBee 단일 의존(browserless는 본문 0·en-US 셸, scraperapi는 45s 타임아웃). ScrapingBee가 실제로 실패(크레딧 소진·bad window)하면 여전히 502 → **ScrapingBee 1회 재시도**(DEV_260606 "간격 재시도" 학습) 또는 wikidocs 블로그용 browserless 렌더 옵션(waitForSelector) 보강 검토.
 - [ ] **`isSecurityBlock` substring 매칭의 콘텐츠 오판 소지** — 추출 본문에 특정 단어 포함만으로 CF 챌린지 판정 → 정상 기사가 그 단어를 언급하면 오판(이번 `cloudflare` 케이스). 챌린지 판정은 가능하면 HTTP status·응답 크기·`<title>` 등 **구조 신호 우선**으로 리팩토링 검토.
 
+### 응답 산문 가독성 규칙 (DEV_260707 §6 후속, 보류)
+
+- [ ] **`[PROSE READABILITY]` 프롬프트 규칙** — 일반 대화(표·카드 아님) 산문 응답의 문단 분할·공백 줄·"직답 먼저 후 부연" 가이드를 `prompt.ts` [FORMATTING & QUALITY]에 추가 검토. 선행: DEV_260707 §6 메타코멘트 오프너 억제만으로 가독성 개선 폭을 배포 후 관찰한 뒤 필요성 재평가.
+
 ### 핵심 UX
 - [ ] **메시지 재생성** — 같은 프롬프트 재실행
 - [ ] **메시지 편집** — 입력창 프리필은 구현됨(`editingMessageContent`/`editValue`, `ChatInput.tsx:100`); 남은 건 편집 시점 이후 히스토리 truncate 후 재실행
