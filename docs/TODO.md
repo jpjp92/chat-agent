@@ -204,6 +204,13 @@
 - [ ] 약국/병원/동물병원 툴 — 동일 지역 재검색 캐시 (`url_cache` 패턴 차용, Fluid Compute 메모리 비지속 대응)
 - [ ] `drug-info-tool.ts` — 동일 약품명 Google Search 결과 캐싱
 
+### URL fetch 견고화 (DEV_260707 후속)
+
+> 배경: wikidocs 블로그 502 근본 원인은 `isSecurityBlock`의 `'cloudflare'` 오판이었고 수정 완료. 아래는 그 과정에서 드러난 구조적 취약점.
+
+- [ ] **wikidocs 블로그 redundancy 부재** — 블로그형 페이지는 실질적으로 ScrapingBee 단일 의존(browserless는 본문 0·en-US 셸, scraperapi는 45s 타임아웃). ScrapingBee가 실제로 실패(크레딧 소진·bad window)하면 여전히 502 → **ScrapingBee 1회 재시도**(DEV_260606 "간격 재시도" 학습) 또는 wikidocs 블로그용 browserless 렌더 옵션(waitForSelector) 보강 검토.
+- [ ] **`isSecurityBlock` substring 매칭의 콘텐츠 오판 소지** — 추출 본문에 특정 단어 포함만으로 CF 챌린지 판정 → 정상 기사가 그 단어를 언급하면 오판(이번 `cloudflare` 케이스). 챌린지 판정은 가능하면 HTTP status·응답 크기·`<title>` 등 **구조 신호 우선**으로 리팩토링 검토.
+
 ### 핵심 UX
 - [ ] **메시지 재생성** — 같은 프롬프트 재실행
 - [ ] **메시지 편집** — 입력창 프리필은 구현됨(`editingMessageContent`/`editValue`, `ChatInput.tsx:100`); 남은 건 편집 시점 이후 히스토리 truncate 후 재실행

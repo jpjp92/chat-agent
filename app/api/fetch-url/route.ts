@@ -23,7 +23,10 @@ const isSecurityBlock = (text: string) => {
         t.includes('security service to protect') || t.includes('warning: target url returned error 403') ||
         t.includes('warning: this page maybe requiring captcha') ||
         t.includes('verifying you are not a bot') || t.includes('please enable cookies') ||
-        t.includes('cloudflare') || t.includes('cf-ray') ||
+        // 광범위한 'cloudflare'/'cf-ray' 대신 챌린지 페이지 고유 문구만 매칭.
+        // (정상 기사가 본문에서 'Cloudflare'를 언급하면 오판해 fetch를 실패로 뒤집던 버그 — wikidocs 블로그 502)
+        t.includes('attention required! | cloudflare') || t.includes('sorry, you have been blocked') ||
+        t.includes('cloudflare ray id') ||
         t.includes('보안 확인 수행 중') || t.includes('악의적인 봇') ||
         t.includes('잠시만 기다리십시오');
 };
