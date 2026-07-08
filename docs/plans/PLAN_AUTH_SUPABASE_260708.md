@@ -85,32 +85,43 @@ create trigger on_auth_user_created
 
 ### 4-3. RLS 정책
 
+> ⚠️ **익명 로그인 함정 (Supabase 보안 체크리스트)**: 익명 유저도 Postgres `authenticated` 롤을 갖는다. 따라서 `auth.role() = 'authenticated'`류 검사는 **익명 유저까지 통과시켜 무의미** → 반드시 `TO authenticated` + **소유권 술어(`auth.uid() = user_id`)** 조합으로 작성. `TO authenticated`만 쓰면 인증만 하고 인가는 안 하는 IDOR. UPDATE는 `USING`뿐 아니라 **`WITH CHECK`도 필수**(없으면 행의 `user_id`를 타인으로 재지정 가능). 성능을 위해 `auth.uid()`는 `(select auth.uid())`로 감싼다(플랜당 1회 평가).
+
 ```sql
 alter table public.profiles enable row level security;
 alter table public.chat_sessions enable row level security;
 alter table public.chat_messages enable row level security;
 
--- profiles: 본인 행만
-create policy "own profile select" on public.profiles for select using (auth.uid() = id);
-create policy "own profile update" on public.profiles for update using (auth.uid() = id);
--- insert는 trigger(security definer)가 담당 → insert policy 불필요
+-- profiles: 본인 행만 (SELECT + UPDATE, WITH CHECK로 id 변조 차단)
+create policy "own profile select" on public.profiles
+  for select to authenticated using ((select auth.uid()) = id);
+create policy "own profile update" on public.profiles
+  for update to authenticated
+  using ((select auth.uid()) = id)
+  with check ((select auth.uid()) = id);
+-- insert는 handle_new_user 트리거(security definer)가 담당 → insert policy 불필요
 
 -- chat_sessions: 본인 세션만 CRUD
 create policy "own sessions" on public.chat_sessions
-  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 -- chat_messages: 소속 세션이 본인 것일 때만
 create policy "own messages" on public.chat_messages
-  for all using (
+  for all to authenticated
+  using (
     exists (select 1 from public.chat_sessions s
-            where s.id = chat_messages.session_id and s.user_id = auth.uid())
+            where s.id = chat_messages.session_id and s.user_id = (select auth.uid()))
   ) with check (
     exists (select 1 from public.chat_sessions s
-            where s.id = chat_messages.session_id and s.user_id = auth.uid())
+            where s.id = chat_messages.session_id and s.user_id = (select auth.uid()))
   );
 ```
 
-- 시스템 테이블(`url_cache`, `mfds_pills`)도 RLS enable + policy 없음(= anon 접근 차단, `supabaseAdmin`만 접근).
+- **Data API GRANT 확인**: 테이블 재생성(클린 스타트) 시 `authenticated` 롤에 자동으로 REST 접근이 부여되지 않을 수 있다. RLS enable와 별개로 `authenticated` 롤의 테이블 접근(GRANT)이 필요 — 마이그레이션 후 `supabase db advisors`로 노출/권한 점검.
+- 시스템 테이블(`url_cache`, `mfds_pills`)도 **RLS enable + policy 없음**(= anon/authenticated 접근 전면 차단, `supabaseAdmin`(service_role)만 접근).
+- **`is_guest`는 표시용 전용** — 인가 판단(RLS·게이팅)에 쓰지 않는다. Trial 횟수 제한은 `auth.jwt()->>'is_anonymous'` 등 auth 신뢰 필드로 판정.
 
 ### 4-4. Storage
 
