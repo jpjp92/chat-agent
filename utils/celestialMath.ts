@@ -95,6 +95,7 @@ export function projectStaticChart(
     height: number,
     padXFrac = 0.15,
     padYFrac = 0.19,
+    topInset = 0, // extra reserved space at the top (px) for the poster title, so the figure sits below it
 ): { id: number; x: number; y: number }[] {
     if (stars.length === 0) return [];
     const cRA = stars.reduce((s, x) => s + x.ra, 0) / stars.length;
@@ -109,8 +110,11 @@ export function projectStaticChart(
     const minX = Math.min(...xs), maxX = Math.max(...xs);
     const minY = Math.min(...ys), maxY = Math.max(...ys);
     const padX = width * padXFrac, padY = height * padYFrac;
-    const sc = Math.min((width - 2 * padX) / ((maxX - minX) || 1), (height - 2 * padY) / ((maxY - minY) || 1));
-    const ox = (width - (maxX + minX) * sc) / 2, oy = (height - (maxY + minY) * sc) / 2;
+    const availTop = padY + topInset, availBottom = height - padY;
+    const availH = Math.max(1, availBottom - availTop);
+    const sc = Math.min((width - 2 * padX) / ((maxX - minX) || 1), availH / ((maxY - minY) || 1));
+    const ox = (width - (maxX + minX) * sc) / 2;
+    const oy = (availTop + availBottom) / 2 - ((minY + maxY) / 2) * sc; // center within the area below the title band
     return raw.map(p => ({ id: p.id, x: p.px * sc + ox, y: p.py * sc + oy }));
 }
 

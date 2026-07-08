@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Language } from '../types';
-import { projectToCanvas, magnitudeToSize, magnitudeToOpacity } from '../utils/celestialMath';
+import { projectToCanvas, magnitudeToSize, magnitudeToOpacity, projectStaticChart, applyViewTransform } from '../utils/celestialMath';
 import { equatorialToHorizontal, horizontalToCanvas, getCurrentLocation, isNighttime } from '../utils/astronomyHelper';
 
 interface Star {
@@ -31,19 +31,20 @@ interface ConstellationRendererProps {
 }
 
 const labels = {
-    ko: { title: '별자리 지도', snapshot: '스냅샷', analyzing: '별자리 분석 중...' },
-    en: { title: 'Constellation Map', snapshot: 'Snapshot', analyzing: 'Analyzing constellation...' },
-    es: { title: 'Mapa de Constelaciones', snapshot: 'Captura', analyzing: 'Analizando constelación...' },
-    fr: { title: 'Carte des Constellations', snapshot: 'Capture', analyzing: 'Analyse de constellation...' }
+    ko: { title: '별자리 지도', snapshot: '스냅샷', analyzing: '별자리 분석 중...', mag: '등급', observer: '관측지 모드 (서울 실시간 하늘)', staticBadge: '정적', observerBadge: '관측지 · 서울', zoomIn: '확대', zoomOut: '축소', rotate: '회전', reset: '초기화' },
+    en: { title: 'Constellation Map', snapshot: 'Snapshot', analyzing: 'Analyzing constellation...', mag: 'Mag', observer: 'Observer mode (live Seoul sky)', staticBadge: 'Static', observerBadge: 'Observer · Seoul', zoomIn: 'Zoom in', zoomOut: 'Zoom out', rotate: 'Rotate', reset: 'Reset' },
+    es: { title: 'Mapa de Constelaciones', snapshot: 'Captura', analyzing: 'Analizando constelación...', mag: 'Mag', observer: 'Modo observador (cielo de Seúl en vivo)', staticBadge: 'Estática', observerBadge: 'Observador · Seúl', zoomIn: 'Acercar', zoomOut: 'Alejar', rotate: 'Rotar', reset: 'Restablecer' },
+    fr: { title: 'Carte des Constellations', snapshot: 'Capture', analyzing: 'Analyse de constellation...', mag: 'Mag', observer: 'Mode observateur (ciel de Séoul en direct)', staticBadge: 'Statique', observerBadge: 'Observateur · Séoul', zoomIn: 'Zoom avant', zoomOut: 'Zoom arrière', rotate: 'Rotation', reset: 'Réinitialiser' }
 };
 
 // Star color temperature by magnitude (O/B → K/M type)
 const getStarColor = (mag: number): string => {
-    if (mag < 0.5) return '#cad8ff'; // blue-white (Rigel, Sirius)
-    if (mag < 1.5) return '#e8f0ff'; // white-blue (Vega, Deneb)
-    if (mag < 2.5) return '#fff8f0'; // warm white
-    if (mag < 3.5) return '#ffecd0'; // yellow-white
-    return '#ffddaa';                 // orange (K/M type)
+    // Warm gold poster ramp (brightest = near-white gold, faint = deeper gold)
+    if (mag < 0.5) return '#ffeecd';
+    if (mag < 1.5) return '#ffecc4';
+    if (mag < 2.5) return '#ffe2a8';
+    if (mag < 3.5) return '#ffd696';
+    return '#ffcc88';
 };
 
 const hexToRgba = (hex: string, a: number): string => {
@@ -62,6 +63,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
     // Interactive state
     const [zoom, setZoom] = useState(1.0);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+    const [observerMode, setObserverMode] = useState(false); // false = static poster chart (default), true = real-time Seoul sky
+    const [viewRot, setViewRot] = useState(0);                // user view rotation (radians), both modes
     const [hoveredStar, setHoveredStar] = useState<Star | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -166,20 +169,22 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Set canvas size - fixed dimensions like ChemicalRenderer
+        // Responsive canvas: fit the actual card width so the poster fills the screen naturally.
         const updateCanvasSize = () => {
             const container = canvas.parentElement;
             if (!container) return;
 
             const isMobile = window.innerWidth < 640;
-            const width = isMobile ? 500 : 800;
-            const height = isMobile ? 340 : 500;
+            // Fit to the card's real width; mobile gets a taller (more square) frame for vertical room.
+            const width = Math.max(280, Math.round(container.clientWidth));
+            const height = Math.round(width * (isMobile ? 0.8 : 0.6));
 
-            canvas.width = width * 2; // Retina support
+            canvas.width = width * 2; // Retina (2x) — renderConstellation/handleSnapshot assume this factor
             canvas.height = height * 2;
-            canvas.style.width = `${width}px`;
+            canvas.style.width = '100%';
             canvas.style.height = `${height}px`;
 
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // reset so repeated resizes don't compound the scale
             ctx.scale(2, 2);
             renderConstellation();
         };
@@ -200,6 +205,18 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             bgGrad.addColorStop(0.5, '#030a16');
             bgGrad.addColorStop(1,   '#010306');
             ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Warm poster nebula — purple (bottom-left) + blue (top-right)
+            const neb1 = ctx.createRadialGradient(width * 0.22, height * 0.82, 0, width * 0.22, height * 0.82, width * 0.55);
+            neb1.addColorStop(0, 'rgba(96,62,128,0.42)');
+            neb1.addColorStop(1, 'rgba(96,62,128,0)');
+            ctx.fillStyle = neb1;
+            ctx.fillRect(0, 0, width, height);
+            const neb2 = ctx.createRadialGradient(width * 0.8, height * 0.2, 0, width * 0.8, height * 0.2, width * 0.55);
+            neb2.addColorStop(0, 'rgba(38,92,140,0.34)');
+            neb2.addColorStop(1, 'rgba(38,92,140,0)');
+            ctx.fillStyle = neb2;
             ctx.fillRect(0, 0, width, height);
 
             // Subtle atmosphere glow at bottom edge
@@ -224,32 +241,34 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
             });
             ctx.globalCompositeOperation = 'source-over';
 
-            // Draw Milky Way Background
-            ctx.globalCompositeOperation = 'screen';
+            // Draw Milky Way Background — observer (real sky) mode only; static poster chart omits it
+            if (observerMode) {
+                ctx.globalCompositeOperation = 'screen';
 
-            milkyWayParticles.forEach(p => {
-                const hor = equatorialToHorizontal(p.ra, p.dec, observerTime, observerLocation);
-                // Simple visibility check (allow some margin for glow)
-                if (hor.altitude < -10) return;
+                milkyWayParticles.forEach(p => {
+                    const hor = equatorialToHorizontal(p.ra, p.dec, observerTime, observerLocation);
+                    // Simple visibility check (allow some margin for glow)
+                    if (hor.altitude < -10) return;
 
-                const [cx, cy] = horizontalToCanvas(hor.altitude, hor.azimuth, width, height, scale);
-                const x = cx + panOffset.x;
-                const y = cy + panOffset.y;
+                    const [cx, cy] = horizontalToCanvas(hor.altitude, hor.azimuth, width, height, scale);
+                    const x = cx + panOffset.x;
+                    const y = cy + panOffset.y;
 
-                // Skip if off-screen (optimization)
-                if (x < -p.size || x > width + p.size || y < -p.size || y > height + p.size) return;
+                    // Skip if off-screen (optimization)
+                    if (x < -p.size || x > width + p.size || y < -p.size || y > height + p.size) return;
 
-                const radial = ctx.createRadialGradient(x, y, 0, x, y, p.size * zoom);
-                radial.addColorStop(0, `rgba(60, 80, 120, ${p.opacity})`); // Deep space blue
-                radial.addColorStop(1, 'rgba(60, 80, 120, 0)');
+                    const radial = ctx.createRadialGradient(x, y, 0, x, y, p.size * zoom);
+                    radial.addColorStop(0, `rgba(60, 80, 120, ${p.opacity})`); // Deep space blue
+                    radial.addColorStop(1, 'rgba(60, 80, 120, 0)');
 
-                ctx.fillStyle = radial;
-                ctx.beginPath();
-                ctx.arc(x, y, p.size * zoom, 0, Math.PI * 2);
-                ctx.fill();
-            });
+                    ctx.fillStyle = radial;
+                    ctx.beginPath();
+                    ctx.arc(x, y, p.size * zoom, 0, Math.PI * 2);
+                    ctx.fill();
+                });
 
-            ctx.globalCompositeOperation = 'source-over'; // Reset blending mode
+                ctx.globalCompositeOperation = 'source-over'; // Reset blending mode
+            }
 
             // Calculate center RA/Dec from actual star positions for better framing
             let centerRA = data.center?.ra;
@@ -263,57 +282,54 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                 centerDec = avgDec;
             }
 
-            // Project all stars using real-time Alt/Az coordinates
-            const projectedStars = data.stars.map(star => {
-                // Convert RA/Dec -> Alt/Az -> Canvas
-                const horCoords = equatorialToHorizontal(
-                    star.ra,
-                    star.dec,
-                    observerTime,
-                    observerLocation
+            // Project stars: static poster chart (default) or real-time Alt/Az (observer mode)
+            let projectedStars: Array<Star & { canvasX: number; canvasY: number; visible?: boolean }>;
+            if (!observerMode) {
+                // Static: real RA/Dec relative positions, centered + auto-fit, time/location independent
+                // Tighter side margins on mobile; reserve a top band so the poster title never overlaps the figure
+                const isMobileView = window.innerWidth < 640;
+                const flat = projectStaticChart(
+                    data.stars, width, height,
+                    isMobileView ? 0.09 : 0.12,
+                    isMobileView ? 0.10 : 0.12,
+                    isMobileView ? 54 : 74,
                 );
+                const posById = Object.fromEntries(flat.map(p => [p.id, p]));
+                projectedStars = data.stars.map(s => ({ ...s, canvasX: posById[s.id].x, canvasY: posById[s.id].y, visible: true }));
+            } else {
+                // Observer: real Seoul sky. Zoom handled by the view transform below, so project with a zoom-free base scale.
+                const baseScale = height * 0.4 * (data.zoom || 1.0);
+                projectedStars = data.stars.map(star => {
+                    const hor = equatorialToHorizontal(star.ra, star.dec, observerTime, observerLocation);
+                    const [canvasX, canvasY] = horizontalToCanvas(hor.altitude, hor.azimuth, width, height, baseScale);
+                    return { ...star, canvasX, canvasY, visible: hor.visible };
+                });
 
-                const [canvasX, canvasY] = horizontalToCanvas(
-                    horCoords.altitude,
-                    horCoords.azimuth,
-                    width,
-                    height,
-                    scale
-                );
-
-                const visible = horCoords.visible; // Only show stars above horizon
-                return { ...star, canvasX, canvasY, visible };
-            });
-
-
-            // Auto-adjust viewport to ensure constellation is visible (not hidden by UI)
-            const visibleStars = projectedStars.filter(s => s.visible !== false);
-            if (visibleStars.length > 0) {
-                const minY = Math.min(...visibleStars.map(s => s.canvasY));
-                const maxY = Math.max(...visibleStars.map(s => s.canvasY));
-                const avgY = (minY + maxY) / 2;
-
-                // Calculate safe viewing area (avoid UI panels)
-                const headerHeight = 55; // header bar ~44px + 12px top offset
-                const bottomControlHeight = 80;
-                const padding = 20;
-
-                const safeTop = headerHeight + padding;
-                const safeBottom = height - bottomControlHeight - padding;
-                const safeHeight = safeBottom - safeTop;
-                const safeCenterY = safeTop + safeHeight / 2;
-
-                // Calculate required pan offset to center constellation in safe area
-                const requiredPanY = safeCenterY - avgY;
-
-                // Apply pan offset automatically (only once on initial load)
-                if (!hasAutoCentered) {
-                    setPanOffset({ x: 0, y: requiredPanY });
+                // Auto-center the constellation in the safe viewing area on first load (observer only)
+                const visibleStars = projectedStars.filter(s => s.visible !== false);
+                if (visibleStars.length > 0 && !hasAutoCentered) {
+                    const minY = Math.min(...visibleStars.map(s => s.canvasY));
+                    const maxY = Math.max(...visibleStars.map(s => s.canvasY));
+                    const avgY = (minY + maxY) / 2;
+                    const safeTop = 55 + 20, safeBottom = height - 80 - 20;
+                    const safeCenterY = safeTop + (safeBottom - safeTop) / 2;
+                    setPanOffset({ x: 0, y: safeCenterY - avgY });
                     setHasAutoCentered(true);
                 }
             }
 
-            // Store projected stars for hover detection
+            // Apply user view transform (zoom + rotation + pan) around canvas center — both modes
+            {
+                const vt = applyViewTransform(
+                    projectedStars.map(s => ({ id: s.id, x: s.canvasX, y: s.canvasY })),
+                    width / 2, height / 2,
+                    { scale: zoom, rot: viewRot, px: panOffset.x, py: panOffset.y },
+                );
+                const vById = Object.fromEntries(vt.map(p => [p.id, p]));
+                projectedStars = projectedStars.map(s => ({ ...s, canvasX: vById[s.id].x, canvasY: vById[s.id].y }));
+            }
+
+            // Store projected stars for hover detection (positions already include the view transform)
             projectedStarsRef.current = projectedStars;
 
             // Draw constellation lines (gradient glow + thin core)
@@ -324,60 +340,72 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                         const end = projectedStars.find(s => s.id === endId);
                         if (!start || !end || start.visible === false || end.visible === false) return;
 
-                        const x1 = start.canvasX + panOffset.x;
-                        const y1 = start.canvasY + panOffset.y;
-                        const x2 = end.canvasX + panOffset.x;
-                        const y2 = end.canvasY + panOffset.y;
+                        const x1 = start.canvasX;
+                        const y1 = start.canvasY;
+                        const x2 = end.canvasX;
+                        const y2 = end.canvasY;
 
-                        // Glow line — brighter in the middle, fades at star endpoints
+                        // Warm gold glow line — brighter in the middle, fades at star endpoints
                         const lineGrad = ctx.createLinearGradient(x1, y1, x2, y2);
-                        lineGrad.addColorStop(0,   'rgba(80, 140, 255, 0.08)');
-                        lineGrad.addColorStop(0.2,  'rgba(110, 170, 255, 0.6)');
-                        lineGrad.addColorStop(0.5,  'rgba(150, 205, 255, 0.85)');
-                        lineGrad.addColorStop(0.8,  'rgba(110, 170, 255, 0.6)');
-                        lineGrad.addColorStop(1,   'rgba(80, 140, 255, 0.08)');
+                        lineGrad.addColorStop(0,   'rgba(224, 168, 111, 0.12)');
+                        lineGrad.addColorStop(0.5, 'rgba(240, 205, 150, 0.9)');
+                        lineGrad.addColorStop(1,   'rgba(224, 168, 111, 0.12)');
                         ctx.strokeStyle = lineGrad;
-                        ctx.lineWidth = 1.5;
+                        ctx.lineWidth = 1.4;
                         ctx.lineCap = 'round';
+                        ctx.shadowColor = 'rgba(240, 200, 140, 0.5)';
+                        ctx.shadowBlur = 9;
                         ctx.beginPath();
                         ctx.moveTo(x1, y1);
                         ctx.lineTo(x2, y2);
                         ctx.stroke();
-
-                        // Thin bright core on top
-                        ctx.strokeStyle = 'rgba(210, 235, 255, 0.22)';
-                        ctx.lineWidth = 0.5;
-                        ctx.beginPath();
-                        ctx.moveTo(x1, y1);
-                        ctx.lineTo(x2, y2);
-                        ctx.stroke();
+                        ctx.shadowBlur = 0;
                     });
                 });
             }
 
-            // Draw stars with color temperature
+            // Draw stars — warm gold halo (tighter for faint, so dense asterisms stay distinct) + cross spikes + warm core
             projectedStars.filter(star => star.visible !== false).forEach(star => {
                 const size = magnitudeToSize(star.mag) * 1.5;
                 const opacity = magnitudeToOpacity(star.mag);
                 const color = getStarColor(star.mag);
-                const x = star.canvasX + panOffset.x;
-                const y = star.canvasY + panOffset.y;
+                const x = star.canvasX;
+                const y = star.canvasY;
+                const haloMul = star.mag < 2.5 ? 3.5 : star.mag < 3.4 ? 2.9 : 2.3;
+                const haloR = size * haloMul;
 
-                // Outer glow (color-tinted)
-                const glow = ctx.createRadialGradient(x, y, 0, x, y, size * 3.5);
+                // Outer glow (gold-tinted)
+                const glow = ctx.createRadialGradient(x, y, 0, x, y, haloR);
                 glow.addColorStop(0,   hexToRgba(color, opacity * 0.9));
                 glow.addColorStop(0.3, hexToRgba(color, opacity * 0.5));
                 glow.addColorStop(0.7, hexToRgba(color, opacity * 0.15));
                 glow.addColorStop(1,   hexToRgba(color, 0));
                 ctx.fillStyle = glow;
                 ctx.beginPath();
-                ctx.arc(x, y, size * 3.5, 0, Math.PI * 2);
+                ctx.arc(x, y, haloR, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Bright white core
-                ctx.fillStyle = `rgba(255,255,255,${Math.min(1, opacity * 1.3)})`;
+                // 4-point cross spike (poster twinkle) for brighter stars
+                if (star.mag < 3.0) {
+                    const L = size * 3.4;
+                    for (const [ex, ey] of [[L, 0], [0, L]] as [number, number][]) {
+                        const sg = ctx.createLinearGradient(x - ex, y - ey, x + ex, y + ey);
+                        sg.addColorStop(0, 'rgba(255,240,205,0)');
+                        sg.addColorStop(0.5, `rgba(255,244,215,${Math.min(0.6, opacity * 0.6)})`);
+                        sg.addColorStop(1, 'rgba(255,240,205,0)');
+                        ctx.strokeStyle = sg;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(x - ex, y - ey);
+                        ctx.lineTo(x + ex, y + ey);
+                        ctx.stroke();
+                    }
+                }
+
+                // Warm bright core
+                ctx.fillStyle = `rgba(255,246,220,${Math.min(1, opacity * 1.3)})`;
                 ctx.beginPath();
-                ctx.arc(x, y, size * 0.65, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 0.62, 0, Math.PI * 2);
                 ctx.fill();
             });
 
@@ -421,8 +449,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     const labelWidth = textMetrics.width + 10;
 
                     // Apply pan offset to star position
-                    const starX = star.canvasX + panOffset.x;
-                    const starY = star.canvasY + panOffset.y;
+                    const starX = star.canvasX;
+                    const starY = star.canvasY;
 
                     // Try multiple positions: bottom, top, right, left
                     const positions = [
@@ -457,7 +485,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                         if (!checkCollision(pos.x, pos.y, labelWidth, labelHeight)) {
                             ctx.textAlign = pos.align;
                             ctx.textBaseline = pos.baseline;
-                            ctx.fillStyle = 'rgba(220, 230, 255, 0.95)';
+                            ctx.fillStyle = 'rgba(248, 223, 176, 0.95)';
 
                             const textX = pos.align === 'center' ? starX :
                                 pos.align === 'left' ? pos.x : pos.x + labelWidth;
@@ -509,7 +537,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         return () => {
             window.removeEventListener('resize', updateCanvasSize);
         };
-    }, [data, language, zoom, panOffset, observerTime, observerLocation]);
+    }, [data, language, zoom, panOffset, observerTime, observerLocation, observerMode, viewRot]);
 
     // Handle wheel events with passive: false to allow preventDefault
     useEffect(() => {
@@ -539,8 +567,22 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
     const handleResetView = () => {
         setZoom(1.0);
         setPanOffset({ x: 0, y: 0 });
+        setViewRot(0);
         setHoveredStar(null);
         setHasAutoCentered(false); // Re-enable auto-centering
+    };
+
+    // Rotate the view by 15° per click (single control, wraps full circle)
+    const handleRotate = () => setViewRot(prev => prev + Math.PI / 12);
+
+    // Toggle static poster chart <-> real-time Seoul sky; reset framing so composition stays clean
+    const handleToggleObserver = () => {
+        setObserverMode(prev => !prev);
+        setPanOffset({ x: 0, y: 0 });
+        setViewRot(0);
+        setHoveredStar(null);
+        setHasAutoCentered(false);
+        setIsPlaying(false);
     };
 
     // Mouse wheel zoom
@@ -577,8 +619,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
 
             projectedStarsRef.current.forEach(star => {
                 if (star.visible === false) return;
-                const starScreenX = star.canvasX + panOffset.x;
-                const starScreenY = star.canvasY + panOffset.y;
+                const starScreenX = star.canvasX;
+                const starScreenY = star.canvasY;
                 const distance = Math.sqrt(
                     Math.pow(x - starScreenX, 2) +
                     Math.pow(y - starScreenY, 2)
@@ -657,26 +699,43 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Create white background version
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) return;
 
-        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillStyle = '#060d20';
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         tempCtx.drawImage(canvas, 0, 0);
 
-        // Build filename: 별자리이름_YYYYMMDD_HHMM.png
-        const constellationName = data.constellations?.[0]?.name?.[language]
+        // Bake the poster title (localized name + gold rule) into the export.
+        // Canvas is drawn at 2x retina (updateCanvasSize does ctx.scale(2,2)), so match with scale(2,2).
+        const name = data.constellations?.[0]?.name?.[language]
             ?? data.constellations?.[0]?.name?.en
-            ?? 'constellation';
-        const slug = constellationName.replace(/\s+/g, '-').replace(/[^\w가-힣-]/g, '');
+            ?? currentLabels.title;
+        tempCtx.setTransform(2, 0, 0, 2, 0, 0);
+        tempCtx.textBaseline = 'top';
+        tempCtx.font = '800 34px system-ui, -apple-system, "Segoe UI", sans-serif';
+        tempCtx.fillStyle = '#f0cd93';
+        tempCtx.shadowColor = 'rgba(0,0,0,0.55)';
+        tempCtx.shadowBlur = 10;
+        tempCtx.fillText(name, 24, 22);
+        tempCtx.shadowBlur = 0;
+        const ruleY = 22 + 34 + 12;
+        const rg = tempCtx.createLinearGradient(24, 0, 24 + 160, 0);
+        rg.addColorStop(0, 'rgba(234,194,132,0.85)');
+        rg.addColorStop(1, 'rgba(234,194,132,0)');
+        tempCtx.fillStyle = rg;
+        tempCtx.fillRect(24, ruleY, 160, 1);
+        tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+        // Filename: EnglishName_YYYYMMDD.png
+        const enName = data.constellations?.[0]?.name?.en ?? 'constellation';
+        const slug = enName.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
         const now = new Date();
         const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-        const filename = `${slug}_${date}_${time}.png`;
+        const filename = `${slug}_${date}.png`;
 
         tempCanvas.toBlob(blob => {
             if (!blob) return;
@@ -691,71 +750,37 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
 
     return (
         <div className="relative my-6 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-xl bg-[#0a0a0b]">
-            {/* Responsive Header Bar */}
-            <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex items-center justify-between gap-1.5 px-2.5 py-1.5 sm:py-2 bg-black/70 backdrop-blur-xl rounded-xl border border-white/20 shadow-2xl">
-                {/* Left: Constellation Name */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                    <i className="fa-solid fa-stars text-[10px] sm:text-sm text-blue-400 flex-shrink-0"></i>
-                    <span className="text-[10px] sm:text-sm font-bold text-white truncate">
-                        {data.constellations && data.constellations.length > 0
-                            ? data.constellations[0].name[language] || data.constellations[0].name.en
-                            : currentLabels.title}
-                    </span>
+            {/* Poster title — top-left (localized constellation name + gold rule) */}
+            <div className="absolute top-4 left-4 sm:top-5 sm:left-6 z-20 pointer-events-none">
+                <div className="text-2xl sm:text-4xl font-extrabold tracking-tight" style={{ color: '#f0cd93', textShadow: '0 0 26px rgba(234,194,132,0.3), 0 2px 12px rgba(0,0,0,0.6)' }}>
+                    {data.constellations && data.constellations.length > 0
+                        ? (data.constellations[0].name[language] || data.constellations[0].name.en)
+                        : currentLabels.title}
                 </div>
-
-                {/* Center: Time Display & Controls */}
-                <div className="flex items-center gap-1 sm:gap-2 flex-1 justify-center max-w-[280px] sm:max-w-[320px]">
-                    {/* Time Display (Read-only) */}
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/10 rounded">
-                        <span className="text-[9px] sm:text-[10px] font-mono text-white whitespace-nowrap">
-                            {observerTime.toLocaleString('ko-KR', {
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
-                        </span>
-                        <span className="text-[9px] sm:text-[10px]">{isNight ? '🌙' : '☀️'}</span>
-                    </div>
-
-                    {/* Time Adjustment Buttons */}
-                    <div className="flex items-center gap-0.5">
-                        <button
-                            onClick={() => setObserverTime(new Date(observerTime.getTime() - 3600000))}
-                            className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
-                            title="1시간 전"
-                        >
-                            ◀
-                        </button>
-                        <button
-                            onClick={() => setIsPlaying(!isPlaying)}
-                            className="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs text-white bg-blue-500/30 hover:bg-blue-500/40 active:bg-blue-500/50 active:scale-95 rounded transition-all"
-                            title={isPlaying ? "일시정지" : "시간 흐름 재생"}
-                        >
-                            <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
-                        </button>
-                        <button
-                            onClick={() => setObserverTime(new Date(observerTime.getTime() + 3600000))}
-                            className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-white bg-white/10 hover:bg-white/20 active:bg-white/30 active:scale-95 rounded transition-all"
-                            title="1시간 후"
-                        >
-                            ▶
-                        </button>
-                    </div>
-                </div>
-
-                {/* Right: Actions */}
-                <div className="flex items-center flex-shrink-0">
-                    <button
-                        onClick={handleSnapshot}
-                        className="px-1 sm:px-1.5 py-0.5 text-[10px] sm:text-xs text-slate-300 bg-white/10 hover:bg-white/20 hover:text-white active:bg-white/30 active:scale-95 rounded transition-all"
-                        title={currentLabels.snapshot}
-                    >
-                        <i className="fa-solid fa-camera"></i>
-                    </button>
-                </div>
+                <div className="mt-2 sm:mt-3 h-px w-28 sm:w-40" style={{ background: 'linear-gradient(90deg, rgba(234,194,132,0.85), rgba(234,194,132,0))' }} />
             </div>
 
+            {/* Top-right cluster: mode badge + time controls (observer only) + observer toggle + snapshot */}
+            <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 z-20 flex items-center gap-1.5">
+                <span className="hidden sm:inline text-[10px] uppercase tracking-wider" style={{ color: 'rgba(244,215,161,0.5)' }}>
+                    {observerMode ? currentLabels.observerBadge : currentLabels.staticBadge}
+                </span>
+                <button
+                    onClick={handleToggleObserver}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all active:scale-95 ${observerMode ? 'text-amber-100 border-amber-300/50 bg-amber-500/20' : 'text-amber-200/80 border-white/10 bg-black/50 hover:bg-white/10'}`}
+                    title={currentLabels.observer}
+                    aria-label={currentLabels.observer}
+                >
+                    <i className="fa-solid fa-location-crosshairs text-xs sm:text-sm"></i>
+                </button>
+                <button
+                    onClick={handleSnapshot}
+                    className="w-8 h-8 flex items-center justify-center text-amber-200/80 bg-black/50 backdrop-blur-md hover:bg-white/10 hover:text-amber-100 active:scale-95 rounded-lg border border-white/10 transition-all"
+                    title={currentLabels.snapshot}
+                >
+                    <i className="fa-solid fa-camera text-xs sm:text-sm"></i>
+                </button>
+            </div>
 
 
             {/* Canvas */}
@@ -778,8 +803,8 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     <button
                         onClick={handleZoomIn}
                         disabled={zoom >= MAX_ZOOM}
-                        className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
-                        title="Zoom in"
+                        className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-t transition-all"
+                        title={currentLabels.zoomIn}
                     >
                         <i className="fa-solid fa-plus text-xs sm:text-sm"></i>
                     </button>
@@ -787,20 +812,29 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     <button
                         onClick={handleZoomOut}
                         disabled={zoom <= MIN_ZOOM}
-                        className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
-                        title="Zoom out"
+                        className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-white hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-b transition-all"
+                        title={currentLabels.zoomOut}
                     >
                         <i className="fa-solid fa-minus text-xs sm:text-sm"></i>
                     </button>
                 </div>
 
+                {/* Rotate button */}
+                <button
+                    onClick={handleRotate}
+                    className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
+                    title={currentLabels.rotate}
+                >
+                    <i className="fa-solid fa-rotate text-xs sm:text-sm"></i>
+                </button>
+
                 {/* Reset button */}
                 <button
                     onClick={handleResetView}
-                    className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
-                    title="Reset view"
+                    className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-white bg-black/60 backdrop-blur-md hover:bg-white/10 active:bg-white/20 rounded border border-white/10 transition-all"
+                    title={currentLabels.reset}
                 >
-                    <i className="fa-solid fa-rotate-right text-xs sm:text-sm"></i>
+                    <i className="fa-solid fa-house text-xs sm:text-sm"></i>
                 </button>
             </div>
             {/* Star info panel — fixed bottom-left glassmorphism */}
@@ -818,7 +852,7 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                         </div>
                         <div className="flex flex-col gap-0.5 sm:gap-1">
                             <div className="flex justify-between gap-4 sm:gap-6">
-                                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wide">등급</span>
+                                <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wide">{currentLabels.mag}</span>
                                 <span className="text-[9px] sm:text-[11px] text-slate-200 font-mono">{hoveredStar.mag.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between gap-4 sm:gap-6">
@@ -833,6 +867,21 @@ const ConstellationRenderer: React.FC<ConstellationRendererProps> = ({ data, lan
                     </div>
                 )}
             </div>
+
+            {/* Observer time controls — bottom-center (observer mode only; kept clear of the title) */}
+            {observerMode && (
+                <div className="absolute bottom-2.5 sm:bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1 bg-black/55 backdrop-blur-md rounded-lg border border-white/10">
+                    <span className="text-[9px] sm:text-[10px] font-mono text-white whitespace-nowrap">
+                        {observerTime.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px]">{isNight ? '🌙' : '☀️'}</span>
+                    <button onClick={() => setObserverTime(new Date(observerTime.getTime() - 3600000))} className="px-1 text-[10px] sm:text-xs text-white/90 hover:text-white active:scale-95" title="-1h">◀</button>
+                    <button onClick={() => setIsPlaying(!isPlaying)} className="px-1 text-[10px] sm:text-xs text-amber-300 hover:text-amber-200 active:scale-95" title={isPlaying ? '⏸' : '▶'}>
+                        <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i>
+                    </button>
+                    <button onClick={() => setObserverTime(new Date(observerTime.getTime() + 3600000))} className="px-1 text-[10px] sm:text-xs text-white/90 hover:text-white active:scale-95" title="+1h">▶</button>
+                </div>
+            )}
 
             {/* Zoom indicator */}
             <div className="absolute bottom-2.5 sm:bottom-3 right-11 sm:right-14 z-20 px-1.5 sm:px-2 h-5 sm:h-6 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded border border-white/10 shadow-lg">
