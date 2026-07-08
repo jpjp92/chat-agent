@@ -11,6 +11,7 @@
 | Priority | Area | Plan | Status | Next action |
 |---:|---|---|---|---|
 | — | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Bucket whitelist verification guide; SSRF/redirect blocking applied (DEV_260504) | Remaining items (IDOR-1/2, xlsx, CSP) live in `docs/TODO.md` 백로그 §보안, gated behind L1 server tokens |
+| P1 | 인증 전환 (Supabase Auth) | [PLAN_AUTH_SUPABASE_260708.md](PLAN_AUTH_SUPABASE_260708.md) | **설계 확정 (2026-07-08)** — 하이브리드(Anonymous Sign-in 게스트 유지 + Google/Kakao/이메일) + `@supabase/ssr` 쿠키 세션 + RLS 전면 활성화(L3+L4 직행, L1/L2 생략). 클린 스타트(uuid 재설계). IDOR-1/2/3 구조적 해소 | Phase 0(대시보드 provider·anonymous·manual linking 설정)부터 착수. Phase 1~3은 배포 묶음 주의 |
 | P1 | Image generation (test/policy) | [PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md](PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md) | 1st test complete, policy/routing design done | Add Korean case-set, report aggregation, intent/layout guardrail tests |
 | P1 | Image generation (integration) | [PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md](PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md) | Integration design approved | Start P0: extract `server/image/` core modules from test script |
 | P1 | i18n cleanup | [PLAN_I18N_CLEANUP_260602.md](PLAN_I18N_CLEANUP_260602.md) | Steps 1·2 done (2026-06-04) | Decide step 3 shared-module boundary before extracting `src/i18n/` |

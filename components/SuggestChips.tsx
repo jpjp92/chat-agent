@@ -41,16 +41,16 @@ const CHIPS: Record<Language, Chip[]> = {
 const SuggestChips: React.FC<SuggestChipsProps> = ({ language, onSelect }) => {
     const chips = CHIPS[language] || CHIPS.ko;
     return (
-        <div className="hidden sm:flex flex-wrap justify-center gap-1.5 sm:gap-2 w-full max-w-2xl px-1">
+        <div className="hidden sm:grid grid-cols-4 gap-2 w-full max-w-2xl px-1 mx-auto">
             {chips.map((c) => (
                 <button
                     key={c.label}
                     type="button"
                     onClick={() => onSelect(c.sample)}
-                    className="inline-flex items-center gap-1.5 sm:gap-2 shrink-0 border border-slate-200 dark:border-white/10 rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-white/[0.05] hover:bg-slate-50 dark:hover:bg-white/[0.08] hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98] transition-colors"
+                    className="flex items-center justify-center gap-2 min-w-0 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-white/[0.05] hover:bg-slate-50 dark:hover:bg-white/[0.08] hover:border-slate-300 dark:hover:border-white/20 active:scale-[0.98] transition-colors"
                 >
-                    <i className={`fa-solid ${c.icon} text-[11px] sm:text-[13px] text-slate-500 dark:text-slate-400`}></i>
-                    {c.label}
+                    <i className={`fa-solid ${c.icon} text-[13px] shrink-0 text-slate-500 dark:text-slate-400`}></i>
+                    <span className="truncate">{c.label}</span>
                 </button>
             ))}
         </div>
