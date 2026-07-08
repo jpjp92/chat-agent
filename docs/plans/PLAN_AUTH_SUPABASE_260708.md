@@ -1,6 +1,6 @@
 # PLAN — Supabase Auth 전환 (사용자 관리 · 로그인 구성)
 
-> 작성: 2026-07-08 · 상태: **설계 확정(구현 전)**
+> 작성: 2026-07-08 · 갱신: 2026-07-09(코드·Supabase 보안 체크리스트 대조 재검토 반영) · 상태: **설계 확정(구현 전)**
 > 대체 대상: [TODO §장기 계획 — 인증 시스템 전환](../TODO.md) L1~L4 로드맵 중 **L3+L4 직행** (L1/L2 임시 토큰 단계 생략)
 
 ---
@@ -36,11 +36,16 @@ createBrowserClient ──쿠키────▶  middleware.ts (세션 refresh)
 ```
 
 - **클라이언트 유틸 신설** `lib/supabase/`:
-  - `client.ts` — `createBrowserClient` (브라우저 전용, anon key)
+  - `client.ts` — `createBrowserClient` (브라우저 전용, publishable/anon key)
   - `server.ts` — `createServerClient` (Route Handler에서 쿠키 기반, 요청당 생성)
-  - 기존 `server/supabase.ts`의 `supabaseAdmin`은 유지하되 **`supabase`(service_role 범용 export)는 단계적 폐기**
-- **middleware.ts 신설** — 토큰 만료 시 세션 refresh(쿠키 재발급). 페이지 가드는 불필요(게스트도 로그인 상태이므로 리다이렉트 없음).
-- **환경 변수 추가**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (클라 최초 도입 — 현재 클라는 Supabase 직접 접근 없음). Vercel env + `.env.example` 갱신.
+  - ⚠️ **기존 `supabase` export는 실제로 service_role** — [server/supabase.ts:16](../../server/supabase.ts#L16)의 `supabase`는 `SUPABASE_KEY`(=service_role, REF_DB 확인)로 만든 관리자 클라이언트다(anon 아님). 따라서 이 export를 "anon으로 교체"가 아니라, **라우트가 user-scoped client로 전부 이관될 때까지 admin으로 유지**하다가 Phase 5에서 제거. 새 anon/publishable 접근은 전적으로 `lib/supabase/`가 담당.
+- **미들웨어 vs Bearer — 세션 검증 방식 결정 포인트**: 이 앱은 **완전 클라이언트 렌더 SPA**([app/page.tsx](../../app/page.tsx) `ssr:false`)라 유저 데이터를 읽는 서버 컴포넌트가 없다. 즉 `@supabase/ssr`의 이점은 "RSC 세션 읽기"가 아니라 **① middleware 토큰 갱신 ② Route Handler 쿠키 읽기** 두 가지뿐. 두 방식이 성립한다:
+  - **(A·권장) 쿠키 세션** — `createBrowserClient`가 세션을 쿠키에 저장, `middleware.ts`가 갱신, 라우트는 쿠키에서 유저 복원. same-origin fetch라 쿠키 자동 전송(기존 코드 변경 최소). RLS와 정합.
+  - **(B·대안) Bearer 토큰** — 클라가 `Authorization: Bearer <access_token>`을 fetch에 부착, 라우트가 `global.headers`로 유저 스코프 클라 생성. 미들웨어 불필요·스트리밍 쿠키 함정 회피가 장점이나 매 fetch에 토큰 부착 래핑 필요. 최종 결정은 Phase 2 착수 시 확정.
+- **middleware.ts 신설** (A안 채택 시) — 토큰 만료 시 세션 refresh(쿠키 재발급). 페이지 가드는 불필요(게스트도 로그인 상태라 리다이렉트 없음).
+  - 🔴 **스트리밍 라우트 쿠키 함정**: SSE 응답([app/api/chat/route.ts](../../app/api/chat/route.ts))은 헤더 전송 후 `Set-Cookie` 불가. 토큰 갱신(쿠키 쓰기)은 **오직 middleware에서**, chat 등 스트리밍 라우트는 **읽기 전용**(`getClaims`/`getUser`)만 수행. 라우트 안에서 refresh가 트리거되면 갱신 쿠키가 유실된다.
+- **세션 검증 = `getClaims()` 우선**: 매 API 호출마다 `getUser()`는 Supabase auth 서버로 네트워크 왕복. **비대칭(asymmetric) JWT 서명키 활성화 후 `getClaims()`** 를 쓰면 JWT를 로컬 검증(왕복 0) — 채팅/세션처럼 호출 잦은 라우트에 유리. 서명키 설정 전에는 `getClaims()`도 왕복 폴백하므로, Phase 0에서 **JWT Signing Keys를 asymmetric으로 전환** 체크.
+- **환경 변수 추가**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`(또는 신규 `sb_publishable_...` publishable key — Supabase 권장). 클라 최초 도입(현재 클라는 Supabase 직접 접근 없음). Vercel env + `.env.example` 갱신.
 
 ## 4. DB 스키마 (클린 스타트)
 
@@ -126,8 +131,9 @@ create policy "own messages" on public.chat_messages
 ### 4-4. Storage
 
 - 업로드 경로에 **유저 prefix 강제**: `${user.id}/${timestamp}_${safeName}` (chat-imgs/chat-videos/chat-docs 3버킷 공통) → IDOR-3 근본 해소(경로 자체가 소유권).
-- `storage.objects` policy: `(storage.foldername(name))[1] = auth.uid()::text` 기준 select/insert/delete.
-- 단, 서버 라우트(upload/create-signed-url)는 admin 클라이언트를 유지하되 **쿠키에서 얻은 `user.id`로 prefix를 서버가 조립**(클라 지정 불가).
+- `storage.objects` policy: `(storage.foldername(name))[1] = (select auth.uid())::text` 기준, **`TO authenticated`** 명시.
+- 🔴 **upsert는 INSERT + SELECT + UPDATE 3개 정책 모두 필요** — [upload/route.ts](../../app/api/upload/route.ts)가 `upsert: true`로 업로드하는데, INSERT만 걸면 신규 업로드는 되지만 **덮어쓰기가 조용히 실패**(에러 없이 0행). 여기에 삭제 정리를 위한 DELETE까지 = 사실상 4개 verb 정책. (단 아래처럼 서버가 admin 클라로 처리하면 이 정책들은 방어적 심층 방어 역할.)
+- 단, 서버 라우트(upload/create-signed-url)는 admin 클라이언트를 유지하되 **세션에서 얻은 `user.id`로 prefix를 서버가 조립**(클라 지정 불가). admin은 RLS를 우회하므로 위 storage 정책은 클라 직접 접근 대비 심층 방어.
 
 ## 5. 게스트 · 계정 전환 플로우
 
@@ -143,7 +149,7 @@ create policy "own messages" on public.chat_messages
 
 ## 6. API 라우트 변경 목록
 
-공통 원칙: **`user_id`를 요청 body/query로 받지 않는다** — `createServerClient(cookies).auth.getUser()`로 추출. 미인증(쿠키 없음/만료)은 401.
+공통 원칙: **`user_id`를 요청 body/query로 받지 않는다** — `createServerClient(cookies)`에서 세션 유저를 추출(성능상 `getClaims()` 우선, 미설정 시 `getUser()`). 미인증(쿠키 없음/만료)은 401. 스트리밍 라우트(chat)는 §3 함정대로 **읽기 전용** 검증만.
 
 | 라우트 | 변경 |
 |---|---|
@@ -173,13 +179,14 @@ create policy "own messages" on public.chat_messages
 - [ ] 이메일: 초기엔 Supabase 기본 SMTP(시간당 제한 有) → 실사용 늘면 커스텀 SMTP(Resend 등) 전환. 확인 메일 템플릿 한국어화
 - [ ] Vercel env: `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` 추가, `.env.example` 갱신
 - [ ] Auth 설정: Site URL = 프로덕션 도메인, Redirect URLs에 로컬(`http://localhost:3000/**`)·프리뷰 도메인 추가
+- [ ] **JWT Signing Keys를 asymmetric으로 전환** — 라우트에서 `getClaims()` 로컬 검증(auth 서버 왕복 0) 전제조건. 미전환 시 `getClaims()`도 네트워크 폴백
 
 ## 9. 구현 순서 (Phase)
 
 | Phase | 내용 | 완료 기준 |
 |---|---|---|
 | **0** 외부 설정 | §8 체크리스트 | 대시보드에서 anonymous+Google+Kakao 로그인 수동 확인 |
-| **1** DB 마이그레이션 | 기존 3테이블 백업(`*_legacy` rename 또는 dump) → 신규 스키마+trigger+RLS+Storage policy 적용 (SQL 마이그레이션 파일로 관리) | anon key로 타 유저 행 접근 시 0건 확인 |
+| **1** DB 마이그레이션 | 기존 3테이블 백업(`*_legacy` rename 또는 dump) → 신규 스키마+trigger+RLS+Storage(4 verb)정책+`authenticated` GRANT 적용 (SQL 마이그레이션 파일로 관리) + `supabase db advisors` 통과 | anon/타유저 토큰으로 행 접근 0건 + upsert 성공 확인 |
 | **2** 클라 기반 | `@supabase/ssr` 설치, `lib/supabase/` 유틸, `middleware.ts`, `useAuthSession` 재작성(anonymous 자동), `auth/callback` 라우트 | 첫 방문 → 게스트 자동 생성 → 새로고침 세션 유지 |
 | **3** API 전환 | §6 라우트 전부. user-scoped client + `user_id` 파라미터 제거 | 채팅 E2E(전송·저장·목록·삭제) + 401 케이스 |
 | **4** 로그인 UI | AuthModal, 헤더 진입점, 게스트→전환 플로우, 프로필 편집 | 게스트 대화 → Google 연결 → 기록 승계 확인 / Kakao·이메일 동일 |
