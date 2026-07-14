@@ -7,13 +7,19 @@ interface HeaderProps {
   onUpdateProfile: (profile: UserProfile) => void;
   onMenuClick?: () => void;
   showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
-  onReset?: () => void;
+  /** 게스트면 로그인 유도, 아니면 로그아웃을 보여준다. */
+  isGuest: boolean;
+  /** 로그인 상태에서 어느 계정인지 보여준다. */
+  userEmail?: string | null;
+  /** 게스트 → 로그인 모달 열기 */
+  onLogin: () => void;
+  onSignOut: () => void;
   language: Language;
   selectedModel: ChatModelId;          // 모바일 헤더 모델 선택기용 (데스크톱은 입력창에 통합)
   onModelChange: (model: ChatModelId) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, onReset, language, selectedModel, onModelChange }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, isGuest, userEmail, onLogin, onSignOut, language, selectedModel, onModelChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -26,7 +32,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       displayName: "표시 이름",
       save: "저장",
       cancel: "취소",
-      reset: "초기화",
       changePhoto: "이미지 변경",
       photoDesc: "정사각형 이미지, 최대 10MB",
       placeholder: "이름을 입력하세요",
@@ -37,12 +42,15 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       model25FlashDesc: "빠르고 균형 잡힌 응답",
       model25LiteDesc: "가볍고 빠른 한국어 최적화",
       sizeError: "용량 초과 (최대 10MB)",
+      signIn: "Google로 계속하기",
+      signInDesc: "로그인하면 어느 기기에서든 대화를 이어갈 수 있어요.",
+      signOut: "로그아웃",
+      guestLabel: "게스트",
     },
     en: {
       displayName: "Display Name",
       save: "Save Changes",
       cancel: "Cancel",
-      reset: "Reset",
       changePhoto: "Change Photo",
       photoDesc: "Square image, max 10MB",
       placeholder: "Enter your name",
@@ -53,12 +61,15 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       model25FlashDesc: "Fast & balanced",
       model25LiteDesc: "Lightweight & fast",
       sizeError: "File too large (Max 10MB)",
+      signIn: "Continue with Google",
+      signInDesc: "Sign in to pick up your chats on any device.",
+      signOut: "Sign out",
+      guestLabel: "Guest",
     },
     es: {
       displayName: "Nombre",
       save: "Guardar",
       cancel: "Cancelar",
-      reset: "Reiniciar",
       changePhoto: "Cambiar foto",
       photoDesc: "Imagen cuadrada, máx 10MB",
       placeholder: "Introduce tu nombre",
@@ -69,12 +80,15 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       model25FlashDesc: "Rápido y equilibrado",
       model25LiteDesc: "Ligero y eficiente",
       sizeError: "Archivo muy grande (Máx 10MB)",
+      signIn: "Continuar con Google",
+      signInDesc: "Inicia sesión para continuar tus chats en cualquier dispositivo.",
+      signOut: "Cerrar sesión",
+      guestLabel: "Invitado",
     },
     fr: {
       displayName: "Nom",
       save: "Enregistrer",
       cancel: "Annuler",
-      reset: "Réinitialiser",
       changePhoto: "Changer la photo",
       photoDesc: "Image carrée, max 10Mo",
       placeholder: "Entrez votre nom",
@@ -85,6 +99,10 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       model25FlashDesc: "Rapide et équilibré",
       model25LiteDesc: "Léger et rapide",
       sizeError: "Fichier trop lourd (Max 10Mo)",
+      signIn: "Continuer avec Google",
+      signInDesc: "Connectez-vous pour retrouver vos conversations sur tout appareil.",
+      signOut: "Se déconnecter",
+      guestLabel: "Invité",
     }
   };
 
@@ -197,11 +215,11 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       {isModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-end justify-center pb-[22dvh] px-4">
           <div
-            className="fixed inset-0 bg-slate-950/50 backdrop-blur-md animate-in fade-in duration-300"
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-md modal-backdrop-in"
             onClick={() => setIsModalOpen(false)}
           ></div>
 
-          <div className="relative w-full max-w-xs animate-in slide-in-from-bottom-12 duration-500 ease-out">
+          <div className="relative w-full max-w-xs modal-panel-in">
             <div className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-2xl rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-white/50 dark:border-white/10 overflow-hidden">
               <div className="p-4 space-y-4">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
@@ -247,18 +265,41 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                     <button onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold text-sm active:scale-95 transition-all">{t.cancel}</button>
                   </div>
 
-                  {onReset && (
-                    <button
-                      onClick={() => {
-                        onReset();
-                        setIsModalOpen(false);
-                      }}
-                      className="w-full py-2.5 rounded-xl bg-red-500/10 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-500/20 dark:hover:bg-red-500/20 active:scale-95 transition-all border border-red-500/20 dark:border-red-500/20"
-                    >
-                      <i className="fa-solid fa-rotate mr-2"></i>
-                      {t.reset}
-                    </button>
-                  )}
+                  {/* 계정 — 게스트면 로그인 유도, 로그인 상태면 어느 계정인지 + 로그아웃.
+                      로그인 진입점이 한도 모달뿐이면, 로그아웃한 사용자는 메시지 5개를
+                      태워야 계정으로 돌아올 수 있다. 그래서 여기 상시 진입점을 둔다. */}
+                  <div className="pt-3 mt-1 border-t border-black/5 dark:border-white/10 space-y-2">
+                    {isGuest ? (
+                      <>
+                        <button
+                          onClick={() => { setIsModalOpen(false); onLogin(); }}
+                          className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-800 dark:text-white font-bold text-sm active:scale-95 transition-all border border-black/5 dark:border-white/10 flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+                            <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.05l3.66 2.84c.87-2.6 3.3-4.51 6.16-4.51Z" />
+                          </svg>
+                          {t.signIn}
+                        </button>
+                        <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 leading-snug px-2">{t.signInDesc}</p>
+                      </>
+                    ) : (
+                      <>
+                        {userEmail && (
+                          <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium truncate px-2">{userEmail}</p>
+                        )}
+                        <button
+                          onClick={() => { setIsModalOpen(false); onSignOut(); }}
+                          className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold text-sm active:scale-95 transition-all"
+                        >
+                          <i className="fa-solid fa-arrow-right-from-bracket mr-2"></i>
+                          {t.signOut}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

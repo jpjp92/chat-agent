@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createSession, deleteSession, fetchSessionMessages, fetchSessions, updateSessionTitle } from '../../services/geminiService';
 import { ChatSession, Message, Role } from '../../types';
 
 interface UseChatSessionsOptions {
-  userId: number | null;
+  userId: string | null;
   language?: string;
   onError?: (message: string) => void;
 }
@@ -102,21 +102,51 @@ const SESSIONS_CACHE_KEY = 'chat_sessions_cache_v1';
 const SESSION_PAGE_SIZE = 30;
 const DEFAULT_SESSION_TITLE = 'New Chat';
 
-const readSessionsCache = (): ChatSession[] => {
+/**
+ * 🔴 캐시에는 **소유자를 새긴다.**
+ *
+ * 예전엔 전역 키 하나에 세션 목록만 담았다. 그래서 로그아웃 후 새 게스트가 이전 유저의
+ * **대화 제목을 그대로 봤다**(실측). RLS 는 DB 를 지키지만 localStorage 는 못 지킨다 —
+ * 캐시가 유저를 구분하지 않으면 화면에서 새어나간다.
+ *
+ * 소유자가 바뀌면 캐시는 버린다. 유저 전환은 signOut(→새 게스트) 과
+ * signInWithGoogle(→다른 uuid) 두 경로로 일어난다. linkIdentity 는 uuid 가 유지되므로
+ * 캐시가 그대로 유효하다.
+ */
+interface SessionsCache {
+  ownerId: string;
+  sessions: ChatSession[];
+}
+
+const readSessionsCacheRaw = (): SessionsCache | null => {
   try {
     const raw = localStorage.getItem(SESSIONS_CACHE_KEY);
-    const cachedSessions: ChatSession[] = raw ? JSON.parse(raw) : [];
-    return cachedSessions.filter(session => !(session.title === DEFAULT_SESSION_TITLE && session.messages.length === 0));
-  } catch { return []; }
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // 소유자가 없는 구버전 캐시는 신뢰할 수 없다 → 버린다.
+    if (!parsed?.ownerId || !Array.isArray(parsed.sessions)) return null;
+    return {
+      ownerId: parsed.ownerId,
+      sessions: parsed.sessions.filter(
+        (session: ChatSession) => !(session.title === DEFAULT_SESSION_TITLE && session.messages.length === 0)
+      ),
+    };
+  } catch { return null; }
 };
 
-export const writeSessionsCache = (sessions: ChatSession[]) => {
+export const clearSessionsCache = () => {
+  try { localStorage.removeItem(SESSIONS_CACHE_KEY); } catch {}
+};
+
+export const writeSessionsCache = (sessions: ChatSession[], ownerId: string | null) => {
+  // 소유자를 모르면 쓰지 않는다. 주인 없는 캐시가 다음 유저에게 새는 걸 막는다.
+  if (!ownerId) return;
   try {
     // 메시지는 캐시하지 않는다 — DB(chat_messages)가 메시지의 단일 출처.
     // 과거엔 부분 스냅샷(1턴)만 캐시에 남아 멀티턴 재로드 시 나머지 턴이 가려졌다.
     // 세션 목록 메타(title 등)만 캐시해 즉시 렌더하고, 메시지는 selectSession에서 DB lazy-load.
     const metaOnly = sessions.slice(0, 30).map(session => ({ ...session, messages: [] }));
-    localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify(metaOnly));
+    localStorage.setItem(SESSIONS_CACHE_KEY, JSON.stringify({ ownerId, sessions: metaOnly }));
   } catch {}
 };
 
@@ -141,8 +171,11 @@ const mergeSessionsPreservingLocalMessages = (localSessions: ChatSession[], dbSe
 };
 
 export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOptions) => {
-  // Hydrate from localStorage cache for instant render; API refresh happens in background
-  const [sessions, setSessions] = useState<ChatSession[]>(() => readSessionsCache());
+  // Hydrate from localStorage cache for instant render; API refresh happens in background.
+  // 마운트 시점엔 아직 userId 를 모른다(익명 로그인이 진행 중) → 일단 그리고, 아래 effect 가
+  // 소유자를 확인해 남의 캐시면 즉시 버린다.
+  const cachedRef = useRef(readSessionsCacheRaw());
+  const [sessions, setSessions] = useState<ChatSession[]>(() => cachedRef.current?.sessions ?? []);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
@@ -156,14 +189,27 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     onError?.(SESSION_ERRORS[key][lang]);
   };
 
-  const createNewSession = async (targetUserId?: number) => {
+  // 유저가 바뀌면 남의 캐시를 즉시 버린다. signOut 이 미리 지우지만, signInWithGoogle
+  // (다른 uuid 로 로그인)로도 전환이 일어나므로 여기서 한 번 더 막는다.
+  useEffect(() => {
+    if (!userId) return;
+    const cached = cachedRef.current;
+    if (cached && cached.ownerId !== userId) {
+      cachedRef.current = null;
+      clearSessionsCache();
+      setSessions([]);
+      setCurrentSessionId(null);
+    }
+  }, [userId]);
+
+  const createNewSession = async (targetUserId?: string) => {
     const resolvedUserId = targetUserId ?? userId;
     if (!resolvedUserId) {
       return null;
     }
 
     try {
-      const { session, error } = await createSession(resolvedUserId);
+      const { session, error } = await createSession();
       if (error || !session) {
         throw new Error(error || 'create_session_failed');
       }
@@ -177,7 +223,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
       setSessions(prev => {
         const updated = [newSession, ...prev];
-        writeSessionsCache(updated);
+        writeSessionsCache(updated, userId);
         return updated;
       });
       setCurrentSessionId(newSession.id);
@@ -188,7 +234,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     }
   };
 
-  const loadUserSessions = async (targetUserId?: number) => {
+  const loadUserSessions = async (targetUserId?: string) => {
     const resolvedUserId = targetUserId ?? userId;
     if (!resolvedUserId) {
       return;
@@ -196,7 +242,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
     setIsLoadingSessions(true);
     try {
-      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(resolvedUserId, 0, SESSION_PAGE_SIZE);
+      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(0, SESSION_PAGE_SIZE);
 
       if (dbSessions && dbSessions.length > 0) {
         const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
@@ -207,7 +253,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
         }));
         setSessions(prev => {
           const updated = mergeSessionsPreservingLocalMessages(prev, mappedSessions);
-          writeSessionsCache(updated);
+          writeSessionsCache(updated, userId);
           return updated;
         });
         setSessionOffset(SESSION_PAGE_SIZE);
@@ -229,7 +275,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
 
     setIsLoadingMore(true);
     try {
-      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(userId, sessionOffset, SESSION_PAGE_SIZE);
+      const { sessions: dbSessions, hasMore: apiHasMore } = await fetchSessions(sessionOffset, SESSION_PAGE_SIZE);
       if (dbSessions && dbSessions.length > 0) {
         const mappedSessions: ChatSession[] = dbSessions.map((session: any) => ({
           id: session.id,
@@ -297,7 +343,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       await deleteSession(id);
       const updated = sessions.filter(session => session.id !== id);
       setSessions(updated);
-      writeSessionsCache(updated);
+      writeSessionsCache(updated, userId);
       if (currentSessionId === id) {
         setCurrentSessionId(updated.length > 0 ? updated[0].id : null);
       }
@@ -314,7 +360,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       await updateSessionTitle(id, newTitle);
       setSessions(prev => {
         const updated = prev.map(session => (session.id === id ? { ...session, title: newTitle } : session));
-        writeSessionsCache(updated);
+        writeSessionsCache(updated, userId);
         return updated;
       });
     } catch (error) {

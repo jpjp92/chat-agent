@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { supabase } from '../../../server/supabase';
+import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
+import { GUEST_MESSAGE_LIMIT, GUEST_LIMIT_ERROR } from '../../../lib/limits';
 import { API_KEYS } from '../../../server/config';
 import { getSystemInstruction } from '../../../server/agent/prompt';
 import { compileAgentGraph } from '../../../server/agent/graph';
@@ -23,6 +24,35 @@ const CHAT_ERRORS: Record<string, Record<string, string>> = {
 };
 
 export async function POST(req: NextRequest) {
+  // 스트림을 열기 전에 인증을 확인한다. SSE 는 헤더가 나간 뒤 상태코드를 바꿀 수 없다.
+  // 메시지 저장은 이 user-scoped 클라이언트로만 하며, RLS 가 세션 소유권을 강제한다.
+  const db = createRouteClient(req);
+  if (!db) return unauthorized();
+
+  // 게스트 횟수 제한 — LLM 을 호출하기 전에 막는다. 목적은 회원 전환이 아니라
+  // 무료 키의 일일 할당량(RPD) 방어다. 소진되면 소유자 본인이 24시간 못 쓴다.
+  //
+  // is_guest / message_count 는 컬럼 레벨 GRANT 로 사용자가 쓸 수 없고 트리거만 기록한다.
+  // message_count 는 증가 전용이라 세션을 지워도 리셋되지 않는다. 따라서 신뢰할 수 있다.
+  const { data: profile, error: profileError } = await db
+    .from('profiles')
+    .select('is_guest, message_count')
+    .maybeSingle();
+
+  if (profileError) {
+    // 토큰 위조/만료(PGRST301)는 401. 그 외(마이그레이션 미적용 등)는 500 —
+    // DB 에러를 401로 위장하면 원인이 인증 문제로 오인된다.
+    if (isAuthError(profileError)) return unauthorized();
+    console.error('[Chat API] Profile gate error:', profileError.message);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+  if (profile?.is_guest && (profile.message_count ?? 0) >= GUEST_MESSAGE_LIMIT) {
+    return Response.json(
+      { error: GUEST_LIMIT_ERROR, limit: GUEST_MESSAGE_LIMIT },
+      { status: 403 },
+    );
+  }
+
   const encoder = new TextEncoder();
   const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext } = await req.json();
 
@@ -119,7 +149,7 @@ export async function POST(req: NextRequest) {
 
       if (session_id) {
         const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;
-        supabase.from('chat_messages').insert({
+        db.from('chat_messages').insert({
           session_id, role: 'user', content: prompt,
           attachment_url: mainAttachment?.storageUrl || (mainAttachment?.data?.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null))
         }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', error); });
@@ -157,7 +187,7 @@ export async function POST(req: NextRequest) {
           sendEvent({ text: fullAiResponse });
           sendEvent({ done: true });
           if (session_id) {
-            supabase.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null })
+            db.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null })
             .then(({ error }) => { if (error) console.error('[Chat API] DB save failed:', error); });
           }
           return;
@@ -260,7 +290,7 @@ export async function POST(req: NextRequest) {
 
         if (fullAiResponse && session_id) {
           try {
-            const { error: msgError } = await supabase.from('chat_messages').insert({
+            const { error: msgError } = await db.from('chat_messages').insert({
               session_id, role: 'assistant', content: fullAiResponse,
               grounding_sources: allSources.length > 0 ? allSources : null
             });

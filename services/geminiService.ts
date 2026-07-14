@@ -1,31 +1,35 @@
 import { Role, Message, MessageAttachment, Language, GroundingSource } from "../types";
+import { getAccessToken } from "../lib/supabase/client";
+import { GUEST_LIMIT_ERROR } from "../lib/limits";
+
+/** 게스트 메시지 한도 초과. 호출부가 토스트 대신 로그인 모달을 띄우도록 구분한다. */
+export class GuestLimitError extends Error {
+  constructor() {
+    super(GUEST_LIMIT_ERROR);
+    this.name = 'GuestLimitError';
+  }
+}
 
 let currentAudioSource: AudioBufferSourceNode | null = null;
 let sharedAudioContext: AudioContext | null = null;
 
 /**
- * 사용자 정보 (Supabase 연동)
+ * 인증이 필요한 API 호출 — 매 요청마다 현재 access token 을 붙인다.
+ *
+ * 토큰을 모듈 로드 시점에 캡처해두면 만료(기본 1시간) 후 조용히 401 이 난다.
+ * getAccessToken() 은 호출 시점의 세션을 읽으므로 supabase-js 가 갱신해둔 토큰을 쓴다.
+ *
+ * 세션이 아직 없으면(익명 로그인 진행 중) 던진다 — 토큰 없이 보내 401 을 받고
+ * "네트워크 오류"로 오해하는 것보다 낫다. 호출부는 currentUser 게이트로 막는다.
  */
-export const loginUser = async (nickname: string) => {
-  const response = await fetch('/api/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nickname })
+async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+  return fetch(input, {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` },
   });
-  if (!response.ok) throw new Error(`Auth failed: ${response.status}`);
-  return response.json();
-};
-
-
-export const updateRemoteUserProfile = async (userId: number, profile: { display_name?: string; avatar_url?: string }) => {
-  const response = await fetch('/api/auth', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: userId, ...profile })
-  });
-  if (!response.ok) throw new Error(`Profile update failed: ${response.status}`);
-  return response.json();
-};
+}
 
 export const uploadToStorage = async (file: { fileName: string; data: string; mimeType: string }, bucket: string) => {
   try {
@@ -74,10 +78,11 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
 /**
  * 세션 관리
  */
-export const fetchSessions = async (userId: number, offset = 0, limit = 30) => {
+// user_id 는 더 이상 보내지 않는다 — 서버가 Bearer 토큰의 auth.uid() 로 스코프한다.
+export const fetchSessions = async (offset = 0, limit = 30) => {
   let response: Response;
   try {
-    response = await fetch(`/api/sessions?user_id=${userId}&offset=${offset}&limit=${limit}`);
+    response = await authedFetch(`/api/sessions?offset=${offset}&limit=${limit}`);
   } catch (networkErr: any) {
     throw new Error(`Sessions network error: ${networkErr?.message ?? 'fetch failed'}`);
   }
@@ -85,23 +90,24 @@ export const fetchSessions = async (userId: number, offset = 0, limit = 30) => {
   return response.json();
 };
 
-export const createSession = async (userId: number, title?: string) => {
-  const response = await fetch('/api/sessions', {
+export const createSession = async (title?: string) => {
+  // user_id 미전달 — DB 의 `default auth.uid()` 가 채운다.
+  const response = await authedFetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, title })
+    body: JSON.stringify({ title })
   });
   if (!response.ok) throw new Error(`Failed to create session: ${response.status}`);
   return response.json();
 };
 
 export const fetchSessionMessages = async (sessionId: string) => {
-  const response = await fetch(`/api/sessions?session_id=${sessionId}`);
+  const response = await authedFetch(`/api/sessions?session_id=${sessionId}`);
   return response.json();
 };
 
 export const deleteSession = async (sessionId: string) => {
-  const response = await fetch('/api/sessions', {
+  const response = await authedFetch('/api/sessions', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId })
@@ -111,7 +117,7 @@ export const deleteSession = async (sessionId: string) => {
 };
 
 export const updateSessionTitle = async (sessionId: string, title: string) => {
-  const response = await fetch('/api/sessions', {
+  const response = await authedFetch('/api/sessions', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, title })
@@ -247,7 +253,7 @@ export const streamChatResponse = async (
       attachments: msg.attachments?.map(stripExtractedText),
     }));
 
-    const response = await fetch('/api/chat', {
+    const response = await authedFetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext }),
@@ -260,9 +266,13 @@ export const streamChatResponse = async (
         const ct = response.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
           const errorData = await response.json();
+          // 게스트 횟수 초과는 에러 토스트가 아니라 로그인 유도로 이어져야 한다.
+          if (errorData.error === GUEST_LIMIT_ERROR) throw new GuestLimitError();
           errorMsg = errorData.error || errorMsg;
         }
-      } catch {}
+      } catch (e) {
+        if (e instanceof GuestLimitError) throw e;
+      }
       throw new Error(errorMsg);
     }
 
@@ -323,6 +333,9 @@ export const streamChatResponse = async (
       onCutOff();
       return;
     }
+    // 게스트 한도 초과는 실패가 아니라 정상 전환 신호다. 콘솔을 시끄럽게 하지 않고
+    // 그대로 전파해 useChatStream 이 로그인 모달을 띄우게 한다.
+    if (error instanceof GuestLimitError) throw error;
     console.error("Chat streaming failed", error);
     throw error;
   } finally {

@@ -27,12 +27,12 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', 
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300"
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-md modal-backdrop-in"
                 onClick={onCancel}
             ></div>
 
             {/* Modal Container */}
-            <div className="relative w-full max-w-xs animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 ease-out">
+            <div className="relative w-full max-w-xs modal-panel-in">
                 <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-200 dark:border-white/10 overflow-hidden">
                     <div className="p-5">
                         <div className="flex flex-col items-center text-center space-y-3">

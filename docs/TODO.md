@@ -220,13 +220,13 @@
 - [ ] **메시지 편집** — 입력창 프리필은 구현됨(`editingMessageContent`/`editValue`, `ChatInput.tsx:100`); 남은 건 편집 시점 이후 히스토리 truncate 후 재실행
 - [ ] **세션 문서 컨텍스트 영구 저장** — `lastActiveDoc` Supabase 저장
 
-### 보안 (인증 전환 후)
+### 보안
 
-> 전제: 장기 계획 **L1(서버 토큰 발급)** 완료 후 처리. 현재 `service_role` 키로 RLS 비활성 + 소유권 검증 없음.
+> 인증 전환 완료(2026-07-14, [DEV_260714](logs/2026/07/DEV_260714.md)). DB 테이블은 RLS + Bearer 토큰 user-scoped 클라이언트로 전환됨 — **Storage만 아직 admin 클라이언트**.
 
-- [ ] **IDOR-1** `app/api/auth/route.ts` — PATCH 소유권 검증 (Bearer 토큰 → `authenticatedUserId === id`)
-- [ ] **IDOR-2** `app/api/sessions/route.ts` — GET/DELETE/PATCH 전 `user_id === authenticatedUser` 검증
-- [ ] **IDOR-3** `app/api/parse-document/route.ts` — `{filePath}` 소유권 검증 (현재는 형식 검증으로 blast radius만 제한 + route-side `remove()` 제거로 파괴 차단). 근본해결=유저별 storage prefix → `${user.id}/...` 강제 + RLS 유저 스코프 클라이언트. 인증 전환(L1) 후 처리. (DEV_260621 §6)
+- [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
+- [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
+- [ ] **IDOR-3** `app/api/parse-document/route.ts` (+ `upload` · `create-signed-url`) — Storage는 여전히 admin 클라이언트 + 형식 검증뿐(blast radius 제한 + route-side `remove()` 제거로 파괴만 차단). 근본해결=유저별 storage prefix → `${user.id}/...` 강제 + Storage RLS 정책. **인증 MVP 완료로 선행조건은 해소됨 — 이제 착수 가능.** (DEV_260621 §6)
 - [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
 - [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
@@ -273,18 +273,22 @@
 
 ## 📋 장기 계획 (검토 중)
 
-### 인증 시스템 전환
+### 인증 시스템 전환 — ✅ 스테이징 완료 (2026-07-14)
 
-현재 nickname 기반 localStorage 인증 → 서버 검증 가능한 구조로 단계 전환.
+nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **L3+L4 직행**했다 — L1(자체 `auth_tokens` 테이블)은 Supabase Auth를 도입하는 순간 폐기될 코드라 만들지 않았고, L2(IDOR-1/2)는 라우트 삭제와 RLS로 **소멸**했다.
 
-| 단계 | 내용 | 선행 조건 |
-|---|---|---|
-| **L1** 서버 토큰 발급 | `auth_tokens` 테이블 + `POST /api/auth` 토큰 발급 + Bearer 헤더 검증 미들웨어 | — |
-| **L2** IDOR 수정 | IDOR-1/2 소유권 검증 (토큰 기반 user_id 추출) → 백로그 항목 이행 | L1 |
-| **L3** Supabase Auth 전환 | nickname → 이메일/OAuth 마이그레이션, `users` 테이블 재설계 | — (독립) |
-| **L4** RLS 활성화 | anon 키 전환 + 테이블별 policy 작성, `supabaseAdmin`만 service role 사용 | L3 |
+| 단계 | 결과 |
+|---|---|
+| ~~L1 서버 토큰 발급~~ | **생략** — Supabase Auth의 JWT가 대체 |
+| ~~L2 IDOR 수정~~ | **소멸** — IDOR-1은 라우트 삭제, IDOR-2는 RLS가 강제 |
+| **L3** Supabase Auth 전환 | ✅ Anonymous Sign-in(게스트) + Google `linkIdentity`(같은 uuid 유지 → 대화 승계) |
+| **L4** RLS 활성화 | ✅ 전 테이블 정책 + Bearer 토큰 user-scoped 클라이언트. `service_role`은 Storage 라우트에만 잔존(→ IDOR-3) |
 
-> L1/L2는 현재 구조 최소 변경으로 가능. L3/L4는 대규모 마이그레이션으로 별도 계획 필요.
+- 구현·검증: [DEV_260714](logs/2026/07/DEV_260714.md) · 설계 [PLAN_AUTH_MVP_260709](plans/PLAN_AUTH_MVP_260709.md) · 검증 [PLAN_AUTH_MVP_TEST_260709](plans/PLAN_AUTH_MVP_TEST_260709.md)
+- [ ] **프로덕션 이관** — SQL 3종 적용(`scripts/sql/auth-mvp-*.sql`) · 대시보드 3종(Anonymous Sign-ins / **Allow manual linking** / Google provider) · Google Cloud에 운영 콜백 URI + JS 원본 · Supabase Redirect URLs
+- [ ] 크로스 디바이스 승계 실기기 확인 (구조는 스테이징 §5-2와 동일, 미검증)
+- [ ] (post-MVP) Kakao · 이메일+비밀번호 — Google 연결 후엔 이메일이 검증된 상태라 `updateUser({ password })`가 깔끔하게 동작
+- [ ] (보류) Google 동의 화면에 앱 이름 대신 `*.supabase.co` 노출 — Supabase Custom Domain(유료) 외 방법 없음
 
 ### Trial / Playground
 

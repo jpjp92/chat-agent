@@ -1,7 +1,9 @@
 # PLAN — 인증 MVP (익명로그인 + Google + RLS)
 
-> 작성: 2026-07-09 · 상태: **설계 확정(구현 전)**
+> 작성: 2026-07-09 · 상태: **✅ 구현·스테이징 검증 완료 (2026-07-14) — 프로덕션 이관 대기**
+> 구현 로그: [DEV_260714](../logs/2026/07/DEV_260714.md) — 실제로 어떻게 배선됐는지, 그리고 **자동 40건이 못 잡은 버그 3개**
 > 전체 설계: [PLAN_AUTH_SUPABASE_260708.md](PLAN_AUTH_SUPABASE_260708.md) — 이 문서는 그 중 **최소 실행 가능 조각**만 잘라낸 실행 플랜이다.
+> 테스트 전략: [PLAN_AUTH_MVP_TEST_260709.md](PLAN_AUTH_MVP_TEST_260709.md) — 스테이징 프로젝트 + RLS 매트릭스(§6 검증 시나리오의 실행 설계)
 
 ---
 
@@ -24,7 +26,7 @@ MVP가 끝나면: 게스트가 대화 → Google 로그인 → **같은 uuid라 
 
 | 항목 | 이유 |
 |---|---|
-| Kakao / 이메일·비밀번호 / Naver | provider 1종으로 플로우 검증 후 추가. 이메일은 SMTP·확인메일·재설정 플로우가 부수 |
+| Kakao / 이메일·비밀번호 / Naver | provider 1종으로 플로우 검증 후 추가. **익명→이메일 승격은 비밀번호 설정 전에 이메일 인증이 강제**(Supabase 공식)라 SMTP·확인메일·재설정 플로우가 통째로 딸려온다. Google은 이메일이 이미 verified라 인증 단계가 없다 — MVP를 Google로 시작하는 실질 근거 |
 | **Storage 유저 prefix (IDOR-3)** | `upload`·`create-signed-url`·`parse-document`는 현행 admin 클라 유지. IDOR-3는 **미해소 상태로 남음**(의도적 이월) |
 | `getClaims()` / asymmetric JWT 서명키 | Bearer+RLS에선 라우트가 유저 id를 몰라도 되어 왕복 자체가 없음(§2). 필요해지면 그때 |
 | middleware.ts | Bearer 채택으로 불필요 |
@@ -136,7 +138,23 @@ create trigger on_auth_user_created
 
 - 게스트: `raw_user_meta_data`가 비어 `사용자_XXXX` 폴백 (현행 UX 동일)
 - Google: `name` / `avatar_url` 자동 채움
-- `linkIdentity`는 **새 auth.users 행을 만들지 않으므로** 트리거 미발화 → 승계 유지. `is_guest=false` 전환은 클라가 링크 성공 후 `profiles` update.
+- `linkIdentity`는 **새 auth.users 행을 만들지 않으므로** INSERT 트리거 미발화 → 승계 유지.
+
+**🔴 승격 동기화는 트리거가 한다 (클라이언트 아님)**
+
+실측 확인(2026-07-09): 승격 시 `auth.users.is_anonymous`는 `false`로 바뀌고 데이터도 승계되지만, `handle_new_user`가 INSERT 트리거라 **`profiles.is_guest`는 `true`로, `display_name`은 `사용자_XXXX`로 남는다.**
+
+이걸 클라이언트가 `profiles` update로 메우게 하면 실패 창이 생긴다 — 링크 직후 크래시·탭 종료 시 `is_guest`가 영구히 어긋난다. 그래서 `auth.users` **AFTER UPDATE 트리거**(`sync_profile_from_auth`)가 원천과 사본을 같은 트랜잭션에서 맞춘다. 사용자가 직접 정한 `display_name`·`avatar_url`은 덮지 않는다(폴백 상태일 때만 채움).
+
+> `WHEN` 절로 `is_anonymous` / `raw_user_meta_data` 변경 시에만 발화 — 없으면 로그인마다(`last_sign_in_at` 갱신) 헛돈다.
+
+### 3-2-a. 🔴 `linkIdentity` vs `signInWithOAuth` — 잘못 고르면 게스트 대화가 사라진다
+
+둘 다 "Google로 로그인" 버튼 뒤에 있지만 결과가 다르다. **활성 세션(게스트 포함)이 있으면 `linkIdentity`**, 세션이 없으면 `signInWithOAuth`로 분기해야 한다.
+
+게스트 세션이 살아있는데 `signInWithOAuth`를 부르면 **다른(또는 새) 유저로 로그인**되고, 익명 유저의 세션·메시지는 uuid가 갈라져 **주인 없이 남는다**. MVP의 핵심 가치가 바로 그 승계라, 이 분기가 틀리면 기능 자체가 무의미해진다.
+
+> Supabase는 **verified 이메일**에 한해 같은 이메일의 OAuth 신원을 기존 유저에 자동 연결한다(unverified 자동 연결은 pre-account-takeover 공격 벡터라 금지). Google 이메일은 verified라 이 규칙에 걸린다 — 분기를 지키지 않으면 "기존 계정으로 조용히 흡수"가 일어난다.
 
 ### 3-3. RLS
 
@@ -205,7 +223,7 @@ create policy "own messages" on public.chat_messages
 | **1** DB 마이그레이션 | 기존 3테이블 `*_legacy` rename → §3 전체 적용(테이블·트리거·RLS·GRANT) | 타 유저 토큰으로 행 조회 0건. `supabase db advisors` 통과 |
 | **2** 인증 기반 | `lib/supabase/*`, `useAuthSession` 재작성, `authedFetch` | 첫 방문 → 게스트 자동 생성 → 새로고침 세션 유지 |
 | **3** 라우트 전환 | §4-2 sessions / chat / profile | 채팅 E2E(전송·저장·목록·삭제) + 토큰 없이 호출 시 401 |
-| **4** 로그인 UI | AuthModal(Google), 헤더 진입점, `linkIdentity` 승계, `is_guest=false` 갱신 | §6 시나리오 전부 통과 |
+| **4** 로그인 UI | AuthModal(Google), 헤더 진입점, **세션 유무로 `linkIdentity`/`signInWithOAuth` 분기**(§3-2-a), 충돌 에러 분기. `is_guest` 갱신은 트리거가 하므로 클라 코드 불필요 | §6 시나리오 전부 통과 |
 
 > **Phase 1~3은 스키마와 코드가 상호 비호환** — 프리뷰 배포로 검증 후 프로덕션 1회 전환. Phase 2까지는 로컬/별도 프로젝트 권장.
 
@@ -226,7 +244,7 @@ create policy "own messages" on public.chat_messages
 
 ## 7. 리스크
 
-- **익명 유저 남용** — 쿠키 삭제마다 `auth.users` 행 생성. MVP에선 방치, 지표 보고 CAPTCHA(Turnstile)·미전환 유저 정리 잡 검토.
+- **익명 유저 남용** — 쿠키 삭제마다 `auth.users` 행 생성. Supabase 기본 **rate limit은 IP당 시간당 30회**이고 **자동 정리는 없다**(공식 문서). MVP에선 방치, 지표 보고 CAPTCHA(Turnstile)·미전환 유저 정리 잡 검토. 테스트 스위트도 실행당 유저를 만드니 teardown 필수(§테스트 플랜).
 - **linkIdentity 이메일 충돌**(시나리오 7) — 미구현 시 전환 실패가 무한 루프처럼 보임. **반드시 분기 구현**.
 - **IDOR-3 미해소** — Storage 유저 prefix가 범위 밖. MVP 이후 즉시 착수 권장(현재 `filePath` 형식 검증으로 blast radius만 제한된 상태).
 - **`id` 타입 전파**(`number → string`) — 컴파일 에러로 대부분 잡히나 문자열 비교/키 사용처 확인.

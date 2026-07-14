@@ -5,14 +5,15 @@ import ChatSidebar from './components/ChatSidebar';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Dialog from './components/Dialog';
+import AuthModal from './components/AuthModal';
 import Toast from './components/Toast';
 import LoadingScreen from './components/LoadingScreen';
 import WelcomeMessage from './components/WelcomeMessage';
 import SuggestChips from './components/SuggestChips';
 import ChatArea from './components/ChatArea';
-import { updateRemoteUserProfile } from './services/geminiService';
 import { UserProfile, Language, MessageAttachment } from './types';
 import { useAuthSession } from './src/hooks/useAuthSession';
+import { consumeOAuthError } from './lib/supabase/client';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
 import { DEFAULT_CHAT_MODEL, isChatModelId, type ChatModelId } from './src/lib/models';
@@ -63,7 +64,23 @@ const App: React.FC = () => {
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
   });
 
-  const { currentUser, setCurrentUser, isAuthLoading, clearStoredUser, hydratedUserProfile } = useAuthSession();
+  const { currentUser, isAuthLoading, updateProfile, linkGoogle, signInWithGoogle, signOut, hydratedUserProfile } = useAuthSession();
+  // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
+  const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
+  // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
+  // 아무 설명 없이 돌아와 같은 버튼을 다시 누른다(실측: 무한 재시도).
+  const [linkConflict, setLinkConflict] = useState(false);
+
+  useEffect(() => {
+    const code = consumeOAuthError();
+    if (!code) return;
+    if (code === 'identity_already_exists') {
+      setLinkConflict(true);
+      setAuthModalReason('save');
+    } else {
+      console.error('[Auth] OAuth 리다이렉트 에러:', code);
+    }
+  }, []);
   const {
     sessions,
     setSessions,
@@ -111,6 +128,7 @@ const App: React.FC = () => {
     language,
     selectedModel,
     onError: (message) => showToast(message, 'error'),
+    onGuestLimit: () => setAuthModalReason('limit'),
   });
 
   useEffect(() => {
@@ -124,20 +142,16 @@ const App: React.FC = () => {
     }
   }, [hydratedUserProfile]);
 
-  const handleReset = () => {
-    // React 상태 변경 없이 스토리지만 지우고 바로 reload
-    // clearStoredUser()를 먼저 호출하면 currentUser=null 리렌더가 reload보다 먼저 실행돼 에러 화면이 순간 표시됨
-    localStorage.removeItem('gemini_chat_user');
-    localStorage.removeItem('chat_sessions_cache_v1');
-    window.location.reload();
-  };
+  // '초기화' 버튼은 제거했다. localStorage 시절엔 로컬이 곧 원천이라 "신원 초기화"가
+  // 의미를 가졌지만, 대화가 DB로 옮겨간 뒤엔 지워도 새로고침 즉시 복원돼 아무 일도
+  // 하지 않는 껍데기가 됐다. 같은 의도(=새 사람으로 시작)는 signOut 이 정확히 수행한다.
   // Supabase 연동으로 인해 로컬스토리지 자동 저장은 비활성화하거나 유저 프로필만 남깁니다.
   useEffect(() => {
     // profile만 저장
   }, [userProfile]);
 
 
-  const handleNewSession = async (userId?: number) => {
+  const handleNewSession = async (userId?: string) => {
     await createNewSession(userId);
     setIsSidebarOpen(false);
   };
@@ -158,24 +172,11 @@ const App: React.FC = () => {
 
   const handleUpdateProfile = async (profile: UserProfile) => {
     try {
+      // RLS가 본인 행만 허용하므로 클라이언트가 profiles를 직접 갱신한다(라우트 불필요).
+      // 훅이 currentUser 상태까지 갱신하므로 로컬 캐시 동기화가 필요 없다.
       if (currentUser) {
-        // 1. Supabase DB 업데이트
-        await updateRemoteUserProfile(currentUser.id, {
-          display_name: profile.name,
-          avatar_url: profile.avatarUrl
-        });
-
-        // 2. 현재 유저 상태 업데이트 (변경된 정보 반영)
-        const updatedUser = {
-          ...currentUser,
-          display_name: profile.name,
-          avatar_url: profile.avatarUrl
-        };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('gemini_chat_user', JSON.stringify(updatedUser));
+        await updateProfile({ display_name: profile.name, avatar_url: profile.avatarUrl });
       }
-
-      // 3. UI 프로필 상태 업데이트
       setUserProfile(profile);
     } catch (e: any) {
       showToast(t.profileUpdateFailed, "error");
@@ -284,7 +285,10 @@ const App: React.FC = () => {
           onUpdateProfile={handleUpdateProfile}
           onMenuClick={() => setIsSidebarOpen(true)}
           showToast={showToast}
-          onReset={handleReset}
+          isGuest={currentUser?.is_guest ?? true}
+          userEmail={currentUser?.email}
+          onLogin={() => setAuthModalReason('save')}
+          onSignOut={signOut}
           language={language}
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
@@ -381,6 +385,19 @@ const App: React.FC = () => {
         type={dialogConfig.type}
         onConfirm={dialogConfig.onConfirm}
         onCancel={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))}
+        language={language}
+      />
+
+      <AuthModal
+        isOpen={authModalReason !== null}
+        reason={authModalReason ?? 'save'}
+        onClose={() => { setAuthModalReason(null); setLinkConflict(false); }}
+        guestName={userProfile.name}
+        guestAvatarUrl={userProfile.avatarUrl}
+        sessionCount={sessions.length}
+        onLink={linkGoogle}
+        onSignIn={signInWithGoogle}
+        initialConflict={linkConflict}
         language={language}
       />
 

@@ -92,6 +92,27 @@ html {
   .orb { animation: none; }
 }
 
+/* 모달 진입 애니메이션.
+   Dialog.tsx가 쓰던 animate-in/zoom-in-95는 tailwindcss-animate 플러그인 클래스인데
+   이 프로젝트엔 미설치라 무효였다. 실제 키프레임으로 대체한다. */
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-backdrop-in { animation: modalBackdropIn 200ms ease-out both; }
+.modal-panel-in    { animation: modalPanelIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop-in,
+  .modal-panel-in { animation: none; }
+}
+
 .prose p {
   margin-bottom: 1.25em;
   line-height: 1.8;

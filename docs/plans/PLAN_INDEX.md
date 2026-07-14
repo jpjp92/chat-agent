@@ -10,9 +10,10 @@
 
 | Priority | Area | Plan | Status | Next action |
 |---:|---|---|---|---|
-| — | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Bucket whitelist verification guide; SSRF/redirect blocking applied (DEV_260504) | Remaining items (IDOR-1/2, xlsx, CSP) live in `docs/TODO.md` 백로그 §보안, gated behind L1 server tokens |
-| P1 | **인증 MVP (실행)** | [PLAN_AUTH_MVP_260709.md](PLAN_AUTH_MVP_260709.md) | **설계 확정 (2026-07-09)** — 익명로그인 + Google 1종 + RLS 3테이블. 세션 전달 **Bearer 확정**(SPA `ssr:false`·SSE·middleware 불요). 라우트가 유저 id 불요(`user_id default auth.uid()` + RLS). IDOR-1/2 해소, IDOR-3는 의도적 이월 | Phase 0(대시보드 Anonymous·Manual Linking·Google provider)부터. Phase 1~3은 스키마·코드 비호환 → 배포 묶음 |
-| — | 인증 전체 설계 (참조) | [PLAN_AUTH_SUPABASE_260708.md](PLAN_AUTH_SUPABASE_260708.md) | 참조 설계 — Kakao/이메일/Naver, Storage 유저 prefix(IDOR-3), 쿠키 세션 대안 등 MVP 범위 밖 항목 보관 | MVP 완료 후 Storage prefix → Kakao → 이메일 순 |
+| — | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Bucket whitelist verification guide; SSRF/redirect blocking applied (DEV_260504) | IDOR-1/2는 인증 MVP로 해소(라우트 삭제 + RLS). 남은 IDOR-3(Storage prefix)·xlsx·CSP는 `docs/TODO.md` §보안 |
+| P1 | **인증 MVP (실행)** | [PLAN_AUTH_MVP_260709.md](PLAN_AUTH_MVP_260709.md) | **스테이징 검증 완료 (2026-07-14)** — 익명로그인 + Google `linkIdentity` + RLS. Bearer 세션. 라우트가 유저 id 불요(`user_id default auth.uid()` + RLS) → IDOR-1/2 소멸. 구현 로그 [DEV_260714](../logs/2026/07/DEV_260714.md) | **프로덕션 이관만 남음** — SQL 3종 + 대시보드 3종(Anonymous·**Manual Linking**·Google) + Google Cloud 운영 콜백 URI |
+| P1 | 인증 MVP 테스트 전략 | [PLAN_AUTH_MVP_TEST_260709.md](PLAN_AUTH_MVP_TEST_260709.md) | **검증 완료 (2026-07-14)** — 자동 40건(RLS 18 · identity 10 · limit 6 · routes 6) + 수동 OAuth 5건 통과. 🔴 **교훈: 자동 40건이 초록불인 채로 실제 리다이렉트에서만 버그 3개가 나왔다**(identity 동기화·리다이렉트 에러 무시·캐시 유출) — §5 수동 검증을 남긴 이유 | 프로덕션 이관 후 동일 스위트 재실행(스테이징 가드 `STG≠PROD` 유지) |
+| — | 인증 전체 설계 (참조) | [PLAN_AUTH_SUPABASE_260708.md](PLAN_AUTH_SUPABASE_260708.md) | 참조 설계 — Kakao/이메일/Naver, Storage 유저 prefix(IDOR-3), 쿠키 세션 대안 등 MVP 범위 밖 항목 보관 | MVP 완료 → 다음은 Storage prefix(IDOR-3) → Kakao → 이메일 |
 | P1 | Image generation (test/policy) | [PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md](PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md) | 1st test complete, policy/routing design done | Add Korean case-set, report aggregation, intent/layout guardrail tests |
 | P1 | Image generation (integration) | [PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md](PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md) | Integration design approved | Start P0: extract `server/image/` core modules from test script |
 | P1 | i18n cleanup | [PLAN_I18N_CLEANUP_260602.md](PLAN_I18N_CLEANUP_260602.md) | Steps 1·2 done (2026-06-04) | Decide step 3 shared-module boundary before extracting `src/i18n/` |

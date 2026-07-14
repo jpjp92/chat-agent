@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage } from '../../services/geminiService';
+import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage, GuestLimitError } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
@@ -69,6 +69,8 @@ interface UseChatStreamOptions {
   language: Language;
   selectedModel: ChatModelId;
   onError: (message: string) => void;
+  /** 게스트 메시지 한도 초과 — 에러 토스트 대신 로그인 유도를 띄운다. */
+  onGuestLimit?: () => void;
 }
 
 export const useChatStream = ({
@@ -80,6 +82,7 @@ export const useChatStream = ({
   language,
   selectedModel,
   onError,
+  onGuestLimit,
 }: UseChatStreamOptions) => {
   const [isTyping, setIsTyping] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
@@ -121,11 +124,11 @@ export const useChatStream = ({
     let latestHistory: Message[] = [];
 
     if (!activeSessionId) {
-      const targetUserId = currentUser?.id;
-      if (!targetUserId) return;
+      // 세션 소유자는 서버가 Bearer 토큰으로 정한다. 여기선 인증 완료 여부만 확인.
+      if (!currentUser?.id) return;
       setIsTyping(true);
       try {
-        const { session, error } = await createSession(targetUserId);
+        const { session, error } = await createSession();
         if (error || !session) {
           setIsTyping(false);
           onError(error || 'Failed to create session');
@@ -142,7 +145,7 @@ export const useChatStream = ({
         };
         setSessions(prev => {
           const updated = [newSession, ...prev];
-          writeSessionsCache(updated);
+          writeSessionsCache(updated, currentUser?.id ?? null);
           return updated;
         });
         setCurrentSessionId(session.id);
@@ -491,7 +494,7 @@ export const useChatStream = ({
         ], language);
         setSessions(prev => {
           const updated = prev.map(session => (session.id === activeSessionId ? { ...session, title: newTitle } : session));
-          writeSessionsCache(updated);
+          writeSessionsCache(updated, currentUser?.id ?? null);
           return updated;
         });
         try {
@@ -520,7 +523,9 @@ export const useChatStream = ({
       }
     } catch (error: any) {
       hasError = true;
-      onError(error.message);
+      // 한도 초과는 실패가 아니라 전환 지점이다. 에러 문구 대신 로그인 유도를 띄운다.
+      if (error instanceof GuestLimitError) onGuestLimit?.();
+      else onError(error.message);
     } finally {
       // Apply any pending sources after streaming completes — chips appear only after full response
       if (pendingSources.length > 0) {
