@@ -21,6 +21,18 @@ const buildUserProfile = (user: SupabaseUser): UserProfile => ({
 });
 
 /**
+ * link/signIn 공통 OAuth 옵션.
+ *
+ * prompt=select_account: 없으면 브라우저에 이미 로그인된 Google 계정이 **묻지도 않고**
+ * 선택된다. 계정이 하나인 사용자에겐 클릭이 한 번 늘 뿐이지만, 여러 개인 사용자는
+ * 이게 없으면 원하는 계정을 **아예 못 고른다.** 비대칭이 명확해서 항상 켠다.
+ */
+const oauthOptions = () => ({
+  redirectTo: window.location.origin,
+  queryParams: { prompt: 'select_account' },
+});
+
+/**
  * 게스트는 Supabase Anonymous Sign-in 으로 만든다(가입 없이 즉시 사용 UX 유지).
  * 정식 계정 전환은 linkIdentity 로 같은 uuid 를 유지하므로 대화가 승계된다.
  *
@@ -110,11 +122,21 @@ export const useAuthSession = () => {
     setCurrentUser(data as SupabaseUser);
   }, [currentUser]);
 
+  // ── 🔴 link 냐 signIn 이냐 ────────────────────────────────────────────────
+  // 무엇을 부를지는 **호출부가 정한다.** 기준은 딱 하나: 승계할 게스트 데이터가 있는가.
+  //
+  //   있다 → linkIdentity     같은 uuid 에 신원을 붙여 대화를 살린다
+  //   없다 → signInWithOAuth  고아가 될 게 없다. 그냥 로그인이 맞다
+  //
+  // 예전 주석은 "활성 세션이 있으면 signInWithOAuth 금지"였는데, 그건 목적을 잘못
+  // 일반화한 문장이다. 막으려던 건 세션의 존재가 아니라 **게스트 대화가 주인 없이
+  // 남는 것**이다. 대화 0개 게스트(= 캐시를 지운 사용자)나 이미 정식인 사용자에겐
+  // 잃을 게 없으므로 signInWithOAuth 는 금지가 아니라 정답이다.
+  // 이 구분을 지우면 App.tsx 의 분기가 버그처럼 보여 되돌려진다.
+  // ─────────────────────────────────────────────────────────────────────────
+
   /**
    * 게스트를 Google 계정에 연결한다 — 같은 uuid 를 유지하므로 대화가 승계된다.
-   *
-   * 🔴 활성 세션이 있는데 signInWithOAuth 를 부르면 **다른 uuid 로 로그인**되어
-   *    게스트의 대화가 주인 없이 남는다. 세션이 있으면 반드시 linkIdentity.
    *
    * 대상 Google 계정이 이미 다른 유저의 것이면 Supabase 가 거부한다 →
    * 호출부가 충돌 분기(기존 계정으로 로그인, 게스트 데이터 미승계)를 띄운다.
@@ -126,16 +148,23 @@ export const useAuthSession = () => {
 
     const { error } = await supabase.auth.linkIdentity({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: oauthOptions(),
     });
     if (error) throw error;
   }, []);
 
-  /** 기존 계정으로 새로 로그인한다. 현재 게스트 데이터는 승계되지 않는다. */
+  /**
+   * Google 계정으로 로그인한다. **현재 세션의 데이터는 승계되지 않는다.**
+   *
+   * 두 자리에서 쓴다:
+   *  - 대화 0개 게스트의 로그인 (승계할 게 없다)
+   *  - 이미 로그인한 사용자의 계정 전환 (원래 계정의 대화는 그 uuid 에 그대로
+   *    남아 다시 로그인하면 돌아온다. 로그아웃을 선행할 필요가 없다.)
+   */
   const signInWithGoogle = useCallback(async () => {
     const { error } = await getSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: oauthOptions(),
     });
     if (error) throw error;
   }, []);

@@ -285,6 +285,7 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 | **L4** RLS 활성화 | ✅ 전 테이블 정책 + Bearer 토큰 user-scoped 클라이언트. `service_role`은 Storage 라우트에만 잔존(→ IDOR-3) |
 
 - 구현·검증: [DEV_260714](logs/2026/07/DEV_260714.md) · 설계 [PLAN_AUTH_MVP_260709](plans/PLAN_AUTH_MVP_260709.md) · 검증 [PLAN_AUTH_MVP_TEST_260709](plans/PLAN_AUTH_MVP_TEST_260709.md)
+- [~] **로그인 경로 정비** — [PLAN_AUTH_SIGNIN_PATHS_260715](plans/PLAN_AUTH_SIGNIN_PATHS_260715.md). **구현 완료·tsc 0**(3파일, SQL 무변경). 계정 선택창(`prompt=select_account`) · 대화 0개 게스트는 `signInWithOAuth` 직행(= 캐시 지운 사용자가 실패 없이 로그인) · 설정에 "다른 계정으로 로그인". **남음: 브라우저 3건**(선택창 뜨는지 / 0개 게스트 충돌 없이 로그인 / 계정 전환 시 사이드바 완전 교체)
 - [ ] **프로덕션 이관** — SQL 3종 적용(`scripts/sql/auth-mvp-*.sql`) · 대시보드 3종(Anonymous Sign-ins / **Allow manual linking** / Google provider) · Google Cloud에 운영 콜백 URI + JS 원본 · Supabase Redirect URLs
 - [ ] 크로스 디바이스 승계 실기기 확인 (구조는 스테이징 §5-2와 동일, 미검증)
 - [ ] (post-MVP) Kakao · 이메일+비밀번호 — Google 연결 후엔 이메일이 검증된 상태라 `updateUser({ password })`가 깔끔하게 동작

@@ -288,6 +288,7 @@ const App: React.FC = () => {
           isGuest={currentUser?.is_guest ?? true}
           userEmail={currentUser?.email}
           onLogin={() => setAuthModalReason('save')}
+          onSwitchAccount={signInWithGoogle}
           onSignOut={signOut}
           language={language}
           selectedModel={selectedModel}
@@ -395,7 +396,11 @@ const App: React.FC = () => {
         guestName={userProfile.name}
         guestAvatarUrl={userProfile.avatarUrl}
         sessionCount={sessions.length}
-        onLink={linkGoogle}
+        // 승계할 게 없으면 연결이 아니라 로그인이다. 대화 0개 게스트(= 캐시를 지운
+        // 사용자)에게 linkIdentity 를 태우면, 이미 쓰던 계정을 고른 순간 충돌로
+        // 튕겨나갔다가 "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 로그인하려다
+        // 에러를 보는 셈이라, 잃을 게 없을 땐 처음부터 로그인으로 보낸다.
+        onLink={sessions.length === 0 ? signInWithGoogle : linkGoogle}
         onSignIn={signInWithGoogle}
         initialConflict={linkConflict}
         language={language}
