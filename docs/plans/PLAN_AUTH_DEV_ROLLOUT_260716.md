@@ -83,7 +83,7 @@
 ### D. 브랜치 머지·배포 — ✅ 완료 (2026-07-19)
 - [x] `feat/auth-mvp` → dev 머지·푸시 (인증 4개 커밋)
 - [x] chat-agent-dev 배포 → **스테이징(서울) 정상 바인딩** 확인 (외부 API 호출이 `ghdpnuwbvlrxmxcazzci.supabase.co`), 로그인·대화·업로드 실동작
-- [x] **함수 리전 최적화** — dev 로그에서 `/api/sessions` 가 iad1(~900ms) → Supabase 는 서울이라 sessions·upload·create-signed-url 에 `preferredRegion='icn1'` 추가 (§3 부작용 항목 참조). sync-drug-image·fetch-url 은 후속 판단.
+- [x] **함수 리전 최적화** — dev 로그에서 `/api/sessions` 가 iad1(~900ms). Supabase 는 서울이라 5개 라우트에 `preferredRegion='icn1'` 추가(커밋 `a7a8636`). **하지만 무료(Hobby) 티어는 코드 export 를 무시** → 실제 해결은 **Vercel Settings → Functions → Function Region = Seoul(icn1) 단일 선택**(사용자 적용 완료). 상세·교훈은 [DEV_260719 §4](../logs/2026/07/DEV_260719.md).
 
 ---
 
