@@ -80,9 +80,10 @@
 - [x] 검증 중 버그 3개 발견·수정([DEV_260719](../logs/2026/07/DEV_260719.md)): 로그아웃 번쩍임 · 충돌 재시도 계정 재선택 · 시나리오 2 죽은 코드 — 3파일(useAuthSession·App), tsc 0
 - 준비 메모: 스테이징 잔여 정식 유저가 Google 계정 소진 → `johnnyworld9278`(메시지 0) 1명 정리 후 승계 확인.
 
-### D. 브랜치 머지 (담당: 사용자 — 커밋)
-- [ ] `feat/auth-mvp` → dev 머지 (guestHasData 수정 커밋 후)
-- [ ] dev 배포 후 스모크: 게스트 로그인 → 대화 → Google 링크 승계 → 로그아웃
+### D. 브랜치 머지·배포 — ✅ 완료 (2026-07-19)
+- [x] `feat/auth-mvp` → dev 머지·푸시 (인증 4개 커밋)
+- [x] chat-agent-dev 배포 → **스테이징(서울) 정상 바인딩** 확인 (외부 API 호출이 `ghdpnuwbvlrxmxcazzci.supabase.co`), 로그인·대화·업로드 실동작
+- [x] **함수 리전 최적화** — dev 로그에서 `/api/sessions` 가 iad1(~900ms) → Supabase 는 서울이라 sessions·upload·create-signed-url 에 `preferredRegion='icn1'` 추가 (§3 부작용 항목 참조). sync-drug-image·fetch-url 은 후속 판단.
 
 ---
 

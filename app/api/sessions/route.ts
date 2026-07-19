@@ -4,6 +4,9 @@ import { createRouteClient, isAuthError, unauthorized } from '../../../lib/supab
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+// Supabase 가 서울(ap-northeast-2)이라 함수도 서울에 둔다. 기본값 iad1(워싱턴)이면
+// 서울유저→US함수→서울DB 로 태평양을 두 번 건너 ~900ms 가 나온다(실측).
+export const preferredRegion = 'icn1';
 
 // user_id 는 요청에서 받지 않는다. Bearer 토큰의 auth.uid() 와 RLS 가 스코프를 강제한다.
 // 예전 `?user_id=` 파라미터는 무시된다(전달돼도 타 유저 데이터가 나오지 않는다).

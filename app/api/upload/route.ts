@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+// Supabase Storage 가 서울이라 함수도 서울에 둔다(기본 iad1 이면 태평양 왕복).
+export const preferredRegion = 'icn1';
 
 export async function POST(req: NextRequest) {
     try {
