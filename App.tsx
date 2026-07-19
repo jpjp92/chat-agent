@@ -64,7 +64,7 @@ const App: React.FC = () => {
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
   });
 
-  const { currentUser, isAuthLoading, updateProfile, linkGoogle, signInWithGoogle, signOut, hydratedUserProfile } = useAuthSession();
+  const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, signOut, hydratedUserProfile } = useAuthSession();
   // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
   const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
   // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
@@ -218,6 +218,14 @@ const App: React.FC = () => {
     return () => window.removeEventListener('custom-toast', handleCustomToast);
   }, []);
 
+
+  // 로그아웃은 currentUser 를 null 로 만들지만 실패가 아니다 — 리로드 직전까지
+  // 에러 화면 대신 "로그아웃 중" 로딩을 그려 "연결 실패" 번쩍임을 막는다.
+  if (isSigningOut) {
+    // 정적 "…" 대신 LoadingScreen 의 애니메이션 점(children 없을 때 렌더)으로 말줄임을 대신한다 — 초기 로딩과 일관.
+    const outMsg = language === 'es' ? 'Cerrando sesión' : language === 'fr' ? 'Déconnexion' : language === 'en' ? 'Signing out' : '로그아웃 중';
+    return <LoadingScreen message={outMsg} />;
+  }
 
   if (!currentUser && !isAuthLoading) {
     const errMsg = language === 'es' ? 'Error de conexión.' : language === 'fr' ? 'Erreur de connexion.' : language === 'en' ? 'Connection failed.' : '연결에 실패했습니다.';
@@ -401,7 +409,8 @@ const App: React.FC = () => {
         // 튕겨나갔다가 "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 로그인하려다
         // 에러를 보는 셈이라, 잃을 게 없을 땐 처음부터 로그인으로 보낸다.
         onLink={sessions.length === 0 ? signInWithGoogle : linkGoogle}
-        onSignIn={signInWithGoogle}
+        // 충돌 재시도 — 방금 계정을 골라 돌아왔으니 select_account 를 빼 자동 통과시킨다(두 번 고르는 체감 제거).
+        onSignIn={() => signInWithGoogle({ chooseAccount: false })}
         initialConflict={linkConflict}
         language={language}
       />

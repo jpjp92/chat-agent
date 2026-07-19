@@ -25,11 +25,16 @@ const buildUserProfile = (user: SupabaseUser): UserProfile => ({
  *
  * prompt=select_account: 없으면 브라우저에 이미 로그인된 Google 계정이 **묻지도 않고**
  * 선택된다. 계정이 하나인 사용자에겐 클릭이 한 번 늘 뿐이지만, 여러 개인 사용자는
- * 이게 없으면 원하는 계정을 **아예 못 고른다.** 비대칭이 명확해서 항상 켠다.
+ * 이게 없으면 원하는 계정을 **아예 못 고른다.** 그래서 첫 로그인·전환엔 항상 켠다.
+ *
+ * 예외 — 충돌 재시도(chooseAccount=false): 이미 방금 계정을 골라 돌아왔는데
+ * `identity_already_exists` 로 튕긴 경우다. 여기서 또 select_account 를 켜면
+ * **같은 계정을 두 번 고르게** 되어 "두 번 로그인하는" 체감이 난다. 어느 계정인지
+ * 아니까 프롬프트를 빼서 Google 이 자동 통과하게 둔다 → 사용자 조작은 한 번.
  */
-const oauthOptions = () => ({
+const oauthOptions = (chooseAccount = true) => ({
   redirectTo: window.location.origin,
-  queryParams: { prompt: 'select_account' },
+  ...(chooseAccount ? { queryParams: { prompt: 'select_account' } } : {}),
 });
 
 /**
@@ -42,6 +47,9 @@ const oauthOptions = () => ({
 export const useAuthSession = () => {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  // 로그아웃은 의도적으로 currentUser 를 null 로 만든다. 그 순간을 "인증 실패"
+  // 에러 화면과 구분하지 않으면, 리로드 직전 한 프레임 "연결 실패"가 번쩍인다.
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -160,29 +168,43 @@ export const useAuthSession = () => {
    *  - 대화 0개 게스트의 로그인 (승계할 게 없다)
    *  - 이미 로그인한 사용자의 계정 전환 (원래 계정의 대화는 그 uuid 에 그대로
    *    남아 다시 로그인하면 돌아온다. 로그아웃을 선행할 필요가 없다.)
+   *
+   * chooseAccount=false 는 충돌 재시도 전용 — 방금 고른 계정으로 자동 통과시켜
+   * 계정을 두 번 고르는 체감을 없앤다.
    */
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (opts?: { chooseAccount?: boolean }) => {
     const { error } = await getSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
-      options: oauthOptions(),
+      options: oauthOptions(opts?.chooseAccount ?? true),
     });
     if (error) throw error;
   }, []);
 
   const signOut = useCallback(async () => {
-    await getSupabaseClient().auth.signOut();
-    // 🔴 대화 캐시를 반드시 지운다. 안 지우면 새 게스트가 이전 유저의 **대화 제목을**
-    //    그대로 본다(실측). RLS 는 DB 를 지키지만 localStorage 는 못 지킨다.
-    clearSessionsCache();
-    // 리로드하지 않으면 currentUser=null 상태로 남아 에러 화면이 뜬다.
-    // 새로고침하면 ensureSession()이 새 게스트를 만든다.
-    window.location.reload();
+    // 이 플래그로 App 이 에러 화면 대신 "로그아웃 중" 로딩을 그린다.
+    // signOut() 이 onAuthStateChange(SIGNED_OUT)로 currentUser 를 null 로 만들면
+    // `!currentUser && !isAuthLoading` 이 참이 되어 에러 화면이 뜨는데, 리로드가
+    // 즉시가 아니라서 그 프레임이 보인다("연결 실패" 번쩍).
+    setIsSigningOut(true);
+    try {
+      await getSupabaseClient().auth.signOut();
+    } catch (e) {
+      console.error('signOut error:', e);
+    } finally {
+      // 🔴 대화 캐시를 반드시 지운다. 안 지우면 새 게스트가 이전 유저의 **대화 제목을**
+      //    그대로 본다(실측). RLS 는 DB 를 지키지만 localStorage 는 못 지킨다.
+      clearSessionsCache();
+      // 네트워크 signOut 이 실패해도 로컬 세션은 지워졌으니 리로드로 마무리한다.
+      // 새로고침하면 ensureSession()이 새 게스트를 만든다.
+      window.location.reload();
+    }
   }, []);
 
   return {
     currentUser,
     setCurrentUser,
     isAuthLoading,
+    isSigningOut,
     updateProfile,
     linkGoogle,
     signInWithGoogle,
