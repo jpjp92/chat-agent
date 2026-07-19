@@ -102,6 +102,13 @@ const App: React.FC = () => {
     onError: (message) => showToast(message, 'error'),
   });
 
+  // 게스트가 승계할 실데이터가 있는가 — 빈 기본 세션('New Chat' + 메시지 0)이 아닌
+  // 세션이 하나라도 있으면 참. 게스트 데이터는 전부 이 브라우저 안에 있으므로
+  // 클라이언트 sessions 상태가 실시간 진실이다(profiles.message_count 는 로드 시점
+  // 값이라 대화 직후엔 stale → 그걸 쓰면 대화한 게스트가 고아가 된다).
+  // 빈 New Chat 은 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라 개수로는 못 센다.
+  const guestHasData = sessions.some(s => !(s.title === 'New Chat' && s.messages.length === 0));
+
 
 
   const i18n = {
@@ -403,12 +410,14 @@ const App: React.FC = () => {
         onClose={() => { setAuthModalReason(null); setLinkConflict(false); }}
         guestName={userProfile.name}
         guestAvatarUrl={userProfile.avatarUrl}
-        sessionCount={sessions.length}
-        // 승계할 게 없으면 연결이 아니라 로그인이다. 대화 0개 게스트(= 캐시를 지운
-        // 사용자)에게 linkIdentity 를 태우면, 이미 쓰던 계정을 고른 순간 충돌로
-        // 튕겨나갔다가 "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 로그인하려다
-        // 에러를 보는 셈이라, 잃을 게 없을 땐 처음부터 로그인으로 보낸다.
-        onLink={sessions.length === 0 ? signInWithGoogle : linkGoogle}
+        // 🔴 "승계할 실데이터가 있나"는 세션 개수가 아니라 message_count 로 판정한다.
+        //    빈 New Chat 세션이 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라
+        //    `=== 0` 은 영영 거짓 → 빈 게스트도 linkIdentity 를 타 충돌하던 버그(DEV_260719).
+        sessionCount={guestHasData ? sessions.length : 0}
+        // 승계할 게 없으면 연결이 아니라 로그인이다. 빈 게스트(= 캐시를 지운 사용자)에게
+        // linkIdentity 를 태우면, 이미 쓰던 계정을 고른 순간 충돌로 튕겨나갔다가
+        // "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 잃을 게 없을 땐 처음부터 로그인으로.
+        onLink={guestHasData ? linkGoogle : signInWithGoogle}
         // 충돌 재시도 — 방금 계정을 골라 돌아왔으니 select_account 를 빼 자동 통과시킨다(두 번 고르는 체감 제거).
         onSignIn={() => signInWithGoogle({ chooseAccount: false })}
         initialConflict={linkConflict}
