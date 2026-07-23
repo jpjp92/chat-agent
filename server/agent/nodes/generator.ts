@@ -1,7 +1,7 @@
 import { AgentStateType } from "../state";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
-import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../../models";
+import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint } from "../prompt";
 import { buildSdkContents } from "./sdk-contents";
@@ -112,15 +112,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 3.5 무료티어는 throughput이 나빠 20~30s를 끄는데(메모리 35-flash-free-tier-throughput),
         // 외부 도구 인텐트와 같은 논리로 throughput 좋은 2.5에 고정해 지연을 줄인다.
         const hasUrlContentForModel = (state.webContent || '').includes('[URL_CONTENT:');
-        const resolvedModel = (isYoutubeRequest && hasVideoData)
-            ? SERVER_MODELS.FLASH
-            : hasUrlContentForModel
-                ? SERVER_MODELS.FLASH
-                : (state.model || DEFAULT_CHAT_MODEL);
-        if (isYoutubeRequest && hasVideoData) {
+        // 핀 판정 기준 = 사용자 선택 모델(sel). 영상/URL 핀은 그 모델이 무료티어에서 느릴 때만 2.5 강등.
+        // 3.6 은 영상(fastMultimodal)·긴입력(fastLongInput) 모두 빠르므로 핀 안 됨(직접 처리). 3.5 는 붕괴 → 핀.
+        const sel = state.model || DEFAULT_CHAT_MODEL;
+        const selCaps = modelCaps(sel);
+        const pinYoutube = isYoutubeRequest && hasVideoData && !selCaps.fastMultimodal;
+        const pinUrl = hasUrlContentForModel && !selCaps.fastLongInput;
+        const resolvedModel = (pinYoutube || pinUrl) ? SERVER_MODELS.FLASH : sel;
+        if (pinYoutube) {
             // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
             console.log(`[LangGraph] YouTube video turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
-        } else if (hasUrlContentForModel) {
+        } else if (pinUrl) {
             console.log(`[LangGraph] URL summary turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         }
 
@@ -131,7 +133,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // on the free tier. When 3.5 Flash is selected and grounding is needed, fall back
         // to 2.5 Flash for the grounded response.
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
-        const needsSearchFallback = resolvedModel === SERVER_MODELS.FLASH_3_5;
+        // 무료티어 Google Search grounding 미지원 모델(3.5·3.6 → 429)이면 2.5 로 grounding 강등.
+        const needsSearchFallback = !modelCaps(resolvedModel).freeTierSearch;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
         // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
         // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
@@ -230,17 +233,18 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // hasMultimodalContent는 isRecent 윈도우(최근 3턴) 미디어를 반영 → 멀티턴 후속도 자동 커버,
                     // 미디어가 윈도우 밖으로 밀려 텍스트로 강등되면 3.5 복귀. (DEV_260626 §2 측정 패밀리)
                     const isMediaTurn = hasMultimodalContent && !hasDocumentContent;
-                    // gemini-3.5-flash Search grounding is not available on the free tier.
-                    // Fall back to 2.5 Flash for grounded calls; non-search calls keep the selected model.
+                    // 3.x Search grounding 은 무료티어 미지원 → 검색 콜은 2.5 로 강등(needsSearchFallback).
+                    // 이미지/영상 미디어 턴은 멀티모달이 느린 모델(3.5)만 2.5 로 핀; 3.6 은 fastMultimodal 이라 직접 처리.
                     // 503 다운그레이드가 걸리면 검색 여부와 무관하게 2.5로 강등.
-                    const effectiveModel = ((useGoogleSearch && needsSearchFallback) || unavailableDowngrade || isMediaTurn)
+                    const pinMedia = isMediaTurn && !modelCaps(resolvedModel).fastMultimodal;
+                    const effectiveModel = ((useGoogleSearch && needsSearchFallback) || unavailableDowngrade || pinMedia)
                         ? SEARCH_FALLBACK_MODEL
                         : resolvedModel;
                     if (useGoogleSearch && needsSearchFallback) {
-                        console.log('[LangGraph] 3.5 Flash + Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
+                        console.log('[LangGraph]', resolvedModel, '+ Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding (free-tier)');
                     }
-                    if (isMediaTurn && resolvedModel === SERVER_MODELS.FLASH_3_5) {
-                        console.log('[LangGraph] Image/video turn → pinning to', SEARCH_FALLBACK_MODEL, '(free-tier 3.5 multimodal exceeds 60s cap)');
+                    if (pinMedia) {
+                        console.log('[LangGraph] Image/video turn → pinning to', SEARCH_FALLBACK_MODEL, '(free-tier', resolvedModel, 'multimodal exceeds 60s cap)');
                     }
                     console.log('[LangGraph] Starting SDK stream | model:', effectiveModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
 
@@ -255,7 +259,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - YouTube: budget 0 (disable — thinkingBudget>0 causes 503 with fileData on 2.5-flash)
                     //   - medical_qa: budget 3000 (cap)
                     //   - Others: undefined (model default)
-                    const is3xModel = effectiveModel === SERVER_MODELS.FLASH_3_5;
+                    const is3xModel = isThreeXFlash(effectiveModel);
                     const thinkingConfig = resolveThinkingConfig({
                         is3xModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
                     });
@@ -545,7 +549,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                         // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
                         // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).
-                        const justDowngraded = (isUnavailable || isTimeout) && !unavailableDowngrade && resolvedModel === SERVER_MODELS.FLASH_3_5;
+                        const justDowngraded = (isUnavailable || isTimeout) && !unavailableDowngrade && isThreeXFlash(resolvedModel);
                         if (justDowngraded) {
                             unavailableDowngrade = true;
                             console.log(`[LangGraph] ${isTimeout ? 'timeout' : '503'} on 3.5-flash — downgrading retries to 2.5-flash (better free-tier throughput)`);
@@ -583,7 +587,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // YouTube fallback: primary model (2.5-flash) exhausted → retry with 3.5-flash
         // ytPrimaryTimedOut: primary가 48s를 다 써 timeout이면 3.5 폴백(더 느림)은 60s 캡 초과 →
         // 빠른 실패(429/500/빈응답)에서만 폴백, timeout에서는 스킵.
-        if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel !== SERVER_MODELS.FLASH_3_5) {
+        // primary 가 2.5 로 핀된 경우(느린 멀티모달 모델 선택)에만 3.5 최후 폴백. 3.6 은 직접 처리라 제외.
+        if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel === SERVER_MODELS.FLASH) {
             console.log('[LangGraph] YouTube fallback: all', resolvedModel, 'keys failed — retrying with', SERVER_MODELS.FLASH_3_5);
             try {
                 const fbKey = getNextApiKey() ?? apiKey;

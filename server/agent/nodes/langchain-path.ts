@@ -1,7 +1,7 @@
 import { AgentStateType } from "../state";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey, markKeyInvalid, API_KEYS } from "../../config";
-import { SERVER_MODELS } from "../../models";
+import { SERVER_MODELS, isThreeXFlash } from "../../models";
 import { identifyPillTool, searchWebTool } from "../tools";
 import { searchDrugInfoTool } from "../drug-info-tool";
 import { pharmacyTool } from "../pharmacy-tool";
@@ -81,7 +81,7 @@ export const runLangChainPath = async (args: {
             const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports"]);
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
             const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
-            const is3xLcModel = pathModel === SERVER_MODELS.FLASH_3_5;
+            const is3xLcModel = isThreeXFlash(pathModel);
             console.log(`[LangGraph] LangChain path: intent=${state.intent} → model=${pathModel}${isToolIntent ? ' (tool intent)' : ''}`);
             const llm = new ChatGoogleGenerativeAI({
                 model: pathModel,

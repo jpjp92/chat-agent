@@ -32,7 +32,7 @@ export const resolveMaxTokens = (ctx: {
 
 /**
  * Thinking config — model-aware branching:
- * 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
+ * 3.x-flash (3.5·3.6) uses thinkingLevel enum (thinkingBudget deprecated):
  *   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
  *   - Renderer intents (astronomy/data_viz/etc): "minimal" — structured JSON output;
  *     "low" budget can be exhausted by JSON reasoning → empty response
@@ -56,7 +56,7 @@ export const resolveThinkingConfig = (ctx: {
     intent: string;
 }) => {
     return ctx.is3xModel
-        ? { thinkingLevel: "minimal" as const }   // 3.5 전 경로 minimal (renderer·youtube·general 통합, 2026-06-23)
+        ? { thinkingLevel: "minimal" as const }   // 3.x(3.5·3.6) 전 경로 minimal (renderer·youtube·general 통합, 2026-06-23)
         : ctx.isYoutubeRequest || ctx.hasUrlContent || ctx.isMediaTurn
             ? { thinkingBudget: 0 }
             : ctx.intent === 'medical_qa'

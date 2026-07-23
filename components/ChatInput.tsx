@@ -111,10 +111,10 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
   // 모델 i18n — Header에서 이동(라벨은 4개 언어 공통, 설명만 번역). 드롭다운은 입력창 우측에 통합.
   const modelI18n: Record<string, Record<string, string>> = {
-    ko: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "최신 모델, 강력한 성능", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "빠르고 균형 잡힌 응답" },
-    en: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Latest & most capable", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Fast & balanced" },
-    es: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Último modelo, más capaz", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rápido y equilibrado" },
-    fr: { model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Dernier modèle, plus puissant", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rapide et équilibré" },
+    ko: { model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "최신 모델, 가장 빠름", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "강력한 성능", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "빠르고 균형 잡힌 응답" },
+    en: { model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "Latest & fastest", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Powerful & capable", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Fast & balanced" },
+    es: { model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "El más nuevo y rápido", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Potente y capaz", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rápido y equilibrado" },
+    fr: { model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "Le plus récent et rapide", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Puissant et performant", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rapide et équilibré" },
   };
   const mt = modelI18n[language] || modelI18n.ko;
   const selectedModelOption = CHAT_MODEL_OPTIONS.find(o => o.id === selectedModel) ?? CHAT_MODEL_OPTIONS[0];
