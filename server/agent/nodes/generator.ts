@@ -78,6 +78,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             finalInstruction += `\n\n${state.movieContext}\n\n[영화 상영표 후속 질문 처리 규칙]\n- 위 "현재 화면에 표시된 영화 상영시간표" 데이터를 근거로 사용자의 후속 질문(비교·필터·"~만 상영"·가장 빠른/늦은 회차 등)에 간결히 답하세요.\n- 데이터에 없는 정보(줄거리·평점·예매율·관객수·장르·다른 지역/지점 등)는 절대 지어내지 마세요. 대신 "상영표에는 그 정보가 없어요"라고 밝힌 뒤, 반드시 마지막에 "웹에서 검색해 드릴까요?"라고 사용자에게 물어보세요. (사용자가 동의하면 다음 턴에 자동으로 웹 검색이 수행됩니다.)\n- json:movie 카드 블록을 다시 생성하지 마세요(이미 화면에 있음). 텍스트로만 답하세요.`;
         }
 
+        // 날씨 후속 대화(라우터가 weatherFollowup으로 판정한 턴): 카드는 이미 화면에 있고 그 수치가
+        // 히스토리의 json:weather 블록에 그대로 들어 있다. 카드/5일 표를 다시 그리지 말고 그 데이터로
+        // 대화하도록 지시 — base 프롬프트의 [WEATHER FORMATTING]("ALWAYS 표 구조")를 이 턴만 무력화한다.
+        if (state.weatherFollowup) {
+            finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- [WEATHER FORMATTING]의 5일 예보 표 규칙은 이 턴에 적용되지 않습니다. 표를 다시 그리지 말고, 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
+        }
+
         // Inject intent-specific focus hint to guide renderer selection
         const intentHint = getIntentFocusHint(state.intent);
         if (intentHint) {

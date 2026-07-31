@@ -75,3 +75,13 @@ near-miss 쌍(`"A" → 차단 / "B" → 허용`)으로 경계를 못박는 기�
 - **대조 예시·JSON 계약**: 모델 무관에 가까워 이식 안전.
 
 관련 메모리: [[chat-agent-vercel-60s-cap]] · [[35-flash-free-tier-throughput]]
+
+---
+
+## 5. 후속 검토 — `app2` 코어 (2026-07-31)
+
+같은 레포(`Wireless-Value-Added-Agent-main`)의 **`app2`** 는 이 문서 작성 시점에 미검토였다. 상태/노드/프롬프트 설계를 별도 문서로 정리했다: **[REF_App2_Agent.md](REF_App2_Agent.md)**
+
+- **1순위 채택**: 후속 발화 판정(`is_refinement`/`reset_context`)을 **라우터 JSON 필드로 위임** — 추가 왕복 0, 정규식 더미 성장 중단. 적용 계획 §6.
+- 2순위 후보: 활성 카드 일반화(`phase` 개념) · 의도별 응답 가이드 교체(문맥 오염 실측 사례 있음).
+- 이 문서 §1-A(`StreamUiSplitter` 접미사 hold)는 **값어치 하락으로 재판정** — 클라이언트가 이미 미완성 viz 블록을 숨기고 로딩 표시 중.

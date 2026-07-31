@@ -6,7 +6,8 @@ import { getSystemInstruction } from '../../../server/agent/prompt';
 import { compileAgentGraph } from '../../../server/agent/graph';
 import { DEFAULT_CHAT_MODEL } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
-import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
+import { buildHistoryMessages } from '../../../server/agent/history';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -79,32 +80,8 @@ export async function POST(req: NextRequest) {
       const systemInstruction = getSystemInstruction(langName);
       const supportedMimeTypes = ['image/', 'video/', 'audio/', 'application/pdf'];
 
-      const contents = history
-        .filter((msg: any) => msg.content && (msg.content.trim() !== '' || (msg.attachments && msg.attachments.length > 0)) && msg.role !== 'system')
-        .slice(-10)
-        .map((msg: any, index: number, array: any[]) => {
-          if (msg.role === 'assistant') return new AIMessage(msg.content);
-          const isRecent = index >= array.length - 3;
-          const msgAttachments = msg.attachments || (msg.attachment ? [msg.attachment] : []);
-          const parts: any[] = [{ type: 'text', text: msg.content || '' }];
-          for (const att of msgAttachments) {
-            if (att.data && att.mimeType) {
-              const isSupported = supportedMimeTypes.some(t => att.mimeType.startsWith(t));
-              if (!isSupported) continue;
-              if (!isRecent) { parts[0].text += `\n[Attached File: ${att.fileName || att.mimeType}]`; continue; }
-              const isPublicUrl = att.data.startsWith('http');
-              if (isPublicUrl) {
-                // 영상/오디오/PDF는 실제 mimeType 단 fileData로(image_url 래핑 시 image/jpeg 오추론).
-                if (att.mimeType.startsWith('image/')) parts.push({ type: 'image_url', image_url: { url: att.data } });
-                else parts.push({ fileData: { fileUri: att.data, mimeType: att.mimeType } });
-              } else {
-                const b64 = att.data.includes(',') ? att.data.split(',')[1] : att.data;
-                parts.push({ type: 'image_url', image_url: { url: `data:${att.mimeType};base64,${b64}` } });
-              }
-            }
-          }
-          return new HumanMessage({ content: parts });
-        });
+      // 히스토리 → LangChain 메시지 (역할 표기·미디어 창 규칙은 server/agent/history.ts)
+      const contents = buildHistoryMessages(history);
 
       const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:shorts\/|[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
       const urlRegex = /(https?:\/\/[^\s\)]+)/g;

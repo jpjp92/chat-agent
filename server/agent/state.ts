@@ -49,6 +49,13 @@ export const GraphState = Annotation.Root({
         default: () => false,
     }),
 
+    // 이번 턴이 "화면에 떠 있는 날씨 카드"에 대한 후속 대화인지(라우터 판정).
+    // generator가 카드 재생성·표 재출력 금지 지시를 주입하는 게이트.
+    weatherFollowup: Annotation<boolean>({
+        reducer: (x, y) => y ?? x,
+        default: () => false,
+    }),
+
     // Any files, images, or media attached by the user.
     attachments: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? [...x, ...y] : x),

@@ -39,9 +39,26 @@ export const routerNode = async (state: AgentStateType) => {
 
     // Inject last assistant message for follow-up intent continuity
     const lastAssistantMsg = [...state.messages].reverse().find(m => m._getType() === 'ai') as AIMessage | undefined;
-    const prevContext = lastAssistantMsg
-        ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"`
+
+    // 최근 assistant 응답에 날씨 카드(json:weather)가 있으면 = 화면에 카드가 떠 있는 상태.
+    // 후속 발화가 "카드 코멘트/해석"인지 "새 조회"인지 가르는 신호(멀티턴 카드 재생성 오작동 방지).
+    // 직전 1개만 보면 해석형 답변이 한 번 끼는 순간 카드 맥락이 사라져("가장 더운 요일은?" → 산문 답),
+    // 그 다음 턴부터 날씨 어휘가 조금만 섞여도 weather로 재승격돼 카드가 반복 생성됐다.
+    // → state.messages(= route.ts가 최근 10개로 잘라 보낸 창) 안의 assistant 메시지를 전부 스캔한다.
+    //   창을 벗어나면 자연히 false가 되고, 그 안에서는 "카드가 화면에 있다"가 유지된다.
+    //   새 조회(다른 도시·시점)는 아래 newFetch 신호가 그대로 승격시키므로 갇히지 않는다.
+    // (LLM 프롬프트에 카드 상태를 알려주려고 라우터 호출 前에 계산한다.)
+    const weatherCardShown = state.messages.some((m: any) =>
+        m._getType?.() === 'ai' && /```json\s*:\s*weather/.test(String(m.content ?? '')));
+
+    // 카드가 떠 있으면 LLM에게 그 사실을 명시한다 — 직전 응답 본문이 카드 JSON이라 원문만으로는
+    // "화면에 카드가 있다"는 맥락이 잘 안 읽힌다(follow_up 판정 품질에 직접 영향).
+    const cardHint = weatherCardShown
+        ? `\nNOTE: a WEATHER CARD (current conditions + 5-day forecast for the city already asked) is currently displayed on screen.`
         : "";
+    const prevContext = lastAssistantMsg
+        ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"${cardHint}`
+        : cardHint;
 
     const attachmentHasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
     const messageHasImage = state.messages.some((msg: any) =>
@@ -57,6 +74,9 @@ export const routerNode = async (state: AgentStateType) => {
     // LLM이 회색지대(rule이 on/off를 못 가리는 일반 질문)에서 내려준 검색 필요 판정.
     // 기획 6-1: rule이 강한 on/off면 그게 우선, gray면 이 값 사용, 둘 다 없으면 default-on.
     let llmNeedsSearch: boolean | undefined;
+    // 화면에 카드가 떠 있을 때, 이번 발화가 "카드 해석(refine)"인지 "새 조회(new)"인지 "무관한 주제
+    // (unrelated)"인지에 대한 LLM 판정. 강한 규칙이 못 가리는 회색지대에서만 쓴다(needsSearch와 동일 3분기).
+    let llmFollowUp: "refine" | "new" | "unrelated" | undefined;
     const apiKey = getNextApiKey();
 
     const hasMedicalKeyword = hasMedicalIntentKeyword(textContent);
@@ -105,7 +125,12 @@ export const routerNode = async (state: AgentStateType) => {
 
 Also decide "needs_search": whether answering the LATEST user message needs up-to-date Google Search grounding.
 - true  : real-time / current info (news, weather, prices, stocks, "latest/today/now", recent events), a person's current status or role, rankings, company metrics, the user explicitly asks to search or cite sources, OR the message asks about a specific named product/model/version/person that may be recent or that you are not certain exists (verify before denying existence).
-- false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true}`;
+- false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.
+
+Also decide "follow_up" — ONLY meaningful when a result CARD is already displayed (see NOTE below); otherwise output "unrelated".
+- "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, is the humidity high, which city is cooler).
+- "new"       : the message asks for a NEW lookup — a different place, a different day/time, or an explicit request to show it again.
+- "unrelated" : the topic moved away from the card (planning a trip, what to eat, coding, chit-chat).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
 
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,
@@ -124,6 +149,9 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
                 }
                 if (typeof parsed.needs_search === "boolean") {
                     llmNeedsSearch = parsed.needs_search;
+                }
+                if (parsed.follow_up === "refine" || parsed.follow_up === "new" || parsed.follow_up === "unrelated") {
+                    llmFollowUp = parsed.follow_up;
                 }
                 // Recover only when the LLM missed an explicit drug/pill signal on an image.
                 // Do NOT override "general" for arbitrary images — generic photos stay general.
@@ -184,10 +212,6 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         }
     }
 
-    // 직전 assistant 응답에 날씨 카드(json:weather)가 있으면 = 화면에 카드가 떠 있는 상태.
-    // 후속 발화가 "카드 코멘트/해석"인지 "새 조회"인지 가르는 신호(멀티턴 카드 재생성 오작동 방지).
-    const weatherCardShown = /```json\s*:\s*weather/.test(String(lastAssistantMsg?.content ?? ''));
-
     // 날씨 의도 구제(카드 없을 때만): 라우터 LLM 실패(무료티어 503/timeout)·오분류 시 명백한 날씨
     // 질의를 weather로 교정. 카드가 떠 있을 땐 아래 후속 가드가 도맡으므로 제외 — "전주가 서울보다
     // 기온 높네?" 같은 코멘트에도 '기온' 토큰이 있어 여기서 승격되면 카드가 재생성되던 버그의 원인.
@@ -209,19 +233,56 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
     // 카드가 없을 때(첫 발화 등)는 해석형 오분류만 방어.
     let weatherFollowup = false;
     if (weatherCardShown) {
+        // "이런 날씨", "요즘 날씨", "더운 날씨"처럼 지시어·수식어가 붙은 '날씨'는 새 조회가 아니라
+        // 떠 있는 카드에 대한 코멘트다("이런 날씨엔 뭐 먹을까?"). 도시명일 때만 재조회로 본다.
+        const VAGUE_BEFORE_WEATHER = /^(이런|그런|저런|이|그|저|요즘|요새|무슨|어떤|더운|추운|좋은|나쁜|이딴|같은|덥고|춥고)$/;
+        const cityWeatherRequest = Array.from(textContent.matchAll(/([가-힣A-Za-z]{1,12})\s*날씨/g))
+            .some(m => !VAGUE_BEFORE_WEATHER.test(m[1]));
+        // 시점 토큰 단독은 날씨 요청이 아니다("주말 나들이 계획 짜줘") — 날씨 어휘와 동반될 때만 새 조회.
+        const timeShift = /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/.test(textContent);
+        const weatherWord = /날씨|예보|기온|온도|몇\s*도|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)|강수|더[워울]|추[워울]|맑|흐[림려]/.test(textContent);
         const newFetch =
-            /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/.test(textContent)               // 미래/시점 이동
+            (timeShift && weatherWord)                                                                                            // 미래/시점 이동 + 날씨 어휘
             || (/(날씨|예보)/.test(textContent) && /(알려|보여|어때|어떄|어떻|찾아|줘|해\s*줘|궁금|부탁)/.test(textContent))          // 명시 요청
-            || /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/.test(textContent.trim())                                              // "부산은?" 도시 재조회
-            || /[가-힣A-Za-z]{1,12}\s*날씨/.test(textContent);                                                                    // "부산 날씨"
-        if (newFetch) {
-            if (intent !== "weather") { console.log('[LangGraph] Weather follow-up (→weather): new city/time fetch'); intent = "weather"; }
-        } else if (intent === "weather") {
-            console.log('[LangGraph] Weather follow-up (weather→general): comment/interpretation of shown card');
-            intent = "general";
+            || /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/.test(textContent.trim())                                              // "부산은?"·"내일은?" 재조회
+            || cityWeatherRequest;                                                                                                // "부산 날씨"
+        // 강한 "카드 해석" 신호 — 지시어가 붙은 '날씨' 언급이거나 해석형 어휘.
+        // 날씨와 무관해진 발화("주말 나들이 계획 짜줘")는 여기 안 걸려야 한다(검색을 살려야 하므로).
+        const interpretive = /왜|이유|우산|빨래|외출|나가도|입을|옷|옷차림|괜찮을까|편[이야]?\?|덥|춥|시원|후텁|쾌적|어느\s*날|무슨\s*요일|가장|제일|높|낮/;
+        const strongRefine = (/날씨/.test(textContent) && !cityWeatherRequest) || weatherWord || interpretive.test(textContent);
+
+        // 판정 우선순위 (needsSearch 3분기와 같은 원칙: 강한 규칙 → 회색지대 LLM → 폴백)
+        //   1) 강한 새 조회 신호  → weather (카드 재생성)
+        //   2) 강한 해석 신호     → general + weatherFollowup (카드 데이터로 답변)
+        //   3) 회색지대           → 라우터 LLM의 follow_up 판정
+        //   4) LLM 판정 없음      → 기존 결정론 폴백(무료티어 503/timeout 대비)
+        // 3)이 없어도 1)·2)만으로 기존 동작이 그대로 남도록 감싸는 구조다(롤백 안전).
+        const asRefine = (why: string) => {
+            if (intent === "weather") intent = "general";
             weatherFollowup = true;
-        } else if (intent === "general") {
-            weatherFollowup = true; // 카드 데이터로 답하도록 검색만 off
+            console.log(`[LangGraph] Weather follow-up (refine ${why}): answer from shown card`);
+        };
+        const asNewFetch = (why: string) => {
+            if (intent !== "weather") { intent = "weather"; console.log(`[LangGraph] Weather follow-up (new ${why}): new city/time fetch`); }
+        };
+        // A/B 측정용 스위치 — 1이면 LLM 판정을 무시하고 규칙만으로 결정한다.
+        const useLlmFollowUp = process.env.DISABLE_LLM_FOLLOWUP !== '1' && !!llmFollowUp;
+
+        if (newFetch) {
+            asNewFetch('rule');
+        } else if (strongRefine) {
+            asRefine('rule');
+        } else if (useLlmFollowUp) {
+            if (llmFollowUp === "new") asNewFetch('llm');
+            else if (llmFollowUp === "refine") asRefine('llm');
+            else {
+                // unrelated: 주제가 카드를 떠났다 → 카드 재생성도, 검색 억제도 하지 않는다.
+                if (intent === "weather") intent = "general";
+                console.log('[LangGraph] Weather follow-up (unrelated llm): topic moved away from card');
+            }
+        } else if (intent === "weather") {
+            // 폴백: LLM 판정이 없는데 weather로 분류됐고 새 조회 신호도 없음 → 카드 해석으로 본다.
+            asRefine('fallback');
         }
     } else if (intent === "weather") {
         const interp = /왜|이유|우산|빨래|외출|나가도|입을|옷차림|괜찮을까|심한\s*편|높은\s*편|낮은\s*편/;
@@ -297,6 +358,6 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
         else needsSearch = llmNeedsSearch ?? true; // gray → LLM 판정, 없으면 default-on
     }
 
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}`);
-    return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup };
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}`);
+    return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup, weatherFollowup };
 };

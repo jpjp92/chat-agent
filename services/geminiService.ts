@@ -240,23 +240,63 @@ export const streamChatResponse = async (
   try {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    // history 내 attachment.extractedText 제거 — 서버는 att.data(URL)만 사용하고
-    // extractedText는 webContent로 별도 전달되므로 중복 페이로드 방지 (413 대응)
-    const stripExtractedText = (att: any) => {
+    // ── 요청 본문 다이어트 (413 Payload Too Large 대응) ──────────────────────────
+    // 413은 일시적 오류가 아니라 플랫폼이 본문 크기로 요청을 거부하는 것 → 같은 대화에서 계속 재현된다.
+    // 누적 원인: ① 세션 전체 히스토리를 매 턴 전송(서버는 수신 후에야 slice(-10)) ② 첨부의 base64가
+    // 히스토리에 남아 매 턴 재전송(이미지는 업로드 후에도 data에 base64 유지 · 1MB 미만 문서는 inline).
+    // 서버는 최근 3턴 밖 첨부를 `[Attached File: …]` 라벨로만 쓰므로(route.ts) 그 base64는 보내도 버려진다.
+    const HISTORY_LIMIT = 10;      // route.ts 의 slice(-10) 와 동일
+    const KEEP_MEDIA_LAST = 6;     // route.ts 의 isRecent(최근 3) 보다 넉넉히 — 필터 차이로 인한 오절단 방지
+    const MAX_BODY_BYTES = 4_400_000; // Vercel 요청 본문 한도(4.5MB) 직전에서 선차단
+
+    const trimmedHistory = history
+      .filter(msg => msg.role !== 'system' && (msg.content?.trim() !== '' || (msg.attachments && msg.attachments.length > 0)))
+      .slice(-HISTORY_LIMIT);
+
+    const sanitizeAttachment = (att: any, keepMedia: boolean) => {
       if (!att) return att;
+      // extractedText 는 webContent 로 따로 가므로 항상 제거(중복 페이로드)
       const { extractedText: _et, ...rest } = att;
+      const isInlineBase64 = typeof rest.data === 'string' && rest.data.length > 0 && !rest.data.startsWith('http');
+      if (!isInlineBase64) return rest;
+      // 업로드된 사본이 있으면 base64 대신 URL 로 — 서버가 URL 을 그대로 처리하므로 기능 동일
+      if (rest.storageUrl) return { ...rest, data: rest.storageUrl };
+      // 최근 창 밖이면 서버가 라벨로만 쓰므로 본문 제거(truthy 유지 → 라벨은 그대로 붙는다)
+      if (!keepMedia) return { ...rest, data: '[omitted:history]' };
       return rest;
     };
-    const sanitizedHistory = history.map(msg => ({
-      ...msg,
-      attachment: stripExtractedText(msg.attachment),
-      attachments: msg.attachments?.map(stripExtractedText),
-    }));
+
+    const sanitizedHistory = trimmedHistory.map((msg, i) => {
+      const keepMedia = i >= trimmedHistory.length - KEEP_MEDIA_LAST;
+      return {
+        ...msg,
+        attachment: sanitizeAttachment(msg.attachment, keepMedia),
+        attachments: msg.attachments?.map(att => sanitizeAttachment(att, keepMedia)),
+      };
+    });
+
+    const body = JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext });
+    const bodyBytes = new TextEncoder().encode(body).length;
+    if (bodyBytes > 1_000_000) {
+      // 어떤 요소가 본문을 키웠는지 확정용 계측 — 413 재발 시 이 로그로 범인을 특정한다.
+      const size = (v: any) => (v ? new TextEncoder().encode(JSON.stringify(v)).length : 0);
+      console.warn('[chat] large payload', {
+        totalKB: Math.round(bodyBytes / 1024),
+        historyKB: Math.round(size(sanitizedHistory) / 1024),
+        attachmentsKB: Math.round(size(attachments) / 1024),
+        webContentKB: Math.round(size(webContent) / 1024),
+        historyMsgs: sanitizedHistory.length,
+      });
+    }
+    if (bodyBytes > MAX_BODY_BYTES) {
+      // 413 은 서버 코드에 닿기 전에 거부되므로 여기서 사람이 읽을 수 있는 안내로 대체한다.
+      throw new Error(`요청이 너무 큽니다 (${(bodyBytes / 1024 / 1024).toFixed(1)}MB). 첨부 파일 크기를 줄이거나 새 대화에서 다시 시도해주세요.`);
+    }
 
     const response = await authedFetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext }),
+      body,
       signal: controller.signal,
     });
 
