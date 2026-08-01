@@ -7,9 +7,16 @@ import { classifyIntentByRules, hasMedicalIntentKeyword, classifySearchNeed } fr
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
-const MOVIE_FOLLOWUP_QUESTION = /[?？]|있어|없어|있나|비교|차이|만\s|중에|중에서|제일|가장|어느|어디서|어떤|뭐가|뭐야|몇\s*시|언제|추천|골라|빠른|늦은|장르|평점|좌석|남았|매진/;
+const MOVIE_FOLLOWUP_QUESTION = /있어|없어|있나|비교|차이|만\s|중에|중에서|제일|가장|어느|어디서|어떤|뭐가|뭐야|몇\s*시|언제|추천|골라|빠른|늦은|장르|평점|좌석|남았|매진/;
+// 물음표 단독은 약한 신호다 — "신촌은 어때?"(새 지역 요청)까지 후속 질문으로 삼켜 카드가 안 뜨던 원인.
+// 어휘 신호가 없이 물음표뿐이면 회색지대로 넘긴다(LLM 판정 → 없으면 기존대로 후속 간주).
+const MOVIE_QUESTION_MARK = /[?？]/;
 // general로 분류됐지만 영화 카드 후속인지 판정(물음표 단독 제외 — "오늘 날씨 어때?" 오발 방지).
-const MOVIE_CONTEXT_TERMS = /영화|상영|cgv|롯데|메가박스|씨지브이|회차|시간대|상영관|좌석|매진|예매|비교|중에|제일|가장|빠른|늦은|평점|장르/i;
+// 강한 신호: 영화 도메인 어휘 — 이게 있으면 규칙만으로 후속 확정.
+const MOVIE_STRONG_TERMS = /영화|상영|cgv|롯데|메가박스|씨지브이|회차|시간대|상영관|좌석|매진|예매|평점|장르/i;
+// 약한 신호: 일반 대화에도 흔한 비교/최상급 어휘("가장 가까운 지하철역은?"). 단독이면 회색지대 →
+// LLM follow_up 판정에 맡기고, 판정이 없을 때만 기존 결정론 동작(후속으로 간주)으로 폴백한다.
+const MOVIE_WEAK_TERMS = /비교|중에|제일|가장|빠른|늦은/;
 // 상영표에 없는 정보(줄거리·평점 등)를 웹 검색으로 전환하는 경로:
 //  ① 사용자가 직접 검색 요청  ② 직전 봇 응답이 "검색해 드릴까요?" 제안이고 사용자가 동의
 const EXPLICIT_SEARCH_REQUEST = /검색|찾아\s*봐|찾아봐|구글|google|웹에서|인터넷|서치/i;
@@ -53,8 +60,13 @@ export const routerNode = async (state: AgentStateType) => {
 
     // 카드가 떠 있으면 LLM에게 그 사실을 명시한다 — 직전 응답 본문이 카드 JSON이라 원문만으로는
     // "화면에 카드가 있다"는 맥락이 잘 안 읽힌다(follow_up 판정 품질에 직접 영향).
-    const cardHint = weatherCardShown
-        ? `\nNOTE: a WEATHER CARD (current conditions + 5-day forecast for the city already asked) is currently displayed on screen.`
+    // 영화 상영표 카드는 클라이언트가 렌더 후 movieContext로 되돌려주므로, 그 존재 자체가 "카드 표시 중" 신호.
+    const cardHints = [
+        weatherCardShown ? `a WEATHER CARD (current conditions + 5-day forecast for the city already asked)` : '',
+        state.movieContext ? `a MOVIE SHOWTIMES CARD (today's showtimes at the theaters already asked)` : '',
+    ].filter(Boolean);
+    const cardHint = cardHints.length
+        ? `\nNOTE: ${cardHints.join(' and ')} ${cardHints.length > 1 ? 'are' : 'is'} currently displayed on screen.`
         : "";
     const prevContext = lastAssistantMsg
         ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"${cardHint}`
@@ -128,9 +140,9 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
 - false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.
 
 Also decide "follow_up" — ONLY meaningful when a result CARD is already displayed (see NOTE below); otherwise output "unrelated".
-- "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, is the humidity high, which city is cooler).
-- "new"       : the message asks for a NEW lookup — a different place, a different day/time, or an explicit request to show it again.
-- "unrelated" : the topic moved away from the card (planning a trip, what to eat, coding, chit-chat).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
+- "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, which city is cooler / which movie starts earliest, seats left, which theater has it).
+- "new"       : the message asks for a NEW lookup — a different place/theater, a different day/time, or an explicit request to show it again.
+- "unrelated" : the topic moved away from the card (planning a trip, what to eat, nearest subway station, coding, chit-chat).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
 
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,
@@ -314,15 +326,40 @@ Also decide "follow_up" — ONLY meaningful when a result CARD is already displa
             console.log('[LangGraph] Movie info → web search (explicit request or confirmed offer)');
             if (intent === "movie_search") intent = "general";
             forceSearch = true;
-        } else if (intent === "movie_search" && MOVIE_FOLLOWUP_QUESTION.test(textContent)) {
-            // 영화로 분류됐지만 질문형 → 새 카드가 아니라 표시된 상영표에 대한 후속 질문
-            console.log('[LangGraph] Movie follow-up (movie_search→general): answer from movieContext');
-            intent = "general";
-            isMovieFollowup = true;
-        } else if (intent === "general" && MOVIE_CONTEXT_TERMS.test(textContent)) {
-            // LLM 라우터가 이미 general로 본 영화 후속(예: "제일 빠른 시간은?")도 포착
-            console.log('[LangGraph] Movie follow-up (general): answer from movieContext');
-            isMovieFollowup = true;
+        } else {
+            // 판정 우선순위 — 날씨 경로(위)와 동일한 3분기 원칙: 강한 규칙 → 회색지대 LLM → 결정론 폴백.
+            const asMovieRefine = (why: string) => {
+                if (intent === "movie_search") intent = "general";
+                isMovieFollowup = true;
+                console.log(`[LangGraph] Movie follow-up (refine ${why}): answer from movieContext`);
+            };
+            const asMovieNewFetch = (why: string) => {
+                if (intent !== "movie_search") { intent = "movie_search"; console.log(`[LangGraph] Movie follow-up (new ${why}): new theater/region card`); }
+            };
+            const useLlmFollowUp = process.env.DISABLE_LLM_FOLLOWUP !== '1' && !!llmFollowUp;
+
+            const weakOnly = MOVIE_QUESTION_MARK.test(textContent) && !MOVIE_FOLLOWUP_QUESTION.test(textContent);
+            if (intent === "movie_search" && MOVIE_FOLLOWUP_QUESTION.test(textContent)) {
+                // 영화로 분류됐지만 후속 어휘가 명확 → 새 카드가 아니라 표시된 상영표에 대한 질문
+                asMovieRefine('rule');
+            } else if (intent === "movie_search" && weakOnly) {
+                // 물음표뿐 — "신촌은 어때?"(새 지역)와 "그거 아직 해?"(후속)가 섞이는 회색지대
+                if (useLlmFollowUp && llmFollowUp === "refine") asMovieRefine('llm');
+                else if (useLlmFollowUp) console.log('[LangGraph] Movie: new card (llm follow_up=%s)', llmFollowUp);
+                else asMovieRefine('fallback');   // LLM 판정 없음 → 기존 동작(물음표=후속) 유지
+            } else if (intent === "movie_search") {
+                // 질문형이 아닌 영화 요청 = 새 지역/지점 카드 → 그대로 통과(재생성이 정상)
+            } else if (MOVIE_STRONG_TERMS.test(textContent)) {
+                // LLM 라우터가 general로 봤어도 영화 어휘가 명시적이면 후속 질문(예: "메가박스에만 있는 영화는?")
+                asMovieRefine('rule');
+            } else if (useLlmFollowUp) {
+                if (llmFollowUp === "new") asMovieNewFetch('llm');
+                else if (llmFollowUp === "refine") asMovieRefine('llm');
+                else console.log('[LangGraph] Movie follow-up (unrelated llm): topic moved away from card');
+            } else if (MOVIE_WEAK_TERMS.test(textContent)) {
+                // 폴백(LLM 판정 없음): 기존 동작 그대로 — 비교/최상급 어휘면 상영표 후속으로 간주.
+                asMovieRefine('fallback');
+            }
         }
     }
 

@@ -19,9 +19,10 @@ import { weatherTool } from "./weather-tool";
  * Compiles the LangGraph StateGraph instance.
  * Sets up edges, conditional routing, and binding the executable tools.
  */
-export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
+export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName = 'Korean') => {
 
-    const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent);
+    // langName: 렌더러 스펙(의도별 주입) 중 [WEATHER FORMATTING]이 언어별이라 generator까지 전달한다.
+    const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent, langName);
     const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, worldCupTool, weatherTool]);
 
     // 2. Define Conditional Routing

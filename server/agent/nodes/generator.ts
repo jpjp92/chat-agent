@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
-import { getIntentFocusHint } from "../prompt";
+import { getIntentFocusHint, getRendererSections } from "../prompt";
 import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
@@ -32,7 +32,7 @@ export const YOUTUBE_CALL_TIMEOUT_MS = 57_000;
  * For general intents, uses @google/genai SDK directly to capture groundingMetadata which
  * is lost by @langchain/google-genai's response parsing.
  */
-export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void) => {
+export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName = 'Korean') => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
         const apiKey = getNextApiKey();
@@ -80,9 +80,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
         // 날씨 후속 대화(라우터가 weatherFollowup으로 판정한 턴): 카드는 이미 화면에 있고 그 수치가
         // 히스토리의 json:weather 블록에 그대로 들어 있다. 카드/5일 표를 다시 그리지 말고 그 데이터로
-        // 대화하도록 지시 — base 프롬프트의 [WEATHER FORMATTING]("ALWAYS 표 구조")를 이 턴만 무력화한다.
+        // 대화하도록 지시한다. (표 규칙 [WEATHER FORMATTING]은 이제 weather 의도에만 주입되므로
+        //  이 턴엔 애초에 없지만, 히스토리의 이전 카드/표를 따라 그리는 관성은 남아 명시적으로 막는다.)
         if (state.weatherFollowup) {
-            finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- [WEATHER FORMATTING]의 5일 예보 표 규칙은 이 턴에 적용되지 않습니다. 표를 다시 그리지 말고, 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
+            finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- 5일 예보 표를 다시 그리지 마세요. 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
+        }
+
+        // 이번 턴 의도에 필요한 렌더러 스펙만 주입한다(base에는 더 이상 없음 — prompt.ts INTENT_RENDERERS).
+        // 순서: base → 렌더러 스펙 → 의도 힌트. base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다.
+        const rendererSections = getRendererSections(state.intent, langName);
+        if (rendererSections) {
+            finalInstruction += `\n\n${rendererSections}`;
         }
 
         // Inject intent-specific focus hint to guide renderer selection

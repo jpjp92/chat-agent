@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
         }
 
         const trackingEvent = (data: any) => { if (data.text) fullAiResponse += data.text; sendEvent(data); };
-        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, trackingEvent);
+        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, trackingEvent, langName);
         const streamEvents = await graph.streamEvents(initialState, { version: 'v2' });
 
         const allSources: any[] = [];
