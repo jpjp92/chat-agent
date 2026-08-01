@@ -447,9 +447,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         textPart = textPart.replace(/<br\s*\/?>/gi, ' · ');
         // Process for numeric ranges (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
-        // Fix closing ** followed by Korean/alphanumeric while avoiding previous closing markers.
-        textPart = textPart.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-        textPart = textPart.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
+        // (제거됨) 한글 조사 앞 `**` 보정용 정규식 2줄 — remarkCjkFriendly 가 파서 단에서 처리한다.
+        // 이 정규식은 **앞 강조의 닫는 `**` 와 뒤 강조의 여는 `**` 를 한 쌍으로 오인**해,
+        // `**다음 주(월~수):** 낮 최고기온이 **37℃**` 에서 `:` 를 시작 문자로 잡고 뒤쪽 여는 `**`
+        // 뒤에 공백을 넣었다 → `** 37℃**` 가 되어 강조가 아예 열리지 않았다(DEV_260801 §3-4-1).
         // Close unclosed bold markers during streaming
         if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
           textPart += '**';
@@ -522,9 +523,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         if (visibleText.trim()) {
           // Process for numeric ranges (1~10 -> 1&#126;10)
           let processedVisible = visibleText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
-          // Fix Korean bold rendering (same as above)
-          processedVisible = processedVisible.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-          processedVisible = processedVisible.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
+          // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
           // Safely close dangling code blocks during streaming
           const backticks = processedVisible.match(/```/g);
@@ -548,9 +547,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       } else {
         // Process for numeric ranges (1~10 -> 1&#126;10)
         let processedRemaining = remainingText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
-        // Fix Korean bold rendering (same as above)
-        processedRemaining = processedRemaining.replace(/(["""'''])\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1‌** ');
-        processedRemaining = processedRemaining.replace(/(^|[\s([{"'“‘>:*-])\*\*([^*\n]+?)\*\*(?=[가-힣A-Za-zÀ-ÿ0-9])/g, '$1**$2** ');
+        // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
         // Safely close dangling code blocks during streaming
         const backticks = processedRemaining.match(/```/g);
