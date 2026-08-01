@@ -4,6 +4,7 @@ import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint, getRendererSections } from "../prompt";
+import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
@@ -32,7 +33,7 @@ export const YOUTUBE_CALL_TIMEOUT_MS = 57_000;
  * For general intents, uses @google/genai SDK directly to capture groundingMetadata which
  * is lost by @langchain/google-genai's response parsing.
  */
-export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName = 'Korean') => {
+export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName: LangName = DEFAULT_LANG_NAME) => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
         const apiKey = getNextApiKey();
@@ -662,6 +663,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             sdkSuccess,
             isYoutubeRequest,
             hasVideoData,
+            langName,
         });
     };
 };

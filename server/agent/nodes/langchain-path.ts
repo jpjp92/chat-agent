@@ -1,4 +1,5 @@
 import { AgentStateType } from "../state";
+import { type LangName, pickByLang } from "../lang";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey, markKeyInvalid, API_KEYS } from "../../config";
 import { SERVER_MODELS, isThreeXFlash } from "../../models";
@@ -42,8 +43,9 @@ export const runLangChainPath = async (args: {
     sdkSuccess: boolean;
     isYoutubeRequest: boolean;
     hasVideoData: boolean;
+    langName: LangName;
 }): Promise<{ messages: any[] }> => {
-    const { state, resolvedModel, apiKey, systemInstructionBase, useLangChain, sdkSuccess, isYoutubeRequest, hasVideoData } = args;
+    const { state, resolvedModel, apiKey, systemInstructionBase, useLangChain, sdkSuccess, isYoutubeRequest, hasVideoData, langName } = args;
     let finalInstruction = args.finalInstruction;
 
     // LangChain path: drug_id and drug_info intents need custom DB/identification tools.
@@ -54,15 +56,15 @@ export const runLangChainPath = async (args: {
         // Falling through would produce hallucinated content instead of the actual video summary.
         // Return a clear error message so the user knows to retry rather than seeing wrong content.
         if (isYoutubeRequest && hasVideoData) {
-            const YT_ERR: Record<string, string> = {
-                KOREAN:  'YouTube 영상 분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.',
-                ENGLISH: 'YouTube video analysis is temporarily unavailable. Please try again in a moment.',
-                SPANISH: 'El análisis de video de YouTube no está disponible temporalmente. Por favor, inténtelo de nuevo en un momento.',
-                FRENCH:  'L\'analyse vidéo YouTube est temporairement indisponible. Veuillez réessayer dans un instant.',
+            // 예전엔 시스템 프롬프트 본문을 정규식으로 역추출해 언어를 알아냈다(프롬프트 첫 문장을
+            // 고치면 조용히 영어로 폴백되는 구조). 이제 langName을 직접 받는다 — server/agent/lang.ts.
+            const YT_ERR: Record<LangName, string> = {
+                Korean:  'YouTube 영상 분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.',
+                English: 'YouTube video analysis is temporarily unavailable. Please try again in a moment.',
+                Spanish: 'El análisis de video de YouTube no está disponible temporalmente. Por favor, inténtelo de nuevo en un momento.',
+                French:  'L\'analyse vidéo YouTube est temporairement indisponible. Veuillez réessayer dans un instant.',
             };
-            const langMatch = systemInstructionBase.match(/YOUR ENTIRE RESPONSE MUST BE IN (\w+) ONLY/);
-            const errMsg = langMatch ? (YT_ERR[langMatch[1]] ?? YT_ERR.ENGLISH) : YT_ERR.ENGLISH;
-            return { messages: [new AIMessage(errMsg)] };
+            return { messages: [new AIMessage(pickByLang(YT_ERR, langName))] };
         }
     }
     let lcApiKey = getNextApiKey() ?? apiKey;

@@ -1,11 +1,13 @@
-const URL_SUMMARY_LABELS: Record<string, { summary: string; content: string; points: string }> = {
+import { type LangName, DEFAULT_LANG_NAME, pickByLang } from './lang';
+
+const URL_SUMMARY_LABELS: Record<LangName, { summary: string; content: string; points: string }> = {
   Korean:  { summary: '한 줄 요약',          content: '주요 내용',           points: '핵심 포인트' },
   English: { summary: 'One-Line Summary',    content: 'Key Content',         points: 'Key Points'   },
   Spanish: { summary: 'Resumen breve',       content: 'Contenido principal', points: 'Puntos clave' },
   French:  { summary: 'Résumé en une ligne', content: 'Contenu principal',   points: 'Points clés'  },
 };
 
-const WEATHER_FORMATTING: Record<string, string> = {
+const WEATHER_FORMATTING: Record<LangName, string> = {
   Korean: `[WEATHER FORMATTING]
 When presenting weather information, ALWAYS use the following structure. Do NOT output a plain text paragraph.
 1. **현재 날씨 (자연스러운 문장)**: 현재 날씨를 한 문장으로 설명하세요. 이모지, 지역, 기온, 체감온도, 습도를 포함하세요. 예:
@@ -290,8 +292,8 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - **General/Fallback**: fa-pills, fa-house-medical, fa-circle-info`,
 };
 
-export const getSystemInstruction = (langName: string) => {
-  const lbl = URL_SUMMARY_LABELS[langName] ?? URL_SUMMARY_LABELS['Korean'];
+export const getSystemInstruction = (langName: LangName = DEFAULT_LANG_NAME) => {
+  const lbl = pickByLang(URL_SUMMARY_LABELS, langName);
   return `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langName.toUpperCase()} ONLY.
 IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langName.toUpperCase()}.
 NEVER switch languages. THIS IS YOUR TOP PRIORITY.
@@ -465,12 +467,12 @@ const INTENT_RENDERERS: Partial<Record<IntentType, string[]>> = {
  * 이번 턴 의도에 해당하는 렌더러 스펙을 이어붙여 반환한다(없으면 빈 문자열).
  * generator가 base 인스트럭션 뒤, INTENT_FOCUS_HINTS 앞에 주입한다.
  */
-export const getRendererSections = (intent: IntentType, langName = 'Korean'): string => {
+export const getRendererSections = (intent: IntentType, langName: LangName = DEFAULT_LANG_NAME): string => {
     const keys = INTENT_RENDERERS[intent];
     if (!keys?.length) return '';
     return keys
         .map(k => k === '__weather_formatting__'
-            ? (WEATHER_FORMATTING[langName] ?? WEATHER_FORMATTING['Korean'])
+            ? pickByLang(WEATHER_FORMATTING, langName)
             : RENDERER_SECTIONS[k])
         .filter(Boolean)
         .join('\n\n');
@@ -480,7 +482,7 @@ export const getRendererSections = (intent: IntentType, langName = 'Korean'): st
  * base + 렌더러 스펙 + 의도 힌트를 프로덕션과 동일한 순서로 합친다.
  * generator와 테스트 스크립트가 같은 함수를 쓰게 해 "테스트만 다른 프롬프트" 상황을 막는다.
  */
-export const composeInstruction = (langName: string, intent: IntentType): string => {
+export const composeInstruction = (langName: LangName, intent: IntentType): string => {
     const sections = getRendererSections(intent, langName);
     const hint = getIntentFocusHint(intent);
     return [getSystemInstruction(langName), sections, hint].filter(Boolean).join('\n\n');

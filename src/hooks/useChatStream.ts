@@ -73,6 +73,14 @@ interface UseChatStreamOptions {
   onGuestLimit?: () => void;
 }
 
+
+// 카드가 "아직 화면에 있다"고 볼 창 — 대화 10턴(=메시지 20개).
+// 12(6턴)로 잡았다가 실측에서 짧았다: 카드 뒤 잡담 몇 턴이면 창을 벗어나 후속 판정이 꺼졌다.
+// 스크롤하면 카드는 여전히 화면에 있고 사용자는 "아까 그거 다시"라고 말한다 — 그 체감에 맞춘다.
+const CARD_WINDOW = 20;
+const hasRecentCard = (messages: { role: Role; content?: string }[], fence: string): boolean =>
+  messages.slice(-CARD_WINDOW).some(m => m.role === Role.MODEL && !!m.content?.includes(fence));
+
 export const useChatStream = ({
   sessions,
   setSessions,
@@ -452,6 +460,9 @@ export const useChatStream = ({
         ((activeSession?.messages || []).some(m => m.role === Role.MODEL && m.content?.includes('```json:movie'))
           ? getMovieContextText() || undefined
           : undefined),
+        // 화면에 떠 있는 카드 판정 — 서버는 최근 10개 메시지만 받아 카드가 창 밖으로 밀리면
+        // 후속 판정이 통째로 꺼진다. 전체 히스토리를 가진 여기서 최근 CARD_WINDOW 메시지로 판정한다.
+        { weather: hasRecentCard(activeSession?.messages || [], '```json:weather') },
       );
 
       const videoAttachment = finalAttachments.find(attachment => attachment.mimeType?.startsWith('video/'));

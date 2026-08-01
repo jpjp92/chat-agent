@@ -1,3 +1,4 @@
+import { type LangName, DEFAULT_LANG_NAME } from './lang';
 import 'server-only';
 import { StateGraph, END, START } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
@@ -19,7 +20,7 @@ import { weatherTool } from "./weather-tool";
  * Compiles the LangGraph StateGraph instance.
  * Sets up edges, conditional routing, and binding the executable tools.
  */
-export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName = 'Korean') => {
+export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName: LangName = DEFAULT_LANG_NAME) => {
 
     // langName: 렌더러 스펙(의도별 주입) 중 [WEATHER FORMATTING]이 언어별이라 generator까지 전달한다.
     const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent, langName);

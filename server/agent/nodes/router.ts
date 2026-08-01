@@ -55,8 +55,12 @@ export const routerNode = async (state: AgentStateType) => {
     //   창을 벗어나면 자연히 false가 되고, 그 안에서는 "카드가 화면에 있다"가 유지된다.
     //   새 조회(다른 도시·시점)는 아래 newFetch 신호가 그대로 승격시키므로 갇히지 않는다.
     // (LLM 프롬프트에 카드 상태를 알려주려고 라우터 호출 前에 계산한다.)
-    const weatherCardShown = state.messages.some((m: any) =>
+    // 클라이언트가 전체 히스토리로 판정해 보내주면 그걸 우선한다 — 서버가 받는 창(최근 10개)은
+    // 대화가 5턴만 지나도 카드를 놓친다(영어 멀티턴에서 카드 이후 6턴째부터 후속 판정이 통째로
+    // 꺼지는 걸 실측). 구버전 클라·테스트 하니스처럼 플래그가 없으면 기존 창 스캔으로 폴백.
+    const weatherCardInWindow = state.messages.some((m: any) =>
         m._getType?.() === 'ai' && /```json\s*:\s*weather/.test(String(m.content ?? '')));
+    const weatherCardShown = state.activeCards?.weather ?? weatherCardInWindow;
 
     // 카드가 떠 있으면 LLM에게 그 사실을 명시한다 — 직전 응답 본문이 카드 JSON이라 원문만으로는
     // "화면에 카드가 있다"는 맥락이 잘 안 읽힌다(follow_up 판정 품질에 직접 영향).
@@ -141,8 +145,14 @@ Also decide "needs_search": whether answering the LATEST user message needs up-t
 
 Also decide "follow_up" — ONLY meaningful when a result CARD is already displayed (see NOTE below); otherwise output "unrelated".
 - "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, which city is cooler / which movie starts earliest, seats left, which theater has it).
-- "new"       : the message asks for a NEW lookup — a different place/theater, a different day/time, or an explicit request to show it again.
-- "unrelated" : the topic moved away from the card (planning a trip, what to eat, nearest subway station, coding, chit-chat).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
+- "new"       : the message asks for a NEW lookup — a different place/theater, a different day/time, or an explicit request to display it again.
+- "unrelated" : the topic moved away from the card's subject entirely (planning a trip, what to eat, nearest subway station, coding, chit-chat).
+
+CRITICAL for "new" — this is the case most often missed. Judge it in ANY language, and note that these messages are usually VERY SHORT and lean on the card for context, so they can look like small talk:
+- A bare place/theater name, with or without a question word, is "new": "부산은?" · "대구는 어때?" · "How about Busan?" · "And Daegu?" · "What about Busan" · "¿Y Busan?" · "Et Busan ?"
+- Asking to see something again is "new" (NOT "unrelated"): "아까 서울 거 다시 보여줘" · "Show me the Seoul one again" · "show that again" · "muéstrame Seúl otra vez"
+- A different day/time is "new": "내일은?" · "what about tomorrow?" · "et demain ?"
+If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it is "new" or "refine" — never "unrelated". Reserve "unrelated" for messages whose subject is genuinely something else (code, food, travel planning, directions).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
 
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,
@@ -395,6 +405,8 @@ Also decide "follow_up" — ONLY meaningful when a result CARD is already displa
         else needsSearch = llmNeedsSearch ?? true; // gray → LLM 판정, 없으면 default-on
     }
 
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}`);
+    // cardShown 은 진단에 필수 — 이 값이 false면 후속 판정 블록 자체가 안 돌아 llmFollowUp 이 무시된다
+    // (히스토리 창 밖으로 카드가 밀려난 경우가 대표적).
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, weatherCardShown=${weatherCardShown}`);
     return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup, weatherFollowup };
 };

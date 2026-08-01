@@ -3,6 +3,7 @@ import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supab
 import { GUEST_MESSAGE_LIMIT, GUEST_LIMIT_ERROR } from '../../../lib/limits';
 import { API_KEYS } from '../../../server/config';
 import { getSystemInstruction } from '../../../server/agent/prompt';
+import { toLangName, pickByLang, type LangName } from '../../../server/agent/lang';
 import { compileAgentGraph } from '../../../server/agent/graph';
 import { DEFAULT_CHAT_MODEL } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   const encoder = new TextEncoder();
-  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext } = await req.json();
+  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext, activeCards } = await req.json();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -74,9 +75,8 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const langNames: any = { ko: 'Korean', en: 'English', es: 'Spanish', fr: 'French' };
-      const currentLangCode = (language && langNames[language]) ? language : 'ko';
-      const langName = langNames[currentLangCode];
+      // 언어 표현 매핑은 server/agent/lang.ts 한 곳에서만 한다.
+      const langName = toLangName(language);
       const systemInstruction = getSystemInstruction(langName);
       const supportedMimeTypes = ['image/', 'video/', 'audio/', 'application/pdf'];
 
@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
         contextInfo: '', pillData: null, sessionId: session_id || '',
         model: finalModel, timeZone: timeZone || 'Asia/Seoul', nextNode: 'router',
         movieContext: typeof movieContext === 'string' ? movieContext : '',
+        activeCards: (activeCards && typeof activeCards === 'object') ? activeCards : {},
       };
 
       const unhandledRejectionGuard = (reason: any) => {
@@ -154,13 +155,13 @@ export async function POST(req: NextRequest) {
         const exactUrlFetchFailedMatch = enrichedWebContent.match(/\[URL_FETCH_FAILED: ([^\]\n]+)\]/);
         if (exactUrlFetchFailedMatch) {
           const failedUrl = exactUrlFetchFailedMatch[1];
-          const msgs: Record<string, string> = {
-            ko: `해당 URL의 원문을 가져오지 못했습니다: ${failedUrl}\n\n이 URL은 보안 확인, CAPTCHA, 접근 제한 등으로 서버에서 본문을 읽을 수 없습니다.`,
-            en: `I could not retrieve the exact content of this URL: ${failedUrl}\n\nThe page appears to be blocked by security verification, CAPTCHA, or access restrictions.`,
-            es: `No pude obtener el contenido exacto de esta URL: ${failedUrl}\n\nLa página parece estar bloqueada.`,
-            fr: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée.`,
+          const msgs: Record<LangName, string> = {
+            Korean: `해당 URL의 원문을 가져오지 못했습니다: ${failedUrl}\n\n이 URL은 보안 확인, CAPTCHA, 접근 제한 등으로 서버에서 본문을 읽을 수 없습니다.`,
+            English: `I could not retrieve the exact content of this URL: ${failedUrl}\n\nThe page appears to be blocked by security verification, CAPTCHA, or access restrictions.`,
+            Spanish: `No pude obtener el contenido exacto de esta URL: ${failedUrl}\n\nLa página parece estar bloqueada.`,
+            French: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée.`,
           };
-          fullAiResponse = msgs[currentLangCode] ?? msgs.en;
+          fullAiResponse = pickByLang(msgs, langName);
           sendEvent({ text: fullAiResponse });
           sendEvent({ done: true });
           if (session_id) {

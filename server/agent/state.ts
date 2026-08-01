@@ -43,6 +43,14 @@ export const GraphState = Annotation.Root({
         default: () => "",
     }),
 
+    // 화면에 떠 있는 카드 종류(클라이언트 판정). 서버가 받는 히스토리는 최근 10개로 잘려 있어
+    // 카드가 그 창 밖으로 밀리면 후속 판정이 꺼진다 — 전체 히스토리를 가진 클라가 알려준다.
+    // 구버전 클라(미전송)면 라우터의 창 내 스캔으로 폴백한다.
+    activeCards: Annotation<{ weather?: boolean }>({
+        reducer: (x, y) => y ?? x,
+        default: () => ({}),
+    }),
+
     // 이번 턴이 영화 카드에 대한 후속 질문인지(라우터 판정). generator의 movieContext 주입 게이트.
     movieFollowup: Annotation<boolean>({
         reducer: (x, y) => y ?? x,
