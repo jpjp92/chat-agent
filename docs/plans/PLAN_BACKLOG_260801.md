@@ -56,6 +56,7 @@ LangChain path fatal error: Cannot read properties of undefined (reading 'parts'
 
 - 이미 있는 `scripts/test-prompt-sections.ts` PART B에 붙이면 된다. 새 파일 불필요.
 - **B1이 A1보다 먼저일 수도 있다** — 이번에 사람이 눈으로 잡은 것을 다음엔 스크립트가 잡는다.
+- **부분 착수됨(2026-08-01)**: 마크다운 파싱 쪽은 `scripts/test-markdown-emphasis.mjs`로 이미 잠갔다(§3-4 강조 + `$$` 계약). 위 표에서 남은 것은 **차트 두 줄**(결측 과반 / 카테고리≠값 개수)이다.
 
 ### B2. 배포 리비전 확인을 검증 0단계로
 

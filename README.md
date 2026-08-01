@@ -1,6 +1,6 @@
 # Chat Agent
 
-A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Google Search grounding, multimodal input, and 11 interactive visualization renderers.
+A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Google Search grounding, multimodal input, and 12 interactive visualization renderers.
 
 ---
 
@@ -12,13 +12,14 @@ A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Goo
 - **Persistent history**: sessions and messages stored in Supabase (PostgreSQL)
 - **Auto-title**: session titles generated automatically from conversation content
 - **Sidebar infinite scroll**: loads 30 at a time, fetches more on scroll
-- **Localization**: KO / EN / ES / FR
+- **Localization**: KO / EN / ES / FR — the client sends a lang code, and `server/agent/lang.ts` is the single source that maps it for prompts and renderer specs
 
 ### 1-2. AI Intelligence
 
 - **Models**: `gemini-3.5-flash` (default) / `gemini-2.5-flash` (optional) — header dropdown, persisted in `preferred_model` local storage
 - **Google Search Grounding**: real-time web search with source chips. On the free tier, 3.5 falls back to a 2.5 single-pass for grounded answers
-- **Intent routing**: `gemini-2.5-flash-lite` router + rule-based fallback (`intentRules.ts`). The `general` intent uses a 3-gate `needsSearch` classifier to decide the search gate
+- **Intent routing**: `gemini-2.5-flash-lite` router + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, and `follow_up` together — splitting it into separate calls costs latency the 60s cap cannot afford
+- **Card follow-up**: weather/movie cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc)
 - **YouTube**: native Gemini video analysis (standard URL / youtu.be / Shorts)
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
@@ -68,7 +69,7 @@ flowchart TB
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
         UI[Main UI]
         Stream[useChatStream]
-        Renderers["Renderers (11)"]
+        Renderers["Renderers (12)"]
     end
 
     subgraph FetchAPI ["/api/fetch-url"]
@@ -153,6 +154,7 @@ Per-intent tool binding and routing details: [docs/guide/REF_Architecture.md](do
 | Layer         | Technology                                                                |
 | ------------- | ------------------------------------------------------------------------- |
 | Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion  |
+| Markdown      | react-markdown + remark-gfm / remark-math (`$$` only) / remark-cjk-friendly / rehype-katex |
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
 | Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
 | AI            | Gemini 3.5 Flash / 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain  |
@@ -190,8 +192,10 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── lib/weather/index.ts             # KMA + OpenWeather core (dfsXyConv, precip parse)
 │   └── agent/
 │       ├── graph.ts                    # LangGraph StateGraph
-│       ├── prompt.ts                   # System instruction builder
-│       ├── state.ts / intentRules.ts
+│       ├── prompt.ts                   # Base + intent-scoped renderer sections
+│       ├── lang.ts                     # Single source for server language mapping
+│       ├── history.ts                  # Client history → LangChain messages
+│       ├── state.ts / intentRules.ts   # state: activeCards / *Followup / movieContext
 │       ├── tools.ts                    # identify_pill, search_web (DDG)
 │       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts
 │       ├── vet-tool.ts / law-tool.ts / movie-tool.ts / worldcup-tool.ts
@@ -200,7 +204,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │           ├── router.ts / vision.ts / generator.ts / langchain-path.ts
 │           ├── search-gate.ts / sdk-contents.ts
 │           ├── generation-config.ts / pill-messages.ts / retry.ts
-├── components/                         # 24 UI components (12 renderers + core)
+├── components/                         # 25 UI components (12 renderers + core)
 ├── lib/
 │   ├── theaters.ts / movieContext.ts
 │   └── sports/football-data.ts         # football-data.org WC data layer

@@ -5,6 +5,10 @@ import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+// CommonMark 우측 플랭킹 규칙 보정 — 닫는 `**`가 구두점 뒤(`%`, `)`)에 오고 한글 조사 앞에 오면
+// 닫는 구분자로 인정되지 않아 `**1.40%**를` 이 원문 그대로 노출된다(`**3.10%**,` 는 정상).
+// 한국어에서 "수치+단위+조사"는 흔한 형태라 실제 답변에서 자주 터진다(DEV_260801 §3-4).
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -699,7 +703,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           return (
             <div key={idx} className="prose dark:prose-invert max-w-none prose-p:leading-relaxed [overflow-wrap:anywhere] [word-break:break-word] prose-table:[word-break:normal] prose-table:[overflow-wrap:normal]">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+                remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }], remarkCjkFriendly]}
                 rehypePlugins={[rehypeKatex]}
                 components={MarkdownComponents as any}
               >
