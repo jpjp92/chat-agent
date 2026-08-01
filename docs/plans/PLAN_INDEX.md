@@ -6,6 +6,23 @@
 
 ---
 
+## 지금 순서 (2026-08-02)
+
+아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
+
+| # | 할 일 | 배포 필요 | 근거 |
+|---:|---|---|---|
+| 1 | **Google Console — 승인된 도메인에 `chat-gem.vercel.app` 추가 시도** | ❌ | [PROD_ROLLOUT §5-1](PLAN_AUTH_PROD_ROLLOUT_260719.md). 5분·무료로 B안의 성패가 갈린다. 거부되면 자체 도메인이 필요해 A(유료 Custom Domain)와 비용이 비슷해진다 — **로고·페이지 준비보다 먼저** |
+| 2 | `app/legal/LegalPage.tsx` 의 `CONTACT_EMAIL` 실제 주소로 교체 | — | 현재 `CHANGE_ME@example.com`. 공개 페이지에 가짜 연락처가 올라간다 |
+| 3 | dev 푸시·배포 후 **화면 확인 3종** | ✅ | 수식(§3-1)·극장 매칭(§3-3-1)이 `4a8141a` 로 배포됐으나 **아직 눈으로 안 봤다** + 신규 `/privacy`·`/terms` ([DEV_260801 §5](../logs/2026/08/DEV_260801.md)) |
+| 4 | **인증 프로덕션(main) 컷오버** | ✅ | [PROD_ROLLOUT](PLAN_AUTH_PROD_ROLLOUT_260719.md) 순서대로. 별도 세션·유지보수 창 |
+| 5 | 프론트 구조 작업 — [ChatMessage 분리](PLAN_CHATMESSAGE_REFACTOR_260801.md) + [URL 라우팅](PLAN_APP_ROUTING_260802.md) | ✅ | 둘 다 `App.tsx`·훅을 건드린다. **컷오버와 섞지 않는다** — 문제 시 원인 분리가 안 된다 |
+| 6 | [백로그](PLAN_BACKLOG_260801.md) B1 → A1 → C1 측정 → A2 | — | 재발 방지 · 폴백 크래시 · 커버리지 |
+
+**1~3 은 4를 막지 않는다.** 1은 브랜딩(기능 아님), 3은 이미 배포된 것의 사후 확인이다.
+
+---
+
 ## Active Priorities
 
 | Priority | Area | Plan | Status | Next action |
@@ -24,7 +41,8 @@
 | P3 | 날씨 전용 툴 (KMA+OWM) | [PLAN_WEATHER_TOOL_260706.md](PLAN_WEATHER_TOOL_260706.md) | **구현 완료 (2026-07-06, [DEV_260706](../logs/2026/07/DEV_260706.md))**. `server/lib/weather` 코어 + weatherTool(멀티도시) + WeatherRenderer + router intent/해석가드 + on_tool_end 스트리밍. grounding 15s+ → 결정론 카드 ~1s. tsc 0·라이브 스모크(서울/전주/부산=KMA·Tokyo=OWM) 통과. 예외처리(fetch 타임아웃·빈데이터 폴백·에러카드) 포함 | (선택) Supabase TTL 캐시. 필요 시 weatherContext 멀티턴. [TODO §P3 ⓪](../TODO.md) |
 | P2 | Frontend performance | [PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md](PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md) | Measured, selected quick wins | Apply quick wins after P0/P1 stability work |
 | P2 | Search/thinking latency | [PLAN_THINKING_LATENCY_260602.md](PLAN_THINKING_LATENCY_260602.md) | Major fix applied, residual checks remain | Recheck non-search `thinkingLevel: "low"` before changing |
-| P2 | ChatMessage.tsx 분리 | [PLAN_CHATMESSAGE_REFACTOR_260801.md](PLAN_CHATMESSAGE_REFACTOR_260801.md) | **설계만 (착수 전, 2026-08-01)** — 924줄. 동기는 줄 수가 아니라 **테스트 가능성**: 하루에 마크다운 결함 2건이 나왔고 둘 다 회귀 스크립트를 통과했다. 전처리를 import 할 수 없어 스크립트에 복붙해 뒀던 게 원인([DEV_260801 §3-4-1](../logs/2026/08/DEV_260801.md)). 1단계 = `renderContent` 파싱부(433–568, 클로저 의존은 `content`·`isStreaming` 뿐)를 `lib/markdown/parseMessageBlocks.ts` 로 추출 + 테스트를 import 전환 | **인증 프로덕션 컷오버 이후 착수.** 1단계만으로 목적의 8할 |
+| P2 | 앱 URL 라우팅 (세션별 주소) | [PLAN_APP_ROUTING_260802.md](PLAN_APP_ROUTING_260802.md) | **설계만 (착수 전, 2026-08-02)** — 앱 본체가 `/` 하나라 새로고침·북마크·뒤로가기가 대화를 따라가지 않는다. `app/c/[sessionId]` 얇은 래퍼 + `lib/chatRoute.ts`(경로↔상태 단일 소스) + **`history.pushState`**(🔴 `router.push` 는 트리를 리마운트해 **SSE 스트림이 끊긴다**). 동기화 지점은 `selectSession`/`createNewSession`(push)·`removeSession`(replace)·`popstate`. 함정: auth 초기화 중 `userId` 가 잠시 null 이라 URL 을 `currentSessionId` 로 미러링하면 **딥링크가 지워진다**. 레퍼런스 `reference/cowork26` | **인증 컷오버 이후.** ChatMessage 분리와 한 묶음으로 검증 |
+| P2 | ChatMessage.tsx 분리 | [PLAN_CHATMESSAGE_REFACTOR_260801.md](PLAN_CHATMESSAGE_REFACTOR_260801.md) | **설계만 (착수 전, 2026-08-01 v2)** — 924줄. 분리 기준은 "용도"가 아니라 **무엇이 언제 바뀌는가**: ⓐ 반복 작업(렌더러 추가)이 한 파일에서 **8곳**을 건드린다 — 렌더러 목록이 4번 따로 선언(드리프트는 현재 0건이나 하나만 빠져도 조용히 깨짐), `smiles`→`chemical`·`treemap`→`chart` 매핑이 else-if 코드 속에만 존재 ⓑ 마크다운 결함 2건이 회귀 스크립트를 통과 — 전처리를 import 할 수 없어 복붙해 둔 탓([DEV_260801 §3-4-1](../logs/2026/08/DEV_260801.md)). 순서 = **① `lib/renderers.ts` 레지스트리(데이터화) → ② 파싱부(433–568, 클로저 의존 `content`·`isStreaming` 뿐) 추출 + 테스트 import 전환 → ③ 뷰 → ④ 훅**. v1의 "파싱 먼저"를 뒤집음(else-if 13분기가 레지스트리로 사라질 코드라 두 번 만지게 됨) | **인증 프로덕션 컷오버 이후 착수.** ①+②로 목적의 8할. 검증 여력 없으면 ②→① 순서 허용(②는 순수 이동) |
 | P2 | generator.ts 리팩토링 | [PLAN_GENERATOR_REFACTOR_260621.md](PLAN_GENERATOR_REFACTOR_260621.md) | 1·2·4-A·3-A 완료(`04d291c`·`cce3baf`·`0fec111`+3-A 커밋대기, **1148→685줄 -40%**, 동등성 19,423 0 fail + 3-A dev E2E 4종) | 다음=3-B(SDK 경로 분리 → `sdk-path.ts`, dev E2E 필수). (선택)4-B 에러술어 수렴. 필수 아님 |
 | — | 웰컴 화면 UI 정비 | [PLAN_WELCOME_UI_REVAMP_260628.md](PLAN_WELCOME_UI_REVAMP_260628.md) | **구현 완료 (2026-06-28, [DEV_260628](../logs/2026/06/DEV_260628.md))**. 모델 선택기 반응형 하이브리드·추천 칩(`SuggestChips`)·웰컴 한 줄·반응형 입력창 배치·폭 4xl 통일. tsc 0. **후속 [DEV_260703](../logs/2026/07/DEV_260703.md)**: 컴포저 반응형 하이브리드(모바일=1행 복원/데스크톱=2단, flex-wrap+`sm:basis-full`)로 textarea 폭 낭비 해소·모바일 사이드바 제목 편집 밑줄 보정 | (선택) 웰컴 ChatInput 단일 마운트화, es/fr 칩 문구 검수. 빌드 CI 확인 |
 

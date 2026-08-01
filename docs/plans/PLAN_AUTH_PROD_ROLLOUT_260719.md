@@ -99,10 +99,45 @@
 ## 5. 이관과 **무관하게 남는** 미결 항목 (이관 blocker 아님)
 
 - **🔴 Storage IDOR-3** — `upload`·`create-signed-url`·`parse-document` 가 무인증 + service-role + 공개 버킷. dev 에도 그대로 노출 중. **이관의 blocker 는 아니지만 프로덕션에선 노출면이 실사용자로 확대** → 이관 후 **최우선 보안 과제**. (근본해결: Bearer+RLS·유저별 prefix·private 버킷. [PLAN_AUTH_MVP §8](PLAN_AUTH_MVP_260709.md))
-- **OAuth 동의 화면 도메인** — `*.supabase.co` 노출은 Supabase **Custom Domain(유료)** 로만 앱 이름화 가능. AWS 마이그레이션·도메인 구매만으로는 불가(auth 서버 자체가 옮겨져야). post-MVP.
+- **OAuth 동의 화면 도메인** — `*.supabase.co` 노출. **2026-08-01 정정: "Custom Domain(유료)만 가능"은 틀렸다.** → §5-1 참조.
 - **테스트 스크립트 가드** — `STG===PROD` 상대 비교 가드는 절대 ref(`gaomgqnpsjtabrvwnpad` 아님) 확인으로 교체 권장 ([DEV_260719 §4-1](../logs/2026/07/DEV_260719.md)).
 - **익명 유저 남용** — 쿠키 삭제마다 `auth.users` 행 생성·자동정리 없음. 프로덕션에선 지표 보고 CAPTCHA(Turnstile)·미전환 정리 잡 검토.
 - **`server/supabase.ts` service_role export 정리** — `supabase` → `supabaseAdmin` 일원화 (MVP 이후).
+
+### 5-1. OAuth 동의 화면에 `*.supabase.co` 대신 앱 이름 띄우기 (2026-08-01 추가)
+
+**증상**: 로그인 시 `ghdpnuwbvlrxmxcazzci.supabase.co(으)로 이동` 이 표시된다.
+
+**원인**: Google 은 기본적으로 **콜백 URL 의 루트 도메인**을 보여준다. Supabase 호스팅 인증에서 그 주소는 `https://<ref>.supabase.co/auth/v1/callback` 이고, 이 URI 가 승인된 리디렉션 URI 로 등록돼 있어야 로그인이 성립한다 — **지울 수 없다.** 앱이 보내는 `redirectTo`(localhost / vercel.app)는 Supabase 콜백 **이후** 단계라 Google 은 보지 못한다. 그래서 로컬·dev 어디서 눌러도 표시가 같다(2026-08-01 Edge/Chrome 교차 확인).
+
+**선택지**
+
+| | 방법 | 비용 | 코드 변경 |
+|---|---|---|---|
+| A | Supabase **Custom Domain** → 콜백이 `auth.<우리도메인>` 으로 바뀜 | 유료 부가기능 | 없음 |
+| **B** | **Google Cloud 동의 화면 브랜딩 + 도메인 소유 확인** | 무료 | 없음 |
+| C | GIS + `signInWithIdToken` (Google 이 우리 도메인만 봄) | 무료 | ❌ **채택 불가** |
+
+> **C 를 배제한 이유**: `linkIdentity` 는 리디렉션 흐름 전용이다. 익명 게스트 → 정식 계정 승계(같은 uuid·대화 보존)가 이 API 위에 서 있어서, C 로 가면 인증 MVP 설계의 중심을 다시 짜야 한다.
+
+**B 절차**
+
+- [ ] ① Google **Search Console** 에서 도메인 소유 확인 (HTML 파일 업로드)
+- [ ] ② 동의 화면 → **승인된 도메인**에 ①의 도메인 추가 ← **여기서 막히는지가 B 의 성패**
+- [ ] ③ 브랜딩: 앱 이름 · 로고(120×120 이상) · **개인정보처리방침 URL** · **약관 URL**
+- [ ] ④ 게시 상태 **테스트 → 프로덕션**
+- [ ] ⑤ 반영 확인 (로고는 최대 24시간)
+
+**착수 순서**: **②를 먼저 시도한다.** 자체 도메인이 없고 `chat-gem.vercel.app` 을 쓰는데, `vercel.app` 은 공개 접미사 목록에 있어 `chat-gem.vercel.app` 이 등록 가능 도메인으로 취급된다. 다만 Google 의 승인된 도메인 필드가 이를 받아주는지는 **넣어봐야 안다.** 거부되면 자체 도메인이 필요하고, 그러면 A 와 비용 구조가 비슷해진다. 5분이면 갈리므로 다른 준비보다 먼저 한다.
+
+**③ 선결 조건은 해소됨(2026-08-01)** — `/privacy`·`/terms` 페이지를 만들었다(`app/privacy`·`app/terms`, 공용 골격 `app/legal/LegalPage.tsx`). 정적 프리렌더라 로그인 없이 열리고 심사 봇이 접근할 수 있다.
+- [ ] 🔴 `app/legal/LegalPage.tsx` 의 `CONTACT_EMAIL` 을 **실제 주소로 교체** (현재 `CHANGE_ME@example.com`). Google 은 연락 가능한 곳을 요구한다.
+
+**정황**: 같은 client_id 로 한때 `chat agent` 가 표시된 적이 있다(2026-08-01). 앱 이름은 이미 설정돼 있고 빠진 건 ②·④ 쪽일 가능성이 크다.
+
+**판단**: 기능 문제가 아니라 **브랜딩 문제**다. 컷오버 blocker 가 아니며, 무료인 B 를 먼저 시도하고 안 되면 A 를 비용 판단으로 넘긴다.
+
+근거: [Supabase — Login with Google](https://supabase.com/docs/guides/auth/social-login/auth-google) (커스텀 도메인 + 브랜드 검증 병행 권고, "브랜드 검증은 자동이 아니며 며칠 소요") · [supabase#33387](https://github.com/supabase/supabase/issues/33387)
 
 ---
 
