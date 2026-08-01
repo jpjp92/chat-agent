@@ -166,10 +166,14 @@ const SkeletonCard: React.FC = () => (
 );
 
 // ── 체인 섹션 ────────────────────────────────────────────────
-const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; initial?: Branch }> = ({ chainKey, nm, color, initial }) => {
+// initial === null 은 "사용자가 말한 지역에 이 체인 지점이 없다"는 신호다(defaultsForRegion).
+// 예전엔 이때도 기본 지점(가산디지털)을 조회해 **다른 동네 시간표를 그 지역 것처럼** 보여줬다.
+// 이제는 조회를 건너뛰고 그 사실을 표시한다 — 드롭다운은 남겨 사용자가 직접 고를 수 있다.
+const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; initial?: Branch | null; region?: string }> = ({ chainKey, nm, color, initial, region }) => {
   const list = useMemo(() => flatBranches(chainKey), [chainKey]);
+  const noBranchForRegion = initial === null;
   const start = useMemo(() => initial?.code ? initial : (list[0] || { code: '', nm: '' }), [initial, list]);
-  const [branch, setBranch] = useState<Branch>(start);
+  const [branch, setBranch] = useState<Branch | null>(noBranchForRegion ? null : start);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAllMovies, setShowAllMovies] = useState(false);
@@ -178,6 +182,12 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
   useEffect(() => {
     let alive = true;
     const id = ++reqId.current;
+    if (!branch) {
+      // 지점 미선택(지역에 지점 없음) — 조회하지 않고, 이전 상영표가 movieContext 에 남지 않게 비운다.
+      setChainShowtimes(chainKey, null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setShowAllMovies(false);
     const t0 = performance.now();
@@ -200,7 +210,7 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
       }
     })();
     return () => { alive = false; };
-  }, [chainKey, branch.code, branch.nm]);
+  }, [chainKey, branch?.code, branch?.nm]);
 
   const today = kstYmd();
   const movies = payload?.list || [];
@@ -212,12 +222,12 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
       <div className="flex items-center gap-2 flex-wrap mb-2.5">
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
         <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">{nm}</h2>
-        <BranchDropdown list={list} current={branch} color={color} onPick={setBranch} />
+        <BranchDropdown list={list} current={branch ?? { code: '', nm: '지점 선택' }} color={color} onPick={setBranch} />
         <a
-          href={branchUrl(chainKey, branch.code)}
+          href={branchUrl(chainKey, branch?.code ?? '')}
           target="_blank"
           rel="noopener noreferrer"
-          title={`${nm} ${branch.nm} 페이지 열기`}
+          title={`${nm} ${branch?.nm ?? ''} 페이지 열기`}
           className="text-[10px] text-slate-400 dark:text-slate-500 transition-colors"
           onMouseEnter={(e) => { e.currentTarget.style.color = color; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = ''; }}
@@ -225,14 +235,19 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
           <i className="fa-solid fa-arrow-up-right-from-square" />
         </a>
         <span className="inline-flex items-center text-[11px] text-slate-500 dark:text-slate-400">
-          {loading ? <>{branch.nm} 조회 중<LoadingDots /></>
+          {!branch ? `${region ? `'${region}'에는 ` : ''}지점이 없습니다`
+            : loading ? <>{branch.nm} 조회 중<LoadingDots /></>
             : payload?.error ? `조회 실패`
             : `${payload?.cinema || branch.nm} · 영화 ${payload?.movies || 0} · 회차 ${payload?.total || 0}${at ? ` · ${at} 조회` : ''}`}
         </span>
       </div>
 
       <div className="flex flex-col gap-2">
-        {loading
+        {!branch
+          ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">
+              {nm}는 {region ? `'${region}' 지역에` : '이 지역에'} 지점이 없습니다. 위 목록에서 다른 지점을 선택할 수 있어요.
+            </p>
+          : loading
           ? <><SkeletonCard /><SkeletonCard /></>
           : payload?.error
             ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">조회 실패: {payload.error}</p>
@@ -258,7 +273,7 @@ export const MovieRenderer: React.FC<{ data: MovieData }> = ({ data }) => {
   return (
     <div className="my-4 flex flex-col gap-3.5">
       {CHAINS.map((ch) => (
-        <ChainSection key={ch.key} chainKey={ch.key} nm={ch.nm} color={ch.color} initial={data?.defaults?.[ch.key]} />
+        <ChainSection key={ch.key} chainKey={ch.key} nm={ch.nm} color={ch.color} initial={data?.defaults?.[ch.key]} region={data?.region} />
       ))}
     </div>
   );

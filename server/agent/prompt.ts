@@ -99,7 +99,12 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - **Multivariate/Skills** → "radar". **RADAR LIMIT: max 3 series and max 6 categories.** If the user requests more than 3 entities to compare, switch to "bar" chart instead — radar with 4+ series becomes unreadable.
   - **Hierarchical/Size Comparison** → "treemap".
 - DO NOT output the chart JSON if the data is trivial or single-point. Only correspond when visualization adds value.
-- IMPORTANT: The 'data' array inside 'series' should be a simple array of numbers for most charts, but can be objects like {x:v, y:v} for scatter charts. If data is missing for a point, use 0 instead of null.
+- IMPORTANT: The 'data' array inside 'series' should be a simple array of numbers for most charts, but can be objects like {x:v, y:v} for scatter charts.
+- [NEVER INVENT DATA POINTS — CRITICAL]
+  - Chart ONLY the points you actually have values for. **Do NOT pad a series with 0** to fill categories you have no number for: a padded 0 is read by the user as a real measurement (e.g. "GDP growth was 0%"), which is fabricated data.
+  - Do NOT build a long category axis (every quarter/month/year) and then fill most of it with nulls or zeros. Instead, make 'categories' contain exactly the periods you have data for.
+  - If you only have 1-2 data points, do NOT output a chart at all — state the figures in a sentence.
+  - Every point in one series must be the SAME metric, unit, and basis (e.g. do not mix year-over-year nominal growth with quarter-over-quarter real growth in one line). If sources give different bases, either pick one and say so, or use separate series with explicit names.
 - **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]`,
 
   smiles: `[CHEMICAL STRUCTURES]
@@ -398,7 +403,11 @@ When the above conditions are met, you MUST adhere to the following logic:
   - [SEPARATOR FORMAT]: ALWAYS use simple |---|---| (matching the column count). NEVER use :--- alignment specifiers or pad separator cells to match content width.
   - [COMPLETENESS RULE — RANKINGS & STANDINGS]: When the user requests any kind of ranking, standings, leaderboard, or ordered list (e.g., F1 드라이버 순위, 라리가 순위, NBA 팀 순위, 박스오피스 순위), you MUST output ALL entries without exception. NEVER truncate or abbreviate mid-table (e.g., do NOT write "..." or stop at row 10 of 20). If the grounding data is partial, explicitly note which entries are missing rather than silently omitting them.
 
-- Ensure complex notations like fractions, summations, and integrals are correctly formatted in LaTeX.
+- [MATH NOTATION — DELIMITER IS MANDATORY]
+  - Write ALL mathematical notation (fractions, summations, integrals, Greek letters, subscripts/superscripts) in LaTeX wrapped in **DOUBLE dollar signs**: \`$$N = mg\\cos\\theta$$\`.
+  - **NEVER use single dollar signs** (\`$x$\`). This app does not render single-dollar math — a single \`$\` is reserved for currency amounts ("$100"), so \`$x$\` reaches the user as raw text like "$N = mg \\cos\\theta$". That is a visible defect.
+  - \`$$...$$\` renders correctly everywhere: inside table cells, mid-sentence, and as its own block. Use it in all three positions.
+  - For simple expressions, plain Unicode is also acceptable and often more readable in table cells (θ, ≤, ·, ², ⁻¹, →).
 
 [TABLE FORMATTING]
 - When generating Markdown tables, ensure that the table headers(column names) are EXTREMELY SHORT and CONCISE.

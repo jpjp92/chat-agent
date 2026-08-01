@@ -129,13 +129,22 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             if (isRadarType && rawSeries.length > 3) {
                 rawSeries = rawSeries.slice(0, 3);
             }
+            // 결측(null/undefined/빈값/NaN)은 **0으로 바꾸지 않고 null 로 남긴다**.
+            // 예전엔 `Number(d) || 0` 이라 결측이 전부 0이 됐고, "GDP 성장률 0%" 같은 **없는 데이터가
+            // 그려졌다**(실측: 값 3개 + null 20개 → 0에 붙은 평평한 직선). ApexCharts 는 null 을 선 끊김
+            // (gap)으로 렌더하므로 "모르는 구간"이 그대로 보인다. 진짜 0 은 그대로 0 으로 남는다.
+            const toY = (v: any): number | null => {
+                if (v === null || v === undefined || v === '') return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? n : null;
+            };
             normSeries = rawSeries.map(s => ({
                 name: s.name,
                 data: (s.data || []).map(d => {
                     if (typeof d === 'object' && d !== null) {
-                        return { x: d.x, y: Number(d.y) || 0 };
+                        return { x: d.x, y: toY(d.y) };
                     }
-                    return Number(d) || 0;
+                    return toY(d);
                 })
             }));
         }
