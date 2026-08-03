@@ -12,6 +12,8 @@
 
 | # | 할 일 | 배포 필요 | 근거 |
 |---:|---|---|---|
+| ~~0~~ | ~~프로덕션 사전 점검 SQL~~ | — | **✅ 2026-08-02 완료** — 🔴 두 항목(의존 뷰·`_legacy` 충돌) 모두 clear, `auth.users`=0. 실데이터 **이관 안 함**·**사전 안내 안 함** 확정 ([PROD_ROLLOUT §2-A-1](PLAN_AUTH_PROD_ROLLOUT_260719.md)) |
+| **0-B** | 🔴 **main Vercel env 3개 교정 — 그 전까지 재배포 금지** | ❌ | [PROD_ROLLOUT §E-1·§E-2](PLAN_AUTH_PROD_ROLLOUT_260719.md). `.env.local`(stg) 값이 main 에 들어갔다. `NEXT_PUBLIC_*` 2개 프로덕션 값으로 교체 + `SUPABASE_SERVICE_ROLE_KEY` 삭제. **머지와 무관하게 현재 main 코드도 읽는 변수**라 지금 배포하면 파일 업로드가 깨진다 |
 | 1 | **Google Console — 승인된 도메인에 `chat-gem.vercel.app` 추가 시도** | ❌ | [PROD_ROLLOUT §5-1](PLAN_AUTH_PROD_ROLLOUT_260719.md). 5분·무료로 B안의 성패가 갈린다. 거부되면 자체 도메인이 필요해 A(유료 Custom Domain)와 비용이 비슷해진다 — **로고·페이지 준비보다 먼저** |
 | 2 | `app/legal/LegalPage.tsx` 의 `CONTACT_EMAIL` 실제 주소로 교체 | — | 현재 `CHANGE_ME@example.com`. 공개 페이지에 가짜 연락처가 올라간다 |
 | 3 | dev 푸시·배포 후 **화면 확인 3종** | ✅ | 수식(§3-1)·극장 매칭(§3-3-1)이 `4a8141a` 로 배포됐으나 **아직 눈으로 안 봤다** + 신규 `/privacy`·`/terms` ([DEV_260801 §5](../logs/2026/08/DEV_260801.md)) |
@@ -20,6 +22,7 @@
 | 6 | [백로그](PLAN_BACKLOG_260801.md) B1 → A1 → C1 측정 → A2 | — | 재발 방지 · 폴백 크래시 · 커버리지 |
 
 **1~3 은 4를 막지 않는다.** 1은 브랜딩(기능 아님), 3은 이미 배포된 것의 사후 확인이다.
+**0-B 가 막는 것은 `main` 브랜치 배포뿐이다.** 3(dev 푸시)은 chat-agent-dev 프로젝트를 배포하므로 무관하다 — main 프로젝트는 dev 브랜치를 Preview 로만 빌드하고, 프로덕션 배포는 `main` 브랜치에서만 일어난다.
 
 ---
 
