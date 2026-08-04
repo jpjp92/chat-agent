@@ -10,8 +10,8 @@
  */
 import Link from 'next/link';
 
-/** 문의처 — 🔴 배포 전 실제 주소로 교체할 것. Google 심사는 연락 가능한 곳을 요구한다. */
-export const CONTACT_EMAIL = 'CHANGE_ME@example.com';
+/** 문의처 — 실제로 수신하는 주소여야 한다. Google 심사가 연락 가능 여부를 본다. */
+export const CONTACT_EMAIL = 'johnnyworld9278@gmail.com';
 
 /** 최종 개정일 — 내용을 고치면 반드시 함께 올린다. */
 export const LAST_UPDATED = '2026-08-01';
