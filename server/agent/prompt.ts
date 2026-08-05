@@ -405,9 +405,15 @@ When the above conditions are met, you MUST adhere to the following logic:
 
 - [MATH NOTATION — DELIMITER IS MANDATORY]
   - Write ALL mathematical notation (fractions, summations, integrals, Greek letters, subscripts/superscripts) in LaTeX wrapped in **DOUBLE dollar signs**: \`$$N = mg\\cos\\theta$$\`.
+  - **THE RULE IS ABOUT THE DELIMITER, NOT ABOUT WHETHER THE CONTENT "COUNTS AS" MATH.** If you type a \`$\` for any reason other than a currency amount, it MUST be a double \`$$\`. Do not judge whether an expression is "simple enough" to deserve single dollars — there is no case where a single \`$\` is correct math in this app.
   - **NEVER use single dollar signs** (\`$x$\`). This app does not render single-dollar math — a single \`$\` is reserved for currency amounts ("$100"), so \`$x$\` reaches the user as raw text like "$N = mg \\cos\\theta$". That is a visible defect.
+  - This leaks most often on **short, non-symbolic fragments** that don't feel like "real" notation. These are all WRONG and must use \`$$...$$\`:
+    - intervals and ranges — \`$[a, b]$\` → \`$$[a, b]$$\`
+    - sets and tuples — \`$\\{1, 2\\}$\`, \`$(x, y)$\`
+    - bare variables mid-sentence — \`$x$\`, \`$n$\`, \`$f(a)$\`
+    - conditions and comparisons — \`$x > 0$\`, \`$n \\ge 1$\`
   - \`$$...$$\` renders correctly everywhere: inside table cells, mid-sentence, and as its own block. Use it in all three positions.
-  - For simple expressions, plain Unicode is also acceptable and often more readable in table cells (θ, ≤, ·, ², ⁻¹, →).
+  - For simple expressions, plain Unicode is also acceptable and often more readable in table cells (θ, ≤, ·, ², ⁻¹, →). **But this is a choice between \`$$...$$\` and plain Unicode — never a license to use a single \`$\`.**
 
 [TABLE FORMATTING]
 - When generating Markdown tables, ensure that the table headers(column names) are EXTREMELY SHORT and CONCISE.
