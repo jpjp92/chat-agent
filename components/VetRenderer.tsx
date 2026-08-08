@@ -18,14 +18,47 @@ interface VetData {
 
 interface VetRendererProps {
   data: VetData;
+  language?: Lang;
 }
 
 const PAGE_SIZE = 5;
 
+/**
+ * 🔴 API 계약값 — 행안부 동물병원 API 가 주는 상태 문자열. **번역 금지.**
+ * 비교에 쓰이므로 이 값을 언어별로 바꾸면 영업/폐업 판정이 통째로 깨진다.
+ * 화면 표시는 STATUS_LABEL 로 따로 옮긴다.
+ */
+const API_OPEN = '영업';
+const API_OPEN_NOW = '영업중';
+const API_CLOSED = '폐업';
+
+type Lang = 'ko' | 'en' | 'es' | 'fr';
+
+const T: Record<Lang, Record<string, string>> = {
+  ko: { notFound: '동물병원 정보를 찾을 수 없습니다.', search: '동물병원 검색', top: '상위', results: '결과 (가나다 순)', count: '개', prev: '이전', next: '다음' },
+  en: { notFound: 'No veterinary clinics found.', search: 'vet clinic search', top: 'Top', results: 'results (A–Z)', count: '', prev: 'Prev', next: 'Next' },
+  es: { notFound: 'No se encontraron clínicas veterinarias.', search: 'búsqueda de veterinarias', top: 'Top', results: 'resultados (A–Z)', count: '', prev: 'Anterior', next: 'Siguiente' },
+  fr: { notFound: 'Aucune clinique vétérinaire trouvée.', search: 'recherche de vétérinaires', top: 'Top', results: 'résultats (A–Z)', count: '', prev: 'Précédent', next: 'Suivant' },
+};
+
+/**
+ * 상태 **분류값**의 표시 라벨. 고유명사가 아니라 상태라서 번역 대상이다.
+ * API 가 예상 밖 값을 주면 원문 그대로 통과시킨다 — 목록이 열려 있어 전수 매핑이 불가능하다.
+ */
+const STATUS_LABEL: Record<Lang, Record<string, string>> = {
+  ko: {},
+  en: { [API_OPEN]: 'Open', [API_OPEN_NOW]: 'Open', [API_CLOSED]: 'Closed' },
+  es: { [API_OPEN]: 'Abierto', [API_OPEN_NOW]: 'Abierto', [API_CLOSED]: 'Cerrado' },
+  fr: { [API_OPEN]: 'Ouvert', [API_OPEN_NOW]: 'Ouvert', [API_CLOSED]: 'Fermé' },
+};
+
 const kakaoMapUrl = (name: string, address: string) =>
   `https://map.kakao.com/link/search/${encodeURIComponent(name + ' ' + address.split(' ').slice(0, 3).join(' '))}`;
 
-export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
+export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' }) => {
+  const lang: Lang = (['ko', 'en', 'es', 'fr'].includes(language as string) ? language : 'ko') as Lang;
+  const tt = T[lang];
+  const statusLabel = (raw: string) => STATUS_LABEL[lang][raw] ?? raw;
   const [page, setPage] = useState(0);
 
   const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>, phone: string) => {
@@ -44,7 +77,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-paw text-2xl mb-2 block" />
-        <p className="text-sm">동물병원 정보를 찾을 수 없습니다.</p>
+        <p className="text-sm">{tt.notFound}</p>
       </div>
     );
   }
@@ -61,10 +94,10 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
         </div>
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            {data.query} 동물병원 검색
+            {data.query} {tt.search}
           </h3>
           <p className="text-[11px] text-slate-400">
-            상위 <span className="font-bold text-teal-400">{data.vets.length}개</span> 결과 (가나다 순)
+            {tt.top} <span className="font-bold text-teal-400">{data.vets.length}{tt.count}</span> {tt.results}
           </p>
         </div>
       </div>
@@ -78,8 +111,8 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
       {/* Cards */}
       <div className="flex flex-col gap-2 w-full">
         {pageItems.map((v, i) => {
-          const isOpen = v.status === '영업' || v.status === '영업중';
-          const isClosed = v.status.includes('폐업') || v.status_detail.includes('폐업');
+          const isOpen = v.status === API_OPEN || v.status === API_OPEN_NOW;
+          const isClosed = v.status.includes(API_CLOSED) || v.status_detail.includes(API_CLOSED);
 
           return (
             <div
@@ -108,7 +141,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
                             ? 'bg-teal-500/10 border-teal-500/20 text-teal-400'
                             : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                         }`}>
-                          {v.status_detail || v.status}
+                          {statusLabel(v.status_detail || v.status)}
                         </span>
                       )}
                     </div>
@@ -169,7 +202,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-teal-500/10 hover:enabled:text-teal-500 hover:enabled:border-teal-400/30 transition-all"
           >
             <i className="fa-solid fa-chevron-left text-[10px]" />
-            이전
+            {tt.prev}
           </button>
           <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => (
@@ -191,7 +224,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data }) => {
             disabled={page === totalPages - 1}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-teal-500/10 hover:enabled:text-teal-500 hover:enabled:border-teal-400/30 transition-all"
           >
-            다음
+            {tt.next}
             <i className="fa-solid fa-chevron-right text-[10px]" />
           </button>
         </div>

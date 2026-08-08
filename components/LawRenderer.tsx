@@ -42,15 +42,29 @@ interface LawPayload {
   articles?: LawArticle[];
 }
 
-const modeLabel = {
-  list: '법령 목록',
-  body: '법령 본문',
-  article: '조문 조회',
+type Lang = 'ko' | 'en' | 'es' | 'fr';
+
+/** mode 는 서버가 주는 계약값(list·body·article) — 키는 그대로, 라벨만 언어별. */
+const MODE_LABEL: Record<Lang, Record<string, string>> = {
+  ko: { list: '법령 목록', body: '법령 본문', article: '조문 조회' },
+  en: { list: 'Statute list', body: 'Statute text', article: 'Article lookup' },
+  es: { list: 'Lista de leyes', body: 'Texto de la ley', article: 'Consulta de artículo' },
+  fr: { list: 'Liste des lois', body: 'Texte de loi', article: 'Consultation d\'article' },
+};
+
+const T: Record<Lang, Record<string, string>> = {
+  ko: { fallbackTitle: '법령정보', fallbackMode: '법령 조회', countSuffix: '건', noDept: '소관부처 정보 없음', totalPrefix: '전체', totalSuffix: '개 법령' },
+  en: { fallbackTitle: 'Statute info', fallbackMode: 'Statute lookup', countSuffix: '', noDept: 'No ministry info', totalPrefix: '', totalSuffix: 'statutes total' },
+  es: { fallbackTitle: 'Información legal', fallbackMode: 'Consulta legal', countSuffix: '', noDept: 'Sin información del ministerio', totalPrefix: '', totalSuffix: 'leyes en total' },
+  fr: { fallbackTitle: 'Informations légales', fallbackMode: 'Consultation légale', countSuffix: '', noDept: 'Aucune information ministérielle', totalPrefix: '', totalSuffix: 'lois au total' },
 };
 
 const ITEMS_PER_PAGE = 5;
 
-export const LawRenderer: React.FC<{ data: LawPayload }> = ({ data }) => {
+export const LawRenderer: React.FC<{ data: LawPayload; language?: Lang }> = ({ data, language = 'ko' }) => {
+  const lang: Lang = (['ko', 'en', 'es', 'fr'].includes(language as string) ? language : 'ko') as Lang;
+  const tt = T[lang];
+  const modeLabel = MODE_LABEL[lang];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [articlePage, setArticlePage] = useState(0);
   const [lawPage, setLawPage] = useState(0);
@@ -89,12 +103,12 @@ export const LawRenderer: React.FC<{ data: LawPayload }> = ({ data }) => {
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-scale-balanced text-amber-600 dark:text-amber-300" />
               <h3 className="font-bold text-slate-900 dark:text-white truncate">
-                {data.law?.name || data.query || '법령정보'}
+                {data.law?.name || data.query || tt.fallbackTitle}
               </h3>
             </div>
             <p className="mt-1 text-xs font-medium text-amber-700/80 dark:text-amber-200/80">
-              {modeLabel[data.mode] || '법령 조회'}
-              {data.mode === 'list' && data.count ? ` · ${data.count}건` : ''}
+              {modeLabel[data.mode] || tt.fallbackMode}
+              {data.mode === 'list' && data.count ? ` · ${data.count}${tt.countSuffix}` : ''}
               {data.law?.department ? ` · ${data.law.department}` : ''}
               {data.law?.effectiveDate ? ` · 시행 ${data.law.effectiveDate}` : ''}
             </p>
@@ -132,7 +146,7 @@ export const LawRenderer: React.FC<{ data: LawPayload }> = ({ data }) => {
                     )}
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {[law.department, law.revisionType].filter(Boolean).join(' · ') || '소관부처 정보 없음'}
+                    {[law.department, law.revisionType].filter(Boolean).join(' · ') || tt.noDept}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500">
                     <span>시행 {law.effectiveDate || '-'}</span>
@@ -164,7 +178,7 @@ export const LawRenderer: React.FC<{ data: LawPayload }> = ({ data }) => {
                 이전
               </button>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                {currentLawPage + 1} / {totalLawPages} · 전체 {laws.length}개 법령
+                {currentLawPage + 1} / {totalLawPages} · {tt.totalPrefix} {laws.length} {tt.totalSuffix}
               </p>
               <button
                 type="button"

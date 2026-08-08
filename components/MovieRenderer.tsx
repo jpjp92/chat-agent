@@ -16,6 +16,58 @@ interface Payload { cinema?: string; movies?: number; total?: number; date?: str
 interface MovieData { region?: string; defaults?: Partial<Record<ChainKey, Branch>> }
 
 const MOVIE_CAP = 3;   // 체인당 최초 노출 영화 수 (나머지는 더보기)
+
+export type Lang = 'ko' | 'en' | 'es' | 'fr';
+
+/**
+ * 🔴 번역 대상은 **UI 라벨과 상태 문구**뿐이다. 극장 체인명·지점명·영화 제목은
+ * 고유명사라 원문을 유지한다 — 한국에 있는 비한국어 사용자가 현장 간판을 찾고
+ * 지도 앱에 입력하는 데 쓰는 값이다(PLAN_LANG_COVERAGE_260805 §조치 A).
+ *
+ * `{region}`·`{chain}`·`{n}` 은 자리표시자다. 조사("…에는")를 문자열에 박으면
+ * 다른 언어에서 어순이 깨지므로 **문장 단위로 키를 잡는다.**
+ */
+const T: Record<Lang, Record<string, string>> = {
+  ko: {
+    pickBranch: '지점 선택', collapse: '접기', moreChips: '더보기 +{n}', moreMovies: '영화 {n}개 더보기',
+    fetchFail: '조회 실패', loading: '{branch} 조회 중', noShowtimes: '상영 회차 없음 (오늘/내일 모두)', noSearch: '검색 결과 없음', tomorrow: '내일',
+    noBranchShort: "'{region}'에는 지점이 없습니다", noBranchShortBare: '지점이 없습니다',
+    noBranchLong: "{chain}는 '{region}' 지역에 지점이 없습니다. 위 목록에서 다른 지점을 선택할 수 있어요.",
+    noBranchLongBare: '{chain}는 이 지역에 지점이 없습니다. 위 목록에서 다른 지점을 선택할 수 있어요.',
+    summary: '영화 {movies} · 회차 {total}', at: '{at} 조회',
+  },
+  en: {
+    pickBranch: 'Select a location', collapse: 'Collapse', moreChips: 'More +{n}', moreMovies: 'Show {n} more films',
+    fetchFail: 'Lookup failed', loading: 'Loading {branch}', noShowtimes: 'No showtimes (today or tomorrow)', noSearch: 'No results', tomorrow: 'Tomorrow',
+    noBranchShort: "No location in '{region}'", noBranchShortBare: 'No location',
+    noBranchLong: "{chain} has no location in '{region}'. Pick another one from the list above.",
+    noBranchLongBare: '{chain} has no location in this area. Pick another one from the list above.',
+    summary: '{movies} films · {total} showings', at: 'as of {at}',
+  },
+  es: {
+    pickBranch: 'Elegir sede', collapse: 'Contraer', moreChips: 'Más +{n}', moreMovies: 'Ver {n} películas más',
+    fetchFail: 'Error de consulta', loading: 'Cargando {branch}', noShowtimes: 'Sin funciones (hoy ni mañana)', noSearch: 'Sin resultados', tomorrow: 'Mañana',
+    noBranchShort: "Sin sedes en '{region}'", noBranchShortBare: 'Sin sedes',
+    noBranchLong: "{chain} no tiene sedes en '{region}'. Elige otra en la lista de arriba.",
+    noBranchLongBare: '{chain} no tiene sedes en esta zona. Elige otra en la lista de arriba.',
+    summary: '{movies} películas · {total} funciones', at: 'consultado {at}',
+  },
+  fr: {
+    pickBranch: 'Choisir un cinéma', collapse: 'Réduire', moreChips: 'Plus +{n}', moreMovies: 'Voir {n} films de plus',
+    fetchFail: 'Échec de la requête', loading: 'Chargement de {branch}', noShowtimes: "Aucune séance (ni aujourd'hui ni demain)", noSearch: 'Aucun résultat', tomorrow: 'Demain',
+    noBranchShort: "Aucun cinéma à '{region}'", noBranchShortBare: 'Aucun cinéma',
+    noBranchLong: "{chain} n'a aucun cinéma à '{region}'. Choisissez-en un autre dans la liste ci-dessus.",
+    noBranchLongBare: "{chain} n'a aucun cinéma dans cette zone. Choisissez-en un autre dans la liste ci-dessus.",
+    summary: '{movies} films · {total} séances', at: 'consulté {at}',
+  },
+};
+
+const pickLang = (language?: string): Lang =>
+  (['ko', 'en', 'es', 'fr'].includes(language as string) ? language : 'ko') as Lang;
+
+/** `{key}` 자리표시자를 채운다. 토막을 이어붙이지 않고 문장 단위로 쓰기 위한 것. */
+const fill = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 const CHIP_CAP = 8;    // 영화당 최초 노출 회차 수
 const MIN_SKELETON = 320;
 
@@ -34,7 +86,7 @@ const LoadingDots: React.FC = () => (
 );
 
 // ── 커스텀 드롭다운 (글래스 + 검색) ──────────────────────────
-const BranchDropdown: React.FC<{ list: Branch[]; current: Branch; color: string; onPick: (b: Branch) => void }> = ({ list, current, color, onPick }) => {
+const BranchDropdown: React.FC<{ list: Branch[]; current: Branch; color: string; onPick: (b: Branch) => void; tt: Record<string, string> }> = ({ list, current, color, onPick, tt }) => {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
@@ -62,7 +114,7 @@ const BranchDropdown: React.FC<{ list: Branch[]; current: Branch; color: string;
         className="flex items-center gap-1.5 min-w-[140px] max-w-[210px] px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-white/5 border border-slate-200 dark:border-white/15 backdrop-blur hover:border-current transition-colors"
         style={{ color: open ? color : undefined }}
       >
-        <span className="flex-1 text-left truncate text-slate-700 dark:text-slate-200">{current.nm || '지점 선택'}</span>
+        <span className="flex-1 text-left truncate text-slate-700 dark:text-slate-200">{current.nm || tt.pickBranch}</span>
         <span className={`text-[9px] opacity-60 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
       </button>
       {open && (
@@ -87,7 +139,7 @@ const BranchDropdown: React.FC<{ list: Branch[]; current: Branch; color: string;
                   {x.nm}
                 </div>
               );
-            }) : <div className="px-2.5 py-2.5 text-xs text-slate-400">검색 결과 없음</div>}
+            }) : <div className="px-2.5 py-2.5 text-xs text-slate-400">{tt.noSearch}</div>}
           </div>
         </div>
       )}
@@ -109,7 +161,7 @@ const Chip: React.FC<{ s: Showtime; color: string }> = ({ s, color }) => {
 };
 
 // ── 영화 카드 ────────────────────────────────────────────────
-const MovieCard: React.FC<{ m: MovieEntry; color: string; today: string }> = ({ m, color, today }) => {
+const MovieCard: React.FC<{ m: MovieEntry; color: string; today: string; tt: Record<string, string> }> = ({ m, color, today, tt }) => {
   const [showAll, setShowAll] = useState(false);
   const [imgOk, setImgOk] = useState(true);
   const st = useMemo(() => m.showtimes.slice().sort((a, b) => (a.start || '').localeCompare(b.start || '')), [m.showtimes]);
@@ -130,7 +182,7 @@ const MovieCard: React.FC<{ m: MovieEntry; color: string; today: string }> = ({ 
             : <span className="text-[9.5px] font-bold text-white px-2 py-0.5 rounded-full" style={{ background: color }}>{m.chain}</span>}
           {m.rating && <span className="text-[9.5px] text-red-500 dark:text-red-300 border border-red-300/50 dark:border-red-500/40 rounded px-1 py-px">{m.rating}</span>}
           <span className="text-[9.5px] text-slate-500 dark:text-slate-400 border border-slate-300/60 dark:border-white/15 rounded px-1 py-px">{m.format}</span>
-          {m.date && m.date !== today && <span className="text-[9.5px] text-white rounded px-1.5 py-px" style={{ background: color }}>내일</span>}
+          {m.date && m.date !== today && <span className="text-[9.5px] text-white rounded px-1.5 py-px" style={{ background: color }}>{tt.tomorrow}</span>}
         </header>
         <h3 className="text-[13.5px] font-bold text-slate-900 dark:text-white truncate mb-1">{m.movie}</h3>
         <p className="text-[10.5px] text-slate-500 dark:text-slate-400 mb-2">📍 {m.cinema}</p>
@@ -143,7 +195,7 @@ const MovieCard: React.FC<{ m: MovieEntry; color: string; today: string }> = ({ 
             onClick={() => setShowAll((v) => !v)}
             className="mt-1.5 w-full py-1.5 rounded-lg text-[10.5px] text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-white/20 hover:text-slate-700 dark:hover:text-slate-200"
           >
-            {showAll ? '접기' : `더보기 +${st.length - CHIP_CAP}`}
+            {showAll ? tt.collapse : fill(tt.moreChips, { n: st.length - CHIP_CAP })}
           </button>
         )}
       </div>
@@ -169,7 +221,7 @@ const SkeletonCard: React.FC = () => (
 // initial === null 은 "사용자가 말한 지역에 이 체인 지점이 없다"는 신호다(defaultsForRegion).
 // 예전엔 이때도 기본 지점(가산디지털)을 조회해 **다른 동네 시간표를 그 지역 것처럼** 보여줬다.
 // 이제는 조회를 건너뛰고 그 사실을 표시한다 — 드롭다운은 남겨 사용자가 직접 고를 수 있다.
-const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; initial?: Branch | null; region?: string }> = ({ chainKey, nm, color, initial, region }) => {
+const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; initial?: Branch | null; region?: string; tt: Record<string, string> }> = ({ chainKey, nm, color, initial, region, tt }) => {
   const list = useMemo(() => flatBranches(chainKey), [chainKey]);
   const noBranchForRegion = initial === null;
   const start = useMemo(() => initial?.code ? initial : (list[0] || { code: '', nm: '' }), [initial, list]);
@@ -206,7 +258,7 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
             : null);
         }
       } catch (e: any) {
-        if (alive && id === reqId.current) { setPayload({ error: e?.message || '조회 실패', list: [] }); setLoading(false); }
+        if (alive && id === reqId.current) { setPayload({ error: e?.message || tt.fetchFail, list: [] }); setLoading(false); }
       }
     })();
     return () => { alive = false; };
@@ -222,7 +274,7 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
       <div className="flex items-center gap-2 flex-wrap mb-2.5">
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
         <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">{nm}</h2>
-        <BranchDropdown list={list} current={branch ?? { code: '', nm: '지점 선택' }} color={color} onPick={setBranch} />
+        <BranchDropdown list={list} current={branch ?? { code: '', nm: tt.pickBranch }} color={color} onPick={setBranch} tt={tt} />
         <a
           href={branchUrl(chainKey, branch?.code ?? '')}
           target="_blank"
@@ -235,25 +287,25 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
           <i className="fa-solid fa-arrow-up-right-from-square" />
         </a>
         <span className="inline-flex items-center text-[11px] text-slate-500 dark:text-slate-400">
-          {!branch ? `${region ? `'${region}'에는 ` : ''}지점이 없습니다`
-            : loading ? <>{branch.nm} 조회 중<LoadingDots /></>
-            : payload?.error ? `조회 실패`
-            : `${payload?.cinema || branch.nm} · 영화 ${payload?.movies || 0} · 회차 ${payload?.total || 0}${at ? ` · ${at} 조회` : ''}`}
+          {!branch ? (region ? fill(tt.noBranchShort, { region }) : tt.noBranchShortBare)
+            : loading ? <>{fill(tt.loading, { branch: branch.nm })}<LoadingDots /></>
+            : payload?.error ? tt.fetchFail
+            : `${payload?.cinema || branch.nm} · ${fill(tt.summary, { movies: payload?.movies || 0, total: payload?.total || 0 })}${at ? ` · ${fill(tt.at, { at })}` : ''}`}
         </span>
       </div>
 
       <div className="flex flex-col gap-2">
         {!branch
           ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">
-              {nm}는 {region ? `'${region}' 지역에` : '이 지역에'} 지점이 없습니다. 위 목록에서 다른 지점을 선택할 수 있어요.
+              {region ? fill(tt.noBranchLong, { chain: nm, region }) : fill(tt.noBranchLongBare, { chain: nm })}
             </p>
           : loading
           ? <><SkeletonCard /><SkeletonCard /></>
           : payload?.error
-            ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">조회 실패: {payload.error}</p>
+            ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">{tt.fetchFail}: {payload.error}</p>
             : movies.length === 0
-              ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">상영 회차 없음 (오늘/내일 모두)</p>
-              : visibleMovies.map((m, i) => <MovieCard key={`${m.movie}-${i}`} m={m} color={color} today={today} />)}
+              ? <p className="text-xs text-slate-500 dark:text-slate-400 py-3">{tt.noShowtimes}</p>
+              : visibleMovies.map((m, i) => <MovieCard key={`${m.movie}-${i}`} m={m} color={color} today={today} tt={tt} />)}
       </div>
 
       {!loading && movies.length > MOVIE_CAP && (
@@ -262,18 +314,19 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
           className="mt-2 w-full py-1.5 rounded-lg text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 border border-dashed border-slate-300 dark:border-white/20 hover:text-slate-700 dark:hover:text-slate-200 hover:border-current"
           style={{ borderColor: undefined }}
         >
-          {showAllMovies ? '접기' : `영화 ${movies.length - MOVIE_CAP}개 더보기`}
+          {showAllMovies ? tt.collapse : fill(tt.moreMovies, { n: movies.length - MOVIE_CAP })}
         </button>
       )}
     </section>
   );
 };
 
-export const MovieRenderer: React.FC<{ data: MovieData }> = ({ data }) => {
+export const MovieRenderer: React.FC<{ data: MovieData; language?: Lang }> = ({ data, language = 'ko' }) => {
+  const tt = T[pickLang(language)];
   return (
     <div className="my-4 flex flex-col gap-3.5">
       {CHAINS.map((ch) => (
-        <ChainSection key={ch.key} chainKey={ch.key} nm={ch.nm} color={ch.color} initial={data?.defaults?.[ch.key]} region={data?.region} />
+        <ChainSection key={ch.key} chainKey={ch.key} nm={ch.nm} color={ch.color} initial={data?.defaults?.[ch.key]} region={data?.region} tt={tt} />
       ))}
     </div>
   );

@@ -619,7 +619,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <DiagramRenderer data={part.data} />
+                  <DiagramRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );
@@ -637,7 +637,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <PharmacyRenderer data={part.data} />
+                  <PharmacyRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );
@@ -646,7 +646,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <HospitalRenderer data={part.data} />
+                  <HospitalRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );
@@ -655,7 +655,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <VetRenderer data={part.data} />
+                  <VetRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );
@@ -664,7 +664,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <LawRenderer data={part.data} />
+                  <LawRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );
@@ -673,7 +673,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <MovieRenderer data={part.data} />
+                  <MovieRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );

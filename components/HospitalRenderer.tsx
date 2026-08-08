@@ -20,16 +20,48 @@ interface HospitalData {
 
 interface HospitalRendererProps {
   data: HospitalData;
+  language?: Lang;
 }
 
 const PAGE_SIZE = 5;
 
+export type Lang = 'ko' | 'en' | 'es' | 'fr';
+
+/**
+ * 🔴 HIRA API 계약값 — 종별 문자열. **번역 금지.**
+ * 아래 TYPE_STYLE 의 키이자 h.type.includes(...) 비교에 쓰인다. 언어별로 바꾸면
+ * 색상 매핑과 분기가 통째로 깨진다. 화면 표시는 TYPE_LABEL 로 따로 옮긴다.
+ */
+const API_TERTIARY = '상급종합';
+const API_TERTIARY_FULL = '상급종합병원';
+const API_GENERAL = '종합병원';
+const API_HOSPITAL = '병원';
+const API_CLINIC = '의원';
+
+/** 종별 **분류값**의 표시 라벨. 고유명사가 아니므로 번역 대상. 미지값은 원문 통과. */
+const TYPE_LABEL: Record<Lang, Record<string, string>> = {
+  ko: {},
+  en: { [API_TERTIARY]: 'Tertiary', [API_TERTIARY_FULL]: 'Tertiary hospital', [API_GENERAL]: 'General hospital', [API_HOSPITAL]: 'Hospital', [API_CLINIC]: 'Clinic' },
+  es: { [API_TERTIARY]: 'Terciario', [API_TERTIARY_FULL]: 'Hospital terciario', [API_GENERAL]: 'Hospital general', [API_HOSPITAL]: 'Hospital', [API_CLINIC]: 'Consultorio' },
+  fr: { [API_TERTIARY]: 'Tertiaire', [API_TERTIARY_FULL]: 'Hôpital tertiaire', [API_GENERAL]: 'Hôpital général', [API_HOSPITAL]: 'Hôpital', [API_CLINIC]: 'Cabinet' },
+};
+
+const T: Record<Lang, Record<string, string>> = {
+  ko: { notFound: '병원 정보를 찾을 수 없습니다.', search: '병원 검색', top: '상위', results: '결과 (의사수 기준)', count: '개', doctors: '의사 {n}명', established: '{d} 개설', prev: '이전', next: '다음', mapTitle: '카카오지도에서 보기', siteTitle: '병원 홈페이지', phone: '전화번호' },
+  en: { notFound: 'No hospitals found.', search: 'hospital search', top: 'Top', results: 'results (by doctor count)', count: '', doctors: '{n} doctors', established: 'est. {d}', prev: 'Prev', next: 'Next', mapTitle: 'View on Kakao Map', siteTitle: 'Hospital website', phone: 'Phone' },
+  es: { notFound: 'No se encontraron hospitales.', search: 'búsqueda de hospitales', top: 'Top', results: 'resultados (por número de médicos)', count: '', doctors: '{n} médicos', established: 'fund. {d}', prev: 'Anterior', next: 'Siguiente', mapTitle: 'Ver en Kakao Map', siteTitle: 'Sitio web del hospital', phone: 'Teléfono' },
+  fr: { notFound: 'Aucun hôpital trouvé.', search: "recherche d'hôpitaux", top: 'Top', results: 'résultats (par nombre de médecins)', count: '', doctors: '{n} médecins', established: 'créé {d}', prev: 'Précédent', next: 'Suivant', mapTitle: 'Voir sur Kakao Map', siteTitle: "Site web de l'hôpital", phone: 'Téléphone' },
+};
+
+const fill = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+
 const TYPE_STYLE: Record<string, { bg: string; text: string }> = {
-  '상급종합': { bg: 'bg-violet-500/10 border border-violet-500/20', text: 'text-violet-400' },
-  '상급종합병원': { bg: 'bg-violet-500/10 border border-violet-500/20', text: 'text-violet-400' },
-  '종합병원': { bg: 'bg-blue-500/10 border border-blue-500/20', text: 'text-blue-400' },
-  '병원': { bg: 'bg-sky-500/10 border border-sky-500/20', text: 'text-sky-400' },
-  '의원': { bg: 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10', text: 'text-slate-400' },
+  [API_TERTIARY]: { bg: 'bg-violet-500/10 border border-violet-500/20', text: 'text-violet-400' },
+  [API_TERTIARY_FULL]: { bg: 'bg-violet-500/10 border border-violet-500/20', text: 'text-violet-400' },
+  [API_GENERAL]: { bg: 'bg-blue-500/10 border border-blue-500/20', text: 'text-blue-400' },
+  [API_HOSPITAL]: { bg: 'bg-sky-500/10 border border-sky-500/20', text: 'text-sky-400' },
+  [API_CLINIC]: { bg: 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10', text: 'text-slate-400' },
 };
 
 const getTypeStyle = (type: string) =>
@@ -38,7 +70,10 @@ const getTypeStyle = (type: string) =>
 const kakaoMapUrl = (lat: number, lon: number, name: string) =>
   `https://map.kakao.com/link/map/${encodeURIComponent(name)},${lat},${lon}`;
 
-export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
+export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, language = 'ko' }) => {
+  const lang: Lang = (['ko', 'en', 'es', 'fr'].includes(language as string) ? language : 'ko') as Lang;
+  const tt = T[lang];
+  const typeLabel = (raw: string) => TYPE_LABEL[lang][raw] ?? raw;
   const [page, setPage] = useState(0);
 
   const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>, phone: string) => {
@@ -48,7 +83,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
       e.preventDefault();
       navigator.clipboard.writeText(phone).catch(() => {});
       window.dispatchEvent(new CustomEvent('custom-toast', {
-        detail: { message: `📞 전화번호: ${phone}`, type: 'success' }
+        detail: { message: `📞 ${tt.phone}: ${phone}`, type: 'success' }
       }));
     }
   };
@@ -57,7 +92,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-hospital-slash text-2xl mb-2 block" />
-        <p className="text-sm">병원 정보를 찾을 수 없습니다.</p>
+        <p className="text-sm">{tt.notFound}</p>
       </div>
     );
   }
@@ -74,10 +109,10 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
         </div>
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            {data.query} 병원 검색
+            {data.query} {tt.search}
           </h3>
           <p className="text-[11px] text-slate-400">
-            상위 <span className="font-bold text-blue-400">{data.hospitals.length}개</span> 결과 (의사수 기준)
+            {tt.top} <span className="font-bold text-blue-400">{data.hospitals.length}{tt.count}</span> {tt.results}
           </p>
         </div>
       </div>
@@ -95,9 +130,9 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
             >
               {/* Left accent stripe by type */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
-                h.type.includes('상급종합') ? 'bg-violet-500' :
-                h.type.includes('종합병원') ? 'bg-blue-500' :
-                h.type.includes('병원') ? 'bg-sky-400' : 'bg-slate-400'
+                h.type.includes(API_TERTIARY) ? 'bg-violet-500' :
+                h.type.includes(API_GENERAL) ? 'bg-blue-500' :
+                h.type.includes(API_HOSPITAL) ? 'bg-sky-400' : 'bg-slate-400'
               }`} />
 
               <div className="pl-4 pr-3 sm:pl-5 sm:pr-4 py-3 sm:py-4">
@@ -110,7 +145,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
                         {h.name}
                       </span>
                       <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[8px] font-bold ${typeStyle.bg} ${typeStyle.text}`}>
-                        {h.type}
+                        {typeLabel(h.type)}
                       </span>
                     </div>
 
@@ -125,7 +160,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
                         <div className="flex items-center gap-1">
                           <i className="fa-solid fa-user-doctor text-[9px] sm:text-[10px] text-blue-400" />
                           <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
-                            의사 {h.doctor_count.toLocaleString()}명
+                            {fill(tt.doctors, { n: h.doctor_count.toLocaleString() })}
                           </span>
                         </div>
                       )}
@@ -133,7 +168,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
                         <div className="flex items-center gap-1">
                           <i className="fa-regular fa-calendar text-[9px] sm:text-[10px] text-slate-400" />
                           <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-                            {h.established} 개설
+                            {fill(tt.established, { d: h.established })}
                           </span>
                         </div>
                       )}
@@ -158,7 +193,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-yellow-400/10 hover:text-yellow-500 text-slate-500 dark:text-slate-400 transition-colors"
-                        title="카카오지도에서 보기"
+                        title={tt.mapTitle}
                       >
                         <i className="fa-solid fa-location-dot text-[10px]" />
                       </a>
@@ -169,7 +204,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
-                        title="병원 홈페이지"
+                        title={tt.siteTitle}
                       >
                         <i className="fa-solid fa-globe text-[10px]" />
                       </a>
@@ -191,7 +226,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-blue-500/10 hover:enabled:text-blue-500 hover:enabled:border-blue-400/30 transition-all"
           >
             <i className="fa-solid fa-chevron-left text-[10px]" />
-            이전
+            {tt.prev}
           </button>
           <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => (
@@ -213,7 +248,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data }) => {
             disabled={page === totalPages - 1}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-blue-500/10 hover:enabled:text-blue-500 hover:enabled:border-blue-400/30 transition-all"
           >
-            다음
+            {tt.next}
             <i className="fa-solid fa-chevron-right text-[10px]" />
           </button>
         </div>

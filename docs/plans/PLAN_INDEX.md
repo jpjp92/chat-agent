@@ -20,6 +20,7 @@
 | 4 | **인증 프로덕션(main) 컷오버** | ✅ | [PROD_ROLLOUT](PLAN_AUTH_PROD_ROLLOUT_260719.md) 순서대로. 별도 세션·유지보수 창 |
 | 5 | 프론트 구조 작업 — [ChatMessage 분리](PLAN_CHATMESSAGE_REFACTOR_260801.md) + [URL 라우팅](PLAN_APP_ROUTING_260802.md) | ✅ | 둘 다 `App.tsx`·훅을 건드린다. **컷오버와 섞지 않는다** — 문제 시 원인 분리가 안 된다 |
 | 6 | [백로그](PLAN_BACKLOG_260801.md) B1 → A1 → C1 측정 → A2 | — | 재발 방지 · 폴백 크래시 · 커버리지 |
+| 7 | ~~[비한국어 커버리지](PLAN_LANG_COVERAGE_260805.md)~~ — **측정·구현 완료**, es 화면 확인만 남음 | ✅ | 날씨 es/fr 11/11 · 영화 en 8/8 → 규칙 다국어화 **기각**. 렌더러 12종 전수 조사 후 **i18n 구현 완료**(죽은 i18n 1 + 미구현 5) |
 
 **1~3 은 4를 막지 않는다.** 1은 브랜딩(기능 아님), 3은 이미 배포된 것의 사후 확인이다.
 **0-B 가 막는 것은 `main` 브랜치 배포뿐이다.** 3(dev 푸시)은 chat-agent-dev 프로젝트를 배포하므로 무관하다 — main 프로젝트는 dev 브랜치를 Preview 로만 빌드하고, 프로덕션 배포는 `main` 브랜치에서만 일어난다.
@@ -40,6 +41,7 @@
 | P1 | Image generation (test/policy) | [PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md](PLAN_OPENAI_IMAGE2_INFOGRAPHIC_TEST_260602.md) | 1st test complete, policy/routing design done | Add Korean case-set, report aggregation, intent/layout guardrail tests |
 | P1 | Image generation (integration) | [PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md](PLAN_IMAGE_GEN_SERVICE_INTEGRATION_260603.md) | Integration design approved | Start P0: extract `server/image/` core modules from test script |
 | P1 | i18n cleanup | [PLAN_I18N_CLEANUP_260602.md](PLAN_I18N_CLEANUP_260602.md) | Steps 1·2 done (2026-06-04) | Decide step 3 shared-module boundary before extracting `src/i18n/` |
+| P2 | 비한국어 경로 커버리지 (es/fr) | [PLAN_LANG_COVERAGE_260805.md](PLAN_LANG_COVERAGE_260805.md) | **측정·구현 완료 (2026-08-05)** — 날씨 **es/fr 11/11**, 영화 **en 8/8**(ko 회귀 유지). 회색지대까지 통과해 **영화 규칙 다국어화는 기각**(규칙은 LLM 판정보다 우선순위가 높아 잘못 늘리면 지금 맞는 걸 틀리게 만든다). 🔴 측정 전 **하니스 결함 2건**을 코드 읽기로 먼저 잡았다(`WM_LANG=es` 가 "영어로 묻고 스페인어로 답하기"를 재고 있었다). 렌더러 12종 전수 조사 → **i18n 구현 완료**: 정상 6 · 🔴 죽은 i18n 1(Diagram — 번역은 있는데 prop 미전달) · 미구현 5(도구 카드). API 계약값(`'휴무'`·`'상급종합'`)은 **제어 흐름 키라 한글 그대로 상수화**, 고유명사·주소는 유지 | **es 화면 확인만 남음** — 특히 약국 영업중 판정·병원 뱃지 색상 **회귀** |
 | P1 | Mobile/session UX | [../TODO.md](../TODO.md) | Backlog item | Add minimum recovery for missing current session on mobile resume |
 | P3 | 날씨 전용 툴 (KMA+OWM) | [PLAN_WEATHER_TOOL_260706.md](PLAN_WEATHER_TOOL_260706.md) | **구현 완료 (2026-07-06, [DEV_260706](../logs/2026/07/DEV_260706.md))**. `server/lib/weather` 코어 + weatherTool(멀티도시) + WeatherRenderer + router intent/해석가드 + on_tool_end 스트리밍. grounding 15s+ → 결정론 카드 ~1s. tsc 0·라이브 스모크(서울/전주/부산=KMA·Tokyo=OWM) 통과. 예외처리(fetch 타임아웃·빈데이터 폴백·에러카드) 포함 | (선택) Supabase TTL 캐시. 필요 시 weatherContext 멀티턴. [TODO §P3 ⓪](../TODO.md) |
 | P2 | Frontend performance | [PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md](PLAN_LIGHTHOUSE_FRONTEND_OPTIMIZATION_260602.md) | Measured, selected quick wins | Apply quick wins after P0/P1 stability work |

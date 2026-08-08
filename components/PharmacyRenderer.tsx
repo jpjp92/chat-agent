@@ -22,22 +22,52 @@ interface PharmacyData {
   summary?: string;
 }
 
+export type Lang = 'ko' | 'en' | 'es' | 'fr';
+
 interface PharmacyRendererProps {
   data: PharmacyData;
+  language?: Lang;
 }
 
 const PAGE_SIZE = 5;
 
+/**
+ * 🔴 API 계약값 — 공공데이터포털 약국 API 가 hours_today 로 주는 휴무 표시. **번역 금지.**
+ * checkIsOpen 과 주간표의 휴무 판정에 쓰인다. 언어별로 바꾸면 영업중 판정이 깨진다.
+ */
+const API_CLOSED_DAY = '휴무';
+
+/**
+ * 요일은 **키와 라벨이 이미 분리**돼 있었다(key: 'mon' / label: '월').
+ * 이 파일의 이 패턴이 다른 렌더러 i18n 의 본보기가 됐다 — 키는 데이터, 라벨만 언어별.
+ */
 const DAY_LABELS = [
-  { key: 'mon', label: '월', color: undefined },
-  { key: 'tue', label: '화', color: undefined },
-  { key: 'wed', label: '수', color: undefined },
-  { key: 'thu', label: '목', color: undefined },
-  { key: 'fri', label: '금', color: undefined },
-  { key: 'sat', label: '토', color: 'text-blue-400' },
-  { key: 'sun', label: '일', color: 'text-red-400' },
-  { key: 'holiday', label: '공휴', color: 'text-amber-400' },
+  { key: 'mon', color: undefined },
+  { key: 'tue', color: undefined },
+  { key: 'wed', color: undefined },
+  { key: 'thu', color: undefined },
+  { key: 'fri', color: undefined },
+  { key: 'sat', color: 'text-blue-400' },
+  { key: 'sun', color: 'text-red-400' },
+  { key: 'holiday', color: 'text-amber-400' },
 ] as const;
+
+const DAY_LABEL: Record<Lang, Record<string, string>> = {
+  ko: { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일', holiday: '공휴' },
+  en: { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun', holiday: 'Hol' },
+  es: { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom', holiday: 'Fest' },
+  fr: { mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu', fri: 'Ven', sat: 'Sam', sun: 'Dim', holiday: 'Fér' },
+};
+
+const T: Record<Lang, Record<string, string>> = {
+  ko: { notFound: '약국 정보를 찾을 수 없습니다.', search: '약국 검색', totalOf: '총 {n}개 중 영업중', openCount: '{n}개', open: '영업중', closed: '종료', dayOff: '휴무', hoursTitle: '주간 · 공휴일 운영시간', prev: '이전', next: '다음', mapTitle: '카카오지도에서 보기', phone: '전화번호' },
+  en: { notFound: 'No pharmacies found.', search: 'pharmacy search', totalOf: '{n} found · open now', openCount: '{n}', open: 'Open', closed: 'Closed', dayOff: 'Closed', hoursTitle: 'Weekly · holiday hours', prev: 'Prev', next: 'Next', mapTitle: 'View on Kakao Map', phone: 'Phone' },
+  es: { notFound: 'No se encontraron farmacias.', search: 'búsqueda de farmacias', totalOf: '{n} encontradas · abiertas ahora', openCount: '{n}', open: 'Abierta', closed: 'Cerrada', dayOff: 'Cerrado', hoursTitle: 'Horario semanal · festivos', prev: 'Anterior', next: 'Siguiente', mapTitle: 'Ver en Kakao Map', phone: 'Teléfono' },
+  fr: { notFound: 'Aucune pharmacie trouvée.', search: 'recherche de pharmacies', totalOf: '{n} trouvées · ouvertes', openCount: '{n}', open: 'Ouverte', closed: 'Fermée', dayOff: 'Fermé', hoursTitle: 'Horaires hebdo · jours fériés', prev: 'Précédent', next: 'Suivant', mapTitle: 'Voir sur Kakao Map', phone: 'Téléphone' },
+};
+
+const fill = (tpl: string, vars: Record<string, string | number>) =>
+  tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
 // Get current KST weekday key
 const getTodayKey = (): string => {
@@ -50,7 +80,7 @@ const getTodayKey = (): string => {
  * Falls back to the pre-computed value from the tool if hours_today is missing.
  */
 const checkIsOpen = (hoursToday: string | undefined, fallback: boolean): boolean => {
-  if (!hoursToday || hoursToday === '휴무') return false;
+  if (!hoursToday || hoursToday === API_CLOSED_DAY) return false;
   const [startStr, endStr] = hoursToday.split('~');
   if (!startStr || !endStr) return fallback;
   const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
@@ -60,7 +90,9 @@ const checkIsOpen = (hoursToday: string | undefined, fallback: boolean): boolean
   return cur >= start && cur <= end;
 };
 
-export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
+export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, language = 'ko' }) => {
+  const lang: Lang = (['ko', 'en', 'es', 'fr'].includes(language as string) ? language : 'ko') as Lang;
+  const tt = T[lang];
   const [page, setPage] = useState(0);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const todayKey = getTodayKey();
@@ -69,7 +101,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-store-slash text-2xl mb-2 block" />
-        <p className="text-sm">약국 정보를 찾을 수 없습니다.</p>
+        <p className="text-sm">{tt.notFound}</p>
       </div>
     );
   }
@@ -93,7 +125,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
       e.preventDefault();
       navigator.clipboard.writeText(phone).catch(() => {});
       window.dispatchEvent(new CustomEvent('custom-toast', {
-        detail: { message: `📞 전화번호: ${phone}`, type: 'success' }
+        detail: { message: `📞 ${tt.phone}: ${phone}`, type: 'success' }
       }));
     }
   };
@@ -108,11 +140,11 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              {data.query} 약국 검색
+              {data.query} {tt.search}
             </h3>
             <p className="text-[11px] text-slate-400">
-              총 {data.pharmacies.length}개 중 영업중
-              <span className="ml-1 font-bold text-emerald-500">{openCount}개</span>
+              {fill(tt.totalOf, { n: data.pharmacies.length })}
+              <span className="ml-1 font-bold text-emerald-500">{fill(tt.openCount, { n: openCount })}</span>
             </p>
           </div>
         </div>
@@ -155,7 +187,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                       }`}>
                         <span className={`w-1 h-1 rounded-full shrink-0 ${isOpen ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                         <span className={`text-[8px] font-bold leading-none ${isOpen ? 'text-emerald-500' : 'text-slate-400'}`}>
-                          {isOpen ? '영업중' : '종료'}
+                          {isOpen ? tt.open : tt.closed}
                         </span>
                       </span>
                     </div>
@@ -190,7 +222,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
                           className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-yellow-400/10 hover:text-yellow-500 text-slate-500 dark:text-slate-400 transition-colors"
-                          title="카카오지도에서 보기"
+                          title={tt.mapTitle}
                         >
                           <i className="fa-solid fa-location-dot text-[10px]" />
                         </a>
@@ -206,17 +238,17 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
               {/* Accordion: weekday grid */}
               {hasHours && isExpanded && (
                 <div className="px-2 sm:px-5 pb-4 pt-1 border-t border-white/5 dark:border-white/[0.04]">
-                  <p className="text-[9px] font-black text-slate-400/50 uppercase tracking-widest mb-2 px-2 sm:px-0">주간 · 공휴일 운영시간</p>
+                  <p className="text-[9px] font-black text-slate-400/50 uppercase tracking-widest mb-2 px-2 sm:px-0">{tt.hoursTitle}</p>
                   <div className="grid grid-cols-8 gap-0.5 sm:gap-1 text-center">
-                    {DAY_LABELS.map(({ key, label, color }) => {
+                    {DAY_LABELS.map(({ key, color }) => {
                       const val = p.hours![key as keyof PharmacyHours];
                       const isToday = key === todayKey;
-                      const isOff = val === '휴무' || !val;
-                      const [start, end] = val && val !== '휴무' ? val.split('~') : ['', ''];
+                      const isOff = val === API_CLOSED_DAY || !val;
+                      const [start, end] = val && val !== API_CLOSED_DAY ? val.split('~') : ['', ''];
                       return (
                         <div key={key} className="space-y-1">
                           <span className={`text-[8.5px] font-bold whitespace-nowrap tracking-tighter ${isToday ? 'text-emerald-400' : color || 'text-slate-500'}`}>
-                            {label}{isToday ? ' ●' : ''}
+                            {DAY_LABEL[lang][key]}{isToday ? ' ●' : ''}
                           </span>
                           <div className={`rounded-md sm:rounded-lg py-1 px-0 flex flex-col items-center justify-center min-h-[32px] ${
                             isToday
@@ -226,7 +258,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
                                 : 'bg-white/[0.03] border border-white/[0.06]'
                           }`}>
                             {isOff ? (
-                              <p className="text-[7.5px] sm:text-[8px] font-bold text-slate-600 tracking-tighter">휴무</p>
+                              <p className="text-[7.5px] sm:text-[8px] font-bold text-slate-600 tracking-tighter">{tt.dayOff}</p>
                             ) : (
                               <>
                                 <p className={`text-[7.5px] sm:text-[8.5px] font-black tracking-tighter leading-none whitespace-nowrap ${isToday ? 'text-emerald-300' : 'text-slate-300'}`}>{start}</p>
@@ -254,7 +286,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-emerald-500/10 hover:enabled:text-emerald-500 hover:enabled:border-emerald-400/30 transition-all"
           >
             <i className="fa-solid fa-chevron-left text-[10px]" />
-            이전
+            {tt.prev}
           </button>
           <div className="flex items-center gap-1">
             {Array.from({ length: totalPages }, (_, i) => (
@@ -276,7 +308,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data }) => {
             disabled={page === totalPages - 1}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 disabled:opacity-30 hover:enabled:bg-emerald-500/10 hover:enabled:text-emerald-500 hover:enabled:border-emerald-400/30 transition-all"
           >
-            다음
+            {tt.next}
             <i className="fa-solid fa-chevron-right text-[10px]" />
           </button>
         </div>
