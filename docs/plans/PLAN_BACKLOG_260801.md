@@ -8,9 +8,10 @@
 
 | 티어 | 항목 | 근거 |
 |---|---|---|
-| **A. 사용자에게 깨져 보임** | A1 LangChain 폴백 크래시 · A2 예보 아이콘 오매핑 | 빈 화면 / 틀린 정보 |
+| **A. 사용자에게 깨져 보임** | A1 LangChain 폴백 크래시 · A2 예보 아이콘 오매핑 · **A3 CGV 스크래핑 실패가 "상영 없음"으로 보임** | 빈 화면 / 틀린 정보 |
+| **D. 조건부 대기** | + **D3 첨부 inline/URL 1MB 임계값 재검토** | Vercel 본문 상한이 100MB 로 상향 |
 | **B. 재발 방지** | B1 렌더러 테스트 판정 강화 · B2 배포 리비전 확인 습관 | 오늘 결함 2건이 스크립트를 통과했다 |
-| **C. 커버리지 공백** | C1 영화 후속 규칙 다국어 · C2 4순위 잔여 검증 | 비한국어 경로가 얇다 |
+| **C. 커버리지 공백** | ~~C1 영화 후속 규칙 다국어~~ · C2 4순위 잔여 검증 | C1 은 2026-08-05 측정으로 **기각**([PLAN_LANG_COVERAGE](PLAN_LANG_COVERAGE_260805.md)) |
 | **D. 조건부 대기** | D1 `activeCard` 일반화 · D2 히스토리 카드 복사 | 트리거가 오면 한다 |
 | **E. 하지 않음** | E1 지명 i18n · E2 인접 지점 대체 · E3 검색 수치 편차 | 비용 대비 값어치 없음 |
 
@@ -42,6 +43,48 @@ LangChain path fatal error: Cannot read properties of undefined (reading 'parts'
 
 ---
 
+### A3. CGV 스크래핑 실패가 "상영 없음"으로 보인다 (2026-08-05 추가)
+
+**증상**: 강남 영화 상영시간표에서 CGV 섹션만 `0편 · 회차 0 · 상영 회차 없음`. 같은 시각 메가박스는 정상(4편/20회차). 6분 뒤 재조회하니 **3편/22회차로 복구**됐다.
+
+실측([DEV_260805 §8-6](../logs/2026/08/DEV_260805.md)):
+
+```
+1차   movies=0  cached=stale  age=373초   ← 화면이 본 값
+2차   movies=3  total=22  ms=25361  cached=fresh
+3차   movies=3  total=22  cached=fresh
+```
+
+**원인**: CGV 만 browserless 로 스크래핑한다(롯데·메가박스는 JSON API 직접 호출). 실패 경로가 **전부 빈 배열로 수렴**한다:
+
+```ts
+// app/api/showtimes/route.ts
+const d = (JSON.parse(await res.text())).data || {};
+if (!d.rows) return [];                     // browserless 실패 → []
+
+// 브라우저 안
+const mov = await get('/cnm/atkt/searchMovScnInfo', params);
+if ((mov.data||[]).length) return { date: ymd, rows: mov.data };
+return { date: dates[0], rows: [] };        // HMAC 서명 실패·응답 지연 → []
+```
+
+CGV API 는 HMAC 서명을 요구한다. 서명이 틀리거나 응답이 늦으면 `mov.data` 가 없고 → 빈 배열 → **진짜로 상영이 없는 것과 화면상 구분 불가.**
+
+**두 가지가 겹쳐 나쁘다**:
+1. 사용자는 "이 극장은 오늘 상영이 없구나"로 읽고 다른 관을 찾아 나간다 — 틀린 정보다.
+2. 그 빈 결과가 **캐시에 저장돼** 6분 이상 지속된다. 새로고침해도 안 고쳐진다.
+
+정상 소요가 `ms=25361`(25초)로 [Vercel 60s 천장](PLAN_BACKLOG_260801.md)에 가깝다는 것도 위험 요인이다 — 부하가 걸리면 조용히 0건이 된다.
+
+**처방**: 실패와 빈 결과를 **구분**한다.
+- `d.rows` 가 없으면 `throw` → `payload.error` 로 흘려 카드가 "조회 실패"를 표시(이미 그 UI 는 있다)
+- 🔴 **실패는 캐시에 넣지 않는다** — 지금은 실패값이 stale 로 재사용돼 증상이 길어진다
+- 브라우저 안의 `rows: []` 도 "빈 스케줄"과 "API 실패"를 구분해서 돌려줘야 한다(예: `{ ok: false }`)
+
+**언어·i18n 과 무관하다.** 스페인어 테스트 중에 눈에 띄었을 뿐, 한국어에서도 같다.
+
+---
+
 ## B. 재발 방지 (테스트·절차)
 
 ### B1. 렌더러 테스트 판정 강화
@@ -69,13 +112,13 @@ LangChain path fatal error: Cannot read properties of undefined (reading 'parts'
 
 ## C. 커버리지 공백
 
-### C1. 영화 후속 판정이 한국어 전용
+### ~~C1. 영화 후속 판정이 한국어 전용~~ — ❌ **기각 (2026-08-05)**
 
-`MOVIE_FOLLOWUP_QUESTION` · `MOVIE_STRONG_TERMS` · `MOVIE_WEAK_TERMS`가 전부 한국어 정규식이다. 비한국어 사용자는 3분기 중 강한 규칙이 항상 미스 → **LLM 판정 단독**이다.
+측정 결과 **영어 8/8(회색지대 3/3)**. 강한 규칙이 전부 미스인데도 LLM `follow_up` 판정만으로 정확했다([PLAN_LANG_COVERAGE §측정 2](PLAN_LANG_COVERAGE_260805.md)).
 
-- 날씨에서 같은 구조의 공백이 **실제 실패로 드러났다**(영어 8/11 → `activeCards`로 11/11). 영화는 아직 측정하지 않았다.
-- **먼저 측정한다**: `Show me movie showtimes in Gangnam` → `What starts earliest?` 2턴. 2턴에 카드가 또 뜨면 공백이 확인된 것.
-- 측정 전에 규칙을 4언어로 늘리지 않는다 — 날씨 때 "규칙이 없어서"라고 오진했다가 실제 원인이 창 크기였던 전례가 있다.
+규칙을 4언어로 늘리면 세 벌이 4배가 되는데 얻는 건 **이미 맞고 있는 판정을 규칙으로도 맞히는 것**뿐이고, 규칙은 LLM 판정보다 **우선순위가 높아** 잘못 만들면 지금 맞는 걸 틀리게 만든다. **비용 절약이 아니라 위험 회피**다.
+
+> 대신 그 조사 과정에서 **렌더러 i18n 공백**이 나와 고쳤다 — 죽은 i18n 1종(Diagram) + 미구현 5종(도구 카드).
 
 ### C2. 4순위 잔여 검증
 
@@ -96,6 +139,16 @@ LangChain path fatal error: Cannot read properties of undefined (reading 'parts'
 - 오늘 `activeCards`가 들어가면서 **절반은 이미 일반화 가능한 모양**이 됐다(키만 늘리면 된다).
 - 다만 약국·병원·법령에는 **후속 판정 자체가 없다.** 필요해지기 전에 추상화하면 쓰지 않는 구조만 늘어난다.
 - **트리거**: 세 번째 카드에 후속 판정이 필요해지는 시점.
+
+### D3. 첨부 inline/URL 임계값(1MB) 재검토 (2026-08-08 추가)
+
+[useChatStream.ts:196](../../src/hooks/useChatStream.ts#L196) 이 문서 첨부를 **1MB 기준**으로 inline base64 / Storage URL 로 가른다. 주석의 근거는 "Vercel payload 4.5MB 제한 우회"인데, **Vercel 요청 본문 상한이 100MB 로 상향**됐다.
+
+URL 경로는 [DEV_260808](../logs/2026/08/DEV_260808.md) 에서 드러났듯 모델 능력에 더 민감하다(3.6 은 아예 못 받는다). inline 허용 폭을 넓히면 **그 경로 자체를 덜 타게** 된다.
+
+- 다만 inline 은 base64 라 페이로드가 ~1.33배로 불고, 대용량 PDF 는 inline 에서도 3.6 이 503 을 낸다(§2-1). **크기만 늘리면 되는 문제가 아니다.**
+- **먼저 측정한다**: inline 2MB·4MB PDF 가 3.6·2.5 에서 각각 어떻게 되는지. 지금 임계값이 정말 낡았는지부터.
+- 지금 당장 깨지는 건 없다(강등이 URL 경로를 받아준다) → **조건부 대기**.
 
 ### D2. 히스토리 카드 복사 시 수치 노후화
 

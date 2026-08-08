@@ -23,14 +23,22 @@ export const SUMMARY_MODELS = [
 //   freeTierSearch : 무료티어 Google Search grounding 가능?  (2.5만 — 3.x 는 429)
 //   fastMultimodal : 무료티어 이미지/영상 <60s?              (3.6·2.5, 3.5 는 붕괴)
 //   fastLongInput  : 무료티어 URL 등 긴 입력 요약 <60s?       (3.6·2.5, 3.5 는 붕괴)
-export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimodal: boolean; fastLongInput: boolean }> = {
-    "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true  },
-    "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false },
-    "gemini-2.5-flash": { freeTierSearch: true,  fastMultimodal: true,  fastLongInput: true  },
+//   urlFileData    : **임의 URL** fileData 처리 가능?          (2.5만 — 3.x 는 429)
+//
+// 🔴 urlFileData 는 fastMultimodal 과 다른 축이고, **무료티어 한정이 아니다**(DEV_260808 실측).
+//    3.6 은 인라인 이미지도 YouTube fileData 도 되는데 **우리 Storage URL 을 fileData 로 주면
+//    429 RESOURCE_EXHAUSTED** 를 낸다. 쿼터가 아니라는 근거 둘:
+//      · 같은 키가 직전 텍스트 호출엔 200 을 준다 (무료 키 4개 교차 확인)
+//      · **유료 TIER1 키도 동일하게 429** — 티어를 올려도 안 풀린다
+//    업로드 영상은 항상, PDF 는 1MB 초과 시(useChatStream 임계값) 이 경로를 탄다.
+export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimodal: boolean; fastLongInput: boolean; urlFileData: boolean }> = {
+    "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false },
+    "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false },
+    "gemini-2.5-flash": { freeTierSearch: true,  fastMultimodal: true,  fastLongInput: true,  urlFileData: true  },
 };
 
 // 능력 조회 — 미등록 모델은 보수적 기본값(전부 false → 안전측 강등).
-export const modelCaps = (m: string) => MODEL_CAPS[m] ?? { freeTierSearch: false, fastMultimodal: false, fastLongInput: false };
+export const modelCaps = (m: string) => MODEL_CAPS[m] ?? { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false };
 
 // 3.x 계열 판정 — thinkingLevel(enum)·sampling 정책 공유용(능력과 무관한 순수 계열 구분).
 export const isThreeXFlash = (m: string): boolean => m === SERVER_MODELS.FLASH_3_5 || m === SERVER_MODELS.FLASH_3_6;

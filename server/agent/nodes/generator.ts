@@ -25,7 +25,12 @@ export const SDK_CALL_TIMEOUT_MS = 25_000;
 // abort 후 graceful 반환·supabase 저장 오버헤드는 ~0.4s(로그 관측)라 57s면 60s 캡까지 ~3s
 // (오버헤드의 7배) 여유가 남고, 도중 abort 시엔 스트리밍 부분 응답이 복구된다(아래 partial
 // stream 처리). maxDuration(60s, 무료티어 상향 불가)은 무관 — 우리가 건 데드라인이 병목이었다.
-export const YOUTUBE_CALL_TIMEOUT_MS = 57_000;
+// 🔴 대상은 YouTube 만이 아니다 — **업로드 영상·대용량 PDF 도 같은 프로파일**이다(DEV_260808 실측:
+// 업로드 영상 21s · 400p PDF 21~32s). 25s 일률 컷은 이들도 정상 분석 도중에 끊어 키 로테이션을
+// 유발하고, 그게 쌓여 60s 캡을 넘긴다 — YouTube 가 겪은 회귀와 같은 구조다.
+export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 57_000;
+/** @deprecated 이름이 대상을 좁게 말한다 — HEAVY_MEDIA_CALL_TIMEOUT_MS 를 쓸 것. */
+export const YOUTUBE_CALL_TIMEOUT_MS = HEAVY_MEDIA_CALL_TIMEOUT_MS;
 
 /**
  * Generator Node
@@ -134,12 +139,26 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         const selCaps = modelCaps(sel);
         const pinYoutube = isYoutubeRequest && hasVideoData && !selCaps.fastMultimodal;
         const pinUrl = hasUrlContentForModel && !selCaps.fastLongInput;
-        const resolvedModel = (pinYoutube || pinUrl) ? SERVER_MODELS.FLASH : sel;
+        // 🔴 업로드 첨부(영상·대용량 PDF·오디오)는 Storage 공개 URL 을 fileData 로 보낸다.
+        // 3.6 은 **임의 URL fileData 에 429 RESOURCE_EXHAUSTED** 를 낸다(DEV_260808 실측:
+        // 같은 키가 직전 텍스트 호출엔 200. YouTube fileData·인라인 이미지는 정상 → urlFileData 축).
+        // 이걸 강등하지 않으면 429 가 키 로테이션을 타고 12키 × ~12s ≈ 144s 로 60s 캡을 넘겨
+        // 사용자에겐 "응답을 받지 못했습니다"로만 보인다 — 어떤 키로도 성공하지 못하는 실패다.
+        const hasUrlFileData = state.messages.some((m: any) =>
+            Array.isArray(m.content) && m.content.some((p: any) =>
+                p.fileData?.fileUri && !/youtube\.com|youtu\.be/.test(p.fileData.fileUri))
+        );
+        const pinUrlFileData = hasUrlFileData && !selCaps.urlFileData;
+        // 예산형 단일 데드라인 대상 — 영상 토큰이 무거운 단일 heavy 호출이라 25s 로는 정상 응답이 끊긴다.
+        const isHeavyMediaTurn = isYtVideoTurn || hasUrlFileData;
+        const resolvedModel = (pinYoutube || pinUrl || pinUrlFileData) ? SERVER_MODELS.FLASH : sel;
         if (pinYoutube) {
             // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
             console.log(`[LangGraph] YouTube video turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         } else if (pinUrl) {
             console.log(`[LangGraph] URL summary turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
+        } else if (pinUrlFileData) {
+            console.log(`[LangGraph] Uploaded media (URL fileData) → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         }
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
@@ -167,6 +186,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             // 3.5-flash가 503이면 throughput 좋은 2.5-flash로 강등해 재시도 (전 키 소진 방지).
             // 한 번 set되면 이후 attempt에서 유지.
             let unavailableDowngrade = false;
+            // 🔴 429 를 낸 **서로 다른** 키. 429 는 두 가지가 겹쳐 오는데 응답만으로 구분이 안 된다
+            // (무료티어는 quotaMetric·retryDelay 없이 맨 429 만 준다 — DEV_260808 실측):
+            //   ⓐ 그 키의 쿼터 소진 → 다른 키로 바꾸면 성공한다 (로테이션이 정답)
+            //   ⓑ 모델이 그 요청을 아예 거부 → 어떤 키로도 실패한다 (로테이션은 예산만 태운다)
+            // 구분은 **행동으로** 한다: 서로 다른 키 2개가 같은 모델에서 429 면 ⓑ 로 보고 모델을 강등한다.
+            // ⓐ 오판 비용은 낮고(2.5 도 잘 답한다), ⓑ 를 놓치면 12키 × ~12s ≈ 144s 로 60s 캡을
+            // 확실히 넘겨 사용자에겐 "응답을 받지 못했습니다"로만 보인다.
+            const rateLimitedKeys = new Set<string>();
 
             // [이미지+검색 할루시네이션 가드] 현재 턴엔 이미지가 없고 history에만 이미지가 있는데
             // 사용자가 명시적으로 검색/팩트체크를 요청하면, 이번 요청에서 미디어를 빼고 실제
@@ -202,7 +229,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
                     // 이 attempt의 모든 SDK 서브콜을 한 데드라인으로 묶음 — 행/혼잡 시 catch의 timeout 강등 경로로.
                     // 영상 턴만 예산형 긴 데드라인(48s) — 25s는 정상 영상 분석을 끊는다(DEV_260627 회귀).
-                    const attemptTimeoutMs = isYtVideoTurn ? YOUTUBE_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS;
+                    const attemptTimeoutMs = isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS;
                     const attemptSignal = AbortSignal.timeout(attemptTimeoutMs);
 
                     // Build contents from state messages
@@ -555,20 +582,24 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             continue;
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
-                        if (isRateLimit) markRateLimitKey(sdkApiKey, err);
-                        // 영상 턴 timeout은 이미 ~48s 소진 → 또 다른 48s 시도/3.5 폴백은 60s 캡 초과.
+                        if (isRateLimit) { markRateLimitKey(sdkApiKey, err); rateLimitedKeys.add(sdkApiKey); }
+                        // 무거운 미디어 턴 timeout은 이미 예산 대부분 소진 → 또 다른 시도/폴백은 60s 캡 초과.
                         // 로테이션·폴백 모두 차단하고 즉시 종료(누적 타임아웃 폭주 방지).
-                        if (isYtVideoTurn && isTimeout) {
+                        if (isHeavyMediaTurn && isTimeout) {
                             ytPrimaryTimedOut = true;
-                            console.warn('[LangGraph] YouTube video timeout after', YOUTUBE_CALL_TIMEOUT_MS, 'ms — no budget for retry/fallback, stopping');
+                            console.warn('[LangGraph] heavy media timeout after', HEAVY_MEDIA_CALL_TIMEOUT_MS, 'ms — no budget for retry/fallback, stopping');
                             break;
                         }
                         // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
                         // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).
-                        const justDowngraded = (isUnavailable || isTimeout) && !unavailableDowngrade && isThreeXFlash(resolvedModel);
+                        // 429 가 서로 다른 키 2개에서 났다 = 키 쿼터가 아니라 모델이 거부하는 요청(위 ⓑ).
+                        // 키가 1개뿐인 환경(로컬 하니스 등)에선 로테이션 자체가 불가능하므로 1회로 판정한다.
+                        const modelWide429 = isRateLimit && rateLimitedKeys.size >= Math.min(2, API_KEYS.length);
+                        const justDowngraded = (isUnavailable || isTimeout || modelWide429) && !unavailableDowngrade && isThreeXFlash(resolvedModel);
                         if (justDowngraded) {
                             unavailableDowngrade = true;
-                            console.log(`[LangGraph] ${isTimeout ? 'timeout' : '503'} on 3.5-flash — downgrading retries to 2.5-flash (better free-tier throughput)`);
+                            const why = modelWide429 ? `429 on ${rateLimitedKeys.size} distinct keys (model-wide, not key quota)` : isTimeout ? 'timeout' : '503';
+                            console.log(`[LangGraph] ${why} on ${resolvedModel} — downgrading retries to 2.5-flash`);
                         }
                         const nextKey = getNextApiKey();
                         if (nextKey && nextKey !== sdkApiKey) {
