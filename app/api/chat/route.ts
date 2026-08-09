@@ -11,7 +11,13 @@ import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages } from '../../../server/agent/history';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
+//    Hobby 플랜의 fluid compute 기본값·최대값이 **둘 다 300s** 다 — 이 줄이 없으면 300s 가 된다.
+//    6.5MB PDF 가 최대 54.9s(캡의 91%)를 먹어 "가끔 끊기는" 상태였는데, 원인을 모델·전송 경로에서
+//    찾다가 정작 우리가 건 제한이었음을 뒤늦게 확인했다.
+//    비용: fluid 는 **Active CPU 과금**이라 Gemini 응답을 기다리는 I/O 구간은 CPU 로 안 잡힌다.
+//    폭주 방지는 이 값이 아니라 generator 의 per-call 타임아웃이 담당한다.
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 // 서울 리전 고정: law.go.kr 등 한국 API 접근성·지연 개선 (기본 iad1 → icn1)
 export const preferredRegion = 'icn1';

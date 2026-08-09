@@ -11,9 +11,11 @@ import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { runLangChainPath } from "./langchain-path";
 
-// SDK 호출 1회(attempt)당 상한. Vercel 60s 하드캡 아래에서 3.5 행/혼잡을 강제 중단하고
-// 2.5로 강등 재시도할 예산을 남기기 위해 25s. (25s×2 attempt ≈ 50s < 60s)
+// SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
+// 🔴 25s 의 원래 근거는 "25s×2 ≈ 50s < 60s 캡"이었으나 **그 캡은 우리가 건 것이었다**(DEV_260808 §9,
+//    Hobby 도 300s). 값은 유지하되 근거는 바뀐다 — 이제 캡 회피가 아니라 **행 감지 UX 가드**다.
+//    (일반 텍스트 턴이 25s 넘게 무응답이면 재시도가 사용자에게 더 낫다.)
 export const SDK_CALL_TIMEOUT_MS = 25_000;
 // YouTube 영상 턴은 프로파일이 정반대 — 영상 토큰이 무거운 단일 heavy 호출이 60s 예산
 // 대부분을 정당하게 소모하고(정상 ~30~48s, 메모리 youtube-call-timeout-profile), 폴백 3.5는
@@ -22,13 +24,16 @@ export const SDK_CALL_TIMEOUT_MS = 25_000;
 // 회귀 본질: aa9d701 이전엔 SDK 경로에 per-call 타임아웃이 없어 유튜브가 60s 캡 직전(~59s)까지
 // 예산을 다 썼고 잘 됐다. 48s는 정상 상한(~48s)과 겹쳐 살짝 초과한 정상 호출을 잘랐다
 // (DEV_260703: 48.38s 로그 = 우리 데드라인 발화). 원래 예산을 충실히 원복 — 57s로 상향.
-// abort 후 graceful 반환·supabase 저장 오버헤드는 ~0.4s(로그 관측)라 57s면 60s 캡까지 ~3s
-// (오버헤드의 7배) 여유가 남고, 도중 abort 시엔 스트리밍 부분 응답이 복구된다(아래 partial
-// stream 처리). maxDuration(60s, 무료티어 상향 불가)은 무관 — 우리가 건 데드라인이 병목이었다.
+// 도중 abort 시엔 스트리밍 부분 응답이 복구된다(아래 partial stream 처리).
 // 🔴 대상은 YouTube 만이 아니다 — **업로드 영상·대용량 PDF 도 같은 프로파일**이다(DEV_260808 실측:
-// 업로드 영상 21s · 400p PDF 21~32s). 25s 일률 컷은 이들도 정상 분석 도중에 끊어 키 로테이션을
-// 유발하고, 그게 쌓여 60s 캡을 넘긴다 — YouTube 가 겪은 회귀와 같은 구조다.
-export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 57_000;
+// 업로드 영상 21s · 400p PDF 21~32s · 6.5MB PDF 최대 54.9s). 25s 일률 컷은 이들도 정상 분석
+// 도중에 끊어 키 로테이션을 유발한다 — YouTube 가 겪은 회귀와 같은 구조다.
+//
+// 🔴 57 → 90 (DEV_260808 §9). 57 은 "60s 캡까지 ~3s 여유"에서 나온 값인데, **그 60s 는 플랫폼
+//    한계가 아니라 route.ts 가 스스로 건 값이었다**(Hobby 도 fluid 기본·최대 300s). 캡을 300 으로
+//    돌리면 57 이 곧바로 새 병목이 된다 — 6.5MB PDF 실측 최대가 54.9s 라 **여유가 2s 뿐**이었다.
+//    90s 로 잡으면 실측 최대의 1.6배이고, 강등 재시도까지 90×2=180s < 300s 로 예산 안에 든다.
+export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 90_000;
 /** @deprecated 이름이 대상을 좁게 말한다 — HEAVY_MEDIA_CALL_TIMEOUT_MS 를 쓸 것. */
 export const YOUTUBE_CALL_TIMEOUT_MS = HEAVY_MEDIA_CALL_TIMEOUT_MS;
 
@@ -663,7 +668,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     model: SERVER_MODELS.FLASH_3_5,
                     contents: fbContents,
                     config: {
-                        abortSignal: AbortSignal.timeout(SDK_CALL_TIMEOUT_MS),
+                        // 이 폴백도 fileData 파트를 그대로 싣는다(위 fbContents 조립) — 즉 heavy
+                        // media 턴이 여기 도달할 수 있다. 25s 일률이면 §4 와 같은 이유로 정상
+                        // 분석을 끊는다. 예산 축을 위와 일치시킨다.
+                        abortSignal: AbortSignal.timeout(isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS),
                         systemInstruction: finalInstruction,
                         temperature: 0.2, topP: 0.8, topK: 40,
                         maxOutputTokens: 8192,
