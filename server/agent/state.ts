@@ -126,6 +126,14 @@ export const GraphState = Annotation.Root({
     needsSearch: Annotation<boolean>({
         reducer: (x, y) => y ?? x,
         default: () => true,
+    }),
+
+    // 직전 턴에 실제로 검색이 일어났는지 (history의 grounding 출처로 판정 — history.ts).
+    // search-gate의 멀티턴 가드가 쓴다. undefined면 판단 불가 → 게이트가 기존 정규식 근사로 폴백.
+    // 기획: docs/plans/PLAN_SEARCH_POLICY_260815.md §3 (Step 6)
+    lastTurnSearched: Annotation<boolean | undefined>({
+        reducer: (x, y) => y ?? x,
+        default: () => undefined,
     })
 });
 

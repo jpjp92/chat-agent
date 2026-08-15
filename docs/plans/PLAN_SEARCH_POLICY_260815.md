@@ -126,16 +126,51 @@ generator.ts    → useGoogleSearch 사용 (변경 없음)
 
 기존 `prevSearched`는 **직전 human 메시지에 정규식을 재적용한 근사**다([PLAN_LATENCY_SEARCH_ROUTING](./PLAN_LATENCY_SEARCH_ROUTING.md) §9-B A안). 근사가 오발의 원인이다.
 
-**실제 grounding 발생 여부를 되돌려받는다.** 새 패턴이 아니라 **`activeCards`가 이미 쓰는 경로 그대로**다:
+**실제 grounding 발생 여부를 되돌려받는다.**
+
+### 구현 시 단순화 (설계 변경 — 배선 3단계 생략)
+
+초안은 `generator → 응답 메타 → geminiService → route.ts` 왕복을 새로 깔 계획이었다.
+구현 중 **그 값이 이미 왕복하고 있다**는 걸 확인해서 새 배선을 깔지 않았다:
 
 ```
-generator: grounding 실제 부착 여부 → 응답 메타
-  → services/geminiService.ts (클라이언트 보관)
-  → app/api/chat/route.ts 로 되돌려받음
-  → state.lastTurnSearched: boolean
+generator → SSE `sources` → 클라이언트 Message.groundingSources → 다음 요청 history
+                                                                    ↓
+                              route.ts  deriveLastTurnSearched(history)
+                                                                    ↓
+                                                    state.lastTurnSearched
+                                                                    ↓
+                            search-gate  prevSearched = state값 ?? 정규식 근사
 ```
+
+DB 복원 세션도 `useChatSessions`가 `grounding_sources`를 같은 필드로 되살리므로 그대로 동작한다.
+**클라이언트 코드 변경이 없다** → C4(비변경 경계에서 클라이언트를 빼야 한다)가 **무효가 됐다. 경계 유지.**
+
+| | 초안 | 구현 |
+|---|---|---|
+| 측정 대상 | grounding **부착 여부** | grounding **출처 반환 여부** |
+| 변경 파일 | generator·geminiService·route·state·gate (5) | history·route·state·gate (4, 클라 0) |
+| 구버전 클라 | 폴백 필요 | 해당 없음(서버만 봄) |
+
+> **트레이드오프**: 검색을 켰는데 출처가 0건이면 `false`로 잡힌다.
+> 가드의 목적이 "직전 **검색 결과**를 가공해달라는 요청인가"이므로 출처 유무가 오히려 더 맞는 측정이고,
+> 틀리는 방향도 안전하다(억제 실패 = 검색 한 번 더, 검색 누락 아님).
 
 선례: [router.ts:63](../../server/agent/nodes/router.ts#L63) `state.activeCards?.weather ?? weatherCardInWindow` — 클라이언트 값 우선, 없으면 서버 추정 폴백. **동일 폴백 구조를 유지**하므로 구버전 클라이언트도 깨지지 않는다.
+
+### 왜 Step 5보다 먼저 하는가 (2026-08-15 배포 테스트에서 확정)
+
+근사가 **틀리는 정도**가 아니라 **특정 대화에서는 아예 서지 않는다**는 것이 확인됐다:
+
+```
+prev="인공타액제 알려줘" → classifySearchNeed=gray → prevSearched=false   (실제로는 검색됨)
+prev="오늘 AI 뉴스 알려줘" → classifySearchNeed=on   → prevSearched=true
+```
+
+`medical_qa`는 **tier로 검색을 강제**해서 켜진다 — 정규식이 `on`을 내서 켜지는 게 아니다.
+룰이 아니라 intent로 검색이 결정되는 경로(medical_qa · 카드 계열)는 전부 같은 구멍을 갖는다.
+현재 이 조합을 막고 있는 건 가드가 아니라 **라우터 LLM의 `needs_search=false` 반환**이다 —
+무료티어 503이면 그대로 재검색이 붙는다. 상세: [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md)
 
 ---
 
@@ -184,8 +219,8 @@ TDD 순서를 지킨다 — **Step 0의 테스트가 RED인 것을 눈으로 확
 | 2 | 명시요청 단일화 | `detectExplicitSearchRequest()` | 두 정규식 → 하나 | ✅ 함수 신설 16/16. **호출부 교체는 Step 4** |
 | 3 | 정책 엔진 | `server/agent/search-policy.ts` | 순수 함수. 계약 테스트 GREEN | ✅ 계약 7/7 |
 | **4** | **search-gate 배선** | `search-signals.ts` 신설 + `search-gate.ts` → 신호 제출 + `decideSearch()` 1회 | 기존 게이트 동작 전부 보존 + BUG 4/4 GREEN | ✅ BUG 4/4 · 게이트 회귀 19/19 |
+| **6** | **영속화 (순서 앞당김)** | `deriveLastTurnSearched()` + `state.lastTurnSearched` | 클라이언트 폴백 유지 | ✅ 게이트 23/23 · history 증거 7/7 |
 | 5 | router 전환 | `needsSearch` → `searchSignals` 제출 | `state.ts` 필드 교체 | ⬜ |
-| 6 | 영속화 | `lastTurnSearched` 왕복 | 클라이언트 폴백 유지 | ⬜ |
 | 7 | 프로토타입 복사본 제거 | `test-search-rules.mjs` 폐기 또는 import 전환 | 드리프트 원천 차단 | ⬜ |
 
 > **Step 0~3은 순수 추가였다 — 프로덕션 동작이 하나도 바뀌지 않았다.** 새 함수·새 모듈을 만들었을 뿐
@@ -203,7 +238,8 @@ scripts/test-search-policy.mts        exit 0
   ON    : 3/3
   명시요청 탐지 : 16/16   (Step 2)
   정책 계약     : 7/7     (Step 3)
-  게이트 회귀   : 19/19   (Step 4 신설 — 컨텍스트 증거 포함)
+  게이트 회귀   : 23/23   (Step 4 신설 + Step 6 4건)
+  history 증거  : 7/7     (Step 6 — deriveLastTurnSearched)
 
 scripts/verify-intentrules-search.mts exit 0   22/22, FP 0, 가드 4/4
 node scripts/test-search-rules.mjs    exit 0   (⚠️ 복사본 채점 — Step 7에서 처리)

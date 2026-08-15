@@ -256,6 +256,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         isYoutubeRequest,
                         hasVideoData,
                         latestUserText,
+                        lastTurnSearched: state.lastTurnSearched,
                     });
 
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s

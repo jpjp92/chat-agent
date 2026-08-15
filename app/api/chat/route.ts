@@ -8,7 +8,7 @@ import { compileAgentGraph } from '../../../server/agent/graph';
 import { DEFAULT_CHAT_MODEL } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
 import { HumanMessage } from '@langchain/core/messages';
-import { buildHistoryMessages } from '../../../server/agent/history';
+import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
 
 export const runtime = 'nodejs';
 // 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
@@ -148,6 +148,8 @@ export async function POST(req: NextRequest) {
         model: finalModel, timeZone: timeZone || 'Asia/Seoul', nextNode: 'router',
         movieContext: typeof movieContext === 'string' ? movieContext : '',
         activeCards: (activeCards && typeof activeCards === 'object') ? activeCards : {},
+        // 직전 턴 실제 검색 여부 — 정규식 근사 대신 history의 grounding 출처를 본다(Step 6).
+        lastTurnSearched: deriveLastTurnSearched(history),
       };
 
       const unhandledRejectionGuard = (reason: any) => {

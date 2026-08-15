@@ -20,7 +20,30 @@ export interface ClientHistoryMessage {
     content?: string;
     attachment?: any;
     attachments?: any[];
+    groundingSources?: any[];
 }
+
+/**
+ * 직전 턴에 **실제로** 웹 검색이 일어났는지 (기획 PLAN_SEARCH_POLICY_260815 §3, Step 6).
+ *
+ * 기존 `prevSearched`는 직전 사용자 발화에 `classifySearchNeed`를 다시 돌린 **근사**였다.
+ * 그런데 검색은 룰로만 켜지지 않는다 — `medical_qa`는 tier로 강제 ON이고, 카드 계열도 마찬가지다.
+ * 그래서 `"인공타액제 알려줘"`(rule=gray) 다음 턴에는 실제로 검색이 있었는데도 근사가 `false`를
+ * 반환해 **멀티턴 가드가 아예 서지 못했다**(DEV_260815_DEPLOY_CHECK).
+ *
+ * 여기서는 추측하지 않고 증거를 본다. `groundingSources`는 이미 왕복하는 값이다:
+ *   generator → SSE `sources` → 클라이언트 Message.groundingSources → 다음 요청 history
+ *   (DB 복원 세션도 `useChatSessions`가 `grounding_sources`를 같은 필드로 되살린다)
+ *
+ * @returns `undefined`면 판단 불가 — 호출부가 기존 근사로 폴백한다(구버전 클라·빈 히스토리).
+ */
+export const deriveLastTurnSearched = (history: ClientHistoryMessage[]): boolean | undefined => {
+    const lastBotMsg = (history || [])
+        .filter((m: any) => m?.role === 'assistant' || m?.role === 'model')
+        .at(-1);
+    if (!lastBotMsg) return undefined;
+    return Array.isArray(lastBotMsg.groundingSources) && lastBotMsg.groundingSources.length > 0;
+};
 
 export const buildHistoryMessages = (
     history: ClientHistoryMessage[],

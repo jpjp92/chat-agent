@@ -30,6 +30,8 @@ export const decideGoogleSearch = (ctx: {
     isYoutubeRequest: boolean;
     hasVideoData: boolean;
     latestUserText: string;
+    /** 직전 턴 실제 검색 여부(state). undefined면 정규식 근사로 폴백. */
+    lastTurnSearched?: boolean;
 }): {
     useGoogleSearch: boolean;
     hasUrlContent: boolean;
@@ -37,7 +39,7 @@ export const decideGoogleSearch = (ctx: {
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
 } => {
-    const { webContent, messages, intent, needsSearch, hasMultimodalContent, dropImageForSearch, isYoutubeRequest, hasVideoData, latestUserText } = ctx;
+    const { webContent, messages, intent, needsSearch, hasMultimodalContent, dropImageForSearch, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched } = ctx;
 
     const signals: SearchSignal[] = [];
 
@@ -150,16 +152,20 @@ export const decideGoogleSearch = (ctx: {
     }
 
     // ── tier 300/100: 최신 발화 텍스트 신호 (명시 요청 · 라우터 · 멀티턴 가드) ──
-    // prevSearched = 직전 human 메시지 classifySearchNeed==='on' 근사
-    // (9-B A안: grounding 마커 미영속. Step 6에서 실제 검색 여부 영속화로 대체 예정.)
-    const humanMsgs = messages.filter((m: any) => m._getType() === 'human');
-    const prevHuman = humanMsgs.length >= 2 ? humanMsgs[humanMsgs.length - 2] : undefined;
-    const prevHumanText = prevHuman
-        ? (Array.isArray(prevHuman.content)
+    // prevSearched: state.lastTurnSearched(실제 grounding 출처 유무) 우선, 없으면 정규식 근사 폴백.
+    // 근사는 룰로 켜진 검색만 잡는다 — medical_qa·카드처럼 intent로 강제된 검색을 놓쳐서
+    // 가드가 아예 서지 못했다(DEV_260815_DEPLOY_CHECK). `activeCards`와 동일한 폴백 구조라
+    // 구버전 클라이언트(groundingSources 미전송)도 기존 동작을 유지한다.
+    const prevSearchedApprox = (() => {
+        const humanMsgs = messages.filter((m: any) => m._getType() === 'human');
+        const prevHuman = humanMsgs.length >= 2 ? humanMsgs[humanMsgs.length - 2] : undefined;
+        if (!prevHuman) return false;
+        const text = Array.isArray(prevHuman.content)
             ? (prevHuman.content as any[]).filter((p: any) => p.type === 'text').map((p: any) => p.text).join('')
-            : String(prevHuman.content))
-        : '';
-    const prevSearched = prevHumanText ? classifySearchNeed(prevHumanText) === 'on' : false;
+            : String(prevHuman.content);
+        return text ? classifySearchNeed(text) === 'on' : false;
+    })();
+    const prevSearched = lastTurnSearched ?? prevSearchedApprox;
 
     signals.push(...collectTextSearchSignals({
         latestUserText,
