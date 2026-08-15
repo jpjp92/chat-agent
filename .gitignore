@@ -71,3 +71,4 @@ scripts/worldcup-mockup.html
 preview/dark-warm-charcoal.html
 preview/weather-card-sample.html
 scripts/sql/auth-mvp-preflight-prod.sql
+scripts/probe-drug-search.ts

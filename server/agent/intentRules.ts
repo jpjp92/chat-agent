@@ -64,6 +64,33 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
     },
 ];
 
+/**
+ * 제형(dosage form) 어휘 — **고정밀** 의약품 신호.
+ *
+ * `hasMedicalIntentKeyword`와 분리해 둔 이유: 그쪽은 `효과`·`성분`·`명칭` 같은 범용어를 포함해
+ * 재현율은 높지만 정밀도가 낮다. 라우터 LLM의 `general` 판정을 **뒤집는** 용도로 쓰면
+ * `"이 마케팅 전략 효과 있어?"` 같은 발화가 drug_info로 끌려간다.
+ *
+ * 여기 있는 것들은 약학 문맥에서만 쓰이는 제형 명칭이라 오탐 여지가 거의 없다.
+ * 계기: `인공 타액제 알려줘`가 어떤 의약 신호에도 안 걸려 general로 새면서
+ * `search_drug_info`(MFDS 실데이터) 경로를 통째로 우회했다 — 모델이 제품명을 지어냈다.
+ * (DEV_260815_DEPLOY_CHECK)
+ *
+ * ⚠️ 추가할 때는 "이 단어가 약이 아닌 문맥에서 쓰이는가"를 먼저 따질 것. 실제로 걸러낸 것들:
+ *    · `정제`(refine/purify) · `캡슐`(캡슐호텔) · `산제`("산제 발표 자료") — 제외
+ *    · `연고`는 緣故(연고지·연고자·연고권)와 충돌 → 그 접미만 lookahead로 배제
+ *    · `타액` 단독은 생리 현상 질문("타액 분비가 왜 줄지?")이라 제형이 아님 → `인공 타액`만
+ *
+ * 남은 위험: "그 지역에 연고가 있어?"(緣故)는 여전히 걸린다. 접미로 구분되지 않는 용법이라
+ * 정규식으로는 못 가른다. 오탐 시 결과는 general → drug_info 오라우팅 하나뿐이고,
+ * 이 앱의 질의 분포에서 빈도가 낮다고 보고 감수한다. 문제가 관측되면 `연고제`만 남길 것.
+ */
+const DOSAGE_FORM_PATTERN =
+    /(타액제|인공\s?타액|연고제|연고(?![지자권])|좌제|점안액|점안제|점비액|시럽제|현탁액|과립제|주사제|패치제|첩부제|가글액|구강\s?스프레이|분무제|외용액|ointment|suppositor(y|ies)|eye\s?drops?|oral\s?spray|artificial\s?saliva)/i;
+
+/** 제형 명칭이 들어 있는가 — 라우터의 general 오분류를 되돌릴 만큼 확실한 의약 신호. */
+export const hasDosageFormKeyword = (text: string): boolean => DOSAGE_FORM_PATTERN.test(text);
+
 export const hasMedicalIntentKeyword = (text: string): boolean => {
     return KOREAN_MEDICAL_KEYWORDS.some(keyword => text.includes(keyword)) ||
         MEDICAL_WORD_PATTERN.test(text) ||
@@ -79,7 +106,8 @@ export const classifyIntentByRules = (text: string, hasImage: boolean): IntentTy
         if (rule.pattern.test(text)) return rule.intent;
     }
 
-    if (hasMedicalIntentKeyword(text)) {
+    // 제형 어휘는 hasMedicalIntentKeyword가 놓치는 구간을 메운다(`인공 타액제` 등).
+    if (hasMedicalIntentKeyword(text) || hasDosageFormKeyword(text)) {
         return hasImage ? "drug_id" : "drug_info";
     }
 

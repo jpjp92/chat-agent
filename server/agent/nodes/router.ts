@@ -3,7 +3,7 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
-import { classifyIntentByRules, hasMedicalIntentKeyword, classifySearchNeed } from "../intentRules";
+import { classifyIntentByRules, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed } from "../intentRules";
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -179,6 +179,15 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
                 // Do NOT override "general" for arbitrary images — generic photos stay general.
                 if (intent === "general" && hasImage && hasMedicalKeyword) {
                     intent = "drug_id";
+                }
+                // 텍스트 경로의 같은 복구 — 제형 명칭(타액제·연고·좌제·점안액…)이 있는데 general이면
+                // drug_info로 되돌린다. general로 새면 search_drug_info(MFDS 실데이터) 경로와
+                // 프롬프트의 약 정보 방어(L280 "학습 지식으로 채우지 마라"·L282 "각인은 환자 안전")가
+                // 통째로 빠져서, 모델이 제품명을 지어낸다(DEV_260815_DEPLOY_CHECK).
+                // hasMedicalKeyword(효과·성분 등 범용어 포함)가 아니라 **고정밀 제형 어휘**로만 뒤집는다.
+                if (intent === "general" && !hasImage && hasDosageFormKeyword(textContent)) {
+                    console.log('[LangGraph] Router recovery: dosage-form keyword → general → drug_info');
+                    intent = "drug_info";
                 }
                 console.log(`[LangGraph] Semantic Router parsed intent from LLM: ${intent}`);
             }
