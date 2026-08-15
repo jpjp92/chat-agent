@@ -145,6 +145,27 @@ export const isFollowupReference = (text: string): boolean => FOLLOWUP_REF_PATTE
 /** 과거참조("최근 검색한", "방금 알려준") 여부 — temporal ON이라도 새 최신요구가 아님을 구분 */
 export const isPastReference = (text: string): boolean => PAST_REF_PATTERN.test(text);
 
+// ============================================================
+// 명시적 검색 요청 탐지 — 단일 출처 (기획 PLAN_SEARCH_POLICY_260815 §2)
+//   이전에는 같은 개념이 두 곳에 다른 정규식으로 존재했다:
+//     · intentRules SEARCH_ON_PATTERNS.explicit (좁음) — "찾아서/찾아줘/조사/알아보자"를 놓침
+//     · search-gate.ts explicitSearchRequested (넓음) — 시의성 어휘까지 섞여 있음
+//   좁은 쪽이 멀티턴 가드의 관문 역할을 하면서 "검색해서 정리해줘"조차 억제됐다(DEV_260815).
+//   → 넓은 쪽 기준으로 통합하되, 시의성(최신·최근·실시간·뉴스)은 여기서 제외한다.
+//     "검색해줘"(사용자 의사, tier 300)와 "최신 정보"(시의성 신호, tier 100)는 다른 개념이고
+//     권한 계층이 다르다. 섞으면 tier 300이 남발되어 계층이 무의미해진다.
+// ============================================================
+const EXPLICIT_SEARCH_PATTERN =
+    /(검색|구글링|구글|google|서치|웹에서|웹\s?검색|인터넷|찾아|조사(해|하|를|해서)|알아보|알아봐|출처|근거(는|를| |$)|레퍼런스|cite|search|look\s?up)/i;
+
+/**
+ * 사용자가 **명시적으로** 웹 검색·출처를 요청했는지.
+ * 과거참조("아까 검색 결과 다시 요약")는 새 검색 요청이 아니므로 제외한다 —
+ * 이걸 빼지 않으면 직전 결과를 가공해달라는 요청이 매번 재검색을 유발한다.
+ */
+export const detectExplicitSearchRequest = (text: string): boolean =>
+    EXPLICIT_SEARCH_PATTERN.test(text) && !PAST_REF_PATTERN.test(text);
+
 /**
  * 멀티턴 가드 (기획 6-3): 직전 턴에 검색이 일어났고 현재 메시지가 follow-up 가공형이면,
  * 새 최신요구(temporal/domain ON & not past-ref)가 아닌 한 재검색을 억제(off)한다.

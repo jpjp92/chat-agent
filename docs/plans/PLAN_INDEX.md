@@ -24,6 +24,8 @@
 
 > **2026-08-08**: 업로드 첨부(영상·대용량 PDF) 분석 실패 3건 수정 — [DEV_260808](../logs/2026/08/DEV_260808.md). `models.ts`·`generator.ts` 변경이라 **컷오버와 겹치는 파일이 아니다**. dev 배포 후 실제 UI 확인만 남음.
 
+> **2026-08-15**: 검색 의도분류 누락 진단 — [DEV_260815](../logs/2026/08/DEV_260815.md) · 재설계 계획 [PLAN_SEARCH_POLICY_260815](PLAN_SEARCH_POLICY_260815.md). 테스트 하니스(`scripts/test-search-policy.mts`)까지 완료, **구현 착수 전**. `router.ts`·`search-gate.ts`·`intentRules.ts` 변경이라 **컷오버와 겹치는 파일이 아니다**. 부수 발견: 기존 검증 스크립트가 이미 RED였다(문서는 초록이라 주장) — 계획 §4 C5.
+
 **1~3 은 4를 막지 않는다.** 1은 브랜딩(기능 아님), 3은 이미 배포된 것의 사후 확인이다.
 **0-B 가 막는 것은 `main` 브랜치 배포뿐이다.** 3(dev 푸시)은 chat-agent-dev 프로젝트를 배포하므로 무관하다 — main 프로젝트는 dev 브랜치를 Preview 로만 빌드하고, 프로덕션 배포는 `main` 브랜치에서만 일어난다.
 
@@ -82,8 +84,8 @@ Recommended next order:
 | Plan | Current use |
 |---|---|
 | [PLAN_NEXTJS_MIGRATION.md](PLAN_NEXTJS_MIGRATION.md) | Historical reference. Next.js migration completed. |
-| [PLAN_LATENCY_SEARCH_ROUTING.md](PLAN_LATENCY_SEARCH_ROUTING.md) | Historical + residual reference. Main routing implementation completed. |
-| [PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md](PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md) | Change summary for completed latency search routing work. |
+| [PLAN_LATENCY_SEARCH_ROUTING.md](PLAN_LATENCY_SEARCH_ROUTING.md) | Historical. 구현 완료했으나 **§4-2·§6-2·§6-3·§7·§9-B 폐기** (2026-08-15) → [PLAN_SEARCH_POLICY_260815](PLAN_SEARCH_POLICY_260815.md). 핵심 통찰(§1 직교성)·§5 라우터 합승은 유효. |
+| [PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md](PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md) | Change summary. ⚠️ 검증표 수치 **스테일** — `verify-intentrules-search.mts`는 22/22가 아니라 현재 20/22 RED. |
 | [PLAN_DB_MIGRATION.md](PLAN_DB_MIGRATION.md) | Evergreen migration/reference doc. Use only when Supabase project migration is active. |
 | [PLAN_ERROR_HANDLING.md](PLAN_ERROR_HANDLING.md) | Architecture reference and backlog. |
 | [PLAN_WORLDCUP_SPORTS_TOOL_260621.md](PLAN_WORLDCUP_SPORTS_TOOL_260621.md) · [PLAN_WORLDCUP_IMPL_260621.md](PLAN_WORLDCUP_IMPL_260621.md) | **구현 완료 (2026-06-21)**. football-data.org `sports` intent tool (월드컵 순위/대진/득점왕), grounding 우회. 로그 [DEV_260621](../logs/2026/06/DEV_260621.md). 추후: WC 외 리그·전용 카드 UI. |

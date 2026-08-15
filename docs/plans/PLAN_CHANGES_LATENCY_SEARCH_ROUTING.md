@@ -46,10 +46,29 @@ needsSearch: Annotation<boolean>({
 |---|---|---|
 | `scripts/test-search-rules.mjs` | 룰 프로토타입(LLM-free) | 단일턴 22/22, FP 0, 가드 4/4 |
 | `scripts/test-search-routing-multilingual.mjs` | lite 다국어(en/es/fr) | 14/14 |
-| `scripts/verify-intentrules-search.mts` | 프로덕션 `intentRules.ts` export ↔ 프로토타입 일치 | 22/22, FP 0, 가드 4/4 |
+| `scripts/verify-intentrules-search.mts` | 프로덕션 `intentRules.ts` export ↔ 프로토타입 일치 | ~~22/22~~ → ⚠️ **현재 20/22 `❌ MISMATCH`** (아래) |
 | `scripts/verify-search-integration.mts` | router+generator 합성 결정 시뮬레이션 | **15/15** |
 
 - 타입: `npx tsc --noEmit` → **0 errors** (state/router/generator 전체).
+
+> ### ⚠️ 2026-08-15 검증표 정정 — 위 수치는 스테일하다
+>
+> `verify-intentrules-search.mts` 실제 실행 결과는 **20/22 `❌ MISMATCH`**다.
+>
+> ```
+> ❌ exp=off got=gray | 광합성 과정을 설명해줘
+> ❌ exp=off got=gray | TCP 핸드셰이크가 어떻게 작동하는지 설명해줘
+> ```
+>
+> **프로덕션 버그가 아니다.** `intentRules.ts`가 `설명해/원리/개념`을 강한 OFF에서 의도적으로 제외했고
+> (DEV_260624 §5 A안 — `"gpt 5.5 설명해줘"` 같은 최근 엔티티 설명은 검증 검색이 필요), **테스트 기대값이 낡았다.**
+>
+> 문제는 **왜 몰랐는가**다. `test-search-rules.mjs`는 정규식을 프로덕션에서 import하지 않고
+> **파일 상단에 복사**해 둔다 → 프로덕션이 바뀌어도 그대로 22/22 초록을 유지한다.
+> 드리프트 감지용인 `verify-*.mts`는 RED가 됐지만 CI에 물려 있지 않아 아무도 보지 않았다.
+>
+> → 신규 하니스 `scripts/test-search-policy.mts`는 **프로덕션 모듈을 직접 import**한다.
+> 상세: [PLAN_SEARCH_POLICY_260815 §4 C5](./PLAN_SEARCH_POLICY_260815.md)
 
 ## 추가 버그픽스 (동일 세션, 테스트 중 발견)
 
