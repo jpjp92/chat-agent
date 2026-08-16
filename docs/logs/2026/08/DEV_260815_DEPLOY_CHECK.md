@@ -638,7 +638,7 @@ H·J그룹에서 프롬프트만 고쳐놓고 배포에서 확인하려다 두 �
 
 ### 왜 2턴에 검색이 안 붙었나 — 구조
 
-`drug_info`는 [generator.ts:124](../../../server/agent/nodes/generator.ts#L124) `LANGCHAIN_INTENTS`에 속한다.
+`drug_info`는 [generator.ts:124](../../../../server/agent/nodes/generator.ts#L124) `LANGCHAIN_INTENTS`에 속한다.
 `decideGoogleSearch()`와 `tools:[{googleSearch:{}}]`는 **SDK 분기에만** 있다.
 → **`drug_info` 턴에는 게이트 레벨 grounding이 아예 붙지 않는다.** 검색은 툴 내부에서만 일어난다:
 
@@ -747,3 +747,64 @@ npx tsc --noEmit                            # 0
 | L8 | — | 두 카드 표시 후 `전주가 서울보다 덥네?` | 문장 비교 |
 
 L2·L3이 이번 결함의 직접 재현이다. **카드가 또 뜨면 실패.**
+
+### L그룹 결과 (2026-08-17 로컬)
+
+| # | 쿼리 | 결과 | 비고 |
+|---|---|:--:|---|
+| L1 | `전주 날씨 알려줘` | ✅ | 카드(전주시 26°C, KMA) |
+| L3 | `이번 주 날씨 추이는 어때?` | ✅ | **카드 없이 산문 설명.** 이번 결함의 직접 재현 케이스 |
+| L2 | `내일 비와?` | | |
+| L4 | `우산 챙겨야 할까?` | | |
+| L5~L8 | | | |
+
+**L3에서 수치 정합 확인** — 재서술 중 왜곡이 이 수정의 명시된 위험이었는데 어긋난 값이 없었다.
+
+| 카드 | 답변 |
+|---|---|
+| 오늘 52.5mm · 60% | "강수확률 60%, 50mm 안팎" |
+| 화~목 30% | "화요일(18일)부터 비 그치고" |
+| 최고 32/32/31/31 | "낮 최고 31~32℃" |
+| 최저 24/24/24/24 | "아침 최저 24~25℃" |
+
+카드에 없는 정보를 지어내지도 않았다(5일 범위 안에서만 서술 + 해석만 덧붙임).
+`weatherTool`의 "수치 변형 금지" 지시문이 refine 경로에서도 유효하다는 실측.
+
+---
+
+## 부수 — `/api/sessions 404` 는 코드 결함이 아니었다 (2026-08-17)
+
+```
+GET /api/sessions?offset=0&limit=30 404
+[browser] Failed to load sessions Error: Failed to fetch sessions: 404
+    at fetchSessions (services/geminiService.ts:89:27)
+```
+
+`app/api/sessions/route.ts` 의 `GET` 에는 **404 를 반환하는 경로가 없다**(유일한 404 는 `PATCH` 의 타인 세션).
+인증 실패는 `unauthorized()` → **401** 이다.
+
+재현해보니 `/api/sessions` 뿐 아니라 **모든 API 라우트가 404** 였다 — `/api/chat` 까지. 그런데 그 사이
+앱은 정상 동작 중이었으므로 라우트 하나의 문제일 수 없었다. 로그가 원인을 갖고 있었다:
+
+```
+⚠ Port 3000 is in use by an unknown process, using available port 3001 instead.
+⨯ Another next dev server is already running.  - PID: 17152
+```
+
+**dev 서버 두 인스턴스가 같은 `.next` 를 공유하면 라우트 매니페스트가 깨진다.**
+전부 정리하고 하나만 띄우니:
+
+| 라우트 | 상태 |
+|---|---|
+| `/` | 200 |
+| `/api/sessions` | **401** (토큰 없음 — 정상) |
+| `chat`·`upload`·`speech`·`pill-search`·`fetch-url` | 405 (POST 전용 — 정상) |
+| `showtimes` | 400 (파라미터 없음 — 정상) |
+
+404 가 하나도 없다. `/api/chat` 의 **405 가 등록 증거**다(라우트는 있고 GET 만 없다).
+
+**다시 나면**: `ss -ltn | grep :300` 으로 3000·3001 동시 점유 확인 → `pkill -f "next-server"` → 재시작.
+그래도 남으면 `rm -rf .next`.
+
+> 붙여준 스택트레이스(`geminiService.ts:89`)는 원인이 아니라 **결과**다. `response.ok` 를 정직하게
+> 검사해 404 를 던진 것이고, 그 자리는 올바르게 동작했다. **에러가 난 줄이 결함이 있는 줄은 아니다.**

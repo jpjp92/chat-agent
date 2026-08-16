@@ -185,6 +185,7 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | `law_search` | LangChain + `lawTool` (Gemini normalization + Open API) | 2.5 Flash |
 | `movie_search` | LangChain + `movieTool` → card가 `/api/showtimes` 클라이언트 fetch | 2.5 Flash |
 | `weather` | LangChain + `weatherTool` (KMA + OpenWeather) → `json:weather` fast-pass | 2.5 Flash |
+| `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
 | `sports` | LangChain + `worldCupTool` (football-data.org, markdown) | 2.5 Flash |
 | `medical_qa` | SDK + Google Search grounding | 3.5 Flash; search 시 2.5 single-pass |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer | 3.5 Flash; Search 기본 OFF |
@@ -199,6 +200,10 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 - **단일 JSON 호출로 세 가지를 한 번에 판정**한다 — `intent` · `needs_search` · `follow_up`. 호출을 쪼개면 그만큼 지연이 붙고, 60s 캡 아래에서는 그게 곧 실패다.
 - 판정 구조는 **3단**이다: ① 강한 규칙(확실한 것만) → ② 회색지대만 LLM → ③ 결정론적 폴백. `follow_up` LLM 판정은 `DISABLE_LLM_FOLLOWUP=1` 로 끄고 A/B 비교할 수 있다.
   - 영화 후속 판정에서 **물음표는 약한 신호**로 낮췄다. 강한 신호로 두면 `신촌은 어때?`(새 지역 요청)까지 후속으로 삼켜 카드가 안 뜬다(DEV_260801).
+  - 🔴 **3단 구조는 1단이 넓으면 무너진다.** 날씨 후속에서 `날씨 + 알려/줘`가 1단(새 조회)에 있어 날씨를 묻는 **모든** 자연스러운 발화가 거기서 끝났고, 2·3단은 **사실상 죽은 코드**였다. 사용자가 같은 걸 세 번 물어도 카드만 세 번 뜨고 한 번도 답하지 않았다. → 판정 축을 *"날씨를 물었나"* 에서 **"화면에 없는 도시가 나왔나"** 로 교체(2026-08-17, DEV_260815_DEPLOY_CHECK §5차).
+- 날씨 후속 판정은 `server/agent/weather-followup.ts` 의 **순수 함수**다(하니스가 임포트해야 해서 라우터 인라인에서 분리).
+  - 검증: `npx tsx scripts/test-weather-followup.mts` — 23 케이스.
+  - **닫힌 부류만 거부목록으로 다룬다**(지시어·담화표지·시간어). 도시명은 열린 부류라 사전(`isKnownCityName`, `server/lib/weather`의 `CITY_ALIASES` 재사용)으로 판정한다. 거부목록에 `아니`가 없어서 `아니 날씨 추세 알려줘`의 `아니`가 도시로 잡히던 결함이 이 구분을 만들었다.
 
 ---
 
@@ -240,6 +245,8 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 **`activeCards` 가 클라이언트 판정인 이유**: 서버가 받는 히스토리는 최근 10개로 잘려 있다. 카드가 그 창 밖으로 밀리면 서버 스캔으로는 카드를 못 찾아 후속 판정이 통째로 꺼진다. 전체 히스토리를 가진 클라이언트가 20메시지 창으로 판정해 알려준다(`src/hooks/useChatStream.ts`). 구버전 클라(미전송)면 라우터의 창 내 스캔으로 폴백한다.
 
 > 이 버그는 **로그에 `weatherCardShown` 을 찍기 전까지 오진했다.** "한국어 전용 규칙 때문에 영어가 실패한다"고 결론냈지만, 실제로는 규칙 도달 전에 카드 자체가 창 밖이었다. 영어 날씨 멀티턴 8/11 → 11/11 (DEV_260801 §9).
+
+**카드가 떠 있다(boolean)로는 부족하다 — 어느 도시인지도 있어야 한다.** 라우터가 히스토리의 `json:weather` 에서 `location.name` 을 모아(`shownWeatherCities`) 후속 판정에 넘긴다. 이게 없으면 서울 카드가 떠 있는 상태에서 `내일 부산 비와?` 에 **서울 데이터로 답한다** — 카드가 하나 더 뜨는 것보다 나쁜 실패다(2026-08-17).
 
 날씨·영화가 거의 같은 구조를 두 벌 갖고 있다. **세 번째 카드에 후속 판정이 필요해지면** 일반화한다 — 그 전까지는 쓰지 않는 추상화만 늘어난다([PLAN_BACKLOG_260801](../plans/PLAN_BACKLOG_260801.md) D1).
 
