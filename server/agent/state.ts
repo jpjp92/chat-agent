@@ -57,6 +57,16 @@ export const GraphState = Annotation.Root({
         default: () => false,
     }),
 
+    // 이번 턴이 직전 답변의 **재구성 요청**인지(라우터 follow_up === "refine").
+    // "표로 정리해줘"·"요약해줘"·"비교해줘" 같은 턴은 툴도 검색도 없이 도는 경우가 많아,
+    // 모델이 추가한 항목을 검증할 장치가 하나도 없다. 실제로 직전 턴이 **빈 응답**이었는데도
+    // 제품 4개짜리 표를 만들어낸 사례가 있다(DEV_260815_DEPLOY_CHECK).
+    // 라우터는 이미 "refine"으로 판정하고 있었지만 state로 넘기지 않아 generator가 모르고 있었다.
+    reformatTurn: Annotation<boolean>({
+        reducer: (x, y) => y ?? x,
+        default: () => false,
+    }),
+
     // 이번 턴이 "화면에 떠 있는 날씨 카드"에 대한 후속 대화인지(라우터 판정).
     // generator가 카드 재생성·표 재출력 금지 지시를 주입하는 게이트.
     weatherFollowup: Annotation<boolean>({

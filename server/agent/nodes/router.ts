@@ -416,6 +416,11 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
 
     // cardShown 은 진단에 필수 — 이 값이 false면 후속 판정 블록 자체가 안 돌아 llmFollowUp 이 무시된다
     // (히스토리 창 밖으로 카드가 밀려난 경우가 대표적).
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, weatherCardShown=${weatherCardShown}`);
-    return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup, weatherFollowup };
+    // 재구성 요청 여부 — 여태 llmFollowUp을 로그로만 찍고 버렸다. 그 탓에 generator는 이번 턴이
+    // "형식만 바꿔달라"는 요청인지 모른 채, 수백 줄짜리 정적 프롬프트에 판단을 맡기고 있었다.
+    // (검색 판정에서 겪은 것과 같은 정보 손실 — DEV_260815 §2-2)
+    const reformatTurn = llmFollowUp === "refine";
+
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}`);
+    return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup, weatherFollowup, reformatTurn };
 };

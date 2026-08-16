@@ -11,12 +11,59 @@ const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
 const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
 
 /**
+ * 검색 leg의 결과. **`empty`(검색했는데 결과 없음)와 `unavailable`(검색이 실행조차 안 됨)을
+ * 반드시 구분한다.** 예전에는 둘 다 `null`이라, 429로 검색이 안 돌았는데도
+ * "검색해도 없다"로 처리돼 모델이 훈련 지식으로 제품명을 지어냈다(DEV_260815_DEPLOY_CHECK).
+ */
+export type DrugSearchUnavailable = { kind: 'quota' | 'error'; reason: string };
+
+type DrugSearchOutcome =
+    | { status: 'ok'; text: string }
+    | { status: 'empty' }
+    | ({ status: 'unavailable' } & DrugSearchUnavailable);
+
+const isQuotaError = (e: any): boolean =>
+    e?.status === 429 || /429|RESOURCE_EXHAUSTED|quota/i.test(e?.message ?? '');
+
+/**
+ * MFDS에도 없고 웹 검색도 실패했을 때 모델에게 줄 지시문.
+ *
+ * 순수 함수로 빼 둔 이유: 이 문자열이 **환각의 직접 원인**이었기 때문이다.
+ * 예전 판본은 "훈련 데이터의 의학 지식을 활용해 상세히 안내하세요. 절대로 '찾을 수 없습니다'라고
+ * 답하지 마세요"였고, 429로 검색이 안 돈 턴에서 실존하지 않는 제품명이 나왔다
+ * (오라메디 인공타액액 / Ortho-Saliva / 아쿠아 오랄 스프레이).
+ * 시스템 프롬프트의 약 정보 방어(prompt.ts L280·L282)보다 툴 출력이 모델에 가까워서 이게 이겼다.
+ *
+ * 네트워크 없이 검사할 수 있어야 회귀가 잡힌다 → scripts/test-drug-fallback.mts
+ *
+ * 두 상황의 **어조를 다르게** 둔다. 이 문자열은 모델이 읽고 사용자에게 옮기는 프레임이라
+ * 단정적으로 쓰면 그대로 단정적인 답변이 된다:
+ *   · 할당량 소진 → 우리 쪽 사정이다. 그렇게 말한다("지금은 검색을 못 했다").
+ *   · 결과 없음   → "쓸만한 게 없다"는 판단조가 아니라 "추가로 확인된 게 없다"는 사실 서술.
+ *     검색에 안 걸렸다고 정보가 없는 것은 아니다.
+ *
+ * @param unavailable 검색이 **실행되지 못한** 사유. null이면 검색은 됐고 추가 정보가 없었다.
+ */
+export const buildDrugFallbackInstruction = (drugName: string, unavailable: DrugSearchUnavailable | null): string => {
+    // 상표명은 검색으로만 확인 가능한 사실이다. 검색이 없으면 쓸 수 없다.
+    const noBrandRule = `\n\n🔴 제품명·브랜드명·제조사는 **절대 나열하지 마세요.** 상표명은 검색으로만 확인되는 사실이며 지금은 확인할 수 없습니다. 사용자가 "대표 제품"을 물으면 제형(스프레이·젤·액상 등)별 분류로 답하고, 구체적 제품은 약사에게 확인하도록 안내하세요. 확인되지 않는 것은 모른다고 답해도 됩니다.`;
+
+    const head = unavailable
+        ? (unavailable.kind === 'quota'
+            ? `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drugName}"이(가) 없고(비알약 제형 등), **웹 검색 할당량이 소진되어 이번 턴에는 검색을 수행하지 못했습니다.** 정보가 없는 것이 아니라 지금 조회를 못 한 상황입니다.`
+            : `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drugName}"이(가) 없고(비알약 제형 등), **웹 검색을 수행하지 못했습니다** (${unavailable.reason}).`)
+        : `[MFDS_NOT_FOUND] 식약처 알약식별 DB는 알약·정제만 관리하므로 "${drugName}"은(는) 등록 대상이 아닙니다 (파스·연고·크림·시럽·패치 등). 웹 검색에서는 추가로 확인된 정보가 없었습니다.`;
+
+    return `${head}\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 일반적인 의학 지식 범위에서만 성분·효능·용법·주의사항을 마크다운(헤딩·불릿)으로 설명하세요.${noBrandRule}`;
+};
+
+/**
  * Uses Gemini SDK with Google Search grounding to retrieve drug info.
  * Called when MFDS returns no results (non-pill products like patches, ointments).
  */
-async function searchDrugViaGoogleSearch(drugName: string): Promise<string | null> {
+async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOutcome> {
     const apiKey = getNextApiKey();
-    if (!apiKey) return null;
+    if (!apiKey) return { status: 'unavailable', kind: 'error', reason: 'API 키 없음' };
     try {
         const genai = new GoogleGenAI({ apiKey });
         const response = await genai.models.generateContent({
@@ -28,7 +75,7 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
             },
         });
         const text = response.text?.trim();
-        if (!text || text.length < 50) return null;
+        if (!text || text.length < 50) return { status: 'empty' };
 
         const gm = response.candidates?.[0]?.groundingMetadata as any;
         console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars | chunks: ${gm?.groundingChunks?.length ?? 'none'} | queries: ${JSON.stringify(gm?.webSearchQueries)}`);
@@ -41,19 +88,22 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<string | nul
                 .map((c: any) => `${c.web.uri} | ${c.web.title || c.web.uri}`)
                 .join('\n');
             if (urlLines) {
-                return `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}`;
+                return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}` };
             }
         }
         // Fallback: if grounding chunks are empty but search queries exist, use a Google search URL
         const queries = gm?.webSearchQueries as string[] | undefined;
         if (queries && queries.length > 0) {
             const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queries[0])}`;
-            return `${text}\n\n[WEB_SOURCE_URLS]\n${searchUrl} | Google 검색: ${queries[0]}`;
+            return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${searchUrl} | Google 검색: ${queries[0]}` };
         }
-        return text;
+        return { status: 'ok', text };
     } catch (e: any) {
         console.error(`[Agent Tool] Google Search drug info error:`, e.message);
-        return null;
+        // 쿼터 소진은 "결과 없음"이 아니다 — 검색이 아예 안 돌았다.
+        return isQuotaError(e)
+            ? { status: 'unavailable', kind: 'quota', reason: '웹 검색 할당량 소진(429)' }
+            : { status: 'unavailable', kind: 'error', reason: (e?.message ?? 'unknown').slice(0, 80) };
     }
 }
 
@@ -187,23 +237,33 @@ export const searchDrugInfoTool = tool(
             if (!Array.isArray(items) || items.length === 0) {
                 const notFoundPrefix = `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 없습니다 (파스·연고·크림·시럽 등 비알약 제형이거나 미등재).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 검색 결과를 바탕으로 성분·효능·용법을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n`;
 
+                // 검색 leg가 "실행되지 못했는지"를 추적한다 — 결과 없음과 다르게 다뤄야 한다.
+                let searchUnavailable: DrugSearchUnavailable | null = null;
+
                 // 1st: Google Search grounding (most reliable)
                 const googleResult = await searchDrugViaGoogleSearch(drug_name);
-                if (googleResult) {
-                    return notFoundPrefix + googleResult;
+                if (googleResult.status === 'ok') {
+                    return notFoundPrefix + googleResult.text;
                 }
+                if (googleResult.status === 'unavailable') searchUnavailable = { kind: googleResult.kind, reason: googleResult.reason };
 
                 // 2nd: DuckDuckGo fallback
                 try {
                     const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
-                    const hasWebContent = !webResult.includes('웹 검색 결과가 없습니다') && !webResult.includes('오류가 발생했습니다');
-                    if (hasWebContent) {
+                    if (webResult.includes('오류가 발생했습니다')) {
+                        searchUnavailable = searchUnavailable ?? { kind: 'error', reason: 'DuckDuckGo 오류' };
+                    } else if (!webResult.includes('웹 검색 결과가 없습니다')) {
                         return notFoundPrefix + webResult;
                     }
-                } catch (_) { /* ignore */ }
+                } catch (e: any) {
+                    searchUnavailable = searchUnavailable ?? { kind: 'error', reason: (e?.message ?? 'DuckDuckGo 예외').slice(0, 80) };
+                }
 
-                // 3rd: LLM internal knowledge
-                return `[MFDS_NOT_FOUND] 식약처 알약식별 DB는 알약·정제만 관리하므로 "${drug_name}"은(는) 등록 대상이 아닙니다 (파스·연고·크림·시럽·패치 등).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 훈련 데이터의 의학 지식을 활용해 성분·효능·용법·주의사항을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 절대로 "찾을 수 없습니다"라고 답하지 마세요.`;
+                // ── 3rd: 검색이 전부 실패했다 (지시문은 buildDrugFallbackInstruction 참조) ──
+                if (searchUnavailable) {
+                    console.warn(`[Agent Tool] Drug search unavailable for "${drug_name}": ${searchUnavailable.kind} — ${searchUnavailable.reason}`);
+                }
+                return buildDrugFallbackInstruction(drug_name, searchUnavailable);
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it

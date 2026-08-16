@@ -24,6 +24,8 @@
 
 > **2026-08-08**: 업로드 첨부(영상·대용량 PDF) 분석 실패 3건 수정 — [DEV_260808](../logs/2026/08/DEV_260808.md). `models.ts`·`generator.ts` 변경이라 **컷오버와 겹치는 파일이 아니다**. dev 배포 후 실제 UI 확인만 남음.
 
+> **2026-08-16 (2)**: 로컬 검증에서 3건 추가 수정 — ⓐ 제형 어휘 기반 의약 intent 복구(`인공 타액제`가 general로 새며 MFDS 경로 우회) ⓑ drug 툴 폴백이 "훈련 지식으로 상세히 쓰고 **못 찾겠다고 하지 마라**"고 지시해 제품명을 지어내던 것 교체 + 검색 실패를 할당량/오류/결과없음 3분류 ⓒ 재구성 요청(`표로 정리해줘`) 턴에 항목이 추가되던 결함 — 라우터가 `follow_up=refine`을 판정하고도 state로 안 넘겨 generator가 몰랐다 → `state.reformatTurn` 신설. 🔴 부수: `next.config.ts`의 `removeConsole`이 **서버 로그까지 지워** `[SearchPolicy]`가 프로덕션에 존재한 적이 없었다(클라 `console.log`는 0개 — 지키던 게 없었다) → `KEEP_LOGS` 게이트. 검증·쿼리: [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md)
+
 > **2026-08-16**: Step 4·6 구현 완료(로컬 GREEN, 미배포) — 게이트를 tier 기반 신호 제출로 전환 + `prevSearched`를 실제 grounding 출처로 교체. 배포 검증은 [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md). 검증 중 파생 발견 2건: ⓐ `인공타액제`류 제형 명칭이 의약 키워드에 없어 `general`로 떨어짐 → `gray`+라우터 LLM 한 표로 검색 여부가 갈린다 ⓑ 검색 OFF 턴에 "실시간 검색 없이…" 고백 문구가 조건을 무시하고 샌다 → [PLAN_SEARCH_SUGGEST_CHIPS_260816](PLAN_SEARCH_SUGGEST_CHIPS_260816.md)(프롬프트 침묵화 + 추천 칩)
 
 > **2026-08-15**: 검색 의도분류 누락 진단 — [DEV_260815](../logs/2026/08/DEV_260815.md) · 재설계 계획 [PLAN_SEARCH_POLICY_260815](PLAN_SEARCH_POLICY_260815.md). 테스트 하니스(`scripts/test-search-policy.mts`)까지 완료, **구현 착수 전**. `router.ts`·`search-gate.ts`·`intentRules.ts` 변경이라 **컷오버와 겹치는 파일이 아니다**. 부수 발견: 기존 검증 스크립트가 이미 RED였다(문서는 초록이라 주장) — 계획 §4 C5.
