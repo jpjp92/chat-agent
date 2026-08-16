@@ -59,6 +59,25 @@ const CITY_ONLY_REASK = /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/;
 // 날씨와 무관해진 발화("주말 나들이 계획 짜줘")는 여기 안 걸려야 한다(검색을 살려야 하므로).
 const INTERPRETIVE = /왜|이유|우산|빨래|외출|나가도|입을|옷|옷차림|괜찮을까|편[이야]?\?|덥|춥|시원|후텁|쾌적|어느\s*날|무슨\s*요일|가장|제일|높|낮/;
 
+/**
+ * 오늘/내일/모레/글피 ↔ `daily[].date`(YYYY-MM-DD) 대응표.
+ *
+ * 날짜 대응을 **모델에게 계산시키지 않기 위해** 서버가 만들어 준다. 실측(2026-08-17):
+ * `내일 서울 비와?` 에 카드 히어로 블록(= **오늘** 강수 `19mm·60%`)을 그대로 집어
+ * "내일 60%"라고 답했고, 같은 답변에서 18일을 "모레"라고 불렀다(하루씩 밀림).
+ * 프롬프트에 `CURRENT_SYSTEM_TIME` 이 있어도 `daily[].date` 와의 대응은 **별개의 계산**이라 틀린다.
+ */
+export const buildDateLadder = (now: Date, tz: string): string => {
+    const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    const weekday = (d: Date) => new Intl.DateTimeFormat("ko-KR", { timeZone: tz, weekday: "short" }).format(d);
+    // 로컬 자정 경계를 넘기지 않도록 UTC 밀리초로 더한다(setDate는 서버 로컬 타임존을 탄다).
+    const at = (offset: number) => {
+        const d = new Date(now.getTime() + offset * 86400000);
+        return `${ymd(d)}(${weekday(d)})`;
+    };
+    return ["오늘", "내일", "모레", "글피"].map((label, i) => `- ${label} = ${at(i)}`).join("\n");
+};
+
 /** 지명일 수 없는 토큰인가 — 지시어·담화표지·시간어 */
 const isNonPlaceToken = (t: string): boolean =>
     VAGUE_BEFORE_WEATHER.test(t) || DISCOURSE_MARKER.test(t) || TIME_TOKEN.test(t);

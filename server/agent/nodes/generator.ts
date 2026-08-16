@@ -10,6 +10,7 @@ import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { runLangChainPath } from "./langchain-path";
+import { buildDateLadder } from "../weather-followup";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -94,6 +95,11 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 대화하도록 지시한다. (표 규칙 [WEATHER FORMATTING]은 이제 weather 의도에만 주입되므로
         //  이 턴엔 애초에 없지만, 히스토리의 이전 카드/표를 따라 그리는 관성은 남아 명시적으로 막는다.)
         if (state.weatherFollowup) {
+            // 날짜 대응을 **모델에게 계산시키지 않는다.** 실측(2026-08-17): `내일 서울 비와?`에
+            // 카드의 히어로 블록(= 오늘 강수 `19mm·60%`)을 그대로 집어 "내일 60%"라고 답했고,
+            // 같은 답변에서 18일을 "모레"라고 불렀다(하루씩 밀림). 프롬프트에 CURRENT_SYSTEM_TIME이
+            // 있어도 daily[].date와의 대응은 별개의 계산이라 틀린다 → 대응표를 서버가 만들어 준다.
+            finalInstruction += `\n\n[날짜 대응표 — 이번 턴, 이 값이 정답입니다]\n${buildDateLadder(now, tz)}\n- \`json:weather\`의 \`daily[].date\`(YYYY-MM-DD)를 **위 표와 대조해서** 해당 날짜의 값을 쓰세요. 직접 날짜를 계산하지 마세요.\n- 🔴 \`current\`와 강수 히어로 블록은 **오늘** 값입니다. 내일·모레를 물으면 절대 쓰지 말고 \`daily\`에서 그 날짜를 찾으세요.\n- 요청받은 날짜가 \`daily\` 범위 밖이면 예보가 거기까지 없다고 밝히세요.`;
             finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- 5일 예보 표를 다시 그리지 마세요. 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
         }
 
