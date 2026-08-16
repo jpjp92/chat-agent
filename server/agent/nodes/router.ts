@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
 import { classifyIntentByRules, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed } from "../intentRules";
+import { decideWeatherFollowup } from "../weather-followup";
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -61,6 +62,19 @@ export const routerNode = async (state: AgentStateType) => {
     const weatherCardInWindow = state.messages.some((m: any) =>
         m._getType?.() === 'ai' && /```json\s*:\s*weather/.test(String(m.content ?? '')));
     const weatherCardShown = state.activeCards?.weather ?? weatherCardInWindow;
+
+    // 화면 카드가 어느 도시인가 — 후속 판정이 "화면에 없는 도시가 나왔나"를 보려면 필요하다.
+    // (이게 없으면 서울 카드가 떠 있는데 "내일 부산 비와?"에 서울로 답한다.)
+    const shownWeatherCities: string[] = [];
+    for (const m of state.messages) {
+        if ((m as any)._getType?.() !== 'ai') continue;
+        for (const b of String((m as any).content ?? '').matchAll(/```json\s*:\s*weather\s*\n([\s\S]*?)\n```/g)) {
+            try {
+                const name = JSON.parse(b[1])?.location?.name;
+                if (typeof name === 'string' && name && !shownWeatherCities.includes(name)) shownWeatherCities.push(name);
+            } catch { /* 부분 스트리밍·에러 카드 — 무시 */ }
+        }
+    }
 
     // 카드가 떠 있으면 LLM에게 그 사실을 명시한다 — 직전 응답 본문이 카드 JSON이라 원문만으로는
     // "화면에 카드가 있다"는 맥락이 잘 안 읽힌다(follow_up 판정 품질에 직접 영향).
@@ -264,56 +278,28 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     // 카드가 없을 때(첫 발화 등)는 해석형 오분류만 방어.
     let weatherFollowup = false;
     if (weatherCardShown) {
-        // "이런 날씨", "요즘 날씨", "더운 날씨"처럼 지시어·수식어가 붙은 '날씨'는 새 조회가 아니라
-        // 떠 있는 카드에 대한 코멘트다("이런 날씨엔 뭐 먹을까?"). 도시명일 때만 재조회로 본다.
-        const VAGUE_BEFORE_WEATHER = /^(이런|그런|저런|이|그|저|요즘|요새|무슨|어떤|더운|추운|좋은|나쁜|이딴|같은|덥고|춥고)$/;
-        const cityWeatherRequest = Array.from(textContent.matchAll(/([가-힣A-Za-z]{1,12})\s*날씨/g))
-            .some(m => !VAGUE_BEFORE_WEATHER.test(m[1]));
-        // 시점 토큰 단독은 날씨 요청이 아니다("주말 나들이 계획 짜줘") — 날씨 어휘와 동반될 때만 새 조회.
-        const timeShift = /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/.test(textContent);
-        const weatherWord = /날씨|예보|기온|온도|몇\s*도|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)|강수|더[워울]|추[워울]|맑|흐[림려]/.test(textContent);
-        const newFetch =
-            (timeShift && weatherWord)                                                                                            // 미래/시점 이동 + 날씨 어휘
-            || (/(날씨|예보)/.test(textContent) && /(알려|보여|어때|어떄|어떻|찾아|줘|해\s*줘|궁금|부탁)/.test(textContent))          // 명시 요청
-            || /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/.test(textContent.trim())                                              // "부산은?"·"내일은?" 재조회
-            || cityWeatherRequest;                                                                                                // "부산 날씨"
-        // 강한 "카드 해석" 신호 — 지시어가 붙은 '날씨' 언급이거나 해석형 어휘.
-        // 날씨와 무관해진 발화("주말 나들이 계획 짜줘")는 여기 안 걸려야 한다(검색을 살려야 하므로).
-        const interpretive = /왜|이유|우산|빨래|외출|나가도|입을|옷|옷차림|괜찮을까|편[이야]?\?|덥|춥|시원|후텁|쾌적|어느\s*날|무슨\s*요일|가장|제일|높|낮/;
-        const strongRefine = (/날씨/.test(textContent) && !cityWeatherRequest) || weatherWord || interpretive.test(textContent);
-
-        // 판정 우선순위 (needsSearch 3분기와 같은 원칙: 강한 규칙 → 회색지대 LLM → 폴백)
-        //   1) 강한 새 조회 신호  → weather (카드 재생성)
-        //   2) 강한 해석 신호     → general + weatherFollowup (카드 데이터로 답변)
-        //   3) 회색지대           → 라우터 LLM의 follow_up 판정
-        //   4) LLM 판정 없음      → 기존 결정론 폴백(무료티어 503/timeout 대비)
-        // 3)이 없어도 1)·2)만으로 기존 동작이 그대로 남도록 감싸는 구조다(롤백 안전).
-        const asRefine = (why: string) => {
+        // 판정은 weather-followup.ts의 순수 함수로 나가 있다 — 하니스가 임포트해야 하기 때문이다.
+        // 인라인이던 시절, `날씨 + 알려/줘`가 전부 새 조회로 새면서 사용자가 같은 질문을 세 번 해도
+        // 카드만 세 번 뜨고 한 번도 답하지 않던 결함이 있었다.
+        // 검증: `npx tsx scripts/test-weather-followup.mts`
+        const { decision, why } = decideWeatherFollowup({
+            text: textContent,
+            intentIsWeather: intent === "weather",
+            llmFollowUp: llmFollowUp as any,
+            // A/B 측정용 스위치 — 1이면 LLM 판정을 무시하고 규칙만으로 결정한다.
+            useLlm: process.env.DISABLE_LLM_FOLLOWUP !== '1',
+            shownCities: shownWeatherCities,
+        });
+        if (decision === "new") {
+            if (intent !== "weather") { intent = "weather"; console.log(`[LangGraph] Weather follow-up (new ${why}): new city fetch`); }
+        } else if (decision === "refine") {
             if (intent === "weather") intent = "general";
             weatherFollowup = true;
             console.log(`[LangGraph] Weather follow-up (refine ${why}): answer from shown card`);
-        };
-        const asNewFetch = (why: string) => {
-            if (intent !== "weather") { intent = "weather"; console.log(`[LangGraph] Weather follow-up (new ${why}): new city/time fetch`); }
-        };
-        // A/B 측정용 스위치 — 1이면 LLM 판정을 무시하고 규칙만으로 결정한다.
-        const useLlmFollowUp = process.env.DISABLE_LLM_FOLLOWUP !== '1' && !!llmFollowUp;
-
-        if (newFetch) {
-            asNewFetch('rule');
-        } else if (strongRefine) {
-            asRefine('rule');
-        } else if (useLlmFollowUp) {
-            if (llmFollowUp === "new") asNewFetch('llm');
-            else if (llmFollowUp === "refine") asRefine('llm');
-            else {
-                // unrelated: 주제가 카드를 떠났다 → 카드 재생성도, 검색 억제도 하지 않는다.
-                if (intent === "weather") intent = "general";
-                console.log('[LangGraph] Weather follow-up (unrelated llm): topic moved away from card');
-            }
-        } else if (intent === "weather") {
-            // 폴백: LLM 판정이 없는데 weather로 분류됐고 새 조회 신호도 없음 → 카드 해석으로 본다.
-            asRefine('fallback');
+        } else if (decision === "unrelated") {
+            // 주제가 카드를 떠났다 → 카드 재생성도, 검색 억제도 하지 않는다.
+            if (intent === "weather") intent = "general";
+            console.log('[LangGraph] Weather follow-up (unrelated llm): topic moved away from card');
         }
     } else if (intent === "weather") {
         const interp = /왜|이유|우산|빨래|외출|나가도|입을|옷차림|괜찮을까|심한\s*편|높은\s*편|낮은\s*편/;

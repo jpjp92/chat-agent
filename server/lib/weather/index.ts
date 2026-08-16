@@ -75,7 +75,7 @@ const CITY_ALIASES: Record<string, string> = {
   서울: 'Seoul,KR', 서울시: 'Seoul,KR', 부산: 'Busan,KR', 대구: 'Daegu,KR',
   인천: 'Incheon,KR', 광주: 'Gwangju,KR', 대전: 'Daejeon,KR', 울산: 'Ulsan,KR',
   세종: 'Sejong,KR', 수원: 'Suwon,KR', 성남: 'Seongnam,KR', 용인: 'Yongin,KR',
-  고양: 'Goyang,KR', 제주: 'Jeju,KR', 제주시: 'Jeju,KR', 서귀포: 'Seogwipo,KR',
+  고양: 'Goyang,KR', 제주: 'Jeju,KR', 제주시: 'Jeju,KR', 제주도: 'Jeju,KR', 서귀포: 'Seogwipo,KR',
   춘천: 'Chuncheon,KR', 강릉: 'Gangneung,KR', 청주: 'Cheongju,KR', 전주: 'Jeonju,KR',
   포항: 'Pohang,KR', 창원: 'Changwon,KR', 여수: 'Yeosu,KR', 목포: 'Mokpo,KR',
   안동: 'Andong,KR', 원주: 'Wonju,KR', 천안: 'Cheonan,KR', 김해: 'Gimhae,KR',
@@ -100,6 +100,17 @@ function openWeatherKey() {
 }
 function kmaKey() {
   return process.env.KMA_API_KEY;
+}
+
+/**
+ * 이 이름이 우리가 아는 도시인가 — 라우터의 날씨 후속 판정(`weather-followup.ts`)이 쓴다.
+ * 별칭 표를 그대로 재사용해 **사전이 따로 늙지 않게** 한다(복사 금지).
+ * 여기 없는 지명(순천·구미…)은 `false`지만, 호출부가 그걸 "도시 아님"이 아니라
+ * "확신 없음"으로 다뤄야 한다 — 이 표는 allowlist가 아니라 geocoding 별칭이다.
+ */
+export function isKnownCityName(name: string): boolean {
+  const n = normalizeCityInput(name);
+  return !!(CITY_ALIASES[n] || CITY_ALIASES[compactCity(n)]);
 }
 
 export function normalizeCityInput(city: string) {
