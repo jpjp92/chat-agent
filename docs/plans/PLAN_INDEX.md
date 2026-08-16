@@ -24,6 +24,10 @@
 
 > **2026-08-08**: 업로드 첨부(영상·대용량 PDF) 분석 실패 3건 수정 — [DEV_260808](../logs/2026/08/DEV_260808.md). `models.ts`·`generator.ts` 변경이라 **컷오버와 겹치는 파일이 아니다**. dev 배포 후 실제 UI 확인만 남음.
 
+> **2026-08-16 (4)**: ✅ 룰 폴백 정밀도 작업 **완료**(로컬 GREEN, 미배포) — 오탐 **35 → 0**, 회귀 0, 회귀 가드 34건 유지. 하니스 `scripts/test-intent-rules.mts`를 먼저 세운 것이 결정적이었다: 착수 후 **오탐 8건을 추가로 발견**(`이번 달 일정`·`달러 환율`·`태양광 발전`→astronomy, **`Gemini 모델 비교`→astronomy** ← 이 앱의 주력 모델명, `cancer 치료제`→astronomy, `국회의원 정수`→hospital), 게다가 수정 중 만든 새 오탐(`A안과 B안` → 진료과 `안과`)과 이스케이프 결함(`\\s`)까지 그 자리에서 잡혔다. 교훈: **오탐 측정은 프로브 발화의 상상력에 상한이 걸린다 — 토큰 단위 감사를 먼저 할 것.** [PLAN_INTENT_RULES_PRECISION_260816](PLAN_INTENT_RULES_PRECISION_260816.md)
+
+> **2026-08-16 (3)**: 🔴 룰 폴백 정밀도 문제 발견 — `classifyIntentByRules` 오탐 **27건**(정탐 16·미포착 3). 최악은 `분기별 매출을 막대 차트로 그려줘` → **astronomy**(`별\s` 패턴이 `분기별 `를 물고, first-match-wins라 뒤에 있는 data_viz에 닿지도 못함). 라우터 LLM이 429/503으로 죽었을 때만 발동하지만 무료티어에선 상시 조건에 가깝다. `weather`·`movie_search`는 구제 경로라 **LLM 성공 시에도** 오탐이 산다. 계획: [PLAN_INTENT_RULES_PRECISION_260816](PLAN_INTENT_RULES_PRECISION_260816.md)
+
 > **2026-08-16 (2)**: 로컬 검증에서 3건 추가 수정 — ⓐ 제형 어휘 기반 의약 intent 복구(`인공 타액제`가 general로 새며 MFDS 경로 우회) ⓑ drug 툴 폴백이 "훈련 지식으로 상세히 쓰고 **못 찾겠다고 하지 마라**"고 지시해 제품명을 지어내던 것 교체 + 검색 실패를 할당량/오류/결과없음 3분류 ⓒ 재구성 요청(`표로 정리해줘`) 턴에 항목이 추가되던 결함 — 라우터가 `follow_up=refine`을 판정하고도 state로 안 넘겨 generator가 몰랐다 → `state.reformatTurn` 신설. 🔴 부수: `next.config.ts`의 `removeConsole`이 **서버 로그까지 지워** `[SearchPolicy]`가 프로덕션에 존재한 적이 없었다(클라 `console.log`는 0개 — 지키던 게 없었다) → `KEEP_LOGS` 게이트. 검증·쿼리: [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md)
 
 > **2026-08-16**: Step 4·6 구현 완료(로컬 GREEN, 미배포) — 게이트를 tier 기반 신호 제출로 전환 + `prevSearched`를 실제 grounding 출처로 교체. 배포 검증은 [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md). 검증 중 파생 발견 2건: ⓐ `인공타액제`류 제형 명칭이 의약 키워드에 없어 `general`로 떨어짐 → `gray`+라우터 LLM 한 표로 검색 여부가 갈린다 ⓑ 검색 OFF 턴에 "실시간 검색 없이…" 고백 문구가 조건을 무시하고 샌다 → [PLAN_SEARCH_SUGGEST_CHIPS_260816](PLAN_SEARCH_SUGGEST_CHIPS_260816.md)(프롬프트 침묵화 + 추천 칩)
