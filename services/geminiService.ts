@@ -22,7 +22,7 @@ let sharedAudioContext: AudioContext | null = null;
  * 세션이 아직 없으면(익명 로그인 진행 중) 던진다 — 토큰 없이 보내 401 을 받고
  * "네트워크 오류"로 오해하는 것보다 낫다. 호출부는 currentUser 게이트로 막는다.
  */
-async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
   return fetch(input, {
@@ -34,7 +34,7 @@ async function authedFetch(input: string, init: RequestInit = {}): Promise<Respo
 export const uploadToStorage = async (file: { fileName: string; data: string; mimeType: string }, bucket: string) => {
   try {
     // 1. Get Signed Upload URL from backend
-    const signRes = await fetch('/api/create-signed-url', {
+    const signRes = await authedFetch('/api/create-signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

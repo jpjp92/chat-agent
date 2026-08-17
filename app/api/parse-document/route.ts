@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../server/supabase';
+import { createRouteClient, userIdFromToken, unauthorized } from '../../../lib/supabase/route';
 
 /**
  * HWP 계열 문서 파싱 API — kordoc으로 구조 보존 마크다운(표 포함) 추출.
@@ -22,7 +22,10 @@ const STORAGE_BUCKET = 'chat-docs';
 // filePath는 create-signed-url이 만든 형식(`${timestamp}_${safeBaseName}.ext`)만 허용.
 // 단일 세그먼트(슬래시·`..` 금지)로 한정해 경로 traversal/타 객체 접근을 차단(IDOR 완화).
 // 무인증 앱이라 소유권 검증은 불가 → 최소한 네임스페이스 형태로 blast radius 제한.
-const STORAGE_PATH_RE = /^\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$/i;
+// 🔴 2026-08-17: uid 세그먼트를 요구하도록 바꿨다. 예전 형식(`${timestamp}_...`)은 무인증
+// 시절의 것이고, 이제 업로드가 `${uid}/${timestamp}_...` 를 만든다. 소유권은 아래 RLS 가 강제하고
+// 이 정규식은 형태만 본다(`..`·중첩 슬래시 차단).
+const STORAGE_PATH_RE = /^[0-9a-f-]{36}\/\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$/i;
 // 마크다운 길이 상한(L4) — NIA 159K자(≈5만 토큰) 사례. /api/chat 주입 전 트렁케이트로
 // LLM TTFT·생성 지연 + 토큰 비용 절감. 대다수 문서(중기부 35K 등)는 영향 없음.
 const MARKDOWN_MAX = 100_000;
@@ -69,6 +72,12 @@ function buildResponse(result: Awaited<ReturnType<typeof parseBuffer>>) {
 
 export async function POST(req: NextRequest) {
   try {
+    // 🔴 2026-08-17 이전 무인증이었다. 두 경로 모두 인증을 요구한다 —
+    //    ⓐ 직행도 파싱 연산을 소비하므로 열어둘 이유가 없다.
+    const db = createRouteClient(req);
+    const uid = userIdFromToken(req);
+    if (!db || !uid) return unauthorized();
+
     const contentType = req.headers.get('content-type') || '';
 
     // ── ⓐ 직행: multipart/form-data raw 바이너리 (raw ≤ 4MB) ──
@@ -96,14 +105,7 @@ export async function POST(req: NextRequest) {
     if (!STORAGE_PATH_RE.test(filePath)) {
       return NextResponse.json({ error: 'Invalid filePath' }, { status: 400 });
     }
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.' },
-        { status: 500 },
-      );
-    }
-
-    const { data, error } = await supabaseAdmin.storage.from(STORAGE_BUCKET).download(filePath);
+    const { data, error } = await db.storage.from(STORAGE_BUCKET).download(filePath);
     if (error || !data) {
       return NextResponse.json(
         { error: `Storage download failed: ${error?.message || 'no data'}` },

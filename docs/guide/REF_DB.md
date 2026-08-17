@@ -116,7 +116,11 @@ create table if not exists public.url_cache (
 ## Storage 버킷
 
 허용 버킷 화이트리스트: `ALLOWED_BUCKETS = ['chat-imgs', 'chat-videos', 'chat-docs']`  
-(`app/api/upload/route.ts`, `app/api/create-signed-url/route.ts` 양쪽에 하드코딩)
+(`app/api/create-signed-url/route.ts` 에 하드코딩)
+
+> 🔴 **경로 규약이 바뀌었다 (2026-08-17)** — 이제 `${auth.uid()}/{timestamp}_{safe-name}` 이다.
+> 아래 표의 평면 경로(`{timestamp}_...`)는 **레거시**로, 그대로 남겨두되 새로 만들지 않는다.
+> Storage RLS 가 첫 폴더 세그먼트를 `auth.uid()` 와 대조한다(`scripts/sql/storage-user-prefix-rls.sql`).
 
 ---
 
@@ -126,8 +130,8 @@ create table if not exists public.url_cache (
 
 | 업로더 | 파일 경로 패턴 | 비고 |
 |---|---|---|
-| `app/api/upload/route.ts` (서버 base64) | `{timestamp}_{safe-name}.{ext}` | 특수문자 → `-` 치환, 소문자화 |
-| `app/api/create-signed-url/route.ts` (클라이언트 PUT) | `{timestamp}_{safe-name}` | `.` 허용, 소문자화 |
+| `app/api/create-signed-url/route.ts` (클라이언트 PUT) | `{uid}/{timestamp}_{safe-name}` | `.` 허용, 소문자화 |
+| ~~`app/api/upload/route.ts`~~ | ~~`{timestamp}_{safe-name}.{ext}`~~ | **삭제됨(2026-08-17)** — 아래 "업로드 경로 비교" 참조 |
 | `app/api/sync-drug-image/route.ts` (약품 이미지 캐시) | `drug-cache/{urlHash}.jpg` | URL SHA256 해시 기반. 중복 요청 in-flight dedup |
 
 **접근:** `app/api/proxy-image/route.ts`가 이 버킷의 이미지를 외부 URL 대신 프록시로 제공
@@ -140,7 +144,6 @@ create table if not exists public.url_cache (
 
 | 업로더 | 파일 경로 패턴 |
 |---|---|
-| `app/api/upload/route.ts` | `{timestamp}_{safe-name}.{ext}` |
 | `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` |
 
 ---
@@ -151,7 +154,6 @@ create table if not exists public.url_cache (
 
 | 업로더 | 파일 경로 패턴 | 비고 |
 |---|---|---|
-| `app/api/upload/route.ts` | `{timestamp}_{safe-name}.{ext}` | |
 | `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` | |
 
 **자동 라우팅:** `useChatStream.ts`에서 1MB 이상 문서는 인라인 base64 대신 이 버킷에 업로드 후 URL만 전달 → Vercel 4.5MB payload 초과 방지
@@ -162,10 +164,17 @@ create table if not exists public.url_cache (
 
 | 경로 | API | 방식 | 본문 한도 |
 |---|---|---|---|
-| 서버 경유 | `app/api/upload/route.ts` | 서버가 base64 수신 → Buffer 변환 → Storage PUT | Vercel 함수 본문 4.5MB (App Router라 `bodyParser` 설정 없음; `runtime=nodejs`, `maxDuration=60`) |
-| 클라이언트 직접 | `app/api/create-signed-url/route.ts` → 클라이언트 PUT | Signed URL 발급 → 브라우저가 Storage 직접 PUT | 없음 (브라우저 제한) |
+| **클라이언트 직접** (현행) | `app/api/create-signed-url/route.ts` → 클라이언트 PUT | Signed URL 발급 → 브라우저가 Storage 직접 PUT | 없음 (브라우저 제한) |
+| ~~서버 경유~~ | ~~`app/api/upload/route.ts`~~ | ~~base64 수신 → Buffer → Storage PUT~~ | **삭제됨** |
 
-현재 이미지는 클라이언트 직접 경로(`create-signed-url`), 문서 1MB+ 도 동일. `api/upload.ts`는 서버사이드 처리가 필요한 케이스용 레거시 경로이며, Vercel 4.5MB 본문 캡 때문에 대용량은 클라이언트 직접 경로로 흐른다.
+**업로드는 서명 URL 하나만 쓴다.** 파일이 Vercel 함수를 **거치지 않는 것**이 핵심이다 —
+서버 경유는 ⓐ 본문 4.5MB 한도(base64 는 원본보다 33% 커져 실질 ~3.4MB) ⓑ 전송이 함수 실행
+시간을 잡아먹어 타임아웃 ⓒ 파일 전체가 함수 메모리에 올라감, 셋 다 걸렸다.
+
+> 🔴 **`/api/upload` 는 2026-08-17 에 삭제했다.** 2026-03-09(`40ff02e` "Implement signed URL
+> uploads")에 호출부가 사라졌는데 라우트만 남았고, 2026-05-26 Next.js 이관 때 **쓰는지 확인 없이
+> 12개 엔드포인트와 함께 옮겨졌다.** 그 뒤 5개월간 죽은 코드였고 **무인증으로 열려 있었다**
+> (누구나 공개 버킷에 파일을 쌓을 수 있었다). 이관 시 사용처를 확인하지 않은 것이 뿌리다.
 
 ---
 

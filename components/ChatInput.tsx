@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
 import { CHAT_MODEL_OPTIONS, type ChatModelId } from '../src/lib/models';
+import { authedFetch } from '../services/geminiService';
 
 interface ChatInputProps {
   onSend: (message: string, attachment?: MessageAttachment, attachments?: MessageAttachment[]) => void;
@@ -34,12 +35,12 @@ async function parseViaKordoc(file: File): Promise<string> {
     // 직행 — multipart raw 바이너리
     const form = new FormData();
     form.append('file', file, file.name);
-    const res = await fetch('/api/parse-document', { method: 'POST', body: form });
+    const res = await authedFetch('/api/parse-document', { method: 'POST', body: form });
     if (!res.ok) throw new Error(`parse-document ${res.status}: ${(await res.json().catch(() => ({}))).error || res.statusText}`);
     return (await res.json()).markdown ?? '';
   }
   // 대용량 — create-signed-url → Storage PUT → { filePath }
-  const signRes = await fetch('/api/create-signed-url', {
+  const signRes = await authedFetch('/api/create-signed-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileName: file.name, bucket: 'chat-docs', mimeType: file.type || 'application/octet-stream' }),
@@ -48,7 +49,8 @@ async function parseViaKordoc(file: File): Promise<string> {
   const { signedUrl, filePath } = await signRes.json();
   const putRes = await fetch(signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
   if (!putRes.ok) throw new Error(`Storage PUT ${putRes.status}`);
-  const res = await fetch('/api/parse-document', {
+  // 서명 URL PUT(위)만 평범한 fetch 다 — 서명 자체가 인증이라 Bearer 를 붙이면 충돌한다.
+  const res = await authedFetch('/api/parse-document', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filePath }),

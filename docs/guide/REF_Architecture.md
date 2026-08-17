@@ -143,10 +143,9 @@ flowchart TB
 ```mermaid
 flowchart TB
     User([User])
-    AuthAPI["/api/auth"]
     SessionsAPI["/api/sessions"]
     ChatAPI["/api/chat"]
-    UploadAPI["/api/upload\n/api/create-signed-url"]
+    UploadAPI["/api/create-signed-url"]
     SyncAPI["/api/sync-drug-image"]
 
     subgraph Tables ["PostgreSQL Tables"]
@@ -162,12 +161,16 @@ flowchart TB
         Docs[("chat-docs")]
     end
 
-    User --> AuthAPI --> Users
     User --> SessionsAPI <--> Sessions & Messages
-    User --> UploadAPI --> Imgs & Videos & Docs
+    User --> UploadAPI -. "signed URL" .-> Imgs & Videos & Docs
     User --> ChatAPI --> Messages & Sessions
     SyncAPI --> Imgs
 ```
+
+> **업로드는 파일이 함수를 거치지 않는다** — `/api/create-signed-url` 은 서명만 발급하고,
+> 브라우저가 Storage 로 직접 PUT 한다(점선). 서버 경유 방식(`/api/upload`)은 본문 4.5MB 한도·
+> 함수 타임아웃·메모리 때문에 2026-03-09 에 대체됐고, **2026-08-17 에 라우트를 삭제**했다.
+> `/api/auth` 도 인증 MVP 때 소멸했다(IDOR-1). 경로 규약: `${auth.uid()}/{timestamp}_{name}`.
 
 DB 스키마 상세: [REF_DB.md](REF_DB.md)
 

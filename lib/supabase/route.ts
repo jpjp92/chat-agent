@@ -44,6 +44,32 @@ export function isAuthError(error: { code?: string; message?: string } | null): 
     return msg.includes('jwt') || msg.includes('invalid claim') || msg.includes('not authorized');
 }
 
+/**
+ * Bearer 토큰에서 유저 id(`sub`)를 꺼낸다 — **서명은 검증하지 않는다.**
+ *
+ * 왜 검증하지 않아도 되는가: 이 값은 **Storage 경로를 조립하는 데만** 쓴다
+ * (`${uid}/${timestamp}_${name}.ext`). 실제 인가는 `storage.objects` 의 RLS 정책
+ * (`(storage.foldername(name))[1] = auth.uid()::text`)이 한다. 위조 토큰으로 남의 uid 를
+ * 넣어 경로를 만들어도 **PostgREST/Storage 가 JWT 서명을 검증해 거부**한다.
+ * `getUser()` 를 부르지 않는 것은 `createRouteClient` 와 같은 이유다 — 매 요청 auth 왕복 회피.
+ *
+ * 🔴 이 값을 **인가 판단에 직접 쓰면 안 된다.** 경로 조립 전용이다.
+ */
+export function userIdFromToken(req: Request): string | null {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) return null;
+    const payload = authHeader.slice(7).split('.')[1];
+    if (!payload) return null;
+    try {
+        const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+        const sub = JSON.parse(json)?.sub;
+        // UUID 형태만 허용 — 경로에 들어가므로 traversal·구분자 주입을 원천 차단한다.
+        return typeof sub === 'string' && /^[0-9a-f-]{36}$/i.test(sub) ? sub : null;
+    } catch {
+        return null;
+    }
+}
+
 /** 인증 안 된 요청에 대한 표준 응답. */
 export function unauthorized(): Response {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '../../../server/supabase';
+import { createRouteClient, userIdFromToken, unauthorized } from '../../../lib/supabase/route';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -7,6 +7,11 @@ export const maxDuration = 60;
 export const preferredRegion = 'icn1';
 
 export async function POST(req: NextRequest) {
+    // 🔴 2026-08-17 이전 무인증이었다(upload 라우트와 같은 결함).
+    const db = createRouteClient(req);
+    const uid = userIdFromToken(req);
+    if (!db || !uid) return unauthorized();
+
     const { fileName, bucket, mimeType } = await req.json();
 
     if (!fileName || !bucket) {
@@ -18,19 +23,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid bucket' }, { status: 400 });
     }
 
-    if (!supabaseAdmin) {
-        return NextResponse.json({ error: 'Supabase Admin client not initialized. Check SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 });
-    }
-
     try {
         const timestamp = Date.now();
         const safeBaseName = fileName.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
-        const filePath = `${timestamp}_${safeBaseName}`;
+        // 유저별 네임스페이스 — RLS 정책이 첫 세그먼트를 auth.uid() 와 대조한다.
+        const filePath = `${uid}/${timestamp}_${safeBaseName}`;
 
-        const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUploadUrl(filePath);
+        const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(filePath);
         if (error) throw error;
 
-        const { data: { publicUrl } } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
+        const { data: { publicUrl } } = db.storage.from(bucket).getPublicUrl(filePath);
 
         return NextResponse.json({ signedUrl: data.signedUrl, publicUrl, filePath, token: data.token });
     } catch (error: any) {

@@ -240,7 +240,11 @@
 
 - [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
 - [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
-- [ ] **IDOR-3** `app/api/parse-document/route.ts` (+ `upload` · `create-signed-url`) — Storage는 여전히 admin 클라이언트 + 형식 검증뿐(blast radius 제한 + route-side `remove()` 제거로 파괴만 차단). 근본해결=유저별 storage prefix → `${user.id}/...` 강제 + Storage RLS 정책. **인증 MVP 완료로 선행조건은 해소됨 — 이제 착수 가능.** (DEV_260621 §6)
+- [~] **IDOR-3 → 실제로는 "열린 업로드"였다** (2026-08-17 재평가) — 이 항목의 기술이 실제보다 약했다. *"admin 클라이언트 + 형식 검증뿐"* 은 "인증은 되는데 소유권 검증이 없다"로 읽히지만, **세 라우트에 인증 코드가 0건**이었고 클라이언트도 `authedFetch` 가 아닌 평범한 `fetch` 였다. 누구나 공개 버킷에 파일을 쌓을 수 있었다(용량·대역폭 비용 + 이 서비스 도메인에서 서빙).
+  - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `scripts/sql/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
+  - [ ] **Phase 2** — 버킷 비공개 + 서명 다운로드 URL + `chat_messages.attachment_url` 백필. 🔴 **미뤄진 진짜 이유가 이것이다** — 저장된 값이 `getPublicUrl` 결과라 비공개로 돌리면 **과거 대화 이미지가 전부 400**
+  - [ ] 🔴 **적용 순서: SQL 먼저, 배포 나중.** 코드를 먼저 올리면 정책이 없어 업로드가 전부 거부된다
+  - [ ] 레거시 평면 경로는 **그대로 둔다** — 소유자를 알 수 없어 이관 불가. 정책에 읽기 예외를 뒀고 Phase 2 때 재검토
 - [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
 - [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
