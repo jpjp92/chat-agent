@@ -79,6 +79,10 @@ scripts/test-*
 !scripts/test-weather-followup.mts
 !scripts/test-storage-name.mts
 scripts/debug-*
+# 🔴 2026-08-17 추가 — 위 주석이 `probe-*` 를 제외한다고 **설명만 하고 패턴이 없었다.**
+#   실제 규칙은 `scripts/probe-drug-search.ts` 개별 파일 하나뿐이었고, 새로 만든
+#   `probe-model-caps.mts` 가 그대로 추적됐다. 주석이 실재하지 않는 규칙을 설명하고 있었다.
+scripts/probe-*
 scripts/check-*
 scripts/count-*
 scripts/inspect-*

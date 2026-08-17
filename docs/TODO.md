@@ -251,6 +251,15 @@
   - **실측 (dev, 2026-08-17)**: 정책 12행 ✅ · 신규 키 `uid/` prefix ✅ · 10MB HWP 종단 ✅ · 신규 첨부 이미지 세션 재진입 복원 ✅(2건)
   - [ ] ⬜ **레거시 평면 경로 첨부가 여전히 보이는가** — 🔴 **깨지면 SELECT 정책 롤백.** 남은 것 중 유일하게 되돌림이 필요한 항목
   - [ ] ⬜ 무인증 `create-signed-url` → 401 실증
+- [ ] **모델·API 레퍼런스 검토 후속** → [PLAN_MODEL_API_REVIEW_260817](plans/PLAN_MODEL_API_REVIEW_260817.md)
+  - [ ] 🔴 `THINKING_MODE` 실측표 + `resolveThinkingConfig` 전환 — **3.7 은 `minimal` 을 400 으로 거부한다.** 지금 3.7 을 추가하면 전 호출이 죽는다
+  - [ ] `MODEL_CAPS` 에 3.7 · `FLASH_3_7` 레지스트리 + i18n (**기본은 3.6 유지** — 출시 직후 503 잦음)
+  - [ ] `services/geminiService.ts:220` 의 `'gemini-3.5-flash'` 리터럴 제거(기본값 불일치)
+  - [ ] 🔴 **Files API 전환 검토** — 임의 URL 을 `fileData` 로 넘기는 현재 패턴은 **문서 어디에도 없다.** 3.x 의 429 는 결함이 아니라 계약 위반이고, 2.5 만 관대해서 강등이 통했다. Files API 는 무료·영상 지원
+  - [ ] 프로브 A(도구 조합) — 되면 라우터의 존재 이유가 바뀐다. 단 thought signature 보존이 선행
+  - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
+  - [ ] 라우터를 `3.5-flash-lite` 로 검토 — ⚠️ 기본 thinking 이 **On(minimal)** 이라 명시 지정 필요
+  - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
 - [ ] 🔴 **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
 - [ ] **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다"
   - [ ] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다
