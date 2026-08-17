@@ -234,8 +234,14 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 `setCached` 는 upsert 반환 `error` 를 읽지도 않는다.
 
 - [x] 복원 DDL 을 레포에 되돌렸다 → `scripts/sql/url-cache.sql` (멱등)
-- [ ] dev 에서 실행
-- [ ] **dev Vercel env 에 `SUPABASE_SERVICE_ROLE_KEY` 가 있는지 확인** — 없으면 테이블을 만들어도 캐시는 계속 죽어 있다
+- [x] dev 에서 실행
+- [x] **✅ 해소 확인 (2026-08-17)** — dev 웹에서 `blog.google/…/introducing-gemini-3-7-flash-kr/ 요약` 실행 후
+      `url_cache` 에 행 1건(`status=ok`, `provider=direct`). **45일 만에 캐시가 다시 쓰인다.**
+      → 이것이 증명하는 것: **dev Vercel 에 접두사 없는 `SUPABASE_URL`·`SUPABASE_KEY` 가 실제로 있다.**
+        `server/supabase.ts` 를 공유하는 `mfds-logic`·`sync-drug-image` 도 같은 이유로 정상이다.
+      🔴 **`.env.local` 의 `SUPABASE_KEY` 는 role 이 `service_role` 이다**(실측). 이름은 anon 처럼
+        읽히는데 실제로는 admin 권한이다 — `server/supabase.ts` 주석이 이미 그럴 수 있다고 적어뒀다.
+        **동작하는 이유가 우연**이므로 `supabaseAdmin` 명시 전환이 필요하다(아래 침묵 제거와 함께).
 - [x] main/prod 조회 — **있다.** `relrowsecurity=true`, 42행, `max(fetched_at)=2026-07-30`
       🟡 18일간 쓰기가 없어 "main 도 같은 문제 아닌가" 의심했으나 **기각**: main Vercel 의
       `SUPABASE_URL` 은 `gaomgqnpsjtabrvwnpad`(PoC-prd = 프로덕션)로 **정상**이다.
@@ -270,7 +276,39 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 
 - [x] DDL 복원 → `scripts/sql/mfds-pills.sql` · 적재 스크립트 추적(`.gitignore` [B] 예외 신설)
 - [x] REF_DB.md 에 테이블 항목 신설
-- [ ] dev 에 테이블 생성 + `node scripts/sync-mfds-pills.mjs` 적재
+- [x] dev 에 테이블 생성 + 적재 — **25,345행** (각인 GIN 조회 정상)
+
+### 5-4. 🔴 적재 스크립트 버그 — 약품 3,000건이 빠져 있었다 (2026-08-17)
+
+1차 적재가 **22,359행**에서 멈춰 API 총계 25,362 와 3,003(11.8%) 차이가 났다.
+`item_seq` 가 PK 라 "API 중복이겠지"로 넘길 뻔했는데 **버그였다.**
+
+```
+완료: 22,362건 저장, 3,000건 오류
+  upsert 오류: ON CONFLICT DO UPDATE command cannot affect row a second time   × 6회
+```
+
+**3,000 = 500 × 6.** Postgres 는 한 `INSERT … ON CONFLICT` 안에 같은 키가 두 번 나오면
+**그 문장 전체를 거부한다.** `flush()` 가 500건씩 보내는데 그 안에 중복이 **하나만 있어도
+정상 499건이 같이 날아갔다.** 재실행마다 배치 경계가 달라져 **어느 약이 빠지는지가 매번 바뀌었다**
+(22,359 ↔ 22,362) — 그래서 "대충 맞네"로 보였다.
+
+**수정**(`scripts/sync-mfds-pills.mjs` `flush()`): 배치 **안**만 `Map` 으로 접는다.
+배치 **간** 중복은 손대지 않는다 — upsert 가 정상 처리한다.
+
+수정 후: **25,351건 저장 · 오류 0 · 배치내중복 11 → 최종 25,345행.**
+25,362 = 25,345(고유) + 11(배치내) + 6(배치간) — **차이가 전부 설명된다.**
+**약품 2,986건 복구.** 이 약들은 사진으로 물어도 1순위 DB 가 못 찾던 것들이다.
+
+- [ ] 🔴 **main 도 같은 스크립트로 적재했으므로 같은 구멍이 있다.** 재적재 필요.
+      ⚠️ `.env.local` 이 dev 를 가리키므로 그냥 돌리면 dev 로 간다 — **프로덕션 값으로 바꾸는
+      순간이 위험 지점**이라 컷오버 작업과 함께 하는 편이 안전하다.
+
+> **교훈 두 개.**
+> ① **적재 스크립트의 요약 줄을 잘라내지 말 것** — `| tail -40` 로 `완료:` 줄을 날려서
+>   3,000건 누락을 못 보고 한 바퀴를 더 돌았다. 요약에 `deduped` 카운터와 실패 시 경고를 추가했다.
+> ② **"대충 맞는 숫자"를 설명 없이 넘기지 말 것** — 11.8% 차이를 "중복이겠지"로 넘겼으면
+>   약품 3,000건이 빠진 채로 남았다. **차이는 끝까지 계산이 맞아야 닫힌다.**
 - [ ] `mfds-logic.ts` 가 `error` 를 **한 줄이라도 남기게** 한다
 
 ### 🔴 `.gitignore` 예외 기준을 고친다 — 부류가 하나 더 있었다
@@ -331,6 +369,7 @@ BLEU `22.3` 과 BLEURT `0.105` 를 같은 막대 축에 올려 **BLEURT 가 보�
 
 ```
 0-3 레거시 첨부 이미지 확인   ← 롤백 판단이라 가장 앞. 5분
+5-5 침묵 제거 3건 (몇 줄)     ← 8/17 사고 넷의 공통 원인. 다음번을 빠르게 만든다
 1-3 I그룹 (몇 줄)
 1-1 CGV 실패 구분
 2-1 폴백 크래시

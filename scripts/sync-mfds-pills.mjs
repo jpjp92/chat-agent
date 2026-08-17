@@ -156,21 +156,33 @@ async function main() {
     console.log('\n동기화 시작...');
     let upserted = 0;
     let errors = 0;
+    let deduped = 0;  // 배치 내 중복으로 접힌 건수 — API 총계와의 차이를 설명하는 값이다
     const BATCH = 500; // Supabase upsert 배치 크기
     let buffer = [];
 
     const flush = async () => {
         if (buffer.length === 0) return;
+        // 🔴 배치 **안**에 같은 item_seq 가 둘 이상이면 Postgres 가 그 문장 전체를 거부한다
+        //    ("ON CONFLICT DO UPDATE command cannot affect row a second time").
+        //    중복 1건 때문에 **정상 499건이 같이 날아간다.**
+        //    실측 2026-08-17: 배치 6개 거부 = 3,000건 누락(11.8%). 재실행마다 배치 경계가
+        //    달라져 **어느 약이 빠지는지가 매번 바뀌었다**(22,359 ↔ 22,362).
+        //    배치 **간** 중복은 문제없다 — upsert 가 정상 처리한다. 배치 안만 접으면 된다.
+        //    Map 은 뒤 값으로 덮으므로 나중 페이지가 이긴다.
+        const rows = [...new Map(buffer.map(r => [r.item_seq, r])).values()];
+        const dropped = buffer.length - rows.length;
+        buffer = [];
+
         const { error } = await supabase
             .from('mfds_pills')
-            .upsert(buffer, { onConflict: 'item_seq' });
+            .upsert(rows, { onConflict: 'item_seq' });
         if (error) {
             console.error('  upsert 오류:', error.message);
-            errors += buffer.length;
+            errors += rows.length;
         } else {
-            upserted += buffer.length;
+            upserted += rows.length;
+            deduped += dropped;
         }
-        buffer = [];
     };
 
     for (let page = 1; page <= totalPages; page++) {
@@ -195,7 +207,10 @@ async function main() {
     }
 
     await flush();
-    console.log(`\n\n완료: ${upserted}건 저장, ${errors}건 오류`);
+    // 🔴 이 줄을 잘라내지 말 것. 2026-08-17 에 `| tail -40` 로 여기를 날려서
+    //    3,000건 누락을 못 보고 한 바퀴를 더 돌았다.
+    console.log(`\n\n완료: ${upserted}건 저장, ${errors}건 오류, ${deduped}건 배치내중복`);
+    if (errors > 0) console.error(`🔴 ${errors}건이 저장되지 않았다 — 위 오류 메시지 확인 후 재실행할 것.`);
 
     // 검증 쿼리
     console.log('\n검증 — 마그네스정 조회:');
