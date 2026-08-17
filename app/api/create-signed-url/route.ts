@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteClient, userIdFromToken, unauthorized } from '../../../lib/supabase/route';
+import { safeStorageName } from '../../../lib/storage-name';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -25,9 +26,8 @@ export async function POST(req: NextRequest) {
 
     try {
         const timestamp = Date.now();
-        const safeBaseName = fileName.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
         // 유저별 네임스페이스 — RLS 정책이 첫 세그먼트를 auth.uid() 와 대조한다.
-        const filePath = `${uid}/${timestamp}_${safeBaseName}`;
+        const filePath = `${uid}/${timestamp}_${safeStorageName(fileName)}`;
 
         const { data, error } = await db.storage.from(bucket).createSignedUploadUrl(filePath);
         if (error) throw error;

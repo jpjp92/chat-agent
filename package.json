@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsx scripts/test-intent-rules.mts && tsx scripts/test-search-policy.mts && tsx scripts/test-weather-followup.mts",
+    "test": "tsx scripts/test-intent-rules.mts && tsx scripts/test-search-policy.mts && tsx scripts/test-weather-followup.mts && tsx scripts/test-storage-name.mts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test"
   },
