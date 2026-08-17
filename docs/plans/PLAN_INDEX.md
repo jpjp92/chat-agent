@@ -11,7 +11,9 @@
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
 
 > 📌 **버그·레거시 축의 우선순위는 [PLAN_PRIORITY_260817](PLAN_PRIORITY_260817.md)** — 실패의 나쁜 정도로
-> 줄 세운 것이다. 아래 표(인증 컷오버 축)와 별도로 읽되, **Storage IDOR-3 는 컷오버 앞에 두기를 권한다.**
+> 줄 세운 것이다. 아래 표(인증 컷오버 축)와 별도로 읽되, ~~**Storage IDOR-3 는 컷오버 앞에 두기를 권한다**~~
+> → **2026-08-17 이행됨**: Phase 1(인증 + `${uid}/` prefix + Storage RLS) 완료·dev 배포·실측(`da2fe65`·`d7d5c10`).
+> Phase 2(비공개 버킷)는 컷오버 뒤로 미뤘다 — `attachment_url` 백필이 선행이라 별개 작업이다.
 >
 > ⚠️ **이 표는 인증 컷오버 축으로만 쓰여 있다.** 8/15~17 의 검색 판정 재설계·의약 라우팅·룰 폴백
 > 정밀도·날씨 후속 작업은 여기 반영돼 있지 않다 — 그 축의 현재 상태는
@@ -21,7 +23,7 @@
 | # | 할 일 | 배포 필요 | 근거 |
 |---:|---|---|---|
 | ~~0~~ | ~~프로덕션 사전 점검 SQL~~ | — | **✅ 2026-08-02 완료** — 🔴 두 항목(의존 뷰·`_legacy` 충돌) 모두 clear, `auth.users`=0. 실데이터 **이관 안 함**·**사전 안내 안 함** 확정 ([PROD_ROLLOUT §2-A-1](PLAN_AUTH_PROD_ROLLOUT_260719.md)) |
-| **0-B** | 🔴 **main Vercel env 3개 교정 — 그 전까지 재배포 금지** | ❌ | [PROD_ROLLOUT §E-1·§E-2](PLAN_AUTH_PROD_ROLLOUT_260719.md). `.env.local`(stg) 값이 main 에 들어갔다. `NEXT_PUBLIC_*` 2개 프로덕션 값으로 교체 + `SUPABASE_SERVICE_ROLE_KEY` 삭제. **머지와 무관하게 현재 main 코드도 읽는 변수**라 지금 배포하면 파일 업로드가 깨진다 |
+| **0-B** | 🔴 **main Vercel env 3개 교정 — 그 전까지 재배포 금지** | ❌ | [PROD_ROLLOUT §E-1·§E-2](PLAN_AUTH_PROD_ROLLOUT_260719.md). `.env.local`(stg) 값이 main 에 들어갔다. `NEXT_PUBLIC_*` 2개 프로덕션 값으로 교체 + `SUPABASE_SERVICE_ROLE_KEY` 삭제. **머지와 무관하게 현재 main 코드도 읽는 변수**라 지금 배포하면 파일 업로드가 깨진다. 🔴 **2026-08-17 정정 — `SUPABASE_SERVICE_ROLE_KEY` 는 삭제가 아니라 프로덕션 값으로 교체한다.** 이 행이 삭제를 지시한 본래 이유는 *"스테이징 값이 main 에 들어갔다"* 인데, 실제로는 **키가 계속 필요하다**: Phase 1 로 스토리지 라우트가 admin 을 떠나 남은 소비자는 `app/api/fetch-url/route.ts` 하나이고, 그 `url_cache` 는 **공유 캐시라 RLS 정책을 둘 수 없다**(anon INSERT 를 열면 임의 본문을 심어 모델에 주입하는 **간접 프롬프트 인젝션** 경로가 된다) → `service_role` 만 통과시킨다. `supabaseAdmin ?? supabase` 폴백이라 키를 지우면 **조용히 anon 으로 강등되고 에러도 안 난다.** ⚠️ 부수 발견: **dev DB 에는 `url_cache` 테이블이 아예 없었다**(인증 MVP 가 빈 프로젝트를 새로 세웠는데 `auth-mvp-schema.sql` 에 이 테이블이 없다) → 복원 `scripts/sql/url-cache.sql`. ([PRIORITY §5-2](PLAN_PRIORITY_260817.md)) |
 | 1 | **Google Console — 승인된 도메인에 `chat-gem.vercel.app` 추가 시도** | ❌ | [PROD_ROLLOUT §5-1](PLAN_AUTH_PROD_ROLLOUT_260719.md). 5분·무료로 B안의 성패가 갈린다. 거부되면 자체 도메인이 필요해 A(유료 Custom Domain)와 비용이 비슷해진다 — **로고·페이지 준비보다 먼저** |
 | ~~2~~ | ~~`CONTACT_EMAIL` 실제 주소로 교체~~ | — | **✅ 완료** — `app/legal/LegalPage.tsx` 는 실제 주소를 쓴다. 이 행이 "지금 순서" 최상단에 남아 외부 리뷰가 **최우선 미해결**로 오독했다(2026-08-17) |
 | 3 | dev 푸시·배포 후 **화면 확인 3종** | ✅ | 수식(§3-1)·극장 매칭(§3-3-1)이 `4a8141a` 로 배포됐으나 **아직 눈으로 안 봤다** + 신규 `/privacy`·`/terms` ([DEV_260801 §5](../logs/2026/08/DEV_260801.md)) |

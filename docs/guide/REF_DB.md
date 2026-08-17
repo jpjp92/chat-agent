@@ -98,18 +98,53 @@ URL 프리페치 결과 캐시. browserless/ScrapingBee/ScraperAPI 유닛 절약
 delete from public.url_cache where fetched_at < now() - interval '30 days';
 ```
 
-**DDL:**
-```sql
-create table if not exists public.url_cache (
-  url_key    text primary key,
-  content    text not null,
-  status     text not null default 'ok',
-  provider   text,
-  fetched_at timestamptz not null default now()
-);
-```
+**DDL:** → `scripts/sql/url-cache.sql` (멱등)
+
+> 🔴 **2026-08-17: DDL 을 레포로 되돌렸다.** 원본 `supabase/migrations/url_cache.sql` 은
+> 2026-06-26 에 "이 문서로 대체"하며 삭제됐는데, 그 뒤 인증 MVP 가 **빈 Supabase 프로젝트**를
+> 새로 세우면서 **이 테이블이 따라오지 못했다**(`auth-mvp-schema.sql` 은 3개 테이블만 만든다).
+> dev 에서 캐시가 약 한 달 반 죽어 있었고 `fetch-url` 이 실패를 삼켜 **아무도 몰랐다.**
+> **스키마의 출처가 문서뿐이면 새 환경에서 재현되지 않는다.**
+
+**RLS:** 켜져 있고 **정책이 없다 — 의도된 것이다.** 공유 캐시라 `auth.uid()` 로 나눌 수 없고,
+anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주입하는 **간접 프롬프트 인젝션**이 된다.
+`service_role` 만 통과하므로 **이 라우트는 `SUPABASE_SERVICE_ROLE_KEY` 가 필요하다.**
 
 **API 접근:** `app/api/fetch-url/route.ts` — 캐시 조회(SELECT) 및 성공 결과 upsert(INSERT ON CONFLICT)
+
+---
+
+### `mfds_pills`
+
+식약처 낱알 식별 정보의 로컬 사본. **이미지 약품 식별의 1순위 경로**다
+(2순위는 pharm.or.kr 스크래핑 — `server/agent/tools.ts` `identifyPillTool`).
+
+> 🔴 **2026-08-17 신설 문서.** 이 테이블은 여태 이 문서에 **항목 자체가 없었고**, DDL 은
+> `scripts/sync-mfds-pills.mjs` **상단 주석 안에만** 있었는데 그 파일은 `.gitignore` 의
+> `scripts/sync-*` 에 걸려 **레포에 없었다** — 즉 **스키마의 출처가 어디에도 없었다.**
+> 실측: main(PoC-prd)에는 있고 **dev(poc-test)에는 없다.**
+
+**DDL:** → `scripts/sql/mfds-pills.sql` (멱등) · **적재:** `node scripts/sync-mfds-pills.mjs`
+
+| 컬럼 | 설명 |
+|---|---|
+| `item_seq` | PK — 품목일련번호 |
+| `item_name` · `entp_name` | 품목명 · 업체명 |
+| `mark_codes` `text[]` | 🔴 정규화된 각인 변형 배열. **GIN 인덱스가 각인 검색의 핵심**이다 |
+| `drug_shape` · `color_class1` · `color_class2` | 모양 · 색상앞/뒤 |
+| `form_code_name` · `class_name` · `etc_otc_name` | 제형 · 분류 · 전문/일반 |
+| `item_image` · `mark_code_*_img` | 이미지 URL |
+| `leng_long` · `leng_short` · `thick` | 크기(mm) |
+| `synced_at` | 마지막 동기화 시각 |
+
+**RLS:** `url_cache` 와 같다 — 켜고 정책 없음(`service_role` 전용). 공개 데이터라 기밀은 아니지만
+**쓰기를 열면 약품 정보를 조작할 수 있고**, 이 앱에서 가장 해로운 실패가 그것이다.
+
+🔴 **실패가 조용하다.** `server/mfds-logic.ts` 가 `const { data } = …` 로 **`error` 를 버려서**,
+테이블이 없어도 예외 없이 `match_type: 'none'` 을 반환하고 스크래핑 폴백으로 내려간다.
+그마저 실패하면 *"시각적 유사성을 기반으로 답변하되…"* 경로다.
+
+**API 접근:** `server/mfds-logic.ts` `searchMfdsPills` — 3단계(각인+색+모양 → 각인만 → 색+모양)
 
 ---
 
