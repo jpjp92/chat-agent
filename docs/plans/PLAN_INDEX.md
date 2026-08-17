@@ -6,16 +6,21 @@
 
 ---
 
-## 지금 순서 (2026-08-02)
+## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-17)
 
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
+
+> ⚠️ **이 표는 인증 컷오버 축으로만 쓰여 있다.** 8/15~17 의 검색 판정 재설계·의약 라우팅·룰 폴백
+> 정밀도·날씨 후속 작업은 여기 반영돼 있지 않다 — 그 축의 현재 상태는
+> [DEV_260815_DEPLOY_CHECK](../logs/2026/08/DEV_260815_DEPLOY_CHECK.md) 상단 표를 볼 것.
+> 두 축을 한 표에 합칠지는 미정(합치면 컷오버 순서가 흐려진다).
 
 | # | 할 일 | 배포 필요 | 근거 |
 |---:|---|---|---|
 | ~~0~~ | ~~프로덕션 사전 점검 SQL~~ | — | **✅ 2026-08-02 완료** — 🔴 두 항목(의존 뷰·`_legacy` 충돌) 모두 clear, `auth.users`=0. 실데이터 **이관 안 함**·**사전 안내 안 함** 확정 ([PROD_ROLLOUT §2-A-1](PLAN_AUTH_PROD_ROLLOUT_260719.md)) |
 | **0-B** | 🔴 **main Vercel env 3개 교정 — 그 전까지 재배포 금지** | ❌ | [PROD_ROLLOUT §E-1·§E-2](PLAN_AUTH_PROD_ROLLOUT_260719.md). `.env.local`(stg) 값이 main 에 들어갔다. `NEXT_PUBLIC_*` 2개 프로덕션 값으로 교체 + `SUPABASE_SERVICE_ROLE_KEY` 삭제. **머지와 무관하게 현재 main 코드도 읽는 변수**라 지금 배포하면 파일 업로드가 깨진다 |
 | 1 | **Google Console — 승인된 도메인에 `chat-gem.vercel.app` 추가 시도** | ❌ | [PROD_ROLLOUT §5-1](PLAN_AUTH_PROD_ROLLOUT_260719.md). 5분·무료로 B안의 성패가 갈린다. 거부되면 자체 도메인이 필요해 A(유료 Custom Domain)와 비용이 비슷해진다 — **로고·페이지 준비보다 먼저** |
-| 2 | `app/legal/LegalPage.tsx` 의 `CONTACT_EMAIL` 실제 주소로 교체 | — | 현재 `CHANGE_ME@example.com`. 공개 페이지에 가짜 연락처가 올라간다 |
+| ~~2~~ | ~~`CONTACT_EMAIL` 실제 주소로 교체~~ | — | **✅ 완료** — `app/legal/LegalPage.tsx` 는 실제 주소를 쓴다. 이 행이 "지금 순서" 최상단에 남아 외부 리뷰가 **최우선 미해결**로 오독했다(2026-08-17) |
 | 3 | dev 푸시·배포 후 **화면 확인 3종** | ✅ | 수식(§3-1)·극장 매칭(§3-3-1)이 `4a8141a` 로 배포됐으나 **아직 눈으로 안 봤다** + 신규 `/privacy`·`/terms` ([DEV_260801 §5](../logs/2026/08/DEV_260801.md)) |
 | 4 | **인증 프로덕션(main) 컷오버** | ✅ | [PROD_ROLLOUT](PLAN_AUTH_PROD_ROLLOUT_260719.md) 순서대로. 별도 세션·유지보수 창 |
 | 5 | 프론트 구조 작업 — [ChatMessage 분리](PLAN_CHATMESSAGE_REFACTOR_260801.md) + [URL 라우팅](PLAN_APP_ROUTING_260802.md) | ✅ | 둘 다 `App.tsx`·훅을 건드린다. **컷오버와 섞지 않는다** — 문제 시 원인 분리가 안 된다 |

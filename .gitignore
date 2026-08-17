@@ -52,8 +52,19 @@ test-supabase.ts
 test-port.js
 
 # ── Scripts — audit, test, debug, one-off utilities ──────────
+#
+# 이 규칙들은 **실 API 키로 외부를 때리거나 일회성인** 스크립트를 막으려는 것이다.
+# 그런데 범위가 넓어서 회귀 하니스까지 같이 걸렸고, 그 결과 문서는 "23/23 통과"라고 말하는데
+# **새 클론에서는 그 명령이 돌지 않는** 상태가 됐다(2026-08-17 외부 리뷰 지적).
+#
+# → 아래 3개만 예외. 추가 기준은 **셋 다** 만족할 때만:
+#     ① 시크릿·환경변수를 안 읽는다  ② 네트워크를 안 탄다  ③ 프로덕션 로직을 import 해서 잰다
+#   (`audit-*`·`probe-*`·`check-*` 는 실 API 를 때리므로 계속 제외한다)
 scripts/audit-*
 scripts/test-*
+!scripts/test-intent-rules.mts
+!scripts/test-search-policy.mts
+!scripts/test-weather-followup.mts
 scripts/debug-*
 scripts/check-*
 scripts/count-*

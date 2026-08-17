@@ -33,6 +33,102 @@ const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
 type Language = 'ko' | 'en' | 'es' | 'fr';
 
+// 클립보드 헬퍼 — 컴포넌트 상태를 잡지 않는 순수 유틸이라 모듈 레벨에 둔다.
+// (CodeBlock 을 모듈 레벨로 올리면서 함께 올렸다 — 안에 있으면 참조가 끊긴다.)
+const copyTextToClipboard = async (text: string, setCopiedState: (v: boolean) => void) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedState(true);
+      setTimeout(() => setCopiedState(false), 2000);
+      return;
+    } catch (err) {
+      console.error('Clipboard API failed', err);
+    }
+  }
+  // Fallback for non-secure environments
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand('copy');
+    textArea.remove();
+    setCopiedState(true);
+    setTimeout(() => setCopiedState(false), 2000);
+  } catch (err) {
+    console.error('Fallback clipboard failed', err);
+  }
+};
+
+/**
+ * 코드블록 렌더러 — react-markdown 의 `pre` 슬롯.
+ *
+ * 🔴 원래 `ChatMessage` 안의 `MarkdownComponents` 객체에 인라인으로 있었다. 그 객체는 **매 렌더마다
+ * 새로 만들어지므로** 함수 정체성이 계속 바뀌고, react-markdown 이 서브트리를 언마운트·재마운트해
+ * `copied` 상태가 즉시 초기화됐다 — 스트리밍 중에는 리렌더가 잦아 **Copy 를 눌러도 "Copied" 가
+ * 바로 사라진다.** `react-hooks/rules-of-hooks` 가 잡아낸 자리다(lint 복구, 2026-08-17).
+ * 모듈 레벨로 올려 정체성을 고정한다.
+ */
+const CodeBlock: React.FC<any> = ({ children }) => {
+  // children.props.className에서 언어 추출 (예: language-python)
+  const language = children?.props?.className?.replace('language-', '') || 'code';
+  const codeContent = Array.isArray(children?.props?.children)
+    ? children.props.children.join('')
+    : children?.props?.children || '';
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = () => {
+    if (!codeContent) return;
+    copyTextToClipboard(codeContent, setCopied);
+  };
+
+  return (
+    <div className="group relative my-8 rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5 shadow-lg bg-[#0d1117]">
+      {/* Code Header */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#161b22]/50 border-b border-white/5 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <i className="fa-solid fa-code text-[10px] text-slate-500"></i>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language}</span>
+        </div>
+        <button
+          onClick={copyToClipboard}
+          className="p-1.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-1.5 text-slate-400 hover:text-white"
+        >
+          <i className={`fa-solid ${copied ? 'fa-check text-emerald-500' : 'fa-copy'} text-[11px]`}></i>
+          <span className="text-[10px] font-bold uppercase tracking-tight">{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </div>
+
+      {/* Code Body */}
+      <div className="text-[13px] sm:text-[14px] font-mono leading-relaxed selection:bg-blue-500/30">
+        <SyntaxHighlighter
+          language={language}
+          style={vscDarkPlus}
+          customStyle={{
+            margin: 0,
+            padding: '1rem',
+            backgroundColor: 'transparent',
+            borderRadius: 0,
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+            }
+          }}
+        >
+          {String(codeContent).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  );
+};
+
 const AttachmentImage: React.FC<{ src: string; className: string; onClick?: () => void; style?: React.CSSProperties }> = ({ src, className, onClick, style }) => {
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
@@ -93,35 +189,6 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     };
   }, [isPlaying]);
 
-  const copyTextToClipboard = async (text: string, setCopiedState: (v: boolean) => void) => {
-    if (navigator.clipboard && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopiedState(true);
-        setTimeout(() => setCopiedState(false), 2000);
-        return;
-      } catch (err) {
-        console.error('Clipboard API failed', err);
-      }
-    }
-    // Fallback for non-secure environments
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-999999px";
-      textArea.style.top = "-999999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand('copy');
-      textArea.remove();
-      setCopiedState(true);
-      setTimeout(() => setCopiedState(false), 2000);
-    } catch (err) {
-      console.error('Fallback clipboard failed', err);
-    }
-  };
 
   const handleCopy = () => {
     if (!message.content) return;
@@ -246,60 +313,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         </code>
       );
     },
-    pre: ({ children }: any) => {
-      // children.props.className에서 언어 추출 (예: language-python)
-      const language = children?.props?.className?.replace('language-', '') || 'code';
-      const codeContent = Array.isArray(children?.props?.children)
-        ? children.props.children.join('')
-        : children?.props?.children || '';
-      const [copied, setCopied] = useState(false);
-
-      const copyToClipboard = () => {
-        if (!codeContent) return;
-        copyTextToClipboard(codeContent, setCopied);
-      };
-
-      return (
-        <div className="group relative my-8 rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5 shadow-lg bg-[#0d1117]">
-          {/* Code Header */}
-          <div className="flex items-center justify-between px-4 py-2 bg-[#161b22]/50 border-b border-white/5 backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <i className="fa-solid fa-code text-[10px] text-slate-500"></i>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{language}</span>
-            </div>
-            <button
-              onClick={copyToClipboard}
-              className="p-1.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-1.5 text-slate-400 hover:text-white"
-            >
-              <i className={`fa-solid ${copied ? 'fa-check text-emerald-500' : 'fa-copy'} text-[11px]`}></i>
-              <span className="text-[10px] font-bold uppercase tracking-tight">{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-
-          {/* Code Body */}
-          <div className="text-[13px] sm:text-[14px] font-mono leading-relaxed selection:bg-blue-500/30">
-            <SyntaxHighlighter
-              language={language}
-              style={vscDarkPlus}
-              customStyle={{
-                margin: 0,
-                padding: '1rem',
-                backgroundColor: 'transparent',
-                borderRadius: 0,
-              }}
-              codeTagProps={{
-                style: {
-                  fontFamily: 'inherit',
-                  fontSize: 'inherit',
-                }
-              }}
-            >
-              {String(codeContent).replace(/\n$/, '')}
-            </SyntaxHighlighter>
-          </div>
-        </div>
-      );
-    },
+    pre: CodeBlock,
     table: ({ children }: any) => (
       <div className="my-4 sm:my-8 rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm table-scrollbar" style={{ maxHeight: '400px', overflowX: 'auto', overflowY: 'auto' }}>
         <table className="min-w-full text-left border-collapse" style={{ wordBreak: 'normal', overflowWrap: 'normal' }}>{children}</table>

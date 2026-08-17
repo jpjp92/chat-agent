@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         isYoutubeRequest = !!ytMatch; isYoutubeFromPrompt = false;
       }
 
-      let humanMessageParts: any[] = [{ type: 'text', text: prompt }];
+      const humanMessageParts: any[] = [{ type: 'text', text: prompt }];
       const hasTranscript = webContent && webContent.includes('[TRANSCRIPT]');
       const hasVideoSummary = webContent && webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
       if (isYoutubeFromPrompt && !hasTranscript && !hasVideoSummary) {

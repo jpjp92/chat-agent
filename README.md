@@ -171,7 +171,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 ├── app/
 │   ├── layout.tsx / page.tsx / globals.css
 │   └── api/
-│       ├── chat/route.ts               # LangGraph SSE streaming (maxDuration 60)
+│       ├── chat/route.ts               # LangGraph SSE streaming (maxDuration 300)
 │       ├── speech/route.ts             # TTS (gemini-2.5-flash-preview-tts)
 │       ├── showtimes/route.ts          # 3-chain showtimes + SWR cache
 │       ├── fetch-url/route.ts          # URL prefetch: cache → direct → ScrapingBee/CF chain
@@ -181,7 +181,6 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── summarize-title/route.ts
 │       ├── sync-drug-image/route.ts
 │       ├── pill-search/route.ts
-│       ├── auth/route.ts
 │       ├── create-signed-url/route.ts
 │       └── proxy-image/route.ts
 ├── server/
@@ -256,6 +255,22 @@ npm run dev        # Next.js dev server (default port 3000)
 npm run build
 npm start
 ```
+
+### 5-3. Verification
+
+```bash
+npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
+npm run typecheck  # tsc --noEmit
+npm test           # intent 규칙 · 검색 정책 · 날씨 후속 하니스
+npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
+```
+
+> ⚠️ `scripts/` 의 일회성 스크립트(`audit-*`·`probe-*`·`check-*`)는 실 API 키로 외부를 때리므로
+> `.gitignore` 대상이다. 위 **회귀 하니스 3종만 예외로 추적**한다 — 시크릿·네트워크 없이 돌고
+> 프로덕션 로직을 import 해서 재기 때문이다.
+>
+> ⚠️ `lint` 를 `verify` 에 넣지 않은 이유: 기존 에러 30건 때문에 **항상 빨간 명령**이 되고,
+> 그건 `next lint` 제거 후 깨진 채 방치됐던 상태와 같은 실패다. 30건을 정리한 뒤 넣는다.
 
 ---
 

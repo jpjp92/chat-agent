@@ -179,7 +179,7 @@ export const useChatStream = ({
 
     setIsTyping(true);
 
-    let finalAttachments: MessageAttachment[] = [];
+    const finalAttachments: MessageAttachment[] = [];
 
     if (attachments.length > 0) {
       try {

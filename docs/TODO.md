@@ -34,6 +34,20 @@
 
 ---
 
+### 3. lint 잔여 에러 30건 정리 후 `verify` 에 편입
+
+2026-08-17 에 `npm run lint` 를 복구했다(Next 16 이 `next lint` 를 제거해 깨져 있었다).
+`no-explicit-any` 를 경고로 낮추고 실제 신호 34건 중 4건(`rules-of-hooks` 1 + `prefer-const` 3)을
+처리했다. **`rules-of-hooks` 1건은 실제 버그였다** — 스트리밍 중 코드블록 Copy 상태가 초기화됐다.
+
+- [ ] `react-hooks/set-state-in-effect` 15건 — 대개 무해하지만 렌더 루프 위험이 있는 자리 확인
+- [ ] `react-hooks/purity` 12건 — 12건 중 11건이 `ConstellationRenderer.tsx` 한 파일에 몰려 있다
+- [ ] `react-hooks/refs` 1 · `react-hooks/immutability` 1 · `ban-ts-comment` 1
+- [ ] 위가 0이 되면 `verify` 를 `typecheck && lint && test` 로 확장
+
+> ⚠️ 지금 `lint` 를 `verify` 에 넣으면 **항상 빨간 명령**이 된다. 그건 `next lint` 가 깨진 채
+> 방치됐던 상태와 같은 실패라 일부러 분리해뒀다.
+
 ## 🟢 P2 — 성능
 
 현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-06-02 재측정, 4/4과 동일)
@@ -181,7 +195,7 @@
 - [ ] `prompt.ts` — URL summary placeholder / YouTube fallback / `getPillWarnFallback` 언어별 분리
 - [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
 - [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용
-- [ ] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리
+- [x] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리 (완료: `generator.ts` 의 `getRendererSections(state.intent, langName)`)
 
 ### 알약 식별 후속 (각인 DB 구조적 한계로 보류)
 - [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
