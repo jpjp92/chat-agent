@@ -241,6 +241,10 @@
 
 - [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
 - [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
+- [ ] 🔴 **`LAW_OC` 재발급** (2026-08-18) — 국가법령정보센터 OC 실값이 `DEV_HISTORY.md` 와 `DEV_260609.md` 에 **평문으로** 있었다(2026-06-09 커밋, **레포 공개**). 문서는 마스킹했지만 **git 이력에는 그대로 남는다** → law.go.kr 에서 **재발급받아야 실질 조치**다. 조회 전용 공공 API 라 과금은 없으나 **쿼터를 남이 소진**시킬 수 있다.
+  - **교훈**: 진단 기록에 **값을 적지 말고 판정만 적는다**("정상"·"불일치"). 그때도 값이 있어야 재현되는 게 아니었다
+  - 재발급 후: Vercel Production/Preview 의 `LAW_OC` 교체 → 법률 질의 1건으로 검증
+
 - [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(하니스 6종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
   - **교훈**: 예외 목록이 길어지면 규칙이 아니라 **배치**가 틀린 것이다. 위치가 곧 정책이 되게 한다
 
