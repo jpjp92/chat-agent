@@ -294,10 +294,10 @@
   - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
   - [ ] 라우터를 `3.5-flash-lite` 로 검토 — ⚠️ 기본 thinking 이 **On(minimal)** 이라 명시 지정 필요
   - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
-- [ ] 🔴 **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
-- [ ] **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다"
-  - [ ] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다
-  - [ ] `app/api/fetch-url/route.ts` — `setCached` 의 upsert 반환 `error` 를 읽지 않는다. `getCached` 도 `if (error || !data) return null` 이라 **테이블 없음과 캐시 미스가 구분되지 않는다**
+- [x] ✅ **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** (2026-08-18 완료 · `b7f99ea`) — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
+- [x] ✅ **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다" (2026-08-18 완료 · `b7f99ea` · 캐시 히트 1.33s→0.137s 로 양성 검증)
+  - [x] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다
+  - [x] `app/api/fetch-url/route.ts` — `setCached` 의 upsert 반환 `error` 를 읽지 않는다. `getCached` 도 `if (error || !data) return null` 이라 **테이블 없음과 캐시 미스가 구분되지 않는다**
 - [ ] **main `mfds_pills` 재적재** — 수정 전 스크립트로 적재해 약품 ~3,000건이 빠져 있다. ⚠️ `.env.local` 을 프로덕션 값으로 바꾸는 순간이 위험 지점이라 **컷오버와 함께** 할 것
 - [ ] **HWP 파싱 산출물의 죽은 `<img>` 약 40개** — `<img src="image_001.bmp">` 는 HWP 내부 리소스명이라 어디로도 해석되지 않는다. 파서에서 제거하거나 자리표시로 대체 (먼저 화면에서 깨진 아이콘으로 보이는지 확인)
 - [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
