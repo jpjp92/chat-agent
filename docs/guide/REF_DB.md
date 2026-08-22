@@ -98,7 +98,7 @@ URL 프리페치 결과 캐시. browserless/ScrapingBee/ScraperAPI 유닛 절약
 delete from public.url_cache where fetched_at < now() - interval '30 days';
 ```
 
-**DDL:** → `scripts/sql/url-cache.sql` (멱등)
+**DDL:** → `docs/guide/db/url-cache.sql` (멱등)
 
 > 🔴 **2026-08-17: DDL 을 레포로 되돌렸다.** 원본 `supabase/migrations/url_cache.sql` 은
 > 2026-06-26 에 "이 문서로 대체"하며 삭제됐는데, 그 뒤 인증 MVP 가 **빈 Supabase 프로젝트**를
@@ -120,11 +120,11 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 (2순위는 pharm.or.kr 스크래핑 — `server/agent/tools.ts` `identifyPillTool`).
 
 > 🔴 **2026-08-17 신설 문서.** 이 테이블은 여태 이 문서에 **항목 자체가 없었고**, DDL 은
-> `scripts/sync-mfds-pills.mjs` **상단 주석 안에만** 있었는데 그 파일은 `.gitignore` 의
+> `docs/guide/db/sync-mfds-pills.mjs` **상단 주석 안에만** 있었는데 그 파일은 `.gitignore` 의
 > `scripts/sync-*` 에 걸려 **레포에 없었다** — 즉 **스키마의 출처가 어디에도 없었다.**
 > 실측: main(PoC-prd)에는 있고 **dev(poc-test)에는 없다.**
 
-**DDL:** → `scripts/sql/mfds-pills.sql` (멱등) · **적재:** `node scripts/sync-mfds-pills.mjs`
+**DDL:** → `docs/guide/db/mfds-pills.sql` (멱등) · **적재:** `node docs/guide/db/sync-mfds-pills.mjs`
 
 **행 수 (2026-08-17):** dev **25,345** / main **재적재 필요**(아래 참조)
 
@@ -166,7 +166,7 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 > 🔴 **경로 규약이 바뀌었다 (2026-08-17)** — 이제 `${auth.uid()}/{timestamp}_{safe-name}` 이다.
 > 아래 표의 평면 경로(`{timestamp}_...`)는 **레거시**로, 그대로 남겨두되 새로 만들지 않는다.
-> Storage RLS 가 첫 폴더 세그먼트를 `auth.uid()` 와 대조한다(`scripts/sql/storage-user-prefix-rls.sql`).
+> Storage RLS 가 첫 폴더 세그먼트를 `auth.uid()` 와 대조한다(`docs/guide/db/storage-user-prefix-rls.sql`).
 
 ---
 

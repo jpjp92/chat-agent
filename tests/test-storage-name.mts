@@ -1,5 +1,5 @@
 /**
- * Storage 키 정규화 하니스 — `npx tsx scripts/test-storage-name.mts`
+ * Storage 키 정규화 하니스 — `npx tsx tests/test-storage-name.mts`
  *
  * 프로덕션을 **임포트**한다(정규식 복사 금지). test-intent-rules.mts 와 같은 규약.
  *

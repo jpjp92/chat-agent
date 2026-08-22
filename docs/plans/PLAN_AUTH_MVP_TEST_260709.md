@@ -36,8 +36,8 @@ STG_SUPABASE_SERVICE_ROLE_KEY=<role=service_role>  # §3-3 teardown 전용
 | `STG_SUPABASE_URL` → `ghdpnuwbvlrxmxcazzci` | ✅ 프로덕션과 분리 |
 | `STG_SUPABASE_ANON_KEY` (`role=anon`, ref 일치) | ✅ |
 | `STG_SUPABASE_SERVICE_ROLE_KEY` (`role=service_role`, ref 일치) | ✅ |
-| 스키마 적용 ([`scripts/sql/auth-mvp-schema.sql`](../../scripts/sql/auth-mvp-schema.sql)) | ✅ 3테이블 노출 확인 |
-| 승격 동기화 트리거 ([`auth-mvp-sync-trigger.sql`](../../scripts/sql/auth-mvp-sync-trigger.sql)) | ✅ 적용 |
+| 스키마 적용 ([`docs/guide/db/auth-mvp-schema.sql`](../../docs/guide/db/auth-mvp-schema.sql)) | ✅ 3테이블 노출 확인 |
+| 승격 동기화 트리거 ([`auth-mvp-sync-trigger.sql`](../../docs/guide/db/auth-mvp-sync-trigger.sql)) | ✅ 적용 |
 | Anonymous Sign-ins | ✅ 활성 (`role=authenticated`, `is_anonymous=true` 실측) |
 | **RLS 매트릭스 18케이스** | ✅ **18/18** (`npx tsx scripts/test-auth-rls.ts`) |
 | **신원/트리거 10케이스** | ✅ **10/10** (`npx tsx scripts/test-auth-identity.ts`) |
@@ -249,7 +249,7 @@ Google 로그인의 위험은 리다이렉트 핸드셰이크가 아니라 **그
 → `consumeOAuthError()` 로 `?error_code=` 를 읽고 **주소창에서 지운 뒤** 충돌 분기를 연다.
    (지우지 않으면 새로고침 때 유령 에러가 되살아난다.)
 
-**(b) 동기화 트리거가 잘못된 곳을 봤다** → [`auth-mvp-identity-sync.sql`](../../scripts/sql/auth-mvp-identity-sync.sql)
+**(b) 동기화 트리거가 잘못된 곳을 봤다** → [`auth-mvp-identity-sync.sql`](../../docs/guide/db/auth-mvp-identity-sync.sql)
 
 `linkIdentity` 는 `raw_user_meta_data` 를 **채우지 않는다.** 실측:
 

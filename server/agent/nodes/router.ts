@@ -1,4 +1,5 @@
 import { AgentStateType, IntentType } from "../state";
+import { hasNewImageAttachment, historyHasImage, shouldFastPathPillId } from "./image-flags";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
@@ -31,6 +32,7 @@ const AFFIRM = /^\s*(응+|어+|네+|예+|그래요?|좋아요?|부탁(해|드릴
  * Injects last assistant message as context for follow-up intent continuity.
  * Falls back to keyword heuristics if the LLM fails.
  */
+
 export const routerNode = async (state: AgentStateType) => {
     const lastMessage = state.messages[state.messages.length - 1] as HumanMessage;
 
@@ -90,14 +92,8 @@ export const routerNode = async (state: AgentStateType) => {
         ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"${cardHint}`
         : cardHint;
 
-    const attachmentHasImage = state.attachments && state.attachments.some(att => att.mimeType && att.mimeType.startsWith('image/'));
-    const messageHasImage = state.messages.some((msg: any) =>
-        Array.isArray(msg.content) && msg.content.some((part: any) =>
-            part.type === 'image_url' ||
-            part.inlineData?.mimeType?.startsWith?.('image/') ||
-            (part.fileData?.mimeType?.startsWith?.('image/') && !part.fileData.fileUri?.includes('youtube'))
-        )
-    );
+    const attachmentHasImage = hasNewImageAttachment(state.attachments);
+    const messageHasImage = historyHasImage(state.messages);
     const hasImage = attachmentHasImage || messageHasImage;
 
     let intent: IntentType = "general";
@@ -119,13 +115,31 @@ export const routerNode = async (state: AgentStateType) => {
         return { nextNode: "generator", intent: "general" };
     }
 
-    // Fast-path: image + explicit drug/pill textual signal → vision (pill identification).
+    // Fast-path: **이번 턴에 새로 붙인** 이미지 + 명시적 약/알약 신호 → vision (알약 식별).
     // IMPORTANT: only a genuine medical/pill keyword (약, 알약, 약품, 식별, pill, tablet, ...) triggers this.
     // A plain image with a generic caption ("이거 뭐야?", "이 사진 분석해줘") or no caption is NOT a pill
     // request — it must fall through to the LLM router / general multimodal generator, which can describe
     // any image. Routing every image to pill identification was the previous misclassification bug.
-    if (hasImage && hasMedicalKeyword) {
-        console.log('[LangGraph] Router fast-path: image + drug keyword → drug_id vision');
+    //
+    // 🔴 **`hasImage` 가 아니라 `attachmentHasImage` 다.** (2026-08-18)
+    //   `hasImage` 는 `messages` **전체**를 훑으므로(:93) 1턴에 붙인 알약 사진이 2턴에도 true 다.
+    //   거기에 "약품" 같은 단어만 있으면 이 fast-path 가 **또** 걸려서 같은 vision → 같은 DB 조회 →
+    //   **글자 하나 안 틀리고 같은 답**이 나왔다. 실측(2026-08-18): 사용자가
+    //   *"이미지 특징 기반으로 검색해서 찾아볼래?"* 라고 명시적으로 요청했는데 이전 답이 그대로 반복됐다.
+    //   **라우터 LLM 이 호출조차 되지 않아** 그 요청이 전달될 통로가 없었다.
+    //   이미지가 있는 대화에서 약 관련 단어를 쓰는 한 **영원히 빠져나올 수 없는 구조**였다.
+    //
+    //   기준선: **이번 턴에 이미지를 새로 붙였으면** 알약 식별이 거의 확실하다 → 결정론적으로 간다.
+    //   붙이지 않았으면 **후속 발화**이므로 라우터 LLM 이 판단하게 둔다. 그래도 알약 식별이면
+    //   LLM 이 drug_id 를 고르고, 아래 :373 이 `hasImage`(히스토리 포함)로 vision 을 태운다 —
+    //   **넓은 판정은 그 자리에 남겨두고, 지름길만 좁힌다.**
+    //
+    //   ⚠️ DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 재발이다
+    //   (pinYoutube · YOUTUBE_CALL_TIMEOUT_MS · fastLongInput 에 이어 네 번째).
+    //   이 fast-path 는 "이미지+약 키워드"라는 **첫 턴의 모양**으로 이름 붙었고, 후속 턴이 같은 모양을
+    //   갖는다는 걸 고려하지 않았다.
+    if (shouldFastPathPillId(state.attachments, hasMedicalKeyword)) {
+        console.log('[LangGraph] Router fast-path: 신규 첨부 이미지 + drug keyword → drug_id vision');
         return { nextNode: "vision", intent: "drug_id" };
     }
 
@@ -191,7 +205,11 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
                 }
                 // Recover only when the LLM missed an explicit drug/pill signal on an image.
                 // Do NOT override "general" for arbitrary images — generic photos stay general.
-                if (intent === "general" && hasImage && hasMedicalKeyword) {
+                // 🔴 여기도 `attachmentHasImage` 다 (2026-08-18) — 위 fast-path 와 같은 이유.
+                //   히스토리 이미지까지 보면 후속 발화("직접 검색해줘")가 general 로 분류됐을 때
+                //   이 복구가 **다시 drug_id 로 되돌려** 위 수정이 무력화된다.
+                //   이번 턴에 새로 붙인 경우에만 복구한다 — 그게 이 안전판이 원래 막으려던 상황이다.
+                if (intent === "general" && attachmentHasImage && hasMedicalKeyword) {
                     intent = "drug_id";
                 }
                 // 텍스트 경로의 같은 복구 — 제형 명칭(타액제·연고·좌제·점안액…)이 있는데 general이면
@@ -281,7 +299,7 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
         // 판정은 weather-followup.ts의 순수 함수로 나가 있다 — 하니스가 임포트해야 하기 때문이다.
         // 인라인이던 시절, `날씨 + 알려/줘`가 전부 새 조회로 새면서 사용자가 같은 질문을 세 번 해도
         // 카드만 세 번 뜨고 한 번도 답하지 않던 결함이 있었다.
-        // 검증: `npx tsx scripts/test-weather-followup.mts`
+        // 검증: `npx tsx tests/test-weather-followup.mts`
         const { decision, why } = decideWeatherFollowup({
             text: textContent,
             intentIsWeather: intent === "weather",

@@ -88,7 +88,7 @@
 > 설계: **KMA 우선(한국 정확도) + OpenWeather 보완(해외·geocoding·KMA 폴백)** 하이브리드. 레퍼런스가 KMA까지 다 풀어서 **처음부터 통째 이식 현실적**(단계 분리 불필요).
 > **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 [KMA_CITIES 표](../reference/news/app/api/weather/route.ts#L199)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
 > **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
-> **✅ 실험 검증 완료** (2026-07-05, [scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts), 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
+> **✅ 실험 검증 완료** (2026-07-05, `scripts/test-weather-hybrid.ts`, 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
 
 - [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
 - [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록
@@ -99,7 +99,7 @@
 - [x] 다국어(ko/en/es/fr) — UI 라벨·상태·강수문구 딕셔너리 + 요일 `Intl` + 로컬 tz 시각. **렌더러 클라이언트 처리**(OWM lang 불필요)
 - [x] 예외/에러 — per-fetch 타임아웃(OWM 8s·KMA 9s, 60s 캡 방어) + KMA 빈데이터→OWM 폴백 + 렌더러 결측 가드
 - [ ] (선택) 캐시 레이어 — Supabase TTL 도시별 10분. **보류**(KMA `revalidate:600` + 쿼터 여유 2콜/조회)
-- [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인 ([scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts))
+- [x] **키 종류 검증 완료** (2026-07-05) — `.env` `KMA_API_KEY` = API Hub authKey 확인 (`scripts/test-weather-hybrid.ts`)
 
 **⓪-a 예보 범위 밖 처리 — 중기예보(6~10일) · 과거 기록** (백로그, 2026-07-06 제기)
 
@@ -241,8 +241,37 @@
 
 - [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
 - [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
+- [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(하니스 6종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
+  - **교훈**: 예외 목록이 길어지면 규칙이 아니라 **배치**가 틀린 것이다. 위치가 곧 정책이 되게 한다
+
+- [x] **알약 식별 결함 5건 수정** (2026-08-18) — 각인 `OG37`(무코스타서방정150mg) 테스트에서 연달아 나왔다. → [DEV_HISTORY](DEV_HISTORY.md)
+  - [x] `similar` 을 각인 기반인 것처럼 표시하던 문구 — **91% 경로의 S등급 결함**(각인 텍스트 보유 8.7%)
+  - [x] 빈 각인이 다음 줄을 삼켜 `식별표시: - Color: 하양` 이 찍히던 파싱 버그(`\s` 가 개행을 먹음)
+  - [x] `DB 등록 각인` 으로 칸 이름 명확화 + 빈 값 `정보 없음` — **"각인 없음"과 "정보 없음"은 다른 주장**이고 우리는 전자를 모른다(23,121행이 텍스트·이미지 둘 다 없음)
+  - [x] 라우터 지름길이 후속 턴을 가로채 같은 답을 반복하던 문제 — `hasImage` → 신규 첨부 기준. **DEV_260808 함정의 네 번째 사례**
+  - [x] 🔴 **웹 검색 전체가 출처 없이 답하고 있었다** — DDG 가 속성 순서를 바꾸고 `uddg=` 를 폐지해 URL 추출이 0건. `server/agent/ddg-parse.ts` 로 분리 + 하니스 11건
+  - [x] 웹 폴백 — 각인을 읽었는데 식약처에 없으면 웹 검색(결정론적 1회, 출처 필수). 종단 실측으로 정답 확인
+  - [ ] ⬜ **`[LangGraph] Pill web fallback gate/search` 계측 로그 유지 여부 판단** — 지금은 남겨뒀다. 이 경로가 조용히 안 도는 걸 한 번 겪었으므로 당분간 유지 권장
+  - [ ] ⬜ **각인 이미지(`mark_code_front_img`) 활용 검토** — dev 에 10건뿐이라 지금은 무의미하지만, 상류가 채우기 시작하면 vision 으로 읽을 여지
+  - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
+  - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
+
+- [ ] 🔴 **무인증 라우트가 2개 더 있다 — `fetch-url`·`sync-drug-image`** (2026-08-18 발견) — 8/17 에 `upload`·`create-signed-url`·`parse-document` 를 막았는데 **같은 계열인 이 둘이 범위에서 빠졌다.** 침묵 제거 배포를 검증하려고 토큰 없이 호출해봤더니 그대로 200 이었다 — 그 순간 발견했다. `grep -n "createRouteClient|unauthorized|Authorization"` → **두 파일 다 0건.**
+  - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
+  - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
+  - 🟡 **실질 위험 ② 서비스 도메인 대리 요청** — 우리 IP·도메인으로 임의 사이트에 요청이 나간다. 차단당하면 우리가 막힌다
+  - ✅ **SSRF 는 생각보다 낫다(실측)** — `SSRF_BLOCK`([fetch-url:18](../app/api/fetch-url/route.ts#L18))은 차단 목록인데 localhost·RFC1918·`169.254`(메타데이터)·IPv6 loopback/ULA/link-local 을 덮는다. **숫자 IP 우회도 막힌다** — WHATWG `new URL()` 이 `http://2130706433/` 을 `127.0.0.1` 로 정규화해주기 때문(정규식 덕이 아니라 **파서 덕**이다. 이 의존을 주석에 적어둘 것)
+    ```
+    127.0.0.1 → 400 · 2130706433 → 400 · 169.254.169.254 → 400
+    [::ffff:127.0.0.1] → 502   ← 🟡 차단 목록 통과. fetch 까지 갔다가 실패
+    ```
+    - [ ] IPv4-mapped IPv6(`::ffff:*`) 를 `SSRF_BLOCK` 에 추가
+    - [ ] **미검증**: ⓐ리다이렉트 추적(공개 URL → `169.254.169.254`) ⓑ내부 IP 로 해석되는 호스트명. 차단 목록 방식의 구조적 한계라 **해소하려면 응답 IP 검증이 필요**하다
+  - [ ] **1차 조치는 인증이다** — 둘 다 로그인 사용자만 쓰면 소진 위험이 실사용자 범위로 줄어든다. `authedFetch` + `createRouteClient` 로 8/17 과 같은 패턴. ⚠️ **호출부를 먼저 확인할 것** — 8/17 에 SQL 을 먼저 올려야 했던 것과 같은 순서 문제가 있을 수 있다
+  - [ ] 그 다음 **레이트 리밋** — 인증만으로는 로그인한 사용자 1명이 소진시키는 걸 못 막는다
+
 - [~] **IDOR-3 → 실제로는 "열린 업로드"였다** (2026-08-17 재평가) — 이 항목의 기술이 실제보다 약했다. *"admin 클라이언트 + 형식 검증뿐"* 은 "인증은 되는데 소유권 검증이 없다"로 읽히지만, **세 라우트에 인증 코드가 0건**이었고 클라이언트도 `authedFetch` 가 아닌 평범한 `fetch` 였다. 누구나 공개 버킷에 파일을 쌓을 수 있었다(용량·대역폭 비용 + 이 서비스 도메인에서 서빙).
-  - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `scripts/sql/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
+  - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `docs/guide/db/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
   - [ ] **Phase 2** — 버킷 비공개 + 서명 다운로드 URL + `chat_messages.attachment_url` 백필. 🔴 **미뤄진 진짜 이유가 이것이다** — 저장된 값이 `getPublicUrl` 결과라 비공개로 돌리면 **과거 대화 이미지가 전부 400**
   - [x] 🔴 **적용 순서: SQL 먼저, 배포 나중.** 코드를 먼저 올리면 정책이 없어 업로드가 전부 거부된다 — 이 순서로 실행했고 무중단이었다
   - [x] 레거시 평면 경로는 **그대로 둔다** — 소유자를 알 수 없어 이관 불가. 정책에 읽기 예외를 뒀고 Phase 2 때 재검토
@@ -326,7 +355,7 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 
 - 구현·검증: [DEV_260714](logs/2026/07/DEV_260714.md) · 설계 [PLAN_AUTH_MVP_260709](plans/PLAN_AUTH_MVP_260709.md) · 검증 [PLAN_AUTH_MVP_TEST_260709](plans/PLAN_AUTH_MVP_TEST_260709.md)
 - [~] **로그인 경로 정비** — [PLAN_AUTH_SIGNIN_PATHS_260715](plans/PLAN_AUTH_SIGNIN_PATHS_260715.md). **구현 완료·tsc 0**(3파일, SQL 무변경). 계정 선택창(`prompt=select_account`) · 대화 0개 게스트는 `signInWithOAuth` 직행(= 캐시 지운 사용자가 실패 없이 로그인) · 설정에 "다른 계정으로 로그인". **남음: 브라우저 3건**(선택창 뜨는지 / 0개 게스트 충돌 없이 로그인 / 계정 전환 시 사이드바 완전 교체)
-- [ ] **프로덕션 이관** — SQL 3종 적용(`scripts/sql/auth-mvp-*.sql`) · 대시보드 3종(Anonymous Sign-ins / **Allow manual linking** / Google provider) · Google Cloud에 운영 콜백 URI + JS 원본 · Supabase Redirect URLs
+- [ ] **프로덕션 이관** — SQL 3종 적용(`docs/guide/db/auth-mvp-*.sql`) · 대시보드 3종(Anonymous Sign-ins / **Allow manual linking** / Google provider) · Google Cloud에 운영 콜백 URI + JS 원본 · Supabase Redirect URLs
 - [ ] 크로스 디바이스 승계 실기기 확인 (구조는 스테이징 §5-2와 동일, 미검증)
 - [ ] (post-MVP) Kakao · 이메일+비밀번호 — Google 연결 후엔 이메일이 검증된 상태라 `updateUser({ password })`가 깔끔하게 동작
 - [ ] (보류) Google 동의 화면에 앱 이름 대신 `*.supabase.co` 노출 — Supabase Custom Domain(유료) 외 방법 없음
@@ -385,7 +414,7 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 - 실패 재시도 2회(키 로테이션, [C])·전체 카테고리 프롬프트(~1.5KB, [D])는 현행 유지 결론(정확도/안정성 우선, 효과 작음).
 
 **지연 단축 후속** ([DEV_260624](./logs/2026/06/DEV_260624.md), 기획·재점검 [PLAN_STREAMING_PARTIAL_260623](plans/PLAN_STREAMING_PARTIAL_260623.md) §9·§10):
-- [x] **general `low → minimal`** (2026-06-24) — 비검색 general 3.5의 thinking을 minimal로. 코드·수학·추론 5케이스 실측 평균 −25%(코드 −58%)·품질 저하 0([scripts/test-low-vs-minimal-reasoning.ts](../scripts/test-low-vs-minimal-reasoning.ts)). [`generation-config.ts`](../server/agent/nodes/generation-config.ts) 3.5 분기 minimal 통합. 롤백=한 줄(`low` 복귀).
+- [x] **general `low → minimal`** (2026-06-24) — 비검색 general 3.5의 thinking을 minimal로. 코드·수학·추론 5케이스 실측 평균 −25%(코드 −58%)·품질 저하 0(`scripts/test-low-vs-minimal-reasoning.ts`). [`generation-config.ts`](../server/agent/nodes/generation-config.ts) 3.5 분기 minimal 통합. 롤백=한 줄(`low` 복귀).
 - [x] **Stage2 503/429 분리** (2026-06-24) — 503(모델 폭주)에 키 로테이션 12회 헛돌던(~24s) 것을 백오프 최대 2회 후 2.5 폴백으로. 429/timeout만 로테이션 유지. [`generator.ts`](../server/agent/nodes/generator.ts) Stage2 catch.
 - [ ] **폭주 정상화 후 재측정** — minimal·Stage2 fix 효과는 Google 503 "high demand" 이벤트 중 측정돼 오염됨(비검색 minimal인데 18.8s). 정상 시 minimal ~5s·Stage2 28s→6s 확인 + §8 체크리스트 A~D prod 실측.
 - [ ] **503 처리 확장 점검** — Stage1·단일패스·라우터의 503 거동(Stage2만 수정). (후속/보류) 서킷 브레이커: 3.5 503 직후 ~30s 요청 2.5 우회.

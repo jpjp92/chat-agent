@@ -70,6 +70,24 @@ RLS 가 실제로 걸리는 유일한 곳은 [`parse-document/route.ts:108`](../
 
 ---
 
+## 0순위 후속 — 8/17 점검이 놓친 무인증 라우트 2개 (2026-08-18)
+
+`fetch-url` · `sync-drug-image` 에 **인증이 없다**. 침묵 제거 배포를 검증하려고
+토큰 없이 호출했더니 200 이 나와서 알았다 → 상세·조치안은 [TODO](../TODO.md) 의
+"무인증 라우트가 2개 더 있다" 항목.
+
+> 🔴 **점검 범위 자체가 사례 이름으로 좁혀져 있었다.** 8/17 은 *"Storage 에 쓰는 라우트"* 를
+> 훑었고, 이 둘은 Storage 가 **주업이 아니라서** 걸리지 않았다(스크래핑·이미지 프록시인데
+> 부수적으로 쓴다). 코드에서 두 번 데인 *"특정 사례로 이름 붙인 규칙"* 함정이
+> **이번엔 점검 방법에서** 재현됐다. 다음은 **"인증 없는 POST 라우트 전부"** 로 훑는다.
+
+핵심만: `fetch-url` 은 임의 URL 을 서버가 대신 가져오고 캐시 미스면 **유료 스크래퍼**를 태운다
+(browserless 1000 units/월). 8/17 의 열린 업로드보다 **단가가 높다.**
+SSRF 차단 목록은 실측상 양호하다(숫자 IP 도 WHATWG 파서가 정규화해 막힌다) —
+남은 구멍은 `::ffff:*` 와 미검증 2건(리다이렉트·DNS).
+
+---
+
 ## 1순위 — S등급: 조용히 틀린다
 
 ### 1-1. CGV 스크래핑 실패가 "상영 없음"으로 보인다 — [BACKLOG A3](PLAN_BACKLOG_260801.md)
@@ -259,7 +277,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 `url_cache` 가 따라오지 못했다.
 
 > **교훈: 스키마의 출처가 문서뿐이면 새 환경에서 재현되지 않는다.**
-> 문서는 읽어야 알지만 `scripts/sql/` 에 있으면 순서대로 실행된다.
+> 문서는 읽어야 알지만 `docs/guide/db/` 에 있으면 순서대로 실행된다.
 > — 8/17 하니스 추적(`.gitignore` negation)과 **같은 결함의 다른 얼굴**이다:
 > *레포에 없는 것은 없는 것이다.*
 
@@ -268,7 +286,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 `getCached` 는 `if (error || !data) return null` 이라 **테이블 없음과 캐시 미스가 구분되지 않고**,
 `setCached` 는 upsert 반환 `error` 를 읽지도 않는다.
 
-- [x] 복원 DDL 을 레포에 되돌렸다 → `scripts/sql/url-cache.sql` (멱등)
+- [x] 복원 DDL 을 레포에 되돌렸다 → `docs/guide/db/url-cache.sql` (멱등)
 - [x] dev 에서 실행
 - [x] **✅ 해소 확인 (2026-08-17)** — dev 웹에서 `blog.google/…/introducing-gemini-3-7-flash-kr/ 요약` 실행 후
       `url_cache` 에 행 1건(`status=ok`, `provider=direct`). **45일 만에 캐시가 다시 쓰인다.**
@@ -296,7 +314,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 `mfds_pills` 는 **이미지 약품 식별의 1순위 경로**다(`identifyPillTool`). dev 에 존재한 적이 없다.
 
 **왜 더 나쁜가**: `url_cache` 는 DDL 이 최소한 REF_DB.md 에 있었다. `mfds_pills` 는
-**REF_DB.md 에 항목조차 없었고**, DDL 은 `scripts/sync-mfds-pills.mjs` **주석 안에만** 있었는데
+**REF_DB.md 에 항목조차 없었고**, DDL 은 `docs/guide/db/sync-mfds-pills.mjs` **주석 안에만** 있었는데
 그 파일은 `.gitignore` 의 `scripts/sync-*` 에 걸려 **레포에 없었다.**
 → **스키마의 출처가 어디에도 없었다.**
 
@@ -309,7 +327,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 > 🔴 **H그룹 통과 기록의 범위를 정정한다.** dev 에서 잰 것이므로 **스크래핑 폴백을 검증한 것**이지
 > MFDS DB 경로를 검증한 게 아니다. main 에는 테이블이 있으므로 **프로덕션은 다른 경로로 답한다.**
 
-- [x] DDL 복원 → `scripts/sql/mfds-pills.sql` · 적재 스크립트 추적(`.gitignore` [B] 예외 신설)
+- [x] DDL 복원 → `docs/guide/db/mfds-pills.sql` · 적재 스크립트 추적(`.gitignore` [B] 예외 신설)
 - [x] REF_DB.md 에 테이블 항목 신설
 - [x] dev 에 테이블 생성 + 적재 — **25,345행** (각인 GIN 조회 정상)
 
@@ -328,7 +346,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 정상 499건이 같이 날아갔다.** 재실행마다 배치 경계가 달라져 **어느 약이 빠지는지가 매번 바뀌었다**
 (22,359 ↔ 22,362) — 그래서 "대충 맞네"로 보였다.
 
-**수정**(`scripts/sync-mfds-pills.mjs` `flush()`): 배치 **안**만 `Map` 으로 접는다.
+**수정**(`docs/guide/db/sync-mfds-pills.mjs` `flush()`): 배치 **안**만 `Map` 으로 접는다.
 배치 **간** 중복은 손대지 않는다 — upsert 가 정상 처리한다.
 
 수정 후: **25,351건 저장 · 오류 0 · 배치내중복 11 → 최종 25,345행.**
@@ -352,7 +370,7 @@ where table_name like '%cache%' or table_name in ('chat_messages','chat_sessions
 **환경 구축 스크립트는 네트워크를 타고 시크릿을 읽는 게 정상**인데, 그 기준이 이 부류를
 잘못 배제했고 그 결과가 위 사고다. `.gitignore` 에 [B] 부류를 신설했다:
 ⓐ**파일 안에 시크릿 리터럴이 없다**(런타임 env 읽기는 무방) ⓑ환경 재현에 필요하다.
-**단, 스키마는 `scripts/sql/` 에도 둔다 — 스크립트 주석은 스키마의 출처가 될 수 없다.**
+**단, 스키마는 `docs/guide/db/` 에도 둔다 — 스크립트 주석은 스키마의 출처가 될 수 없다.**
 
 ### 🔴 0-B 의 지시를 정정한다 — **삭제가 아니라 교체**
 

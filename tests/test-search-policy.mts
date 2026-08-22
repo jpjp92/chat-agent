@@ -1,10 +1,10 @@
-// scripts/test-search-policy.mts
+// tests/test-search-policy.mts
 //
 // 검색 판정 재설계(증거→정책 2단 분리) 테스트 하니스.
 // 기획: docs/plans/PLAN_SEARCH_POLICY_260815.md
 // 진단: docs/logs/2026/08/DEV_260815.md
 //
-// 실행: npx tsx scripts/test-search-policy.mts     (API 키 불필요 — 판정은 전부 결정론)
+// 실행: npx tsx tests/test-search-policy.mts     (API 키 불필요 — 판정은 전부 결정론)
 //
 // ⚠️ 설계 원칙: 정규식을 이 파일에 복사하지 않는다. 프로덕션 모듈을 직접 import한다.
 //    scripts/test-search-rules.mjs 는 정규식을 복사해 둔 탓에, 프로덕션이 바뀐 뒤에도

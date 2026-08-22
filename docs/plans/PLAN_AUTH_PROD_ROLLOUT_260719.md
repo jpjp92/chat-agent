@@ -37,7 +37,7 @@
 ## 2. 이관 전 검토·준비 체크리스트
 
 ### A. DB 스키마 (프로덕션 `gaomgqnpsjtabrvwnpad`)
-- [x] 🆕 **사전 점검 실행 (2026-08-02 완료)** — [`scripts/sql/auth-mvp-preflight-prod.sql`](../../scripts/sql/auth-mvp-preflight-prod.sql). 결과: **🔴 두 항목 모두 clear** — B6 `_legacy` 이름 충돌 없음 · B3 의존 뷰 없음. B1(대상 3종 존재)은 A1 쿼리가 세 테이블을 조인해 성공한 것으로 묵시적 확인. B5(현행 RLS off)는 구 앱이 정상 동작 중인 것으로 확인(그게 IDOR-1/2). **남은 확인: B2(예상 밖 테이블/뷰) — 블로커 아님**
+- [x] 🆕 **사전 점검 실행 (2026-08-02 완료)** — [`docs/guide/db/auth-mvp-preflight-prod.sql`](../../docs/guide/db/auth-mvp-preflight-prod.sql). 결과: **🔴 두 항목 모두 clear** — B6 `_legacy` 이름 충돌 없음 · B3 의존 뷰 없음. B1(대상 3종 존재)은 A1 쿼리가 세 테이블을 조인해 성공한 것으로 묵시적 확인. B5(현행 RLS off)는 구 앱이 정상 동작 중인 것으로 확인(그게 IDOR-1/2). **남은 확인: B2(예상 밖 테이블/뷰) — 블로커 아님**
 - [ ] SQL 3종 적용 (스키마·RLS·트리거·GRANT) — dev 에 쓴 것과 동일 스크립트
 - [ ] 🔴 적용 **직전** 프로덕션 스냅샷 (Supabase 대시보드 백업 or `pg_dump`)
 - [ ] `_legacy` rename 은 삭제가 아님 — 데이터 보존·롤백 경로. **`drop` 금지** (→ 실데이터 이관 결론은 §2-A-1)
@@ -109,7 +109,7 @@ if (existingUser) return { user: existingUser };   // 닉네임만 맞으면 그
 
 ### D. Storage 버킷 (프로덕션)
 - [ ] 프로덕션에 `chat-imgs`·`chat-videos`·`chat-docs` **존재·규격 확인** (기존 앱이 이미 쓰므로 있을 가능성 높음 — dev 처럼 새로 만들 필요 없을 수 있음. **먼저 확인**)
-- [ ] 없으면 `scripts/sql/auth-mvp-storage-buckets.sql` 로 생성
+- [ ] 없으면 `docs/guide/db/auth-mvp-storage-buckets.sql` 로 생성
 
 ### E. Vercel env — **chat-agent(main) 프로젝트만**
 

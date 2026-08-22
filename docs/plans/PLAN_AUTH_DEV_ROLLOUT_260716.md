@@ -53,7 +53,7 @@
 
 ### B. 스테이징 스토리지 버킷 — ✅ 완료 (2026-07-16)
 - [x] 확인: 스테이징에 버킷 없었음
-- [x] `chat-imgs`·`chat-videos`·`chat-docs` 공개 버킷 3개 생성 (`scripts/sql/auth-mvp-storage-buckets.sql`)
+- [x] `chat-imgs`·`chat-videos`·`chat-docs` 공개 버킷 3개 생성 (`docs/guide/db/auth-mvp-storage-buckets.sql`)
 
 ### C. Google OAuth — dev 도메인 등록 — ✅ 완료 (2026-07-16)
 - [x] **Google Cloud** → OAuth 클라이언트 `chat-agent-web` → **승인된 JavaScript 원본**에 `https://chat-agent-dev.vercel.app` 추가 (기존 `http://localhost:3000` 유지)

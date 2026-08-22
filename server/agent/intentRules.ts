@@ -32,7 +32,7 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
  *   5. `data_viz` — **맨 끝**. `차트`·`그래프`는 위 어느 분야와도 결합하므로
  *      ("분자 구조 차트", "별자리 그래프") 도메인이 먼저 잡게 둔다
  *
- * 검증: `npx tsx scripts/test-intent-rules.mts` (양방향 — 잡아야 할 것 / 잡으면 안 될 것)
+ * 검증: `npx tsx tests/test-intent-rules.mts` (양방향 — 잡아야 할 것 / 잡으면 안 될 것)
  * 기획: docs/plans/PLAN_INTENT_RULES_PRECISION_260816.md
  */
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
@@ -94,7 +94,7 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         //   폴백은 LLM이 죽었을 때 쓰는 최후 수단이다. 놓치면 general+검색이 받아주지만,
         //   잘못 잡으면 렌더러 스펙 주입 + 검색 OFF라 받아줄 곳이 없다.
         //   → 재현율보다 정밀도. 애매한 단독어는 전부 문맥 동반을 요구한다.
-        //   (PLAN_INTENT_RULES_PRECISION_260816 Step 1, 검증 scripts/test-intent-rules.mts)
+        //   (PLAN_INTENT_RULES_PRECISION_260816 Step 1, 검증 tests/test-intent-rules.mts)
         intent: "astronomy",
         pattern: new RegExp([
             // 단독으로 천문 이외의 뜻이 거의 없는 것들

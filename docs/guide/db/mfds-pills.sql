@@ -1,7 +1,7 @@
 -- mfds_pills — 식약처 낱알 식별 정보 로컬 사본 (이미지 약품 식별 1순위 경로)
 --
 -- 🔴 이 파일이 왜 생겼나 (2026-08-17)
---   이 DDL 은 여태 `scripts/sync-mfds-pills.mjs` **상단 주석 안에만** 있었고,
+--   이 DDL 은 여태 `docs/guide/db/sync-mfds-pills.mjs` **상단 주석 안에만** 있었고,
 --   그 파일은 `.gitignore` 의 `scripts/sync-*` 에 걸려 **레포에 없었다.**
 --   REF_DB.md 에도 이 테이블 항목이 없었다 → **스키마의 출처가 어디에도 없었다.**
 --
@@ -19,7 +19,7 @@
 --
 -- 적용:
 --   ① 이 파일을 Supabase SQL Editor 에서 실행(멱등)
---   ② 데이터 적재: `node scripts/sync-mfds-pills.mjs`
+--   ② 데이터 적재: `node docs/guide/db/sync-mfds-pills.mjs`
 --      (`.env.local` 에서 MFDS_API_KEY·MFDS_API_ENDPOINT·SUPABASE_URL·SUPABASE_KEY 를 읽는다)
 --      먼저 `--count` 로 총 건수, `--dry-run` 으로 파싱만 확인할 수 있다.
 

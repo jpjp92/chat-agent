@@ -8,7 +8,7 @@
  * 이 판정이 `routerNode` 안에 인라인으로 있어 하니스가 임포트할 수 없었고,
  * 그 사이 `날씨 추세 알려줘`·`아니 날씨 …` 같은 자연스러운 발화가 전부 `new`로
  * 새면서 카드만 반복 생성됐다(같은 질문을 3번 하는데 한 번도 답하지 않음).
- * 검증: `npx tsx scripts/test-weather-followup.mts`
+ * 검증: `npx tsx tests/test-weather-followup.mts`
  *
  * ## 판정 계층 (needsSearch·movie와 같은 원칙)
  *   1. 강한 규칙 → new

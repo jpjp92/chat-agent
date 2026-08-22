@@ -34,7 +34,7 @@ const isQuotaError = (e: any): boolean =>
  * (오라메디 인공타액액 / Ortho-Saliva / 아쿠아 오랄 스프레이).
  * 시스템 프롬프트의 약 정보 방어(prompt.ts L280·L282)보다 툴 출력이 모델에 가까워서 이게 이겼다.
  *
- * 네트워크 없이 검사할 수 있어야 회귀가 잡힌다 → scripts/test-drug-fallback.mts
+ * 네트워크 없이 검사할 수 있어야 회귀가 잡힌다 → tests/test-drug-fallback.mts
  *
  * 두 상황의 **어조를 다르게** 둔다. 이 문자열은 모델이 읽고 사용자에게 옮기는 프레임이라
  * 단정적으로 쓰면 그대로 단정적인 답변이 된다:

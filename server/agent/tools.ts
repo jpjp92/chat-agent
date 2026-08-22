@@ -1,4 +1,5 @@
 import { tool } from "@langchain/core/tools";
+import { parseDdgHtml, formatDdgResults } from "./ddg-parse";
 import { z } from "zod";
 import { searchMfdsPills } from "../mfds-logic";
 import { searchPill } from "../pill-logic";
@@ -26,72 +27,15 @@ export const searchWebTool = tool(
             } finally {
                 clearTimeout(timeoutId);
             }
-            const text = await res.text();
-            const snippets: string[] = [];
-            const urls: { title: string; url: string }[] = [];
-
-            // Helper: extract real URL from DDG redirect href
-            const extractRealUrl = (rawUrl: string): string => {
-                try {
-                    const base = rawUrl.startsWith('http') ? rawUrl : 'https://duckduckgo.com' + rawUrl;
-                    const uddg = new URL(base).searchParams.get('uddg');
-                    return uddg ? decodeURIComponent(uddg) : rawUrl;
-                } catch { return rawUrl; }
-            };
-
-            // Strategy 1: block regex — title link + snippet in proximity
-            const blockRegex = /<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]{0,600}?<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
-            let blockMatch;
-            while ((blockMatch = blockRegex.exec(text)) !== null) {
-                const realUrl = extractRealUrl(blockMatch[1]);
-                const title = blockMatch[2].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-                const snippet = blockMatch[3].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                if (snippet.length > 20) snippets.push(snippet);
-                if (realUrl.startsWith('http') && urls.length < 4) {
-                    urls.push({ title: title || realUrl, url: realUrl });
-                }
-                if (snippets.length >= 4) break;
+            const html = await res.text();
+            // 🔴 파싱은 `server/agent/ddg-parse.ts` 로 분리했다 — 여기 정규식이 박혀 있던 탓에
+            //    DDG 가 HTML 을 바꿔도(속성 순서 변경 + uddg 리디렉션 폐지) 아무도 몰랐고,
+            //    **전 검색에서 출처 URL 이 0건**이 됐다. 순수 함수라 하니스로 고정된다.
+            const results = parseDdgHtml(html);
+            if (results.length === 0) {
+                console.warn('[Agent Tool] searchWebTool: 파싱 결과 0건 — DDG HTML 구조가 또 바뀌었을 수 있다. 질의:', query);
             }
-
-            // Strategy 2: extract uddg= URLs independently if Strategy 1 missed them
-            if (urls.length === 0) {
-                const uddgRegex = /href="([^"]*uddg=[^"]+)"/g;
-                const titleRegex = /<a class="result__a"[^>]*>([\s\S]*?)<\/a>/g;
-                const allTitles: string[] = [];
-                let tm;
-                while ((tm = titleRegex.exec(text)) !== null) {
-                    allTitles.push(tm[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
-                }
-                let um; let tIdx = 0;
-                while ((um = uddgRegex.exec(text)) !== null && urls.length < 4) {
-                    const realUrl = extractRealUrl(um[1]);
-                    if (realUrl.startsWith('http') && !urls.some(u => u.url === realUrl)) {
-                        urls.push({ title: allTitles[tIdx] || realUrl, url: realUrl });
-                    }
-                    tIdx++;
-                }
-            }
-
-            // Strategy 3: snippet-only fallback
-            if (snippets.length === 0) {
-                const snippetRegex = /<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g;
-                let m;
-                while ((m = snippetRegex.exec(text)) !== null) {
-                    const s = m[1].replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-                    if (s.length > 20) snippets.push(s);
-                    if (snippets.length >= 4) break;
-                }
-            }
-
-            if (snippets.length === 0) {
-                return `웹 검색 결과가 없습니다. 질의: ${query}`;
-            }
-
-            let output = `[WEB_SEARCH_RESULTS for "${query}"]\n` + snippets.map((r, i) => `${i + 1}. ${r}`).join('\n\n');
-            if (urls.length > 0) {
-                output += `\n\n[WEB_SOURCE_URLS]\n` + urls.map(u => `${u.url} | ${u.title}`).join('\n');
-            }
-            return output;
+            return formatDdgResults(query, results);
         } catch (e: any) {
             console.error("[Agent Tool] searchWebTool error:", e);
             return "웹 검색 중 오류가 발생했습니다.";

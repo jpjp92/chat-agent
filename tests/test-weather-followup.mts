@@ -1,8 +1,8 @@
 /**
- * 날씨 카드 후속 판정 하니스 — `npx tsx scripts/test-weather-followup.mts`
+ * 날씨 카드 후속 판정 하니스 — `npx tsx tests/test-weather-followup.mts`
  *
  * 프로덕션 로직을 **임포트**한다(정규식 복사 금지 — 복사하면 하니스가 프로덕션과
- * 따로 늙는다). scripts/test-intent-rules.mts와 같은 규약.
+ * 따로 늙는다). tests/test-intent-rules.mts와 같은 규약.
  *
  * ## 무엇을 재는가
  * 화면에 날씨 카드가 떠 있을 때 사용자가 이어 말했을 때,

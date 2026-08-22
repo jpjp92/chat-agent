@@ -207,6 +207,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │           ├── router.ts / vision.ts / generator.ts / langchain-path.ts
 │           ├── search-gate.ts / sdk-contents.ts
 │           ├── generation-config.ts / pill-messages.ts / retry.ts
+│           └── image-flags.ts               # 신규첨부 vs 히스토리 이미지 (순수 — 하니스가 import)
 │       └── weather-followup.ts         # 날씨 후속 판정 (순수 함수 — 하니스가 import)
 ├── components/                         # 25 UI components (12 renderers + core)
 ├── lib/
@@ -214,10 +215,15 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-name.ts                 # 업로드 파일명 → Storage 키 정규화 (순수)
 │   ├── theaters.ts / movieContext.ts
 │   └── sports/football-data.ts         # football-data.org WC data layer
-├── scripts/sql/                        # 🔴 DB 스키마의 출처. §5-2 참조
+├── docs/guide/db/                        # 🔴 DB 스키마의 출처. §5-2 참조
 │   ├── auth-mvp-*.sql                  # 인증 MVP 스키마 · 컷오버 · 검증
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
+│   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
+├── tests/                              # 🔴 회귀 하니스 (`npm test`). tests/README.md
+│   ├── test-intent-rules / test-search-policy / test-weather-followup
+│   ├── test-storage-name / test-pill-messages / test-ddg-parse
+│   └── tsconfig.probe.json + lib/      # `server-only` 모듈을 tsx 로 직접 돌리는 우회
 ├── utils/
 │   ├── astronomyHelper.ts / celestialMath.ts
 │   └── streamingMarkdown.ts            # Anti-flicker table gating (mid-stream)
@@ -258,7 +264,7 @@ cp .env.example .env.local
 
 Full field descriptions: [.env.example](.env.example)
 
-### 5-2. Database setup — `scripts/sql/`
+### 5-2. Database setup — `docs/guide/db/`
 
 🔴 **새 Supabase 프로젝트를 세울 때 이 폴더를 전부 실행해야 한다.** 전부 멱등이다.
 
@@ -268,7 +274,7 @@ Full field descriptions: [.env.example](.env.example)
 | 2 | `auth-mvp-storage-buckets.sql` | `chat-imgs` · `chat-videos` · `chat-docs` |
 | 3 | `storage-user-prefix-rls.sql` | `storage.objects` 유저별 prefix 정책 |
 | 4 | `url-cache.sql` | URL 프리페치 캐시 |
-| 5 | `mfds-pills.sql` | 식약처 낱알 DB → 이어서 `node scripts/sync-mfds-pills.mjs` 로 적재 |
+| 5 | `mfds-pills.sql` | 식약처 낱알 DB → 이어서 `node docs/guide/db/sync-mfds-pills.mjs` 로 적재 |
 
 > ⚠️ **3번은 코드 배포보다 먼저** 실행한다. 정책이 없는 상태로 코드를 올리면 업로드가 전부 거부된다.
 >
@@ -293,16 +299,16 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # intent 규칙 · 검색 정책 · 날씨 후속 · Storage 파일명 하니스
+npm test           # 하니스 6종 (tests/) — intent·검색정책·날씨후속·파일명·알약응답·웹검색파싱
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
-> ⚠️ `scripts/` 의 일회성 스크립트(`audit-*`·`probe-*`·`check-*`)는 실 API 키로 외부를 때리므로
-> `.gitignore` 대상이다. 예외는 **두 부류**뿐이다:
-> **ⓐ 회귀 하니스 4종**(`test-intent-rules`·`test-search-policy`·`test-weather-followup`·`test-storage-name`)
-> — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다.
-> **ⓑ 환경 구축 스크립트**(`sync-mfds-pills.mjs`) — 네트워크를 타지만 **없으면 새 환경을 세울 수 없다.**
-> 파일 안에 시크릿 리터럴이 없고 런타임에 env 에서 읽는다. 기준 상세는 `.gitignore` 주석 참조.
+> 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
+> **`tests/`** 회귀 하니스 6종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)).
+> **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
+> **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
+> 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,
+> 그 탓에 `mfds_pills` DDL 이 레포에서 사라져 **dev 에 테이블이 없었다**(§5-2).
 >
 > ⚠️ `lint` 를 `verify` 에 넣지 않은 이유: 기존 에러 30건 때문에 **항상 빨간 명령**이 되고,
 > 그건 `next lint` 제거 후 깨진 채 방치됐던 상태와 같은 실패다. 30건을 정리한 뒤 넣는다.

@@ -1,8 +1,8 @@
-// scripts/test-intent-rules.mts
+// tests/test-intent-rules.mts
 //
 // classifyIntentByRules 양방향 채점 — 기획: docs/plans/PLAN_INTENT_RULES_PRECISION_260816.md
 //
-// 실행: npx tsx scripts/test-intent-rules.mts
+// 실행: npx tsx tests/test-intent-rules.mts
 //
 // ── 왜 양방향인가 ─────────────────────────────────────────────────────
 // 이 폴백은 라우터 LLM이 429/503으로 죽었을 때만 도는 경로다(+ weather·movie_search는
