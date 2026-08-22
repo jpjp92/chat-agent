@@ -87,7 +87,7 @@
 > **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — [buildWeatherData](../reference/news/app/api/weather/route.ts#L722) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
 > 설계: **KMA 우선(한국 정확도) + OpenWeather 보완(해외·geocoding·KMA 폴백)** 하이브리드. 레퍼런스가 KMA까지 다 풀어서 **처음부터 통째 이식 현실적**(단계 분리 불필요).
 > **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 [KMA_CITIES 표](../reference/news/app/api/weather/route.ts#L199)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
-> **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](docs/TODO.md#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
+> **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
 > **✅ 실험 검증 완료** (2026-07-05, [scripts/test-weather-hybrid.ts](../scripts/test-weather-hybrid.ts), 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
 
 - [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
@@ -249,8 +249,9 @@
   - [x] **`/api/upload` 삭제** — `40ff02e`(2026-03-09) 서명 URL 도입으로 대체됐는데 Next.js 이관이 사용처 확인 없이 옮겨왔다. **5개월간 죽은 채 무인증**이었다
   - [x] 파일명 정리 `lib/storage-name.ts` — 한글이 대시로 뭉개져 Storage 콘솔에서 식별 불가였던 것(보안 아님, 조사용 가독성). 🟡 순한글 이름은 여전히 `file.hwp`
   - **실측 (dev, 2026-08-17)**: 정책 12행 ✅ · 신규 키 `uid/` prefix ✅ · 10MB HWP 종단 ✅ · 신규 첨부 이미지 세션 재진입 복원 ✅(2건)
-  - [ ] ⬜ **레거시 평면 경로 첨부가 여전히 보이는가** — 🔴 **깨지면 SELECT 정책 롤백.** 남은 것 중 유일하게 되돌림이 필요한 항목
-  - [ ] ⬜ 무인증 `create-signed-url` → 401 실증
+  - [x] ~~**레거시 평면 경로 첨부가 여전히 보이는가**~~ — 🔴 **질문 자체가 틀렸다**(2026-08-18). 첨부 이미지는 `getPublicUrl` 결과를 `<img src>` 로 그대로 쓰므로 **공개 엔드포인트 직행이고 RLS 를 타지 않는다.** 정책을 롤백하든 말든 결과가 같아 이 테스트는 실패할 수 없었다. RLS 가 걸리는 유일한 곳은 `parse-document` 의 `download()` 인데 거기 정규식이 uid 세그먼트를 필수로 요구해 레거시는 400 으로 먼저 막힌다 → **되돌릴 것 없음.** 상세: [PLAN_PRIORITY §0](plans/PLAN_PRIORITY_260817.md)
+  - [x] **무인증 401 실측** (2026-08-18, dev) — `create-signed-url` 401 · `parse-document` 401 · **위조 Bearer 도 401**(헤더 유무가 아니라 검증이 막는다) · `/api/upload` 404(삭제 확인)
+  - 🔴 **교훈 — 롤백 기준을 적을 땐 그 기준이 걸리는 경로를 먼저 읽는다.** 위 항목을 "유일하게 되돌림이 필요한 것"으로 0순위에 올려뒀는데, 확인에 5분이면 될 것을 안 했다. **틀린 판정 기준은 없는 것보다 나쁘다** — 통과해도 아무것도 보장하지 않으면서 다른 항목을 밀어낸다
 - [ ] **모델·API 레퍼런스 검토 후속** → [PLAN_MODEL_API_REVIEW_260817](plans/PLAN_MODEL_API_REVIEW_260817.md)
   - [ ] 🔴 `THINKING_MODE` 실측표 + `resolveThinkingConfig` 전환 — **3.7 은 `minimal` 을 400 으로 거부한다.** 지금 3.7 을 추가하면 전 호출이 죽는다
   - [ ] `MODEL_CAPS` 에 3.7 · `FLASH_3_7` 레지스트리 + i18n (**기본은 3.6 유지** — 출시 직후 503 잦음)

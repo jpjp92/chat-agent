@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../server/supabase';
+import { supabase, supabaseAdmin } from '../../../server/supabase';
 import crypto from 'crypto';
+
+/**
+ * 🔴 이 라우트의 Storage 쓰기는 **admin 권한이 필요하다.** 이름으로 명시한다. (2026-08-18)
+ *
+ * 경로가 `drug-cache/<md5>.jpg` 라 첫 세그먼트가 `auth.uid()` 가 아니다 →
+ * 2026-08-17 Storage RLS 정책(`scripts/sql/storage-user-prefix-rls.sql`)상 **거부돼야 한다.**
+ * 지금 살아 있는 건 `server/supabase.ts` 의 `supabase` 가 실제로는 **service_role 키를 들고
+ * 있기 때문**이다(`SUPABASE_KEY` 라는 anon 스러운 이름이지만 값은 service_role).
+ * 즉 **동작하는 이유가 우연**이고, 키를 anon 으로 바꾸면 조용히 죽는다 —
+ * 공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다.**
+ *
+ * 이건 유저 데이터가 아니라 **공용 약품 이미지 캐시**라 admin 이 맞다.
+ * `supabaseAdmin` 이 없으면 시작 시점에 드러나게 한다 — 런타임에 조용히 강등되는 것보다 낫다.
+ */
+const storage = (() => {
+    if (!supabaseAdmin) {
+        console.error('[sync-drug-image] 🔴 SUPABASE_SERVICE_ROLE_KEY 없음 — drug-cache/ 쓰기는 RLS 에 막힌다(새 약품 이미지 유실).');
+    }
+    return (supabaseAdmin ?? supabase).storage.from('chat-imgs');
+})();
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -52,7 +72,7 @@ export async function POST(req: NextRequest) {
         }
         inflightRequests.set(fileName, new Promise(r => { resolveInflight = r; }));
 
-        const { data: publicUrlData } = supabase.storage.from('chat-imgs').getPublicUrl(fileName);
+        const { data: publicUrlData } = storage.getPublicUrl(fileName);
         if (publicUrlData?.publicUrl) {
             try {
                 const headCtrl = new AbortController();
@@ -318,8 +338,8 @@ function extractPillVisual(html: string) {
     } catch { return null; }
 }
 async function uploadAndReturn(buffer: Buffer, contentType: string, fileName: string) {
-    const { error: uploadError } = await supabase.storage.from('chat-imgs').upload(fileName, buffer, { contentType, upsert: true });
+    const { error: uploadError } = await storage.upload(fileName, buffer, { contentType, upsert: true });
     if (uploadError) throw uploadError;
-    const { data: { publicUrl } } = supabase.storage.from('chat-imgs').getPublicUrl(fileName);
+    const { data: { publicUrl } } = storage.getPublicUrl(fileName);
     return { publicUrl };
 }

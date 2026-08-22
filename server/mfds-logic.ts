@@ -87,6 +87,25 @@ export interface MfdsDrug {
     detail_url: string;
 }
 
+/**
+ * 🔴 쿼리 실패를 **삼키지 않는다.** (2026-08-18)
+ *
+ * 2026-08-17 사고: dev 에 `mfds_pills` 테이블이 아예 없었는데 아무도 몰랐다.
+ * `const { data } = await …` 로 `error` 를 버리면 **테이블 없음이 "결과 0건"과 같은 값**이 되어,
+ * 조용히 `match_type:'none'` → 2순위 스크래핑 폴백으로 내려간다. 그마저 실패하면 모델이
+ * *"시각적 유사성을 기반으로…"* 를 지어낸다(H그룹에서 잡았던 날조 자리).
+ *
+ * 실패를 로그로 드러내되 **동작은 바꾸지 않는다** — 폴백은 그대로 타는 게 맞다.
+ * 여기서 throw 하면 DB 장애가 곧 기능 장애가 된다. 우리가 원하는 건 **보이는 폴백**이다.
+ */
+const rows = <T>(stage: string, res: { data: T[] | null; error: { message: string; code?: string } | null }): T[] => {
+    if (res.error) {
+        console.error(`[mfds] ${stage} 쿼리 실패 — 스크래핑 폴백으로 내려간다:`, res.error.message, res.error.code ?? '');
+        return [];
+    }
+    return res.data ?? [];
+};
+
 export async function searchMfdsPills(criteria: {
     imprint_front: string;
     imprint_back?: string;
@@ -106,30 +125,30 @@ export async function searchMfdsPills(criteria: {
 
     // 1단계: 각인 + 색상 + 모양 완전 일치
     // exact는 결과가 정확히 1개일 때만 — 복수 후보는 imprint_only로 반환해 사용자가 선택
-    const { data: exact } = await supabase
+    const exact = rows('1단계(각인+색상+모양)', await supabase
         .from('mfds_pills')
         .select(select)
         .overlaps('mark_codes', uniqueCodes)
         .in('color_class1', colorList)
         .in('drug_shape', shapeList)
-        .limit(20);
+        .limit(20));
 
-    if (exact && exact.length === 1) {
+    if (exact.length === 1) {
         return { match_type: 'exact', results: exact.map(toMfdsDrug) };
     }
-    if (exact && exact.length > 1) {
+    if (exact.length > 1) {
         const sorted = sortByRelevance(exact, uniqueCodes);
         return { match_type: 'imprint_only', results: sorted.map(toMfdsDrug) };
     }
 
     // 2단계: 각인만 일치 (색상/모양 무관)
-    const { data: imprintOnly } = await supabase
+    const imprintOnly = rows('2단계(각인만)', await supabase
         .from('mfds_pills')
         .select(select)
         .overlaps('mark_codes', uniqueCodes)
-        .limit(20);
+        .limit(20));
 
-    if (imprintOnly && imprintOnly.length > 0) {
+    if (imprintOnly.length > 0) {
         const sorted = sortByRelevance(imprintOnly, uniqueCodes);
         return { match_type: 'imprint_only', results: sorted.map(toMfdsDrug) };
     }
@@ -139,9 +158,9 @@ export async function searchMfdsPills(criteria: {
         let q = supabase.from('mfds_pills').select(select);
         if (color)  q = q.in('color_class1', colorList);
         if (shape)  q = q.in('drug_shape', shapeList);
-        const { data: similar } = await q.limit(5);
+        const similar = rows('3단계(색상+모양)', await q.limit(5));
 
-        if (similar && similar.length > 0) {
+        if (similar.length > 0) {
             return { match_type: 'similar', results: similar.map(toMfdsDrug) };
         }
     }

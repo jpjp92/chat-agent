@@ -47,22 +47,46 @@ const normalizeKey = (u: string) => {
     try { const url = new URL(u); url.hash = ''; return url.toString(); } catch { return u; }
 };
 
+/**
+ * 🔴 캐시 실패를 **삼키지 않는다.** (2026-08-18)
+ *
+ * 2026-08-17 사고: dev 에 `url_cache` 테이블이 아예 없었고 **약 45일간 아무도 몰랐다.**
+ * 매 요청이 유료 스크래퍼(browserless 1000 units/월, 회당 ~2)를 태우고 있었다.
+ *
+ * 왜 안 보였나 — 이 두 함수가 실패를 캐시 미스와 **같은 값**으로 만들었다:
+ *   - `getCached`: `if (error || !data) return null` → **테이블 없음 = 미스**
+ *   - `setCached`: upsert 반환 `error` 를 **읽지도 않는다**
+ * 캐시가 best-effort 인 건 맞다. 그렇다고 **조용할 이유는 없다** — 동작은 그대로 두고
+ * 실패만 드러낸다. 특히 `setCached` 가 계속 실패하면 히트율이 영원히 0 이고,
+ * 그건 성능 문제가 아니라 **비용이 새는 것**이다.
+ */
 const getCached = async (key: string): Promise<string | null> => {
     try {
         const { data, error } = await db.from('url_cache').select('content, fetched_at').eq('url_key', key).maybeSingle();
-        if (error || !data) return null;
+        if (error) {
+            console.error('[fetch-url] 캐시 조회 실패 — 매번 스크래퍼를 태우게 된다:', error.message, error.code ?? '');
+            return null;
+        }
+        if (!data) return null;   // 진짜 미스
         if (Date.now() - new Date(data.fetched_at).getTime() > CACHE_TTL_MS) return null;
         return data.content as string;
-    } catch { return null; }
+    } catch (e) {
+        console.error('[fetch-url] 캐시 조회 예외:', e instanceof Error ? e.message : e);
+        return null;
+    }
 };
 
 const setCached = async (key: string, content: string, provider: string): Promise<void> => {
     try {
-        await db.from('url_cache').upsert(
+        const { error } = await db.from('url_cache').upsert(
             { url_key: key, content, status: 'ok', provider, fetched_at: new Date().toISOString() },
             { onConflict: 'url_key' },
         );
-    } catch { /* 캐시는 best-effort */ }
+        // 쓰기가 계속 실패하면 히트율이 영원히 0 이다 — 조용히 두면 안 된다
+        if (error) console.error('[fetch-url] 캐시 쓰기 실패 — 히트율 0 이 된다:', error.message, error.code ?? '');
+    } catch (e) {
+        console.error('[fetch-url] 캐시 쓰기 예외:', e instanceof Error ? e.message : e);
+    }
 };
 
 const extractReadableContent = (html: string) => {
