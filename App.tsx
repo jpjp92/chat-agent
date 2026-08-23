@@ -159,11 +159,15 @@ const App: React.FC = () => {
 
 
   const handleNewSession = async (userId?: string) => {
-    await createNewSession(userId);
+    const newSession = await createNewSession(userId);
+    // 추천 칩 prefill은 현재 작성 중인 draft일 뿐 세션 데이터가 아니다. 부모 상태를
+    // 비우지 않으면 새 웰컴 ChatInput이 마운트될 때 과거 추천 문구가 다시 주입된다.
+    if (newSession) setPrefill(null);
     setIsSidebarOpen(false);
   };
 
   const handleSelectSession = async (id: string) => {
+    setPrefill(null);
     await selectSession(id);
     setIsSidebarOpen(false);
   };
@@ -171,6 +175,17 @@ const App: React.FC = () => {
   const handleModelChange = (model: ChatModelId) => {
     setSelectedModel(model);
     localStorage.setItem('preferred_model', model);
+  };
+
+  // ChatInput은 전송 후 자신의 input을 비우지만 추천 원본은 App에 있다. 전송 성공 경로에
+  // 진입하는 순간 부모 prefill도 소진해 이후 새 채팅/재마운트에서 복원되지 않게 한다.
+  const handleSendWithPrefillReset = (
+    message: string,
+    attachment?: MessageAttachment,
+    attachments: MessageAttachment[] = [],
+  ) => {
+    setPrefill(null);
+    return handleSendMessage(message, attachment, attachments);
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -341,7 +356,7 @@ const App: React.FC = () => {
                   {/* 데스크톱만 중앙 입력창 (모바일은 footer 하단) */}
                   <div className="hidden md:block w-full max-w-4xl px-1 sm:px-2 mt-4 sm:mt-7">
                     <ChatInput
-                      onSend={handleSendMessage}
+                      onSend={handleSendWithPrefillReset}
                       disabled={isTyping || isAuthLoading}
                       language={language}
                       showToast={showToast}
@@ -373,7 +388,7 @@ const App: React.FC = () => {
           {/* 입력창 하단 — 대화중: 항상 / 웰컴: 모바일만(데스크톱은 main 중앙이라 md:hidden) */}
           <div className={isWelcome ? 'md:hidden' : ''}>
             <ChatInput
-              onSend={handleSendMessage}
+              onSend={handleSendWithPrefillReset}
               disabled={isTyping || isAuthLoading}
               language={language}
               showToast={showToast}

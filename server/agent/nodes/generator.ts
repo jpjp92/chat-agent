@@ -9,11 +9,16 @@ import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
+import { buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup } from "../card-followup";
+import { fetchHospitalOpenStatus } from "../hospital-hours";
+import { resolveAreaCodesFromAddress } from "../hospital-tool";
 import { runLangChainPath } from "./langchain-path";
 import { buildDateLadder } from "../weather-followup";
+import { applyGeminiCitations } from "../gemini-citations";
 import { generateOpenAIChat } from "../../openai/chat";
 import { isOpenAIChatModel } from "../../openai/models";
 import { withSearchProviderInstruction } from "../search-provider";
+import { getLocalFunctionTool } from "../local-tool-registry";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -50,9 +55,7 @@ export const YOUTUBE_CALL_TIMEOUT_MS = HEAVY_MEDIA_CALL_TIMEOUT_MS;
 export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName: LangName = DEFAULT_LANG_NAME) => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
-        const apiKey = getNextApiKey();
-        console.log('[LangGraph] API key available:', !!apiKey, '| intent:', state.intent, '| model:', state.model);
-        if (!apiKey) throw new Error("No API key available");
+        console.log('[LangGraph] Selected provider model | intent:', state.intent, '| model:', state.model);
 
         const extractTextContent = (content: unknown): string => {
             if (typeof content === 'string') return content;
@@ -78,7 +81,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
             hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'short'
         }).format(now);
-        finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n\n` + finalInstruction;
+        // 🔴 주입만으로는 부족했다. 실측(2026-08-24 00:20 KST): `오늘 나온 AI 뉴스`에 검색 결과
+        //    기사 게시일(8/23)을 그대로 "오늘"이라고 답했다. 자정 직후에는 검색 결과 대부분이
+        //    전날 자료라 모델이 그쪽을 오늘로 삼는다 — 이 값이 유일한 근거임을 못 박는다.
+        finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n`
+            + `- This is the ONLY source for today's date. Never infer it from search results, article publication dates, or your training data.\n`
+            + `- Just after midnight most search results are from the previous day. That does NOT change today's date — it is still the value above.\n\n`
+            + finalInstruction;
 
         // Inject Dynamic Contexts
         if (state.webContent) {
@@ -106,6 +115,50 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- 5일 예보 표를 다시 그리지 마세요. 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
         }
 
+        // 병원 세부정보가 미등록이라 서버 계산이 실패한 턴. 이 경우에만 검색으로 내려간다 —
+        // 실측(2026-08-24, 광진구 표본 30): 세부정보 등록률이 전체 30%, 의원은 3/21뿐이다.
+        // 있는 정답(심평원)을 두고 추정하지 않되, 없을 때 침묵하지도 않기 위한 폴백이다.
+        let hospitalHoursUnavailable = false;
+
+        if (state.cardFollowup && state.cardContexts?.[state.cardFollowup]) {
+            const kind = state.cardFollowup;
+            const cardContext = state.cardContexts[kind]!;
+            let cardFacts = buildCardFollowupFacts(kind, cardContext, langName);
+
+            // 사용자가 카드의 어느 기관을 지목했는가. 병원 진료시간 조회와 검색 대상 고정에
+            // 같은 값을 쓴다 — 두 경로가 다른 기관을 보면 안 된다.
+            const namedEntity = extractCardEntityNames(cardContext)
+                .find(name => latestUserText.replace(/\s+/g, '').includes(name.replace(/\s+/g, '')));
+            const namedAddress = namedEntity ? findCardEntityAddress(cardContext, namedEntity) : '';
+
+            // 병원 "지금 진료하나": 카드(병원기본목록)에는 진료시간이 없다. 심평원 세부정보로
+            // 지목된 1건만 조회해 약국과 동일하게 서버가 상태를 확정한다. 실패하면 사실 블록을
+            // 붙이지 않고 아래 기본 규칙("자료에 없음 + 전화 확인")이 그대로 적용된다.
+            if (needsHospitalHoursLookup(kind, latestUserText)) {
+                const named = namedEntity;
+                const address = namedAddress;
+                const areaCodes = address ? resolveAreaCodesFromAddress(address) : undefined;
+                const status = named && areaCodes ? await fetchHospitalOpenStatus(named, areaCodes, now) : null;
+                if (status) {
+                    cardFacts = `${cardFacts ? `${cardFacts}\n\n` : ''}${buildHospitalHoursFacts(status, langName)}`;
+                } else {
+                    // 상호를 못 집었거나(이름 없이 물음) 세부정보가 미등록인 경우 모두 여기로 온다.
+                    hospitalHoursUnavailable = true;
+                }
+            }
+            // 라우터가 이 턴에만 검색을 열어 준 경우(동물병원 진료 여부). 카드에 그 사실이 없으므로
+            // "추측 금지"를 유지하면 답이 막히고, 그냥 풀면 인허가 상태를 영업중으로 단정한다.
+            // 검색 근거로 답하되 확정이 아님과 전화 확인을 함께 말하도록 규칙을 갈아끼운다.
+            const liveStatusSearch = state.needsSearch === true || hospitalHoursUnavailable;
+            // 검색으로 내려가는 턴에는 대상 기관을 값으로 못 박는다. 실측(2026-08-24): 상호만으로
+            // 검색해 종로의 동명 동물병원 시간을 가져왔다. 검색어 구성보다 결과 검증이 확실하다.
+            const searchTarget = liveStatusSearch
+                ? buildSearchTargetBlock(namedEntity ?? '', namedAddress, langName)
+                : '';
+            if (searchTarget) cardFacts = `${cardFacts ? `${cardFacts}\n\n` : ''}${searchTarget}`;
+            finalInstruction += `\n\n[DISPLAYED_CARD_SOURCE: ${kind}]\n${cardContext}${cardFacts ? `\n\n${cardFacts}` : ''}\n\n[표시된 카드 후속 대화 규칙]\n- 위 카드 데이터만 근거로 현재 질문에 자연스러운 텍스트로 답하세요. 카드 JSON을 다시 출력하거나 새 카드를 만들지 마세요.\n${liveStatusSearch ? '- 공식 자료에 이 기관의 진료시간이 없습니다. 이번 턴에 한해 웹 검색 결과를 근거로 답할 수 있습니다.\n- 🔴 진료시간·영업시간은 **검색으로 확인된 것만** 말하세요. 검색 결과에 없으면 기억이나 추측으로 채우지 말고 확인되지 않는다고 말하세요. 상호명에 24시라는 표기가 있다는 것은 근거가 아닙니다.\n- 검색으로 찾았더라도 확정된 정보가 아니라는 점과 방문 전 전화 확인이 필요하다는 점을 반드시 함께 밝히세요.\n- 위 [검색 대상] 블록이 있으면 그 상호와 주소의 기관만 답하세요. 결과 주소가 다르면 동명의 다른 기관이므로 버리세요.\n- 검색 결과로 새 카드를 만들지 말고 문장으로 답하세요.\\n- 카드의 인허가 상태(영업·정상)는 폐업하지 않았다는 뜻일 뿐 지금 진료 중이라는 근거가 아닙니다. 이것만 보고 영업 중이라고 말하지 마세요.' : '- 카드에 없는 거리, 진료과, 영업 여부, 법적 효과나 수치를 추측하지 마세요. 필요한 정보가 없으면 카드에는 없다고 짧게 밝히세요.\\n- 병원·동물병원 카드에는 현재 진료 여부가 없습니다. 인허가 상태(영업·정상)를 영업 중으로 해석하지 말고, 확인하려면 전화가 필요하다고 밝히세요.'}\n- 약국 카드의 현재 영업 여부는 위 [약국 영업 상태] 블록을 최우선으로 따르세요. 카드에 적힌 영업시간만 보고 현재 영업 중이라고 판단하거나 그 블록과 모순되는 답을 하지 마세요.\n- 🔴 위 블록들은 내부 참고 자료입니다. 대괄호 제목, 항목 이름, JSON 키 이름(is_open_now, hours_today 등)을 답변에 그대로 쓰지 말고 자연스러운 한국어로 바꿔 말하세요.\n- 사용자의 추측이 카드 사실과 맞으면 긍정으로, 어긋나면 부정으로 답을 시작하세요. 사실을 확인해 주면서 '아니요'로 시작하지 마세요.\n- 사용자 위치 좌표와 거리 데이터가 없으면 도로명 일치 결과를 '가장 가까운 순서'라고 표현하지 마세요. 정확한 거리 비교에는 상세 위치가 필요하다고 짧게 밝히세요.\n- 사용자가 선택·확인·감사를 표현했다면 같은 목록을 반복하지 말고 한두 문장으로 응답하세요.\n- 법률 카드라면 조문 문언과 시행일을 구분해 설명하고, 개별 사건에 대한 확정적 법률 판단처럼 말하지 마세요.`;
+        }
+
         // 재구성 요청 턴(라우터 follow_up="refine"): "표로 정리해줘"·"요약해줘"·"비교해줘".
         // 이런 턴은 툴도 검색도 없이 도는 경우가 많아 모델이 추가한 내용을 검증할 장치가 없다.
         // 정적 프롬프트의 [REFORMAT REQUESTS] 규칙만으로는 안 먹혔다 — 직전 턴이 **빈 응답**이었는데
@@ -130,7 +183,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports", "weather"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "sports", "weather"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube
@@ -217,15 +270,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
         let ytPrimaryTimedOut = false;
 
-        // OpenAI 선택 경로. 라우팅과 로컬 도구 인텐트는 기존 Gemini 그래프를 유지하고,
-        // 일반 생성·URL 본문·이미지·웹 검색 답변만 Responses API의 선택 모델이 담당한다.
-        if (!useLangChain && isOpenAIChatModel(resolvedModel)) {
+        // OpenAI 선택 경로. 일반 생성과 검색뿐 아니라 intent가 확정된 로컬 도구도 같은
+        // 선택 모델에서 Responses function calling으로 실행한다. drug_id와 영상·오디오 등
+        // 미지원 modality만 레지스트리에 없거나 위에서 Gemini로 핀되어 capability fallback된다.
+        const localFunctionTool = getLocalFunctionTool(state.intent);
+        if ((!useLangChain || localFunctionTool) && isOpenAIChatModel(resolvedModel)) {
             const { hasMultimodalContent, hasDocumentContent } = buildSdkContents(state.messages, false);
-            const { useGoogleSearch: useWebSearch, hasUrlContent } = decideGoogleSearch({
+            const { useGoogleSearch: searchRequested, hasUrlContent } = decideGoogleSearch({
                 webContent: state.webContent,
                 messages: state.messages,
                 intent: state.intent,
-                needsSearch: state.needsSearch,
+                needsSearch: state.needsSearch || hospitalHoursUnavailable,
                 hasMultimodalContent,
                 dropImageForSearch: false,
                 isYoutubeRequest,
@@ -233,6 +288,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 latestUserText,
                 lastTurnSearched: state.lastTurnSearched,
             });
+            // 로컬 함수와 hosted web_search를 한 호출에 섞지 않는다. drug_info의 보조 웹
+            // 검색은 기존 도구 내부에서 수행되며, 나머지 로컬 intent는 단일 책임 함수만 강제한다.
+            const useWebSearch = !localFunctionTool && searchRequested;
             const resolvedMaxTokens = resolveMaxTokens({
                 hasDocumentContent,
                 isYoutubeRequest,
@@ -248,14 +306,22 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 instructions: finalInstruction,
                 useWebSearch,
                 maxOutputTokens: effectiveMaxTokens,
+                functionTool: localFunctionTool,
             });
-            if (sendEvent) sendEvent({ text: result.text });
-            return { messages: [new AIMessage(result.text)], groundingSources: result.sources };
+            // Responses API는 현재 비스트리밍 호출이다. 텍스트 전송·DB 누적은 route의
+            // generator on_chain_end 한 곳에서만 처리해 중복 전송을 막는다.
+            return { messages: [new AIMessage(result.text)], groundingSources: result.sources, provider: 'openai' };
         }
+
+        // OpenAI 일반 요청은 Gemini 키와 독립적으로 위에서 완료된다. Gemini SDK·LangChain
+        // 도구·멀티모달 capability fallback에 실제로 진입할 때만 Gemini 키를 요구한다.
+        const geminiApiKey = getNextApiKey();
+        console.log('[LangGraph] Gemini key required:', true, '| available:', !!geminiApiKey, '| intent:', state.intent);
+        if (!geminiApiKey) throw new Error("No Gemini API key available");
 
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;
-            let sdkApiKey = apiKey; // start with the key already chosen above
+            let sdkApiKey = geminiApiKey;
             let sdkAttempt = 0;
             // When multimodal content (YouTube fileData, PDF URL) causes a 500,
             // retry once without media parts + Google Search enabled.
@@ -323,7 +389,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         webContent: state.webContent,
                         messages: state.messages,
                         intent: state.intent,
-                        needsSearch: state.needsSearch,
+                        needsSearch: state.needsSearch || hospitalHoursUnavailable,
                         hasMultimodalContent,
                         dropImageForSearch,
                         isYoutubeRequest,
@@ -413,19 +479,15 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         });
 
                         const stage1Parts = stage1Response.candidates?.[0]?.content?.parts ?? [];
-                        let stage1Text = (stage1Response.text ?? stage1Parts
+                        const stage1Grounding = stage1Response.candidates?.[0]?.groundingMetadata;
+                        // 🔴 마커를 심기 전에 가짜 번호를 지우면 groundingSupports의 바이트 오프셋이
+                        //    어긋난다. applyGeminiCitations가 삽입 → 정리 순서를 함께 처리한다.
+                        const stage1Cited = applyGeminiCitations((stage1Response.text ?? stage1Parts
                             .filter((p: any) => !p.thought)
                             .map((p: any) => p.text || "")
-                            .join(""))
-                            .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
-                            .trim();
-
-                        const stage1Grounding = stage1Response.candidates?.[0]?.groundingMetadata;
-                        if (stage1Grounding?.groundingChunks) {
-                            groundingSources = stage1Grounding.groundingChunks
-                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                .filter(Boolean);
-                        }
+                            .join("")), stage1Grounding);
+                        let stage1Text = stage1Cited.text.trim();
+                        if (stage1Cited.sources.length > 0) groundingSources = stage1Cited.sources;
 
                         // 2.5 + Search가 간헐적으로 grounding은 수행하되 텍스트를 비우는 경우가 있다.
                         // 즉시 throw하면 LangChain 폴백(tool bind → 또 빈 응답)으로 떨어지므로,
@@ -450,18 +512,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 }
                             });
                             const s1rParts = s1Retry.candidates?.[0]?.content?.parts ?? [];
-                            stage1Text = (s1Retry.text ?? s1rParts
+                            const s1rGrounding = s1Retry.candidates?.[0]?.groundingMetadata;
+                            const s1rCited = applyGeminiCitations((s1Retry.text ?? s1rParts
                                 .filter((p: any) => !p.thought)
                                 .map((p: any) => p.text || "")
-                                .join(""))
-                                .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
-                                .trim();
-                            const s1rGrounding = s1Retry.candidates?.[0]?.groundingMetadata;
-                            if (s1rGrounding?.groundingChunks) {
-                                groundingSources = s1rGrounding.groundingChunks
-                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                    .filter(Boolean);
-                            }
+                                .join("")), s1rGrounding);
+                            stage1Text = s1rCited.text.trim();
+                            if (s1rCited.sources.length > 0) groundingSources = s1rCited.sources;
                             if (stage1Text) {
                                 console.log('[LangGraph] Grounding stage1 retry succeeded');
                             }
@@ -527,9 +584,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                         const singleGrounding = singlePassResponse.candidates?.[0]?.groundingMetadata;
                         if (singleGrounding?.groundingChunks) {
-                            groundingSources = singleGrounding.groundingChunks
-                                .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                .filter(Boolean);
+                            const singleCited = applyGeminiCitations(responseText, singleGrounding);
+                            responseText = singleCited.text;
+                            groundingSources = singleCited.sources.length > 0
+                                ? singleCited.sources
+                                : singleGrounding.groundingChunks
+                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
+                                    .filter(Boolean);
                         }
 
                         if (!responseText) {
@@ -608,18 +669,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 }
                             });
                             const grParts = groundRetry.candidates?.[0]?.content?.parts ?? [];
-                            const grText = (groundRetry.text || grParts
+                            const grGrounding = groundRetry.candidates?.[0]?.groundingMetadata;
+                            const grCited = applyGeminiCitations((groundRetry.text || grParts
                                 .filter((p: any) => !p.thought)
                                 .map((p: any) => p.text || '')
-                                .join(''))
-                                .replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '')
-                                .trim();
-                            const grGrounding = groundRetry.candidates?.[0]?.groundingMetadata;
-                            if (grGrounding?.groundingChunks) {
-                                groundingSources = grGrounding.groundingChunks
-                                    .map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null)
-                                    .filter(Boolean);
-                            }
+                                .join('')), grGrounding);
+                            const grText = grCited.text.trim();
+                            if (grCited.sources.length > 0) groundingSources = grCited.sources;
                             if (grText && !TOOL_CODE_RE.test(grText)) {
                                 console.log('[LangGraph] tool_code grounding retry succeeded');
                                 responseText = grText;
@@ -724,7 +780,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel === SERVER_MODELS.FLASH) {
             console.log('[LangGraph] YouTube fallback: all', resolvedModel, 'keys failed — retrying with', SERVER_MODELS.FLASH_3_5);
             try {
-                const fbKey = getNextApiKey() ?? apiKey;
+                const fbKey = getNextApiKey() ?? geminiApiKey;
                 const fbGenai = new GoogleGenAI({ apiKey: fbKey });
                 const fbContents: any[] = [];
                 for (const msg of state.messages) {
@@ -777,7 +833,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             state,
             finalInstruction,
             resolvedModel,
-            apiKey,
+            apiKey: geminiApiKey,
             systemInstructionBase,
             useLangChain,
             sdkSuccess,

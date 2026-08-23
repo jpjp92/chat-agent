@@ -34,12 +34,7 @@ export const weatherTool = tool(
       }
     }));
 
-    return [
-      '날씨 카드를 표시합니다. [지시사항]: 아래 코드 블록들을 토씨 하나 바꾸지 말고 그대로 출력하세요.',
-      '기온·강수량·습도 등 수치를 절대 지어내거나 요약하지 마세요(데이터는 카드가 담고 있습니다). 별도 마크다운 표를 만들지 마세요.',
-      '',
-      results.join('\n\n'),
-    ].join('\n');
+    return results.join('\n\n');
   },
   {
     name: "weatherTool",

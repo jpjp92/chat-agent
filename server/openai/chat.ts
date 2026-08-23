@@ -1,5 +1,7 @@
 import { isOpenAIChatModel, openAIModelCapabilities } from './models';
 import { withSearchProviderInstruction } from '../agent/search-provider';
+import type { LocalFunctionTool } from '../agent/local-tool-registry';
+import { assertSafeFastPassOutput } from '../agent/card-tool-output';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_CHAT_TIMEOUT_MS = 60_000;
@@ -19,7 +21,7 @@ export type OpenAIChatResult = {
     usage?: unknown;
 };
 
-type OpenAIChatOptions = {
+export type OpenAIChatOptions = {
     model: string;
     messages: any[];
     instructions: string;
@@ -28,6 +30,13 @@ type OpenAIChatOptions = {
     apiKey?: string;
     timeoutMs?: number;
     fetchImpl?: typeof fetch;
+    functionTool?: LocalFunctionTool;
+};
+
+type OpenAIRequestState = {
+    input?: JsonObject[];
+    functionPhase?: 'initial' | 'followup';
+    followupWebSearch?: boolean;
 };
 
 export class OpenAIChatError extends Error {
@@ -74,20 +83,24 @@ const toInputContent = (message: any, role: 'user' | 'assistant'): string | Json
 };
 
 export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
-    'model' | 'messages' | 'instructions' | 'useWebSearch' | 'maxOutputTokens'>): JsonObject => {
+    'model' | 'messages' | 'instructions' | 'useWebSearch' | 'maxOutputTokens' | 'functionTool'>,
+    requestState: OpenAIRequestState = {},
+): JsonObject => {
     const capabilities = openAIModelCapabilities(options.model);
     if (!isOpenAIChatModel(options.model) || !capabilities.chatReasoningEffort) {
         throw new OpenAIChatError(`Unsupported OpenAI chat model: ${options.model}`);
     }
 
+    const hostedWebSearch = capabilities.webSearch
+        && (options.useWebSearch || requestState.followupWebSearch === true);
     const body: JsonObject = {
         model: options.model,
         store: false,
         instructions: withSearchProviderInstruction(
             options.instructions,
-            options.useWebSearch && capabilities.webSearch ? 'openai' : 'none',
+            hostedWebSearch ? 'openai' : 'none',
         ),
-        input: options.messages.map(message => {
+        input: requestState.input ?? options.messages.map(message => {
             const role = messageRole(message);
             return { role, content: toInputContent(message, role) };
         }),
@@ -95,10 +108,26 @@ export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
         reasoning: { effort: capabilities.chatReasoningEffort },
     };
 
-    if (options.useWebSearch && capabilities.webSearch) {
+    if (hostedWebSearch) {
+        if (options.functionTool && requestState.functionPhase !== 'followup') {
+            throw new OpenAIChatError('Hosted web search and a forced local function cannot share the same request', {
+                status: 500,
+                code: 'tool_policy_conflict',
+            });
+        }
         body.tools = [{ type: 'web_search' }];
         body.tool_choice = 'required';
         body.include = ['web_search_call.action.sources'];
+    } else if (options.functionTool && requestState.functionPhase !== 'followup') {
+        body.tools = [{
+            type: 'function',
+            name: options.functionTool.name,
+            description: options.functionTool.description,
+            parameters: options.functionTool.parameters,
+            strict: true,
+        }];
+        body.tool_choice = { type: 'function', name: options.functionTool.name };
+        body.parallel_tool_calls = false;
     }
     return body;
 };
@@ -232,24 +261,106 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? OPENAI_CHAT_TIMEOUT_MS);
     try {
-        const response = await (options.fetchImpl ?? fetch)(OPENAI_RESPONSES_URL, {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(buildOpenAIChatRequest(options)),
-        });
-        const json = await response.json().catch(() => ({})) as JsonObject;
-        if (!response.ok) {
-            const detail = json?.error ?? {};
-            throw new OpenAIChatError(detail.message || `OpenAI request failed (${response.status})`, {
-                status: response.status,
-                code: detail.code,
-                type: detail.type,
+        const request = async (body: JsonObject) => {
+            const response = await (options.fetchImpl ?? fetch)(OPENAI_RESPONSES_URL, {
+                method: 'POST',
+                signal: controller.signal,
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
             });
+            const json = await response.json().catch(() => ({})) as JsonObject;
+            if (!response.ok) {
+                const detail = json?.error ?? {};
+                throw new OpenAIChatError(detail.message || `OpenAI request failed (${response.status})`, {
+                    status: response.status,
+                    code: detail.code,
+                    type: detail.type,
+                });
+            }
+            return json;
+        };
+
+        let input = options.messages.map(message => {
+            const role = messageRole(message);
+            return { role, content: toInputContent(message, role) };
+        });
+        let json = await request(buildOpenAIChatRequest(options, {
+            input,
+            functionPhase: 'initial',
+        }));
+
+        if (options.functionTool) {
+            // Responses의 reasoning/function_call 항목도 원형 그대로 다음 input에 되돌려야 한다.
+            // parallel_tool_calls=false이지만 응답 방어 차원에서 배열 전체를 처리한다.
+            const calls = (Array.isArray(json.output) ? json.output : [])
+                .filter((item: any) => item?.type === 'function_call');
+            if (calls.length > 0) {
+                const outputs: JsonObject[] = [];
+                for (const call of calls) {
+                    if (call.name !== options.functionTool.name || typeof call.call_id !== 'string') {
+                        throw new OpenAIChatError('OpenAI requested an unavailable local function', {
+                            status: 502,
+                            code: 'unknown_function_call',
+                        });
+                    }
+                    let argumentsValue: Record<string, unknown>;
+                    try {
+                        argumentsValue = typeof call.arguments === 'string'
+                            ? JSON.parse(call.arguments)
+                            : call.arguments;
+                    } catch {
+                        throw new OpenAIChatError('OpenAI returned invalid function arguments', {
+                            status: 502,
+                            code: 'invalid_function_arguments',
+                        });
+                    }
+                    if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
+                        throw new OpenAIChatError('OpenAI returned invalid function arguments', {
+                            status: 502,
+                            code: 'invalid_function_arguments',
+                        });
+                    }
+                    let output: string;
+                    try {
+                        output = await options.functionTool.execute(argumentsValue);
+                    } catch (error: any) {
+                        throw new OpenAIChatError(error?.message || 'Local function execution failed', {
+                            status: 502,
+                            code: 'function_execution_error',
+                        });
+                    }
+                    if (options.functionTool.resultMode === 'fast-pass') {
+                        try {
+                            assertSafeFastPassOutput(output, options.functionTool.cardType);
+                        } catch (error: any) {
+                            throw new OpenAIChatError(error?.message || 'Local function returned unsafe output', {
+                                status: 502,
+                                code: 'invalid_function_output',
+                            });
+                        }
+                        return { text: output, sources: [], usage: json.usage };
+                    }
+                    outputs.push({ type: 'function_call_output', call_id: call.call_id, output });
+                }
+
+                input = [
+                    ...input,
+                    ...(Array.isArray(json.output) ? json.output : []),
+                    ...outputs,
+                ];
+                // 현재 intent는 정확히 한 로컬 함수를 강제한다. 결과 종합 단계에서는 도구를
+                // 다시 노출하지 않아 무한 재호출과 공급자 전환 충돌을 원천 차단한다.
+                json = await request(buildOpenAIChatRequest(options, {
+                    input,
+                    functionPhase: 'followup',
+                    followupWebSearch: options.functionTool.followupWebSearch,
+                }));
+            }
         }
+
         const rawText = extractText(json);
         if (!rawText) {
             throw new OpenAIChatError('OpenAI returned empty response text', {

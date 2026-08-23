@@ -38,7 +38,32 @@ for (const model of models) {
         });
         const text = result.text.trim();
         if (text !== 'SECOND') throw new Error(`unexpected response: ${text}`);
-        console.log(`PASS ${model} (${Date.now() - startedAt}ms, ${text.length} chars)`);
+
+        const functionResult = await generateOpenAIChat({
+            model,
+            instructions: 'Call the provided function exactly once.',
+            messages: [new HumanMessage('Run the connectivity probe with token OK.')],
+            useWebSearch: false,
+            maxOutputTokens: 64,
+            timeoutMs: 60_000,
+            functionTool: {
+                intent: 'connectivity_probe',
+                name: 'connectivity_probe',
+                description: 'OpenAI function-calling connectivity probe.',
+                parameters: {
+                    type: 'object',
+                    properties: { token: { type: 'string', enum: ['OK'] } },
+                    required: ['token'],
+                    additionalProperties: false,
+                },
+                resultMode: 'fast-pass',
+                execute: async args => args.token === 'OK' ? 'FUNCTION_OK' : 'FUNCTION_BAD_ARGS',
+            },
+        });
+        if (functionResult.text !== 'FUNCTION_OK') {
+            throw new Error(`unexpected function result: ${functionResult.text}`);
+        }
+        console.log(`PASS ${model} chat+function (${Date.now() - startedAt}ms)`);
     } catch (error: any) {
         failed = true;
         console.error(`FAIL ${model} (${Date.now() - startedAt}ms)`, {

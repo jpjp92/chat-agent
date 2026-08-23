@@ -15,6 +15,7 @@ export type IntentType =
     | "hospital_search" // 병원 위치/영업시간 탐색 (서울 한정)
     | "vet_search"    // 동물병원 위치 탐색 (전국)
     | "law_search"    // 국가법령정보 조회
+    | "law_qa"        // 국가법령정보를 근거로 설명·시나리오 해설
     | "movie_search"  // 영화 상영시간표 (CGV/롯데/메가박스)
     | "sports"        // 월드컵 순위/대진/득점왕 (football-data.org)
     | "weather"       // 날씨 카드 (KMA + OpenWeather 하이브리드)
@@ -46,9 +47,21 @@ export const GraphState = Annotation.Root({
     // 화면에 떠 있는 카드 종류(클라이언트 판정). 서버가 받는 히스토리는 최근 10개로 잘려 있어
     // 카드가 그 창 밖으로 밀리면 후속 판정이 꺼진다 — 전체 히스토리를 가진 클라가 알려준다.
     // 구버전 클라(미전송)면 라우터의 창 내 스캔으로 폴백한다.
-    activeCards: Annotation<{ weather?: boolean }>({
+    activeCards: Annotation<{ weather?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: "pharmacy" | "hospital" | "vet" | "law" }>({
         reducer: (x, y) => y ?? x,
         default: () => ({}),
+    }),
+
+    // 클라이언트가 최근 전체 대화에서 추출한 카드 원문. 서버 히스토리 절단 이후에도
+    // 위치·법률 카드 후속 질문을 조회 재실행 없이 정확히 답하는 근거로 사용한다.
+    cardContexts: Annotation<Partial<Record<"pharmacy" | "hospital" | "vet" | "law", string>>>({
+        reducer: (x, y) => y ?? x,
+        default: () => ({}),
+    }),
+
+    cardFollowup: Annotation<"" | "pharmacy" | "hospital" | "vet" | "law">({
+        reducer: (x, y) => y ?? x,
+        default: () => "",
     }),
 
     // 이번 턴이 영화 카드에 대한 후속 질문인지(라우터 판정). generator의 movieContext 주입 게이트.

@@ -9,8 +9,8 @@
 | 영역 | 현재 정책 | 상세 |
 |---|---|---|
 | 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.7/3.5/2.5 및 GPT-5.4 mini/GPT-5.6 Luna 선택 가능 | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy) |
-| GPT 라우팅 | 일반 텍스트·URL 본문·이미지·웹 검색은 선택 GPT 유지. 영상·오디오/fileData만 Gemini 2.5 capability fallback | [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) |
-| 알려진 라우팅 공백 | initial router와 로컬 도구 intent가 아직 Gemini에 의존. Gemini 키 소진 시 GPT 일반 요청까지 막힐 수 있음 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
+| GPT 라우팅 | 일반 텍스트·URL·이미지·검색과 로컬 도구 8종은 선택 GPT 유지. 영상·오디오/fileData와 알약 Vision만 Gemini 2.5 capability fallback | [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) |
+| 알려진 라우팅 공백 | initial router는 아직 Gemini 2.5 Flash Lite 우선이며, 실패 시 규칙 분류로 복구한다. GPT 일반/도구 실행 자체는 Gemini 키와 분리됨 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
 | URL Fetch | Wikidocs는 ScrapingBee render/premium/KR 우선, 일반 URL은 direct 우선. browserless는 후순위, OpenAI URL fallback은 기본 OFF | [2026-08-23 실측](logs/2026/08/DEV_260823.md) |
 | 오류 노출 | 공급자 status/code/message는 서버 로그에만 기록하고 UI에는 지역화된 정제 문구만 표시 | [오류 분류 계약](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#4-오류-분류-계약) |
 | 자동 검증 | `npm test` 회귀 하니스 10종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |

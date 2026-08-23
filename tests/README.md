@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 10종 전부
+npm test        # 11종 전부
 npm run verify  # typecheck + test
 ```
 
@@ -49,12 +49,13 @@ npm run verify  # typecheck + test
 | `test-intent-rules.mts` | 의도 분류 룰 — 잡아야 할 것 / 잡으면 안 될 것 양방향 |
 | `test-search-policy.mts` | 검색 on/off 판정 |
 | `test-weather-followup.mts` | 날씨 후속 발화 + 날짜 경계(KST 자정) |
+| `test-card-followup.mts` | 약국·병원·동물병원·법률 카드 후속 판정 + fast-pass 내부 지시문 차단 + Gemini 도구 강제 + 약국 현재 영업 상태 계약 |
 | `test-storage-name.mts` | 업로드 파일명 정규화 — 확장자 보존은 `parse-document` 가 의존하는 계약 |
 | `test-pill-messages.mts` | 알약 응답 문구·파싱·웹 폴백 게이트·라우터 지름길 |
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
-| `test-chat-models.mts` | 모델 레지스트리·Responses 단일/멀티턴·Gemini `googleSearch`/OpenAI `web_search` 프롬프트 매핑·검색 OFF·실제 `url_citation` 번호화/UTM 제거/미인용 후보 제외·quota/UI 오류 정책 |
+| `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
@@ -81,7 +82,8 @@ npm run test:openai-live
 
 - GPT-5.4 mini 멀티턴: 성공, 약 1.41s
 - GPT-5.6 Luna 멀티턴: 성공, 약 1.52s
-- 자동 회귀 `test-chat-models.mts`: 52개 통과
+- 자동 회귀 `test-chat-models.mts`: 66개 통과
+- 라이브 `test-openai-chat-models-live.mts`: GPT-5.4 mini/GPT-5.6 Luna 각각 멀티턴 + strict function call 확인(실제 비용, 자동 테스트 제외)
 - 자동 회귀 `test-drug-fallback.mts`: 15개 통과
 
 자동 하니스는 `insufficient_quota` 외에도 `credit_balance_exhausted`, 조직/프로젝트 spend limit,

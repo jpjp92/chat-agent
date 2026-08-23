@@ -86,6 +86,27 @@ const CARD_WINDOW = 20;
 const hasRecentCard = (messages: { role: Role; content?: string }[], fence: string): boolean =>
   messages.slice(-CARD_WINDOW).some(m => m.role === Role.MODEL && !!m.content?.includes(fence));
 
+type FollowupCardKind = 'pharmacy' | 'hospital' | 'vet' | 'law';
+const FOLLOWUP_CARD_KINDS: FollowupCardKind[] = ['pharmacy', 'hospital', 'vet', 'law'];
+const getRecentCardBlock = (messages: { role: Role; content?: string }[], kind: FollowupCardKind): string | undefined => {
+  const pattern = new RegExp('```json:' + kind + '\\s*\\n[\\s\\S]*?\\n```');
+  for (const message of messages.slice(-CARD_WINDOW).reverse()) {
+    if (message.role !== Role.MODEL) continue;
+    const match = message.content?.match(pattern);
+    if (match) return match[0];
+  }
+  return undefined;
+};
+
+const getLatestFollowupCardKind = (messages: { role: Role; content?: string }[]): FollowupCardKind | undefined => {
+  for (const message of messages.slice(-CARD_WINDOW).reverse()) {
+    if (message.role !== Role.MODEL) continue;
+    const kind = FOLLOWUP_CARD_KINDS.find(candidate => message.content?.includes(`\`\`\`json:${candidate}`));
+    if (kind) return kind;
+  }
+  return undefined;
+};
+
 export const useChatStream = ({
   sessions,
   setSessions,
@@ -467,7 +488,24 @@ export const useChatStream = ({
           : undefined),
         // 화면에 떠 있는 카드 판정 — 서버는 최근 10개 메시지만 받아 카드가 창 밖으로 밀리면
         // 후속 판정이 통째로 꺼진다. 전체 히스토리를 가진 여기서 최근 CARD_WINDOW 메시지로 판정한다.
-        { weather: hasRecentCard(activeSession?.messages || [], '```json:weather') },
+        (() => {
+          const messages = activeSession?.messages || [];
+          const contexts = Object.fromEntries(FOLLOWUP_CARD_KINDS
+            .map(kind => [kind, getRecentCardBlock(messages, kind)])
+            .filter(([, value]) => Boolean(value)));
+          return {
+            weather: hasRecentCard(messages, '```json:weather'),
+            pharmacy: Boolean(contexts.pharmacy), hospital: Boolean(contexts.hospital),
+            vet: Boolean(contexts.vet), law: Boolean(contexts.law),
+            latest: getLatestFollowupCardKind(messages),
+          };
+        })(),
+        (() => {
+          const messages = activeSession?.messages || [];
+          return Object.fromEntries(FOLLOWUP_CARD_KINDS
+            .map(kind => [kind, getRecentCardBlock(messages, kind)])
+            .filter(([, value]) => Boolean(value)));
+        })(),
       );
 
       const videoAttachment = finalAttachments.find(attachment => attachment.mimeType?.startsWith('video/'));

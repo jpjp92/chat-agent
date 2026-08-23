@@ -242,7 +242,8 @@ export const streamChatResponse = async (
   // 대화가 5턴만 지나면 카드가 그 창 밖으로 밀려 "카드 없음"이 된다(영어 멀티턴에서 실측:
   // 카드 이후 6턴째부터 후속 판정 블록이 통째로 스킵됐다). 전체 히스토리를 가진 클라이언트가
   // 판정해서 넘긴다 — movieContext가 이미 쓰던 방식과 같은 패턴.
-  activeCards?: { weather?: boolean },
+  activeCards?: { weather?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: 'pharmacy' | 'hospital' | 'vet' | 'law' },
+  cardContexts?: Partial<Record<'pharmacy' | 'hospital' | 'vet' | 'law', string>>,
 ) => {
   const controller = new AbortController();
   let lastActivity = Date.now();
@@ -298,7 +299,7 @@ export const streamChatResponse = async (
       };
     });
 
-    const body = JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext, activeCards });
+    const body = JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext, activeCards, cardContexts });
     const bodyBytes = new TextEncoder().encode(body).length;
     if (bodyBytes > 1_000_000) {
       // 어떤 요소가 본문을 키웠는지 확정용 계측 — 413 재발 시 이 로그로 범인을 특정한다.

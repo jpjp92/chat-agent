@@ -4,6 +4,19 @@ A multi-provider AI messenger powered by Gemini and OpenAI — LangGraph.js agen
 
 ---
 
+## 0. Public API Key Expiry
+
+Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`); when one expires the others keep working, so a lapse shows up as a single broken card rather than an outage. Renew before these dates:
+
+| Service | Used by | Expires |
+| --- | --- | --- |
+| 전국 약국 정보 조회 | pharmacy card, `is_open_now` | 2028-05-06 |
+| 병원정보서비스 (`hospInfoServicev2`) | hospital card | 2028-05-07 |
+| 의료기관별상세정보서비스 (`MadmDtlInfoService2.8`) | hospital treatment hours, emergency room | **2028-08-23** |
+| 동물병원 조회서비스 | vet card (license status only) | 2028-05-10 |
+
+---
+
 ## 1. Features
 
 ### 1-1. Conversation & Auth
@@ -18,8 +31,11 @@ A multi-provider AI messenger powered by Gemini and OpenAI — LangGraph.js agen
 
 - **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage
 - **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
+- **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
 - **Intent routing**: currently `gemini-2.5-flash-lite` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, and `follow_up`; provider-native routing for GPT is a tracked follow-up
+- **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for drug/pharmacy/hospital/vet/law/movie/sports/weather. Card tools fast-pass their renderer block; drug and sports results are synthesized by the selected GPT
 - **Card follow-up**: weather/movie cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages
+- **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
 - **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
@@ -32,7 +48,7 @@ Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF
 | -------------------- | ------------------------------- | ------------------------------------------------- |
 | 💊 Drug-Viz          | `drug_id` / `drug_info`     | MFDS `mfds_pills` + ConnectDI                   |
 | 🏥 Pharmacy-Viz      | `pharmacy_search`             | Korea Public Data Portal nationwide pharmacy API (expires 2028-05-06) |
-| 🏨 Hospital-Viz      | `hospital_search`             | HIRA hospital information service API (expires 2028-05-07) |
+| 🏨 Hospital-Viz      | `hospital_search`             | HIRA hospital information service API (expires 2028-05-07) + HIRA per-institution detail service `MadmDtlInfoService2.8` for treatment hours (expires 2028-08-23), with web-search fallback where no detail record exists |
 | 🐾 Vet-Viz           | `vet_search`                  | MOIS animal hospital lookup service (expires 2028-05-10) |
 | ⚖️ Law-Viz          | `law_search`                  | Korea Law Information Center Open API              |
 | 🎬 Movie-Viz         | `movie_search`                | Lotte/Megabox direct JSON + CGV browserless (HMAC) |

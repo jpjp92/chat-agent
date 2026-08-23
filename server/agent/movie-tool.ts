@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { defaultsForRegion } from "../../lib/theaters";
+import { buildCardToolOutput } from "./card-tool-output";
 
 /**
  * 영화 상영시간표 도구 — CGV·롯데시네마·메가박스 3사 카드.
@@ -23,7 +24,7 @@ export const movieTool = tool(
         mega: defaults.mega,
       },
     };
-    return `상영시간표 카드를 표시합니다. [지시사항]: 아래 마크다운 코드 블록을 토씨 하나 틀리지 말고 그대로 출력하세요. 다른 부가 설명이나 영화/상영시간 목록은 절대 생성하지 마세요(데이터는 카드가 직접 조회합니다).\n\n\`\`\`json:movie\n${JSON.stringify(payload)}\n\`\`\``;
+    return buildCardToolOutput('movie', payload);
   },
   {
     name: "movieTool",

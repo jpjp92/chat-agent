@@ -16,6 +16,7 @@ interface HospitalData {
   query: string;
   count: number;
   hospitals: Hospital[];
+  notice?: string;
 }
 
 interface HospitalRendererProps {
@@ -92,7 +93,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-hospital-slash text-2xl mb-2 block" />
-        <p className="text-sm">{tt.notFound}</p>
+        <p className="text-sm">{data?.notice || tt.notFound}</p>
       </div>
     );
   }

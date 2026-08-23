@@ -1,6 +1,6 @@
 # Drug-Viz: Test Prompt Guide
 
-Reference prompts for testing the `json:drug` renderer and the drug identification pipeline (MFDS + pharm.or.kr + DDG fallback).
+Reference prompts for testing the `json:drug` renderer and the drug identification pipeline. Gemini uses MFDS + Google/DDG fallback; GPT uses strict `search_drug_info` function calling, MFDS lookup, and OpenAI `web_search` synthesis.
 
 ---
 
@@ -42,9 +42,13 @@ Reference prompts for testing the `json:drug` renderer and the drug identificati
 - "앞면에 DL 뒷면에 50 찍힌 노란 원형 약 이름 알려줘"
 - "하얀색 원형 알약인데 한쪽에 TYLENOL 500 써있어"
 
-## 3. MFDS Fallback → DDG Search
+## 3. MFDS Fallback → Provider Search
 
 Drugs not in MFDS DB — should trigger `search_web` tool call:
+
+- Gemini 선택: Google grounding 후 DDG 보조
+- GPT 선택: 로컬 함수 결과를 Responses에 되돌리고 OpenAI `web_search`로 공식 표기·효능·안전성을 검증
+- 내부 DB/키/쿼터/fallback 상태는 사용자 답변에 노출하지 않는다
 
 - "제놀 푸로탑 성분 알려줘"
 - "게로비탈 효능이 뭐야?"

@@ -32,16 +32,16 @@ export const CHAT_MODEL_OPTIONS = [
     descriptionKey: 'model36FlashDesc',
   },
   {
-    id: CHAT_MODELS.GPT_5_4_MINI,
-    section: 'openai',
-    labelKey: 'modelGpt54Mini',
-    descriptionKey: 'modelGpt54MiniDesc',
-  },
-  {
     id: CHAT_MODELS.GPT_5_6_LUNA,
     section: 'openai',
     labelKey: 'modelGpt56Luna',
     descriptionKey: 'modelGpt56LunaDesc',
+  },
+  {
+    id: CHAT_MODELS.GPT_5_4_MINI,
+    section: 'openai',
+    labelKey: 'modelGpt54Mini',
+    descriptionKey: 'modelGpt54MiniDesc',
   },
   {
     id: CHAT_MODELS.FLASH_3_5,

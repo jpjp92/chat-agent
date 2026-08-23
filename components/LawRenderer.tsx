@@ -40,6 +40,7 @@ interface LawPayload {
   law?: LawListItem;
   articleNo?: string;
   articles?: LawArticle[];
+  notice?: string;
 }
 
 type Lang = 'ko' | 'en' | 'es' | 'fr';
@@ -94,6 +95,15 @@ export const LawRenderer: React.FC<{ data: LawPayload; language?: Lang }> = ({ d
   const toggle = (key: string) => {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
+  if (!data.law && laws.length === 0 && articles.length === 0) {
+    return (
+      <div className="my-4 p-6 rounded-3xl bg-amber-50/70 dark:bg-amber-400/5 border border-amber-200/70 dark:border-amber-400/20 text-center text-slate-500 dark:text-slate-400">
+        <i className="fa-solid fa-scale-balanced text-2xl mb-2 block" />
+        <p className="text-sm">{data.notice || tt.fallbackTitle}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="my-4 w-full max-w-full min-w-0 box-border overflow-hidden rounded-2xl border border-amber-200/70 dark:border-amber-400/20 bg-white/80 dark:bg-slate-950/70 shadow-sm backdrop-blur-sm">

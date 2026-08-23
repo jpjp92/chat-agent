@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { buildCardToolOutput } from "./card-tool-output";
 
 // 건강보험심사평가원_병원정보서비스 getHospBasisList
 // Note: B551182 백엔드는 https 모듈에서 타임아웃 발생 → native fetch 사용
@@ -193,6 +194,37 @@ function findSgguCd(sidoCd: string, sigunguName: string): string | undefined {
     return undefined;
 }
 
+/**
+ * 카드에 표시된 주소 문자열에서 심평원 지역 코드를 되찾는다. 후속 턴의 진료시간 조회
+ * (hospital-hours)가 기본목록을 1건 재조회할 때 sidoCd가 필요한데, 그 턴에는 원래
+ * 도구 인자가 남아 있지 않고 카드 주소만 있다.
+ */
+export function resolveAreaCodesFromAddress(address: string): { sidoCd: string; sgguCd?: string } | undefined {
+    const tokens = address.trim().split(/\s+/);
+    if (tokens.length === 0) return undefined;
+
+    const sidoName = tokens[0];
+    const sidoCd = SIDO_CODE[sidoName]
+        ?? SIDO_CODE[sidoName.replace(/특별시|광역시|특별자치시|특별자치도|도$/, '').trim()]
+        ?? CITY_TO_SIDO[sidoName];
+
+    // 🔴 카드 주소가 늘 시도로 시작하지는 않는다. 실측(2026-08-24): 서울 병원은 API가
+    //    `광진구 천호대로 536`처럼 시도를 빼고 준다. 시군구 코드에서 시도를 역산한다
+    //    (앞 3자리가 시도 — 110023 → 110000, 350402 → 350000).
+    if (!sidoCd) {
+        const sgguToken = tokens.find(token => SGGU_CODE[token]);
+        if (!sgguToken) return undefined;
+        const code = SGGU_CODE[sgguToken];
+        return { sidoCd: `${code.slice(0, 3)}000`, sgguCd: code };
+    }
+
+    // "전북특별자치도 전주시 덕진구" — 구가 있으면 구, 없으면 시/군이 시군구 단위다.
+    const gu = tokens.slice(1).find(token => token.endsWith('구'));
+    const siGun = tokens.slice(1).find(token => /(시|군)$/.test(token));
+    const sigunguName = gu ?? siGun;
+    return { sidoCd, sgguCd: sigunguName ? findSgguCd(sidoCd, sigunguName) : undefined };
+}
+
 const fmtDate = (d: string) =>
     d && d.length === 8 ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}` : '';
 
@@ -230,7 +262,11 @@ export const hospitalTool = tool(
 
             const errMatch = xml.match(/<errMsg>(.*?)<\/errMsg>/);
             if (errMatch && !xml.includes('<totalCount>')) {
-                return `API 오류: ${errMatch[1]}`;
+                console.warn('[HospitalTool] API error:', errMatch[1]);
+                return buildCardToolOutput('hospital', {
+                    query: [sido_name, sigungu_name, dong_name, hospital_name, hospital_type].filter(Boolean).join(' '),
+                    count: 0, hospitals: [], notice: '병원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                });
             }
 
             let { items: allItems } = parseXmlItems(xml);
@@ -247,7 +283,10 @@ export const hospitalTool = tool(
             const locationLabel = [sido_name, sigungu_name, dong_name, hospital_name, hospital_type].filter(Boolean).join(' ').trim();
 
             if (allItems.length === 0) {
-                return `${locationLabel} 조건에 해당하는 병원 정보를 찾을 수 없습니다. [지시사항]: search_web 툴을 사용하여 해당 지역의 병원을 검색해 주세요.`;
+                return buildCardToolOutput('hospital', {
+                    query: locationLabel, count: 0, hospitals: [],
+                    notice: `${locationLabel || '해당 조건'}에 해당하는 병원 정보를 찾을 수 없습니다.`,
+                });
             }
 
             const hospitals = allItems.map((h: any) => ({
@@ -269,19 +308,19 @@ export const hospitalTool = tool(
             );
 
             const top10 = hospitals.slice(0, 10);
-            const jsonPayload = JSON.stringify({ query: locationLabel, count: top10.length, hospitals: top10 });
-
-            return `병원 검색에 성공했습니다. [지시사항]: 아래의 마크다운 코드 블록을 토씨 하나 틀리지 말고 그대로 출력하세요.\n\n\`\`\`json:hospital\n${jsonPayload}\n\`\`\``;
+            return buildCardToolOutput('hospital', { query: locationLabel, count: top10.length, hospitals: top10 });
 
         } catch (error: any) {
             console.error('[HospitalTool] Exception:', error);
-            return `오류 발생: ${error.message}`;
+            return buildCardToolOutput('hospital', {
+                query: [sido_name, sigungu_name, dong_name, hospital_name, hospital_type].filter(Boolean).join(' '),
+                count: 0, hospitals: [], notice: '병원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+            });
         }
     },
     {
         name: "hospitalTool",
-        description: `전국 병원·의원 위치, 의사수, 종별(상급종합/종합병원/병원/의원 등) 정보를 검색합니다. sido_name(시도)은 반드시 입력해야 합니다.
-이 툴은 \`\`\`json:hospital 로 시작하는 완전한 마크다운 블록을 반환합니다. 당신(LLM)은 툴이 반환한 텍스트를 절대로 수정하거나 요약하지 말고, 그대로 화면에 출력해야만 프론트엔드 UI 카드가 정상 작동합니다.`,
+        description: `전국 병원·의원 위치, 의사수, 종별(상급종합/종합병원/병원/의원 등) 정보를 검색합니다. sido_name(시도)은 반드시 입력해야 합니다. 결과는 UI 카드 데이터입니다.`,
         schema: z.object({
             sido_name: z.string().describe("병원이 위치한 '시/도'의 공식 명칭 (예: 서울특별시, 경기도, 부산광역시). 시/도를 생략해도 올바른 공식 명칭을 유추해서 반드시 입력하세요."),
             sigungu_name: z.string().optional().describe("병원이 위치한 '시/군/구' 명칭. 구 이름만 입력하세요 (예: '강남구', '해운대구', '팔달구'). '수원시 팔달구' → '팔달구'처럼 최소 단위로 입력."),

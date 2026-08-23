@@ -6,6 +6,7 @@ import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvali
 import { ROUTER_MODEL } from "../../models";
 import { classifyIntentByRules, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed } from "../intentRules";
 import { decideWeatherFollowup } from "../weather-followup";
+import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -64,6 +65,14 @@ export const routerNode = async (state: AgentStateType) => {
     const weatherCardInWindow = state.messages.some((m: any) =>
         m._getType?.() === 'ai' && /```json\s*:\s*weather/.test(String(m.content ?? '')));
     const weatherCardShown = state.activeCards?.weather ?? weatherCardInWindow;
+    const cardInWindow = (kind: LocationCardKind | 'law') => state.messages.some((m: any) =>
+        m._getType?.() === 'ai' && new RegExp(`\`\`\`json\\s*:\\s*${kind}`).test(String(m.content ?? '')));
+    const locationCardShown: Record<LocationCardKind, boolean> = {
+        pharmacy: state.activeCards?.pharmacy ?? cardInWindow('pharmacy'),
+        hospital: state.activeCards?.hospital ?? cardInWindow('hospital'),
+        vet: state.activeCards?.vet ?? cardInWindow('vet'),
+    };
+    const lawCardShown = state.activeCards?.law ?? cardInWindow('law');
 
     // 화면 카드가 어느 도시인가 — 후속 판정이 "화면에 없는 도시가 나왔나"를 보려면 필요하다.
     // (이게 없으면 서울 카드가 떠 있는데 "내일 부산 비와?"에 서울로 답한다.)
@@ -84,6 +93,10 @@ export const routerNode = async (state: AgentStateType) => {
     const cardHints = [
         weatherCardShown ? `a WEATHER CARD (current conditions + 5-day forecast for the city already asked)` : '',
         state.movieContext ? `a MOVIE SHOWTIMES CARD (today's showtimes at the theaters already asked)` : '',
+        locationCardShown.pharmacy ? `a PHARMACY RESULTS CARD` : '',
+        locationCardShown.hospital ? `a HOSPITAL RESULTS CARD` : '',
+        locationCardShown.vet ? `a VETERINARY HOSPITAL RESULTS CARD` : '',
+        lawCardShown ? `a KOREAN LAW ARTICLE CARD` : '',
     ].filter(Boolean);
     const cardHint = cardHints.length
         ? `\nNOTE: ${cardHints.join(' and ')} ${cardHints.length > 1 ? 'are' : 'is'} currently displayed on screen.`
@@ -156,7 +169,8 @@ export const routerNode = async (state: AgentStateType) => {
 - "pharmacy_search" : finding a pharmacy location, operating hours, night/holiday pharmacy (in Seoul)
 - "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
-- "law_search"      : Korean law/statute lookup, article text, legal provisions, law lists, legal interpretation requests
+- "law_search"      : exact Korean statute lookup, article text, original provisions, or law lists
+- "law_qa"          : explanation, summary, comparison, scenario, or application of Korean law grounded in current statute data
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "sports"          : CURRENT/ONGOING FIFA World Cup standings, group rankings, fixtures/bracket (16강/8강 대진), match results, top scorers. ONLY for the tournament happening now — past World Cups (2022 등) go to "general".
 - "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
@@ -193,7 +207,7 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "movie_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }
@@ -257,6 +271,46 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     if (intent === "general" && !state.movieContext && classifyIntentByRules(textContent, hasImage) === "movie_search") {
         console.log('[LangGraph] Movie intent rescue (general→movie_search): heuristic matched');
         intent = "movie_search";
+    }
+
+    // 위치·법률 카드 후속은 카드 재조회와 카드 기반 대화를 분리한다. 카드에 이미 있는 운영시간·주소·
+    // 의사수·조문을 묻거나 선택 결과에 반응하는 턴은 general로 보내 카드 원문만 근거로 답한다.
+    // 다른 지역/기관의 새 목록을 요구할 때만 기존 조회 intent를 유지한다.
+    let cardFollowup: "" | LocationCardKind | "law" = "";
+    /** 화면 카드에 있는 상호명 — 후속 판정과 검색 게이트가 같은 목록을 본다. */
+    let cardFollowupNames: string[] = [];
+    const intentToLocationKind: Partial<Record<IntentType, LocationCardKind>> = {
+        pharmacy_search: 'pharmacy', hospital_search: 'hospital', vet_search: 'vet',
+    };
+    const currentLocationKind = intentToLocationKind[intent];
+    const candidateLocationKind = currentLocationKind
+        ?? (state.activeCards?.latest && locationCardShown[state.activeCards.latest as LocationCardKind]
+            ? state.activeCards.latest as LocationCardKind : undefined);
+    if (candidateLocationKind && locationCardShown[candidateLocationKind]) {
+        cardFollowupNames = extractCardEntityNames(state.cardContexts?.[candidateLocationKind]);
+        const decision = decideLocationCardFollowup({
+            text: textContent, llmFollowUp, currentIntentMatches: currentLocationKind === candidateLocationKind,
+            cardNames: cardFollowupNames,
+        });
+        if (decision === 'refine' || decision === 'acknowledge') {
+            intent = 'general';
+            cardFollowup = candidateLocationKind;
+        } else if (decision === 'new') {
+            intent = `${candidateLocationKind}_search` as IntentType;
+        }
+        console.log(`[LangGraph] ${candidateLocationKind} card interaction: ${decision}`);
+    }
+
+    const ruleIntentForLaw = classifyIntentByRules(textContent, hasImage);
+    if (intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search' || (lawCardShown && state.activeCards?.latest === 'law')) {
+        const decision = decideLawInteraction(textContent, lawCardShown);
+        if (decision === 'lookup') intent = 'law_search';
+        else if (decision === 'synthesize') intent = 'law_qa';
+        else {
+            intent = 'general';
+            cardFollowup = 'law';
+        }
+        console.log(`[LangGraph] Law interaction: ${decision} → ${intent}`);
     }
 
     // 영화 "지역 되묻기" 후속 구제: 직전 봇이 영화 지역을 되물었고("어떤 지역의 영화 상영…")
@@ -405,6 +459,11 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     if (forceSearch) {
         // 영화 정보 웹 검색 요청/동의 — 상영표에 없는 정보라 검색을 강제 ON.
         needsSearch = true;
+    } else if (cardFollowup) {
+        // 기본은 off — 화면 카드가 근거다. 예외는 카드에 그 사실이 애초에 없는 경우다:
+        // 동물병원 인허가 데이터에는 진료시간 필드가 없어 "지금 진료하나"를 카드로 답할 수 없다.
+        // 영화 forceSearch("상영표에 없는 정보라 검색 강제 ON")와 같은 성격의 예외다.
+        needsSearch = needsLiveStatusSearch(cardFollowup, textContent, cardFollowupNames);
     } else if (isMovieFollowup) {
         // 화면 상영표(movieContext)로 답해야 함 — 검색을 켜면 그 데이터를 무시하고 일반 표를 내므로 off.
         needsSearch = false;
@@ -423,8 +482,10 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     // 재구성 요청 여부 — 여태 llmFollowUp을 로그로만 찍고 버렸다. 그 탓에 generator는 이번 턴이
     // "형식만 바꿔달라"는 요청인지 모른 채, 수백 줄짜리 정적 프롬프트에 판단을 맡기고 있었다.
     // (검색 판정에서 겪은 것과 같은 정보 손실 — DEV_260815 §2-2)
-    const reformatTurn = llmFollowUp === "refine";
+    // 카드의 수치를 묻는 refine과 직전 산문의 형식 재구성은 다르다. 카드 후속에 REFORMAT 규칙까지
+    // 주입하면 "몇 시까지?"를 형식 변경 요청으로 오해하므로 카드 전용 후속에서는 끈다.
+    const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}`);
-    return { nextNode: "generator", intent, needsSearch, movieFollowup: isMovieFollowup, weatherFollowup, reformatTurn };
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}`);
+    return { nextNode: "generator", intent, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, weatherFollowup, reformatTurn };
 };

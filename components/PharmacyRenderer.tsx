@@ -20,6 +20,7 @@ interface PharmacyData {
   query: string;
   pharmacies: Pharmacy[];
   summary?: string;
+  notice?: string;
 }
 
 export type Lang = 'ko' | 'en' | 'es' | 'fr';
@@ -101,7 +102,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-store-slash text-2xl mb-2 block" />
-        <p className="text-sm">{tt.notFound}</p>
+        <p className="text-sm">{data?.notice || tt.notFound}</p>
       </div>
     );
   }
@@ -149,6 +150,9 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
           </div>
         </div>
       </div>
+      {data.notice && (
+        <p className="-mt-2 mb-3 text-[11px] text-slate-400">{data.notice}</p>
+      )}
 
       {data.summary && (
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 px-1">{data.summary}</p>

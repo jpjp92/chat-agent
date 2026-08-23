@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { buildCardToolOutput } from "./card-tool-output";
 
 // 행정안전부_동물_동물병원 조회서비스
 // Endpoint: /1741000/animal_hospitals/info
@@ -89,11 +90,12 @@ export const vetTool = tool(
 
 
             if (!VET_KEY) {
-                return `동물병원 API 키가 설정되어 있지 않습니다. [지시사항]: VET_KEY 환경변수 설정이 필요하다고 사용자에게 안내해 주세요.`;
+                console.error('[VetTool] API key is not configured');
+                return buildCardToolOutput('vet', { query: locationLabel, count: 0, vets: [], notice: '동물병원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
             }
 
             if (!areaAddrQuery && !cleanDongName && !cleanHospitalName) {
-                return `동물병원을 검색하려면 지역명이나 병원명이 필요합니다. [지시사항]: 사용자에게 시/군/구 또는 동 이름을 포함해 다시 요청해 달라고 짧게 안내해 주세요.`;
+                return buildCardToolOutput('vet', { query: '', count: 0, vets: [], notice: '동물병원을 검색하려면 지역명이나 병원명을 입력해 주세요.' });
             }
 
             const buildUrl = (withStatus: boolean, address?: { field: AddressField; query: string }) => {
@@ -176,7 +178,7 @@ export const vetTool = tool(
             }
 
             if (items.length === 0) {
-                return `${locationLabel || '해당 지역'} 동물병원 정보를 찾을 수 없습니다. [지시사항]: 제공된 search_web 툴을 사용하여 해당 지역의 동물병원을 검색한 후, 사용자에게 텍스트로 친절하게 안내해 주세요.`;
+                return buildCardToolOutput('vet', { query: locationLabel, count: 0, vets: [], notice: `${locationLabel || '해당 지역'} 동물병원 정보를 찾을 수 없습니다.` });
             }
 
             // 가나다순 정렬 (운영시간 데이터 없음)
@@ -197,24 +199,27 @@ export const vetTool = tool(
                 };
             });
 
-            const jsonPayload = JSON.stringify({
+            // 배지의 '영업/정상'은 행안부 **인허가** 상태이지 지금 진료 중이라는 뜻이 아니다.
+            // 실측(2026-08-23): 모델이 이 배지를 읽고 "열려 있는 동물병원 10곳"이라고 단정했다.
+            // 이 데이터에는 진료시간 필드 자체가 없으므로 카드에서 한계를 명시한다.
+            // 진료시간을 카드에 담을 방법이 없으니(데이터에 필드 자체가 없다) 검색 경로로 유도한다.
+            // 병원 이름을 지목하면 needsLiveStatusSearch가 그 턴에만 웹 검색을 열어 준다.
+            const LICENSE_ONLY_NOTICE = '인허가 상태 표시 — 진료시간은 병원 이름을 알려주시면 검색해 드립니다.';
+            return buildCardToolOutput('vet', {
                 query: locationLabel,
-                notice,
+                notice: notice ? `${notice} ${LICENSE_ONLY_NOTICE}` : LICENSE_ONLY_NOTICE,
                 count: top10.length,
                 vets: top10
             });
 
-            return `동물병원 검색에 성공했습니다. [지시사항]: 아래의 마크다운 코드 블록을 토씨 하나 틀리지 말고 그대로 출력하세요. 다른 부가 설명이나 텍스트 목록은 절대 생성하지 마세요.\n\n\`\`\`json:vet\n${jsonPayload}\n\`\`\``;
-
         } catch (error: any) {
             console.error('[VetTool] Exception:', error);
-            return `오류 발생: ${error.message}`;
+            return buildCardToolOutput('vet', { query: [sido, sigungu, dong_name, hospital_name].filter(Boolean).join(' '), count: 0, vets: [], notice: '동물병원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
         }
     },
     {
         name: "vetTool",
-        description: `전국 동물병원(동물의료기관) 위치 정보를 검색합니다. 행정안전부 인허가 데이터 기반. 영업 중인 동물병원을 우선 조회합니다.
-이 툴은 \`\`\`json:vet 로 시작하는 마크다운 블록을 반환합니다. LLM은 툴이 반환한 텍스트를 절대로 수정하거나 요약하지 말고 그대로 출력해야 프론트엔드 카드가 정상 작동합니다.`,
+        description: `전국 동물병원(동물의료기관) 위치 정보를 검색합니다. 행정안전부 인허가 데이터 기반이며 영업 중인 동물병원을 우선 조회합니다. 결과는 UI 카드 데이터입니다.`,
         schema: z.object({
             sido: z.string().optional().describe("동물병원이 위치한 시/도 (예: '서울특별시', '경기도'). 사용자가 구/동만 언급해도 정확한 시/도를 유추해 입력."),
             sigungu: z.string().optional().describe("시/군/구 명칭 (예: '강남구', '수원시'). '전주시 덕진구' 처럼 공백 포함 시 최종 구 단위만 입력 — '덕진구'."),

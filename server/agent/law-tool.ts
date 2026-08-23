@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { getNextApiKey, markKeyRateLimited } from "../config";
 import { SERVER_MODELS } from "../models";
+import { buildCardToolOutput } from "./card-tool-output";
 
 const LAW_BASE_URL = "https://www.law.go.kr/DRF";
 const FETCH_TIMEOUT_MS = 15000;
@@ -14,6 +15,7 @@ type LawToolInput = {
     law_name?: string;
     article_no?: string;
     mode?: "list" | "body" | "article";
+    interpret_with_gemini?: boolean;
 };
 type LawQueryPlan = Required<Pick<LawToolInput, "query">> & {
     law_name?: string;
@@ -467,19 +469,22 @@ async function fetchLawDetail(params: { lawName?: string; mst?: string; lawId?: 
 }
 
 function buildToolResponse(payload: any): string {
-    return `법령정보 조회에 성공했습니다. [지시사항]: 아래의 마크다운 코드 블록을 토씨 하나 틀리지 말고 그대로 출력하세요. 다른 부가 설명이나 텍스트 목록은 절대 생성하지 마세요.\n\n\`\`\`json:law\n${JSON.stringify(payload)}\n\`\`\``;
+    return buildCardToolOutput('law', payload);
 }
 
 export const lawTool = tool(
-    async ({ query, law_name, article_no, mode }: LawToolInput) => {
+    async ({ query, law_name, article_no, mode, interpret_with_gemini }: LawToolInput) => {
         try {
-            const plan = await interpretLawQuery({ query, law_name, article_no, mode });
+            const input = { query, law_name, article_no, mode };
+            const plan = interpret_with_gemini === false
+                ? buildFallbackLawPlan(input)
+                : await interpretLawQuery(input);
             const resolvedMode = plan.mode;
             const searchQuery = plan.law_name || plan.query;
 
             const laws = await searchLawCandidates(searchQuery, resolvedMode === "list" ? 10 : 5);
             if (laws.length === 0) {
-                return `${searchQuery} 관련 법령을 찾을 수 없습니다. 법령명을 더 구체적으로 입력해 주세요.`;
+                return buildToolResponse({ query: searchQuery, mode: resolvedMode, count: 0, laws: [], notice: `${searchQuery} 관련 법령을 찾을 수 없습니다. 법령명을 더 구체적으로 입력해 주세요.` });
             }
 
             if (resolvedMode === "list") {
@@ -512,17 +517,21 @@ export const lawTool = tool(
             });
         } catch (error: any) {
             console.error("[LawTool] Exception:", error);
-            return `법령정보 조회 중 오류가 발생했습니다: ${error?.message || "알 수 없는 오류"}`;
+            return buildToolResponse({
+                query: query || law_name || '', mode: mode || 'list', count: 0, laws: [],
+                notice: '법령정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+            });
         }
     },
     {
         name: "lawTool",
-        description: `국가법령정보센터 Open API로 현행 법령 목록, 법령 본문, 특정 조문(조/항/호)을 조회합니다. 법률명, 조문 번호, 법령 목록 요청에 사용합니다. 사용자가 통칭을 쓰면 공식 법령명 후보로 정규화하세요. 예: 소방법→소방기본법 또는 소방, 교통법→도로교통법, 개인정보법→개인정보 보호법, 근로법→근로기준법. 판례/헌재결정례/행정규칙/법령해석례는 아직 지원하지 않습니다. 반환된 json:law 블록을 수정하지 말고 그대로 출력해야 UI 카드가 정상 작동합니다.`,
+        description: `국가법령정보센터 Open API로 현행 법령 목록, 법령 본문, 특정 조문(조/항/호)을 조회합니다. 법률명, 조문 번호, 법령 목록 요청에 사용합니다. 사용자가 통칭을 쓰면 공식 법령명 후보로 정규화하세요. 판례·헌재결정례·행정규칙·법령해석례는 아직 지원하지 않습니다. 결과는 UI 카드 데이터입니다.`,
         schema: z.object({
             query: z.string().describe("사용자 질의 원문 또는 검색 키워드. 예: 도로교통법, 음주운전 기준, 개인정보보호법"),
             law_name: z.string().optional().describe("명확히 추출 가능한 법령명 또는 공식 법령명 후보. 예: 도로교통법, 민법, 개인정보 보호법, 소방기본법. 통칭 소방법은 소방기본법 또는 소방으로 검색합니다."),
             article_no: z.string().optional().describe("특정 조문 번호. 예: 제44조, 44, 10조. 항/호가 있어도 조 번호만 입력합니다."),
             mode: z.enum(["list", "body", "article"]).optional().describe("list=법령 목록, body=법령 본문/조문 목록, article=특정 조문. 조번호가 있으면 article을 사용합니다."),
+            interpret_with_gemini: z.boolean().optional().describe("내부 질의 해석기 사용 여부. 일반 모델 호출에서는 생략합니다."),
         }),
     }
 );

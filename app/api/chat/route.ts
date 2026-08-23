@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
 import { GUEST_MESSAGE_LIMIT, GUEST_LIMIT_ERROR } from '../../../lib/limits';
-import { API_KEYS } from '../../../server/config';
 import { getSystemInstruction } from '../../../server/agent/prompt';
 import { toLangName, pickByLang, type LangName } from '../../../server/agent/lang';
 import { compileAgentGraph } from '../../../server/agent/graph';
@@ -10,6 +9,7 @@ import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/conf
 import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
 import { classifyChatError } from '../../../server/chat-error-policy';
+import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 
 export const runtime = 'nodejs';
 // 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   }
 
   const encoder = new TextEncoder();
-  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext, activeCards } = await req.json();
+  const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext, activeCards, cardContexts } = await req.json();
   // 클라이언트 문자열을 그대로 공급자 API에 넘기지 않는다. 등록된 채팅 모델만 허용한다.
   const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;
   const publicLang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
@@ -78,18 +78,6 @@ export async function POST(req: NextRequest) {
       const heartbeatInterval = setInterval(() => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify({ heartbeat: true })}\n\n`)); } catch {}
       }, 8000);
-
-      if (API_KEYS.length === 0) {
-        console.error('[Chat API] Provider configuration error', {
-          model: finalModel,
-          status: 500,
-          code: 'gemini_api_key_missing',
-        });
-        sendEvent({ error: CHAT_ERRORS.auth[publicLang] });
-        clearInterval(heartbeatInterval);
-        controller.close();
-        return;
-      }
 
       // 언어 표현 매핑은 server/agent/lang.ts 한 곳에서만 한다.
       const langName = toLangName(language);
@@ -155,7 +143,8 @@ export async function POST(req: NextRequest) {
         contextInfo: '', pillData: null, sessionId: session_id || '',
         model: finalModel, timeZone: timeZone || 'Asia/Seoul', nextNode: 'router',
         movieContext: typeof movieContext === 'string' ? movieContext : '',
-        activeCards: (activeCards && typeof activeCards === 'object') ? activeCards : {},
+        activeCards: sanitizeActiveCards(activeCards),
+        cardContexts: sanitizeCardContexts(cardContexts),
         // 직전 턴 실제 검색 여부 — 정규식 근사 대신 history의 grounding 출처를 본다(Step 6).
         lastTurnSearched: deriveLastTurnSearched(history),
       };
@@ -245,7 +234,12 @@ export async function POST(req: NextRequest) {
             const output = data?.output;
             const modelMsg = output?.messages?.[0];
             const rawMsgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
-            const msgText = rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1').replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '').replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '').replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
+            // 가짜 숫자 인용 제거는 **맨 대괄호에만** 적용한다. Gemini도 groundingSupports 기반
+            // 실제 링크 [1](url)을 심게 됐으므로(gemini-citations.ts), 뒤에 '('가 오면 남긴다.
+            // 예전 규칙은 대괄호를 통째로 지워 OpenAI 링크를 훼손했고, 그래서 공급자로 갈라 두었다.
+            const msgText = output?.provider === 'openai'
+              ? rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1')
+              : rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1').replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '').replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '').replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
             if (msgText && !fullAiResponse) { fullAiResponse = msgText; sendEvent({ text: msgText }); }
             const gm = modelMsg?.response_metadata?.groundingMetadata || modelMsg?.additional_kwargs?.groundingMetadata;
             if (gm?.groundingChunks) {
@@ -255,6 +249,10 @@ export async function POST(req: NextRequest) {
             const stateSources: any[] = output?.groundingSources || [];
             if (stateSources.length > 0) { let added = false; stateSources.forEach((s: any) => { if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
           } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool', 'movieTool', 'weatherTool'].includes(event.name)) {
+            // law_search는 카드 fast-pass지만 law_qa는 같은 도구 결과를 선택 모델이 설명문으로
+            // 합성해야 한다. 중간 json:law를 먼저 스트리밍하면 fullAiResponse가 채워져 generator의
+            // 최종 설명이 억제되므로, 합성 intent에서는 도구 블록을 사용자 채널로 보내지 않는다.
+            if (event.name === 'lawTool' && detectedIntent === 'law_qa') continue;
             const rawOutput = data?.output;
             const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
             const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : event.name === 'movieTool' ? 'movie' : event.name === 'weatherTool' ? 'weather' : 'pharmacy';

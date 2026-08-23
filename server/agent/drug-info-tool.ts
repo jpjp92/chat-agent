@@ -214,7 +214,7 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
  * When MFDS returns "마크" for either imprint face, Gemini Vision reads the actual symbol.
  */
 export const searchDrugInfoTool = tool(
-    async ({ drug_name, query_kind }) => {
+    async ({ drug_name, query_kind, reference_search }) => {
         try {
 
             // MFDS Search Helper
@@ -272,6 +272,10 @@ export const searchDrugInfoTool = tool(
                 const evidencePrefix = query_kind === 'product'
                     ? `[MFDS_NOT_FOUND] "${drug_name}"의 정확한 제품 레코드를 식약처 알약식별 DB에서 확인하지 못했습니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거만 사용해 마크다운으로 설명하세요. 내부 조회 상태를 사용자에게 설명하지 마세요.\n\n`
                     : `[DRUG_REFERENCE_DATA] "${drug_name}"은 제품명 조회가 아닌 성분명 또는 약물 계열 질문입니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거로 일반 의학 정보를 마크다운으로 설명하세요. 국내 공식 표기가 사용자 표현과 다르면 첫 문장에서 짧게 교정하세요. 사용자가 용량을 묻지 않았다면 적응증별 세부 용량을 나열하지 마세요.\n\n`;
+
+                if (reference_search === 'none') {
+                    return `${evidencePrefix}[DRUG_HOSTED_SEARCH_REQUIRED]\n공식 허가 문서와 신뢰할 수 있는 의학 자료를 웹 검색해 공식 표기, 효능, 핵심 안전성을 확인하세요.`;
+                }
 
                 const referenceResult = await searchDrugReferences(drug_name);
                 if (referenceResult.status === 'ok') {
@@ -381,6 +385,7 @@ export const searchDrugInfoTool = tool(
         schema: z.object({
             drug_name: z.string().describe("The Korean drug product name, active ingredient, generic substance, or drug class to look up. For query_kind=product, correct spelling to the official marketed product name before calling. For query_kind=ingredient_or_class, preserve the recognized ingredient/class name rather than inventing a product name."),
             query_kind: z.enum(['product', 'ingredient_or_class']).describe('Whether drug_name is a specific marketed product name or an active ingredient/drug class. This field is required.'),
+            reference_search: z.enum(['google', 'none']).optional().describe('Internal search provider policy. Omit for the default Google grounding path.'),
         }),
     }
 );

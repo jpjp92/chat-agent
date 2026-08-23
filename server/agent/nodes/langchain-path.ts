@@ -80,7 +80,7 @@ export const runLangChainPath = async (args: {
             //   · drug_info/drug_id/sports(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
             //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
             const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
-            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports"]);
+            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports", "law_qa"]);
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
             const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
             const is3xLcModel = isThreeXFlash(pathModel);
@@ -260,12 +260,12 @@ export const runLangChainPath = async (args: {
             } else if (state.intent === "drug_info") {
                 allTools = [searchDrugInfoTool, searchWebTool];
             } else if (state.intent === "pharmacy_search") {
-                allTools = [pharmacyTool, searchWebTool];
+                allTools = [pharmacyTool];
             } else if (state.intent === "hospital_search") {
-                allTools = [hospitalTool, searchWebTool];
+                allTools = [hospitalTool];
             } else if (state.intent === "vet_search") {
-                allTools = [vetTool, searchWebTool];
-            } else if (state.intent === "law_search") {
+                allTools = [vetTool];
+            } else if (state.intent === "law_search" || state.intent === "law_qa") {
                 allTools = [lawTool];
             } else if (state.intent === "movie_search") {
                 allTools = [movieTool];
@@ -275,7 +275,15 @@ export const runLangChainPath = async (args: {
                 allTools = [weatherTool];
             }
 
-            const llmWithTools = allTools.length === 0 ? llm : llm.bindTools(allTools);
+            // 로컬 카드 intent의 첫 턴은 반드시 해당 도구를 호출한다. 자동 선택에 맡기면
+            // Gemini가 도로명 검색처럼 실제로 지원하는 요청도 자체 판단으로 거절할 수 있다.
+            // ToolMessage 이후에는 강제하지 않아 law_qa 같은 합성 경로의 재귀 호출을 막는다.
+            const forceDomainTool = isToolIntent && allTools.length === 1 && lastMsg._getType() !== 'tool';
+            const llmWithTools = allTools.length === 0
+                ? llm
+                : llm.bindTools(allTools, forceDomainTool
+                    ? { tool_choice: allTools[0].name, allowedFunctionNames: [allTools[0].name] }
+                    : undefined);
 
             // Drug image requests are pre-processed by the vision node. Do not pass the
             // original image into the LangChain tool path again: 3.5 may re-run visual

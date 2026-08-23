@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import https from "https";
+import { buildCardToolOutput } from "./card-tool-output";
 
 // 국립중앙의료원 전국약국정보조회서비스
 // Endpoint: getParmacyListInfoInqire (시도/시군구 기반 목록 조회)
@@ -45,6 +46,9 @@ export const pharmacyTool = tool(
         try {
             // 현재 시간 계산
             const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
+            const checkedAt = new Intl.DateTimeFormat('sv-SE', {
+                timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'medium', hour12: false,
+            }).format(new Date()).replace(' ', 'T') + '+09:00';
             const weekday = now.getDay(); // 0=sun,1=mon..6=sat
             const dayMap: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 0: 7 };
             const todayIdx = dayMap[weekday];
@@ -81,7 +85,10 @@ export const pharmacyTool = tool(
 
             const locationLabel = `${sido} ${sigungu || ''} ${keyword || ''}`.trim();
             if (allItems.length === 0) {
-                return `${locationLabel} 지역의 약국 정보를 찾을 수 없습니다. [지시사항]: 제공된 search_web 툴을 사용하여 해당 지역의 영업 중인 약국을 검색한 후, 사용자에게 텍스트로 친절하게 안내해 주세요.`;
+                return buildCardToolOutput('pharmacy', {
+                    query: locationLabel, checked_at: checkedAt, count: 0, pharmacies: [],
+                    notice: '해당 조건에 맞는 약국 정보를 찾을 수 없습니다.',
+                });
             }
 
             // 영업중 및 주말/공휴일 영업 여부에 따른 가중치 점수 부여
@@ -129,29 +136,33 @@ export const pharmacyTool = tool(
 
             const top10 = pharmacies.slice(0, 10);
 
+            const isRoadKeyword = Boolean(keyword && /(?:로|길)(?:\s+\d.*)?$/.test(keyword.trim()));
             const jsonPayload = JSON.stringify({
                 query: locationLabel,
+                checked_at: checkedAt,
                 count: top10.length,
-                pharmacies: top10
+                pharmacies: top10,
+                ...(isRoadKeyword ? { notice: '도로명과 일치하는 결과이며, 사용자 위치 기준 거리순은 아닙니다.' } : {}),
             });
 
-            return `약국 검색에 성공했습니다. [지시사항]: 아래의 마크다운 코드 블록을 토씨 하나 틀리지 말고 그대로 출력하세요. 다른 부가 설명이나 텍스트 목록은 절대 생성하지 마세요.\n\n\`\`\`json:pharmacy\n${jsonPayload}\n\`\`\``;
+            return buildCardToolOutput('pharmacy', JSON.parse(jsonPayload));
 
         } catch (error: any) {
             console.error('[PharmacyTool] Exception:', error);
-            return `오류 발생: ${error.message}`;
+            return buildCardToolOutput('pharmacy', {
+                query: [sido, sigungu, keyword].filter(Boolean).join(' '), checked_at: new Date().toISOString(), count: 0, pharmacies: [],
+                notice: '약국 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+            });
         }
     },
     {
         name: "pharmacyTool",
-        description: `전국 약국 위치, 영업시간 정보를 검색합니다. 시도(sido)와 시군구(sigungu) 값을 반드시 분리해서 전달해야 합니다. (예: sido="경기도", sigungu="일산동구")
-이 툴은 \`\`\`json:pharmacy 로 시작하는 완전한 마크다운 블록을 반환합니다. 당신(LLM)은 툴이 반환한 텍스트를 절대로 수정하거나 요약하지 말고, 그대로 화면에 출력해야만 프론트엔드 UI 카드가 정상 작동합니다. 환각(거짓 정보)을 만들어내지 마세요.`,
+        description: `전국 약국 위치와 영업시간을 검색합니다. 도로명·세부 주소·동 이름·약국명도 keyword로 필터링할 수 있으므로 도로명 요청을 거절하지 마세요. 시도(sido)와 시군구(sigungu)는 분리해서 전달합니다. (예: sido="경기도", sigungu="일산동구", keyword="중앙로"). 도로명 결과는 주소 일치 목록이며 사용자 좌표 기준 거리순은 아닙니다. 결과는 UI 카드 데이터입니다.`,
         schema: z.object({
             sido: z.string().describe("약국이 위치한 '시/도'의 공식 명칭 (예: 서울특별시, 경기도, 전북특별자치도, 강원특별자치도 등). 사용자가 '전주 덕진구'나 '동탄'처럼 시/도를 생략해도, 올바른 공식 시/도 명칭을 유추해서 반드시 입력해야 합니다."),
             sigungu: z.string().optional().describe("약국이 위치한 '시/군/구'의 명칭. **[주의]** '전주시 덕진구', '수원시 영통구'처럼 '시'와 '구'가 합쳐진 지명인 경우, 앞의 '시'를 제외하고 '덕진구' 처럼 최종 '구' 단위만 입력하세요. 단, 사용자가 '구'를 언급하지 않고 '전주', '수원' 등 '시'만 말한 경우에는 해당 시 이름 전체(예: '전주시', '수원시')를 입력하세요."),
-            keyword: z.string().optional().describe("사용자가 특정한 동 이름(예: '중화산동'), 약국 이름(예: '종로약국'), 또는 세부 주소를 명시한 경우 그 키워드를 입력하세요. 없으면 생략합니다."),
-            current_time_kst: z.string().optional().describe("한국 표준시 기준 현재 요일 및 시간 (예: 월요일 14:30). 영업중 여부 판단에 사용됩니다."),
+            keyword: z.string().optional().describe("사용자가 도로명(예: '안덕원로', '테헤란로'), 동 이름(예: '중화산동'), 약국 이름(예: '종로약국'), 또는 세부 주소를 명시한 경우 원문의 핵심 주소 키워드를 입력하세요. 도로명도 지원됩니다. 없으면 생략합니다."),
+            current_time_kst: z.string().optional().describe("호환성용 선택 필드. 현재 영업 여부는 서버의 한국 표준시를 기준으로 계산하므로 보통 생략합니다."),
         }),
     }
 );
-

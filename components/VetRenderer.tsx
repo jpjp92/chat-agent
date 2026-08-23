@@ -35,10 +35,10 @@ const API_CLOSED = '폐업';
 type Lang = 'ko' | 'en' | 'es' | 'fr';
 
 const T: Record<Lang, Record<string, string>> = {
-  ko: { notFound: '동물병원 정보를 찾을 수 없습니다.', search: '동물병원 검색', top: '상위', results: '결과 (가나다 순)', count: '개', prev: '이전', next: '다음' },
-  en: { notFound: 'No veterinary clinics found.', search: 'vet clinic search', top: 'Top', results: 'results (A–Z)', count: '', prev: 'Prev', next: 'Next' },
-  es: { notFound: 'No se encontraron clínicas veterinarias.', search: 'búsqueda de veterinarias', top: 'Top', results: 'resultados (A–Z)', count: '', prev: 'Anterior', next: 'Siguiente' },
-  fr: { notFound: 'Aucune clinique vétérinaire trouvée.', search: 'recherche de vétérinaires', top: 'Top', results: 'résultats (A–Z)', count: '', prev: 'Précédent', next: 'Suivant' },
+  ko: { license: '인허가', notFound: '동물병원 정보를 찾을 수 없습니다.', search: '동물병원 검색', top: '상위', results: '결과 (가나다 순)', count: '개', prev: '이전', next: '다음' },
+  en: { license: 'License', notFound: 'No veterinary clinics found.', search: 'vet clinic search', top: 'Top', results: 'results (A–Z)', count: '', prev: 'Prev', next: 'Next' },
+  es: { license: 'Licencia', notFound: 'No se encontraron clínicas veterinarias.', search: 'búsqueda de veterinarias', top: 'Top', results: 'resultados (A–Z)', count: '', prev: 'Anterior', next: 'Siguiente' },
+  fr: { license: 'Licence', notFound: 'Aucune clinique vétérinaire trouvée.', search: 'recherche de vétérinaires', top: 'Top', results: 'résultats (A–Z)', count: '', prev: 'Précédent', next: 'Suivant' },
 };
 
 /**
@@ -77,7 +77,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
     return (
       <div className="my-4 p-6 rounded-3xl bg-white/5 border border-white/10 text-center text-slate-400">
         <i className="fa-solid fa-paw text-2xl mb-2 block" />
-        <p className="text-sm">{tt.notFound}</p>
+        <p className="text-sm">{data?.notice || tt.notFound}</p>
       </div>
     );
   }
@@ -141,7 +141,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
                             ? 'bg-teal-500/10 border-teal-500/20 text-teal-400'
                             : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                         }`}>
-                          {statusLabel(v.status_detail || v.status)}
+                          {`${tt.license} ${statusLabel(v.status_detail || v.status)}`}
                         </span>
                       )}
                     </div>

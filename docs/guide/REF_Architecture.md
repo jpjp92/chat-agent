@@ -34,13 +34,13 @@ flowchart TB
 
 ## Agent Runtime Branches
 
-`generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 다만 초기 intent router와 로컬 도구 호출은 아직 Gemini에 의존한다.
+`generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 초기 intent router는 아직 Gemini 우선이지만, GPT 일반 생성과 로컬 도구 실행은 Gemini 키와 분리돼 있다.
 
 ```mermaid
 flowchart TB
     Selected["Selected chat model"]
     Capability{"Unsupported media\nfor selected GPT?"}
-    OpenAI["OpenAI Responses\ntext / URL / image / web search"]
+    OpenAI["OpenAI Responses\ntext / URL / image / web search\n+ strict local functions"]
     SDK["Gemini SDK\ngeneral / renderer / multimodal"]
     LC["Gemini LangChain\nlocal tool intents"]
     Gemini25["Gemini 2.5 capability fallback\nvideo / audio / fileData"]
@@ -52,7 +52,8 @@ flowchart TB
     Capability -- "GPT + supported input" --> OpenAI --> Final
     Capability -- "GPT + video/audio/fileData" --> Gemini25 --> Final
     Capability -- "Gemini SDK intent" --> SDK --> Final
-    Capability -- "local tool intent" --> LC
+    Capability -- "Gemini local tool intent" --> LC
+    Capability -- "GPT local tool intent" --> OpenAI
     LC --> ToolCall
     ToolCall -- "yes" --> Tools --> LC
     ToolCall -- "no" --> Final
@@ -62,12 +63,14 @@ flowchart TB
 
 | Path | Intents | Model |
 |------|---------|-------|
-| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색 | 선택한 GPT 모델 유지 |
+| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색, 로컬 도구 8종 | 선택한 GPT 모델 유지 |
 | Gemini SDK | `general`, `medical_qa`, `astronomy`, `biology`, `chemistry`, `physics`, `data_viz` | 선택한 Gemini 모델; capability/search 정책에 따라 2.5 사용 |
 | LangChain | `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`, `weather` | `gemini-2.5-flash` (fast-pass intents: thinking off) |
 | Vision (pill pre-process) | `drug_id` + image | `gemini-2.5-flash`, thinking off |
 
 추가 규칙:
+- **GPT 로컬 도구**: strict 함수 1개를 intent별로 강제하고 병렬 호출은 끈다. 날씨·영화·약국·병원·동물병원·법령은 카드 블록 fast-pass, 약품·스포츠는 함수 결과를 같은 GPT가 종합한다
+- **GPT 약품 검색**: MFDS 로컬 조회 뒤 OpenAI `web_search`를 사용하며 내부 Gemini 검색으로 전환하지 않는다
 - **GPT + YouTube 원본/업로드 영상·오디오/fileData**: `gemini-2.5-flash` capability fallback
 - **YouTube 자막이 텍스트로 확보된 경우**: 선택 모델 유지
 - **Multimodal + Search**: 동시 불가 → Google Search 강제 OFF
@@ -188,15 +191,15 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | Intent | Path | Model |
 |--------|------|-------|
 | `drug_id` (image) | Router fast-path → Vision → direct DB lookup → exact card / candidate table | Vision: 2.5 Flash |
-| `drug_info` | LangChain + `search_drug_info` / DDG fallback | 2.5 Flash |
-| `pharmacy_search` | LangChain + pharmacy public API | 2.5 Flash |
-| `hospital_search` | LangChain + HIRA hospital API | 2.5 Flash |
-| `vet_search` | LangChain + animal hospital API | 2.5 Flash |
-| `law_search` | LangChain + `lawTool` (Gemini normalization + Open API) | 2.5 Flash |
-| `movie_search` | LangChain + `movieTool` → card가 `/api/showtimes` 클라이언트 fetch | 2.5 Flash |
-| `weather` | LangChain + `weatherTool` (KMA + OpenWeather) → `json:weather` fast-pass | 2.5 Flash |
+| `drug_info` | Gemini: LangChain+Google/DDG · GPT: strict function→MFDS→OpenAI web search→GPT 합성 | 선택 공급자 |
+| `pharmacy_search` | 공급자별 function calling + pharmacy public API fast-pass | 선택 공급자 |
+| `hospital_search` | 공급자별 function calling + HIRA hospital API fast-pass | 선택 공급자 |
+| `vet_search` | 공급자별 function calling + animal hospital API fast-pass | 선택 공급자 |
+| `law_search` | 공급자별 function calling + 국가법령 Open API fast-pass | 선택 공급자 |
+| `movie_search` | 공급자별 function calling → card가 `/api/showtimes` 클라이언트 fetch | 선택 공급자 |
+| `weather` | 공급자별 function calling + KMA/OpenWeather → `json:weather` fast-pass | 선택 공급자 |
 | `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
-| `sports` | LangChain + `worldCupTool` (football-data.org, markdown) | 2.5 Flash |
+| `sports` | 공급자별 function calling + football-data.org, 선택 모델이 Markdown 종합 | 선택 공급자 |
 | `medical_qa` | 선택 공급자 일반 생성 + 필요 시 검색 | 선택 모델; Gemini는 모델별 search capability 적용 |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | 선택 공급자 renderer 경로 | 선택 모델; Search 기본 OFF |
 | `general` | 선택 공급자 생성 + `needsSearch` 3-gate classifier | 선택 모델 |
