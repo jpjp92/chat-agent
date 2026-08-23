@@ -306,12 +306,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 9종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 10종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 9종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 10종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

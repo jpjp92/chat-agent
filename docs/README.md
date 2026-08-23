@@ -13,7 +13,7 @@
 | 알려진 라우팅 공백 | initial router와 로컬 도구 intent가 아직 Gemini에 의존. Gemini 키 소진 시 GPT 일반 요청까지 막힐 수 있음 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
 | URL Fetch | Wikidocs는 ScrapingBee render/premium/KR 우선, 일반 URL은 direct 우선. browserless는 후순위, OpenAI URL fallback은 기본 OFF | [2026-08-23 실측](logs/2026/08/DEV_260823.md) |
 | 오류 노출 | 공급자 status/code/message는 서버 로그에만 기록하고 UI에는 지역화된 정제 문구만 표시 | [오류 분류 계약](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#4-오류-분류-계약) |
-| 자동 검증 | `npm test` 회귀 하니스 9종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 자동 검증 | `npm test` 회귀 하니스 10종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
 
 ## 최근 문서
 

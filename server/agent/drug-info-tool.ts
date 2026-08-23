@@ -3,9 +3,23 @@ import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
-import { getNextApiKey } from "../config";
-import { DEFAULT_CHAT_MODEL, SERVER_MODELS } from "../models";
+import {
+    API_KEYS,
+    getNextApiKey,
+    isDailyQuotaError,
+    markKeyDailyExhausted,
+    markKeyRateLimited,
+} from "../config";
+import { SERVER_MODELS } from "../models";
 import { searchWebTool } from "./tools";
+import {
+    buildDrugFallbackInstruction,
+    shouldQueryMfdsProductDatabase,
+    type DrugSearchUnavailable,
+} from "./drug-fallback-policy";
+
+export { buildDrugFallbackInstruction } from "./drug-fallback-policy";
+export type { DrugQueryKind, DrugSearchUnavailable } from "./drug-fallback-policy";
 
 const MFDS_API_ENDPOINT = process.env.MFDS_API_ENDPOINT || '';
 const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
@@ -15,7 +29,9 @@ const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
  * 반드시 구분한다.** 예전에는 둘 다 `null`이라, 429로 검색이 안 돌았는데도
  * "검색해도 없다"로 처리돼 모델이 훈련 지식으로 제품명을 지어냈다(DEV_260815_DEPLOY_CHECK).
  */
-export type DrugSearchUnavailable = { kind: 'quota' | 'error'; reason: string };
+// 약품 웹 검색은 무료티어 Google Search가 실제로 동작하는 2.5 Flash로 고정한다.
+// DEFAULT_CHAT_MODEL(현재 3.6)은 MODEL_CAPS상 freeTierSearch=false라 이 fallback에서 429가 난다.
+export const DRUG_SEARCH_MODEL = SERVER_MODELS.FLASH;
 
 type DrugSearchOutcome =
     | { status: 'ok'; text: string }
@@ -26,85 +42,98 @@ const isQuotaError = (e: any): boolean =>
     e?.status === 429 || /429|RESOURCE_EXHAUSTED|quota/i.test(e?.message ?? '');
 
 /**
- * MFDS에도 없고 웹 검색도 실패했을 때 모델에게 줄 지시문.
- *
- * 순수 함수로 빼 둔 이유: 이 문자열이 **환각의 직접 원인**이었기 때문이다.
- * 예전 판본은 "훈련 데이터의 의학 지식을 활용해 상세히 안내하세요. 절대로 '찾을 수 없습니다'라고
- * 답하지 마세요"였고, 429로 검색이 안 돈 턴에서 실존하지 않는 제품명이 나왔다
- * (오라메디 인공타액액 / Ortho-Saliva / 아쿠아 오랄 스프레이).
- * 시스템 프롬프트의 약 정보 방어(prompt.ts L280·L282)보다 툴 출력이 모델에 가까워서 이게 이겼다.
- *
- * 네트워크 없이 검사할 수 있어야 회귀가 잡힌다 → tests/test-drug-fallback.mts
- *
- * 두 상황의 **어조를 다르게** 둔다. 이 문자열은 모델이 읽고 사용자에게 옮기는 프레임이라
- * 단정적으로 쓰면 그대로 단정적인 답변이 된다:
- *   · 할당량 소진 → 우리 쪽 사정이다. 그렇게 말한다("지금은 검색을 못 했다").
- *   · 결과 없음   → "쓸만한 게 없다"는 판단조가 아니라 "추가로 확인된 게 없다"는 사실 서술.
- *     검색에 안 걸렸다고 정보가 없는 것은 아니다.
- *
- * @param unavailable 검색이 **실행되지 못한** 사유. null이면 검색은 됐고 추가 정보가 없었다.
- */
-export const buildDrugFallbackInstruction = (drugName: string, unavailable: DrugSearchUnavailable | null): string => {
-    // 상표명은 검색으로만 확인 가능한 사실이다. 검색이 없으면 쓸 수 없다.
-    const noBrandRule = `\n\n🔴 제품명·브랜드명·제조사는 **절대 나열하지 마세요.** 상표명은 검색으로만 확인되는 사실이며 지금은 확인할 수 없습니다. 사용자가 "대표 제품"을 물으면 제형(스프레이·젤·액상 등)별 분류로 답하고, 구체적 제품은 약사에게 확인하도록 안내하세요. 확인되지 않는 것은 모른다고 답해도 됩니다.`;
-
-    const head = unavailable
-        ? (unavailable.kind === 'quota'
-            ? `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drugName}"이(가) 없고(비알약 제형 등), **웹 검색 할당량이 소진되어 이번 턴에는 검색을 수행하지 못했습니다.** 정보가 없는 것이 아니라 지금 조회를 못 한 상황입니다.`
-            : `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drugName}"이(가) 없고(비알약 제형 등), **웹 검색을 수행하지 못했습니다** (${unavailable.reason}).`)
-        : `[MFDS_NOT_FOUND] 식약처 알약식별 DB는 알약·정제만 관리하므로 "${drugName}"은(는) 등록 대상이 아닙니다 (파스·연고·크림·시럽·패치 등). 웹 검색에서는 추가로 확인된 정보가 없었습니다.`;
-
-    return `${head}\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 일반적인 의학 지식 범위에서만 성분·효능·용법·주의사항을 마크다운(헤딩·불릿)으로 설명하세요.${noBrandRule}`;
-};
-
-/**
  * Uses Gemini SDK with Google Search grounding to retrieve drug info.
- * Called when MFDS returns no results (non-pill products like patches, ointments).
+ * Called for ingredient/class questions and when an MFDS product lookup has no result.
  */
 async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOutcome> {
-    const apiKey = getNextApiKey();
-    if (!apiKey) return { status: 'unavailable', kind: 'error', reason: 'API 키 없음' };
-    try {
-        const genai = new GoogleGenAI({ apiKey });
-        const response = await genai.models.generateContent({
-            model: DEFAULT_CHAT_MODEL,
-            contents: [{ role: 'user', parts: [{ text: `${drugName} 의약품의 성분, 효능, 용법, 용량, 주의사항을 알려주세요.` }] }],
-            config: {
-                tools: [{ googleSearch: {} }],
-                temperature: 0.1,
-            },
-        });
-        const text = response.text?.trim();
-        if (!text || text.length < 50) return { status: 'empty' };
-
-        const gm = response.candidates?.[0]?.groundingMetadata as any;
-        console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars | chunks: ${gm?.groundingChunks?.length ?? 'none'} | queries: ${JSON.stringify(gm?.webSearchQueries)}`);
-
-        // Extract grounding source URLs so chat.ts on_tool_end can surface them as chips
-        const chunks = gm?.groundingChunks as any[] | undefined;
-        if (chunks && chunks.length > 0) {
-            const urlLines = chunks
-                .filter((c: any) => c.web?.uri)
-                .map((c: any) => `${c.web.uri} | ${c.web.title || c.web.uri}`)
-                .join('\n');
-            if (urlLines) {
-                return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}` };
-            }
-        }
-        // Fallback: if grounding chunks are empty but search queries exist, use a Google search URL
-        const queries = gm?.webSearchQueries as string[] | undefined;
-        if (queries && queries.length > 0) {
-            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queries[0])}`;
-            return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${searchUrl} | Google 검색: ${queries[0]}` };
-        }
-        return { status: 'ok', text };
-    } catch (e: any) {
-        console.error(`[Agent Tool] Google Search drug info error:`, e.message);
-        // 쿼터 소진은 "결과 없음"이 아니다 — 검색이 아예 안 돌았다.
-        return isQuotaError(e)
-            ? { status: 'unavailable', kind: 'quota', reason: '웹 검색 할당량 소진(429)' }
-            : { status: 'unavailable', kind: 'error', reason: (e?.message ?? 'unknown').slice(0, 80) };
+    if (API_KEYS.length === 0) {
+        return { status: 'unavailable', kind: 'error', reason: 'API 키 없음' };
     }
+    const attemptedKeys = new Set<string>();
+    let lastQuotaReason = '웹 검색 할당량 소진(429)';
+
+    while (attemptedKeys.size < API_KEYS.length) {
+        const apiKey = getNextApiKey();
+        if (!apiKey || attemptedKeys.has(apiKey)) break;
+        attemptedKeys.add(apiKey);
+
+        try {
+            const genai = new GoogleGenAI({ apiKey });
+            const response = await genai.models.generateContent({
+                model: DRUG_SEARCH_MODEL,
+                contents: [{ role: 'user', parts: [{ text: `사용자 입력 "${drugName}"은 오타나 음역 차이가 있을 수 있습니다. 검색 결과를 근거로 대한민국 허가 문서의 공식 한글 성분명을 먼저 확인하고, 허가된 주요 효능과 핵심 안전성 정보를 정리하세요. 입력과 공식 명칭이 다르면 둘의 관계를 명시하세요. 적응증별 정확한 용량은 근거에서 명확히 확인되는 경우에만 포함하세요.` }] }],
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    temperature: 0.1,
+                },
+            });
+            const text = response.text?.trim();
+            if (!text || text.length < 50) return { status: 'empty' };
+
+            const gm = response.candidates?.[0]?.groundingMetadata as any;
+            console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars | chunks: ${gm?.groundingChunks?.length ?? 'none'} | queries: ${JSON.stringify(gm?.webSearchQueries)}`);
+
+            // Extract grounding source URLs so chat.ts on_tool_end can surface them as chips
+            const chunks = gm?.groundingChunks as any[] | undefined;
+            if (chunks && chunks.length > 0) {
+                const urlLines = chunks
+                    .filter((c: any) => c.web?.uri)
+                    .map((c: any) => `${c.web.uri} | ${c.web.title || c.web.uri}`)
+                    .join('\n');
+                if (urlLines) {
+                    return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}` };
+                }
+            }
+            // Fallback: if grounding chunks are empty but search queries exist, use a Google search URL
+            const queries = gm?.webSearchQueries as string[] | undefined;
+            if (queries && queries.length > 0) {
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queries[0])}`;
+                return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${searchUrl} | Google 검색: ${queries[0]}` };
+            }
+            return { status: 'ok', text };
+        } catch (e: any) {
+            console.error(`[Agent Tool] Google Search drug info error:`, e.message);
+            if (!isQuotaError(e)) {
+                return { status: 'unavailable', kind: 'error', reason: (e?.message ?? 'unknown').slice(0, 80) };
+            }
+
+            lastQuotaReason = '웹 검색 할당량 소진(429)';
+            if (isDailyQuotaError(e)) markKeyDailyExhausted(apiKey);
+            else markKeyRateLimited(apiKey);
+        }
+    }
+
+    return { status: 'unavailable', kind: 'quota', reason: lastQuotaReason };
+}
+
+/** Google grounding과 DDG를 순서대로 조회하되, 일부 검색이 실제 실행됐다면 전체 장애로 과장하지 않는다. */
+async function searchDrugReferences(drugName: string): Promise<DrugSearchOutcome> {
+    let aSearchCompleted = false;
+    let unavailable: DrugSearchUnavailable | null = null;
+
+    const googleResult = await searchDrugViaGoogleSearch(drugName);
+    if (googleResult.status === 'ok') return googleResult;
+    if (googleResult.status === 'empty') aSearchCompleted = true;
+    if (googleResult.status === 'unavailable') {
+        unavailable = { kind: googleResult.kind, reason: googleResult.reason };
+    }
+
+    try {
+        const webResult = await searchWebTool.invoke({ query: `${drugName} 대한민국 공식 성분명 허가사항 효능 주의사항` });
+        if (webResult.includes('오류가 발생했습니다')) {
+            unavailable = unavailable ?? { kind: 'error', reason: 'DuckDuckGo 오류' };
+        } else if (webResult.includes('웹 검색 결과가 없습니다')) {
+            aSearchCompleted = true;
+        } else {
+            return { status: 'ok', text: webResult };
+        }
+    } catch (e: any) {
+        unavailable = unavailable ?? { kind: 'error', reason: (e?.message ?? 'DuckDuckGo 예외').slice(0, 80) };
+    }
+
+    return aSearchCompleted
+        ? { status: 'empty' }
+        : { status: 'unavailable', ...(unavailable ?? { kind: 'error' as const, reason: '검색 공급자 사용 불가' }) };
 }
 
 /**
@@ -185,7 +214,7 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
  * When MFDS returns "마크" for either imprint face, Gemini Vision reads the actual symbol.
  */
 export const searchDrugInfoTool = tool(
-    async ({ drug_name }) => {
+    async ({ drug_name, query_kind }) => {
         try {
 
             // MFDS Search Helper
@@ -205,11 +234,16 @@ export const searchDrugInfoTool = tool(
                 return json?.body?.items || [];
             };
 
-            // Strategy 1: Spaceless original input (Works for "딜라트렌정25mg")
+            // 성분명·약물계열 질문은 제품명(item_name) 전용인 MFDS 알약식별 DB를 조회하지 않는다.
+            // 성분명이나 음역 변형을 제품 미등재로 오판해 불필요한 실패 안내를 붙이지 않는다.
             let searchName = drug_name.replace(/\s/g, '');
-            let items = await fetchMFDS(searchName);
+            let items: any[] = [];
+            if (shouldQueryMfdsProductDatabase(query_kind)) {
+                // Strategy 1: Spaceless original input (Works for "딜라트렌정25mg")
+                items = await fetchMFDS(searchName);
+            }
 
-            if (!Array.isArray(items) || items.length === 0) {
+            if (shouldQueryMfdsProductDatabase(query_kind) && (!Array.isArray(items) || items.length === 0)) {
                 // Strategy 2: Korean units translation (Works for "다파진정10밀리그램")
                 const normalizeForMFDS = (name: string): string => {
                     return name
@@ -222,7 +256,7 @@ export const searchDrugInfoTool = tool(
                 items = await fetchMFDS(searchName);
             }
 
-            if (!Array.isArray(items) || items.length === 0) {
+            if (shouldQueryMfdsProductDatabase(query_kind) && (!Array.isArray(items) || items.length === 0)) {
                 // Strategy 3: 구 표기 변환 — MFDS DB는 "밀리그람"(구 표기) 기준 저장
                 // "타이레놀정500밀리그램" → "타이레놀정500밀리그람" 으로 재검색
                 const oldSpelling = searchName
@@ -235,35 +269,22 @@ export const searchDrugInfoTool = tool(
             }
 
             if (!Array.isArray(items) || items.length === 0) {
-                const notFoundPrefix = `[MFDS_NOT_FOUND] 식약처 알약식별 DB에 "${drug_name}"이(가) 없습니다 (파스·연고·크림·시럽 등 비알약 제형이거나 미등재).\n\n⚠️ CRITICAL INSTRUCTION: json:drug 블록을 생성하지 마세요. 아래 검색 결과를 바탕으로 성분·효능·용법을 마크다운(헤딩·불릿)으로 상세히 안내하세요. 응답 본문에 URL이나 출처는 포함하지 마세요.\n\n`;
+                const evidencePrefix = query_kind === 'product'
+                    ? `[MFDS_NOT_FOUND] "${drug_name}"의 정확한 제품 레코드를 식약처 알약식별 DB에서 확인하지 못했습니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거만 사용해 마크다운으로 설명하세요. 내부 조회 상태를 사용자에게 설명하지 마세요.\n\n`
+                    : `[DRUG_REFERENCE_DATA] "${drug_name}"은 제품명 조회가 아닌 성분명 또는 약물 계열 질문입니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거로 일반 의학 정보를 마크다운으로 설명하세요. 국내 공식 표기가 사용자 표현과 다르면 첫 문장에서 짧게 교정하세요. 사용자가 용량을 묻지 않았다면 적응증별 세부 용량을 나열하지 마세요.\n\n`;
 
-                // 검색 leg가 "실행되지 못했는지"를 추적한다 — 결과 없음과 다르게 다뤄야 한다.
-                let searchUnavailable: DrugSearchUnavailable | null = null;
-
-                // 1st: Google Search grounding (most reliable)
-                const googleResult = await searchDrugViaGoogleSearch(drug_name);
-                if (googleResult.status === 'ok') {
-                    return notFoundPrefix + googleResult.text;
-                }
-                if (googleResult.status === 'unavailable') searchUnavailable = { kind: googleResult.kind, reason: googleResult.reason };
-
-                // 2nd: DuckDuckGo fallback
-                try {
-                    const webResult = await searchWebTool.invoke({ query: `${drug_name} 성분 효능 용법 용량` });
-                    if (webResult.includes('오류가 발생했습니다')) {
-                        searchUnavailable = searchUnavailable ?? { kind: 'error', reason: 'DuckDuckGo 오류' };
-                    } else if (!webResult.includes('웹 검색 결과가 없습니다')) {
-                        return notFoundPrefix + webResult;
-                    }
-                } catch (e: any) {
-                    searchUnavailable = searchUnavailable ?? { kind: 'error', reason: (e?.message ?? 'DuckDuckGo 예외').slice(0, 80) };
+                const referenceResult = await searchDrugReferences(drug_name);
+                if (referenceResult.status === 'ok') {
+                    return evidencePrefix + referenceResult.text;
                 }
 
-                // ── 3rd: 검색이 전부 실패했다 (지시문은 buildDrugFallbackInstruction 참조) ──
+                const searchUnavailable = referenceResult.status === 'unavailable'
+                    ? { kind: referenceResult.kind, reason: referenceResult.reason }
+                    : null;
                 if (searchUnavailable) {
                     console.warn(`[Agent Tool] Drug search unavailable for "${drug_name}": ${searchUnavailable.kind} — ${searchUnavailable.reason}`);
                 }
-                return buildDrugFallbackInstruction(drug_name, searchUnavailable);
+                return buildDrugFallbackInstruction(drug_name, searchUnavailable, query_kind);
             }
 
             // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it
@@ -356,9 +377,10 @@ export const searchDrugInfoTool = tool(
     },
     {
         name: "search_drug_info",
-        description: `Search the official Korean Ministry of Food and Drug Safety (MFDS/식약처) database to get accurate, verified drug identification information including exact pill imprint codes, official images, shape, and color. Call this tool for ANY drug information request before generating a json:drug block.`,
+        description: `Look up drug information. Set query_kind="product" only for a specific marketed product/trade name (for example 타이레놀정500mg or 린버크서방정) so the tool can query the MFDS pill database and generate a verified product card. Set query_kind="ingredient_or_class" for an active ingredient, generic substance, mechanism, or drug class (for example 아세트아미노펜 or JAK 억제제); this skips product identification and searches for official terminology and general reference data without a product card. Preserve a possibly misspelled ingredient term so the search evidence, rather than model memory, determines its official spelling.`,
         schema: z.object({
-            drug_name: z.string().describe("The official Korean drug product name to search for. CRITICAL: Evaluate the user's input for any spelling typos (e.g., '엔' vs '앤', '래' vs '레') and AUTO-CORRECT the drug name to its official registered spelling (e.g., '엔지비드서방정' -> '앤지비드서방정', '타이래놀' -> '타이레놀') BEFORE calling this tool. Do not blindly pass misspelled names."),
+            drug_name: z.string().describe("The Korean drug product name, active ingredient, generic substance, or drug class to look up. For query_kind=product, correct spelling to the official marketed product name before calling. For query_kind=ingredient_or_class, preserve the recognized ingredient/class name rather than inventing a product name."),
+            query_kind: z.enum(['product', 'ingredient_or_class']).describe('Whether drug_name is a specific marketed product name or an active ingredient/drug class. This field is required.'),
         }),
     }
 );

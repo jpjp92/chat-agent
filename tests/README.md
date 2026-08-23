@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 9종 전부
+npm test        # 10종 전부
 npm run verify  # typecheck + test
 ```
 
@@ -54,7 +54,8 @@ npm run verify  # typecheck + test
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
-| `test-chat-models.mts` | 모델 레지스트리·OpenAI Responses 요청·reasoning none·출처 변환·영구 quota/일시 429·UI 오류 비노출 |
+| `test-chat-models.mts` | 모델 레지스트리·Responses 단일/멀티턴·Gemini `googleSearch`/OpenAI `web_search` 프롬프트 매핑·검색 OFF·실제 `url_citation` 번호화/UTM 제거/미인용 후보 제외·quota/UI 오류 정책 |
+| `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 
@@ -78,9 +79,10 @@ npm run test:openai-live
 
 2026-08-23 실측:
 
-- GPT-5.4 mini: 성공, 약 1.19s
-- GPT-5.6 Luna: 성공, 약 2.67s
-- 자동 회귀 `test-chat-models.mts`: 41개 통과
+- GPT-5.4 mini 멀티턴: 성공, 약 1.41s
+- GPT-5.6 Luna 멀티턴: 성공, 약 1.52s
+- 자동 회귀 `test-chat-models.mts`: 52개 통과
+- 자동 회귀 `test-drug-fallback.mts`: 15개 통과
 
 자동 하니스는 `insufficient_quota` 외에도 `credit_balance_exhausted`, 조직/프로젝트 spend limit,
 조직 usage limit을 영구 소진으로 분류하고, 일시적 429는 `rateLimit`으로 남는지 확인한다. 공급자

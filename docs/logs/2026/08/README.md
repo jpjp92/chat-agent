@@ -11,6 +11,6 @@
 | 08-17 | 별도 DEV 파일 없음 | [3.7 모델](../../../plans/PLAN_MODEL_3_7_MIGRATION_260817.md), [모델 API](../../../plans/PLAN_MODEL_API_REVIEW_260817.md), [우선순위](../../../plans/PLAN_PRIORITY_260817.md) | 구현·검증 상세는 [DEV_HISTORY](../../../DEV_HISTORY.md#최근-작업-로그)에 통합 기록 |
 | 08-18 | 별도 DEV 파일 없음 | [테스트 문서](../../../../tests/README.md), [DEV_HISTORY](../../../DEV_HISTORY.md#최근-작업-로그) | `scripts/`에서 `tests/`로 회귀 하니스 이전, 알약/DDG 수정 |
 | 08-22 | 별도 DEV 파일 없음 | [하드닝 계획](../../../plans/PLAN_HARDENING_260822.md) | 서버 경계·인증·쿼터·SSRF 점검 및 URL 장애 분석 시작 |
-| 08-23 | [DEV_260823](DEV_260823.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | URL 공급자 실측, 모델 선택·오류 정책·UI 현행화 |
+| 08-23 | [DEV_260823](DEV_260823.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | URL 공급자 실측, 모델 UI, GPT 멀티턴, 약품 성분 fallback, 검색 공급자 매핑, OpenAI 번호 citation UI |
 
 앞으로 의미 있는 코드 변경이 있는 날은 날짜 로그를 만들고, 계획만 작성한 날도 이 월별 인덱스에 표시한다.

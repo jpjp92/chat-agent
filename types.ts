@@ -21,6 +21,9 @@ export type SourceType = 'web' | 'video' | 'pdf' | 'image' | 'text';
 export interface GroundingSource {
   title: string;
   uri: string;
+  /** 본문 내 클릭 가능한 인용 번호. 검색만 했지만 인용하지 않은 출처에는 없다. */
+  citationNumber?: number;
+  cited?: boolean;
 }
 
 export interface Message {

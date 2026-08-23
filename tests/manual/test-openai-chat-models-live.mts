@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import dotenv from 'dotenv';
-import { HumanMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { generateOpenAIChat } from '../../server/openai/chat.js';
 
 for (const file of ['.env.local', '.env']) {
@@ -27,13 +27,17 @@ for (const model of models) {
         const result = await generateOpenAIChat({
             model,
             instructions: 'You are a connectivity test. Follow the user instruction exactly.',
-            messages: [new HumanMessage('Reply with exactly: OK')],
+            messages: [
+                new HumanMessage('Reply with exactly: FIRST'),
+                new AIMessage('FIRST'),
+                new HumanMessage('Reply with exactly: SECOND'),
+            ],
             useWebSearch: false,
             maxOutputTokens: 32,
             timeoutMs: 60_000,
         });
         const text = result.text.trim();
-        if (!text) throw new Error('empty response');
+        if (text !== 'SECOND') throw new Error(`unexpected response: ${text}`);
         console.log(`PASS ${model} (${Date.now() - startedAt}ms, ${text.length} chars)`);
     } catch (error: any) {
         failed = true;

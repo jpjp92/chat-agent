@@ -1,6 +1,6 @@
 # TODO
 
-> 완료된 항목은 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록됩니다.
+> 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
 
 ---
 
@@ -12,12 +12,20 @@
 > generator가 Gemini 키에 선행 의존하므로 Gemini 소진 후 GPT 전환이 막힐 수 있다. 상세 계획:
 > [PLAN_MULTI_PROVIDER_ROUTING_260823](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)
 
+- [x] Gemini 3.7/3.6/3.5/2.5와 GPT-5.4 mini/GPT-5.6 Luna 모델 레지스트리·선택 UI
+- [x] OpenAI Responses 일반 텍스트·URL 본문·이미지·웹 검색 경로
+- [x] 실제 실행 공급자별 검색 도구 프롬프트 매핑(Gemini `googleSearch`, OpenAI `web_search`, 검색 OFF `none`)
+- [x] GPT 멀티턴 Responses 히스토리를 공식 easy-input 문자열 형식으로 정렬 + 두 모델 라이브 검증
+- [x] GPT 영구 쿼터/일시 429/인증/공급자 오류 분류 + UI raw code/message 비노출
+- [x] GPT 영상·오디오·PDF/fileData → Gemini 2.5 capability fallback
 - [ ] 🔴 GPT 일반 요청에서 Gemini API 키 선행 요구 제거
+- [ ] Gemini 키 없음/전 키 cooldown 상태에서도 GPT 일반 텍스트가 성공하는 회귀 테스트
 - [ ] 선택 공급자별 initial router 분리(Gemini→2.5 Flash Lite, GPT→5.6 Luna)
 - [ ] GPT 로컬 도구 intent function calling 연결
-- [ ] 영상·오디오만 Gemini 2.5 capability fallback 유지
+- [x] OpenAI `url_citation`을 실제 인용 출처만 번호화해 본문 클릭 링크 `[N]`와 하단 동일 번호 배지로 렌더링
+- [ ] GPT 검색 턴만 reasoning `low` 적용 후 `none` 대비 품질·지연·비용 실측
 - [ ] 응답 중 모델 변경 잠금 또는 `다음 메시지부터 적용` UX
-- [ ] selected/resolved model과 fallback reason 관측 로그
+- [ ] selected/resolved model과 fallback reason을 요청 로그와 메시지 메타데이터로 일관되게 기록
 - [ ] 모델 메뉴 모바일·다크모드 실기기 확인
 
 ### 0-a. 이미지+검색 할루시네이션 — 가짜 출처 생성
@@ -235,9 +243,15 @@
 
 ### URL fetch 견고화 (DEV_260707 후속)
 
-> 배경: wikidocs 블로그 502 근본 원인은 `isSecurityBlock`의 `'cloudflare'` 오판이었고 수정 완료. 아래는 그 과정에서 드러난 구조적 취약점.
+> 2026-08-23 현재: Wikidocs는 cache → ScrapingBee render/premium/KR → browserless, 일반 URL은
+> cache → direct → ScrapingBee static/render → browserless 순서다. OpenAI URL fallback은 검색
+> 색인 의존 때문에 기본 OFF다. 실측은 [DEV_260823](logs/2026/08/DEV_260823.md)을 따른다.
 
-- [x] **wikidocs 블로그 redundancy 복구** (2026-08-23) — `gpt-5-mini` Responses `web_search`를 본문 추출 전용으로 연결. 정확 URL의 `open_page` 증거와 300자 이상 본문을 모두 요구하고, 성공 결과만 `url_cache`에 저장한다. 키·쿼터·rate limit·URL 불일치는 기존 URL 접근 실패 안내로 종료한다.
+- [x] **Wikidocs 운영 경로 복구** — 교체한 ScrapingBee 키와 `render_js + premium_proxy + KR` 조합으로 신규 글 종단 성공. OpenAI Web Search는 구현을 보존하되 운영 기본값은 OFF
+- [x] **GeekNews 무료 direct 복구** — Chrome/141 UA로 200·본문 7,604자 확인
+- [x] **Brunch 범용 폴백 확인** — 실주소가 `scrapingbee-static`으로 성공. `/@other/999`는 장애 표본이 아닌 URL mismatch 테스트용 가짜 주소
+- [ ] 🟡 공급자별 남은 deadline을 공유하는 fetch-url 전체 타임아웃 예산 설계(현재 최악 체인이 클라이언트 65초보다 김)
+- [ ] ScrapingBee credit 소모량·cache hit·provider별 성공률 관측 지표
 - [ ] **`isSecurityBlock` substring 매칭의 콘텐츠 오판 소지** — 추출 본문에 특정 단어 포함만으로 CF 챌린지 판정 → 정상 기사가 그 단어를 언급하면 오판(이번 `cloudflare` 케이스). 챌린지 판정은 가능하면 HTTP status·응답 크기·`<title>` 등 **구조 신호 우선**으로 리팩토링 검토.
 
 ### 응답 산문 가독성 규칙 (DEV_260707 §6 후속, 보류)
@@ -251,7 +265,9 @@
 
 ### 보안
 
-> 인증 전환 완료(2026-07-14, [DEV_260714](logs/2026/07/DEV_260714.md)). DB 테이블은 RLS + Bearer 토큰 user-scoped 클라이언트로 전환됨 — **Storage만 아직 admin 클라이언트**.
+> 인증 전환 완료(2026-07-14, [DEV_260714](logs/2026/07/DEV_260714.md)). DB 테이블과 사용자 업로드
+> Storage는 Bearer 토큰 + user-scoped client + RLS로 전환됐다. 공유 캐시와 `drug-cache/` 쓰기만
+> service role을 사용하며, 버킷 공개 읽기는 Phase 2 미완료다.
 
 - [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
 - [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
@@ -259,7 +275,7 @@
   - **교훈**: 진단 기록에 **값을 적지 말고 판정만 적는다**("정상"·"불일치"). 그때도 값이 있어야 재현되는 게 아니었다
   - 재발급 후: Vercel Production/Preview 의 `LAW_OC` 교체 → 법률 질의 1건으로 검증
 
-- [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(하니스 6종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
+- [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(현재 하니스 10종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
   - **교훈**: 예외 목록이 길어지면 규칙이 아니라 **배치**가 틀린 것이다. 위치가 곧 정책이 되게 한다
 
 - [x] **알약 식별 결함 5건 수정** (2026-08-18) — 각인 `OG37`(무코스타서방정150mg) 테스트에서 연달아 나왔다. → [DEV_HISTORY](DEV_HISTORY.md)
@@ -274,7 +290,7 @@
   - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
   - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
 
-- [ ] 🔴 **무인증 라우트가 2개 더 있다 — `fetch-url`·`sync-drug-image`** (2026-08-18 발견) — 8/17 에 `upload`·`create-signed-url`·`parse-document` 를 막았는데 **같은 계열인 이 둘이 범위에서 빠졌다.** 침묵 제거 배포를 검증하려고 토큰 없이 호출해봤더니 그대로 200 이었다 — 그 순간 발견했다. `grep -n "createRouteClient|unauthorized|Authorization"` → **두 파일 다 0건.**
+- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
   - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
   - 🟡 **실질 위험 ② 서비스 도메인 대리 요청** — 우리 IP·도메인으로 임의 사이트에 요청이 나간다. 차단당하면 우리가 막힌다
@@ -300,13 +316,13 @@
   - [x] **무인증 401 실측** (2026-08-18, dev) — `create-signed-url` 401 · `parse-document` 401 · **위조 Bearer 도 401**(헤더 유무가 아니라 검증이 막는다) · `/api/upload` 404(삭제 확인)
   - 🔴 **교훈 — 롤백 기준을 적을 땐 그 기준이 걸리는 경로를 먼저 읽는다.** 위 항목을 "유일하게 되돌림이 필요한 것"으로 0순위에 올려뒀는데, 확인에 5분이면 될 것을 안 했다. **틀린 판정 기준은 없는 것보다 나쁘다** — 통과해도 아무것도 보장하지 않으면서 다른 항목을 밀어낸다
 - [ ] **모델·API 레퍼런스 검토 후속** → [PLAN_MODEL_API_REVIEW_260817](plans/PLAN_MODEL_API_REVIEW_260817.md)
-  - [ ] 🔴 `THINKING_MODE` 실측표 + `resolveThinkingConfig` 전환 — **3.7 은 `minimal` 을 400 으로 거부한다.** 지금 3.7 을 추가하면 전 호출이 죽는다
-  - [ ] `MODEL_CAPS` 에 3.7 · `FLASH_3_7` 레지스트리 + i18n (**기본은 3.6 유지** — 출시 직후 503 잦음)
-  - [ ] `services/geminiService.ts:220` 의 `'gemini-3.5-flash'` 리터럴 제거(기본값 불일치)
+  - [x] `THINKING_MODE` 실측표 + 모델별 thinking config — 3.7은 `minimal` 대신 `low`, GPT 채팅은 reasoning none
+  - [x] `MODEL_CAPS` 3.7, `FLASH_3_7` 레지스트리, i18n, 기본 3.6 유지
+  - [x] `services/geminiService.ts` 기본 모델 리터럴을 공용 기본값과 정렬
   - [ ] 🔴 **Files API 전환 검토** — 임의 URL 을 `fileData` 로 넘기는 현재 패턴은 **문서 어디에도 없다.** 3.x 의 429 는 결함이 아니라 계약 위반이고, 2.5 만 관대해서 강등이 통했다. Files API 는 무료·영상 지원
   - [ ] 프로브 A(도구 조합) — 되면 라우터의 존재 이유가 바뀐다. 단 thought signature 보존이 선행
   - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
-  - [ ] 라우터를 `3.5-flash-lite` 로 검토 — ⚠️ 기본 thinking 이 **On(minimal)** 이라 명시 지정 필요
+  - [ ] 공급자별 initial router 구현 — Gemini는 2.5 Flash Lite 유지, GPT는 5.6 Luna + strict JSON + reasoning none
   - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
 - [x] ✅ **🔴 낡은 User-Agent 가 무료 경로를 막고 있었다 — `Chrome/120` → `Chrome/141`** (2026-08-22) — **URL 장애 조사의 진짜 수확.** GeekNews 403 을 "사이트가 우리를 막았다"로 읽었는데, 갈라 보니 **낡은 UA 를 봇 시그니처로 막은 것**이었다. 같은 URL·같은 나머지 헤더로 `Chrome/120 → 403 · 10바이트` / `Chrome/141 → 200 · 43,009바이트 · 13ms`. `Chrome/120` 은 **2023-12 릴리스**라 2년 넘게 묵어 있었다.
   - **결과**: GeekNews 가 direct fetch 만으로 **169ms · 본문 7,604자 · 유료 스크래퍼 불필요**. browserless 가 4.4초에 가져오던 것과 **글자 수까지 동일**하다 — 즉 **돈 주고 사던 것을 공짜로 얻을 수 있었다.**
@@ -315,7 +331,6 @@
   - 🔴 **쿼터 소진에 이것이 얼마나 기여했는지 미측정** — 무료 경로가 실패하면 전부 유료로 떠넘겨졌다. 충전 전에 소모율을 다시 잴 것
 - [x] ✅ **Brunch 리다이렉트 루프 폴백** (2026-08-23) — direct는 `redirect count exceeded`지만 범용 체인이 처리한다. 캐시 우회 `/@ghidesigner/532?codex_doc_probe=260823`: `scrapingbee-static` · 200 · 8.89s · 본문 4,507자. `/@other/999`는 실글이 아니라 OpenAI URL mismatch 회귀용 가짜 주소다.
 - [x] ✅ **ScrapingBee 월 쿼터 소진 복구** (2026-08-23) — 기존 trial 키는 `1,006 / 1,000` credits로 `401 {"message":"Monthly API calls limit reached: 1000"}`를 반환했고 URL 요약 전면 장애의 직접 원인이었다. 키 교체 후 Wikidocs 신규 글에서 `render_js + premium_proxy + KR` **200 · 5.66s · 본문 12,460자 · cost 25**, 로컬 라우트 **200 · 6.10s · 13,085자** 확인. 🔴 `url_cache` 45일 실종이 소모를 키웠으므로 캐시 오류 로깅과 소모율 관측은 계속 유지한다.
-- [ ] 🟡 **fetch-url 범용 타임아웃 예산 재설계** — 일반 URL 체인은 최대 `10+15+40+30 = 95s`라 클라이언트 **65s**를 넘는다. Wikidocs는 direct/static을 생략해 `40+30 = 70s`지만 역시 최악에는 65s를 넘는다. 서버 전체 deadline과 공급자별 잔여 예산을 정렬해야 한다.
 - [x] ✅ **OpenAI URL fallback 기본 OFF로 보류** (2026-08-23) — 과거 검색 색인 Wikidocs는 일부 성공했지만 신규·미색인 글은 GPT-5 mini와 GPT-5.6 Luna 모두 실패했다. `OPENAI_URL_FALLBACK_ENABLED=true`를 명시해야만 ScrapingBee·browserless 전멸 뒤 호출하며 기본값은 OFF. 구현·20/20 하니스는 재평가용으로 보존.
 - [ ] 🟡 **ScraperAPI 재평가** — 2026-08-22 체인에서 제외했다(실측 **500 · 55.8s**, "Protected domains may require premium=true"). 되살리려면 premium 파라미터가 선행이고, 크레딧을 더 먹는다. 표본 1회라 판단은 잠정
 - [x] ✅ **fetch-url 폴백 체인 재구성 — browserless 를 전 호스트에 개방** (2026-08-22) — `cloudflareUnblock()` 이 **`isWikidocsHost` 로 잠겨** 있어 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**이었다(static·render 두 번). 쿼터가 마르자 **정상 작동하는 browserless 를 두고 전 사이트가 502.** 🔴 **DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 네 번째 사례** — 이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만 내용물은 범용 사다리였다. 검증: GeekNews(직접 403) → browserless **200 · 4.4s · 본문 7,604자 · article** 실물 확인
@@ -381,7 +396,7 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 | ~~L1 서버 토큰 발급~~ | **생략** — Supabase Auth의 JWT가 대체 |
 | ~~L2 IDOR 수정~~ | **소멸** — IDOR-1은 라우트 삭제, IDOR-2는 RLS가 강제 |
 | **L3** Supabase Auth 전환 | ✅ Anonymous Sign-in(게스트) + Google `linkIdentity`(같은 uuid 유지 → 대화 승계) |
-| **L4** RLS 활성화 | ✅ 전 테이블 정책 + Bearer 토큰 user-scoped 클라이언트. `service_role`은 Storage 라우트에만 잔존(→ IDOR-3) |
+| **L4** RLS 활성화 | ✅ 전 테이블 정책 + Bearer 토큰 user-scoped 클라이언트. 사용자 업로드도 UID prefix RLS 적용; 공유 캐시·drug-cache 쓰기만 service role |
 
 - 구현·검증: [DEV_260714](logs/2026/07/DEV_260714.md) · 설계 [PLAN_AUTH_MVP_260709](plans/PLAN_AUTH_MVP_260709.md) · 검증 [PLAN_AUTH_MVP_TEST_260709](plans/PLAN_AUTH_MVP_TEST_260709.md)
 - [~] **로그인 경로 정비** — [PLAN_AUTH_SIGNIN_PATHS_260715](plans/PLAN_AUTH_SIGNIN_PATHS_260715.md). **구현 완료·tsc 0**(3파일, SQL 무변경). 계정 선택창(`prompt=select_account`) · 대화 0개 게스트는 `signInWithOAuth` 직행(= 캐시 지운 사용자가 실패 없이 로그인) · 설정에 "다른 계정으로 로그인". **남음: 브라우저 3건**(선택창 뜨는지 / 0개 게스트 충돌 없이 로그인 / 계정 전환 시 사이드바 완전 교체)
@@ -400,7 +415,8 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 - 모델 제한 — 기본 모델만 허용, Flash 고급 옵션 잠금
 - 회원가입 유도 배너 — 제한 도달 시 / 일정 메시지 수 초과 시
 
-> 선행 조건: L1(서버 토큰) 완료 후 guest 토큰 흐름 분기 추가
+> 현재 Supabase anonymous JWT와 `profiles.message_count`가 이미 있다. 별도 Playground를 만들 경우
+> L1 자체 토큰을 새로 만들지 말고 이 인증·카운터를 재사용하면서 저장·모델·업로드 제한 정책만 결정한다.
 
 ---
 
@@ -418,19 +434,27 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 
 ### 모델 확장 (멀티 프로바이더)
 
-M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 → M1이 진입점.
+> 2026-08-23 현행 상태. 상세 구현 순서와 완료 기준은
+> [PLAN_MULTI_PROVIDER_ROUTING_260823](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)을 따른다.
 
 | 단계 | 내용 |
 |---|---|
-| M1 프로바이더 추상화 | `server/providers/` — gemini.ts / openai.ts / index.ts |
-| M2 API 키 확장 | `config.ts` OPENAI_API_KEY 추가, `getGeminiKey()` / `getOpenAIKey()` 분리 |
-| M3 모델 레지스트리 | `server/models.ts` provider/capability metadata 확장 |
-| M4 OpenAI 매핑 | 공통 내부 포맷 → 프로바이더 변환 (이미지/시스템프롬프트/YouTube/Search) |
-| M5 이미지 생성 | Imagen 4 → P3에서 선행 구현 가능 (M1 불필요) |
-| M6 프론트 UI | 멀티 프로바이더 그룹 표시, 세션별 모델 기억 |
+| 모델 레지스트리·UI | ✅ Gemini 3.7/3.6/3.5/2.5 + GPT-5.4 mini/5.6 Luna, 공급자 그룹 UI |
+| OpenAI 일반 생성 | ✅ Responses API 텍스트·URL·이미지·웹 검색, `store:false`, reasoning none |
+| 오류 계약 | ✅ 영구 쿼터/일시 429/인증 분리, raw code/message UI 비노출 |
+| 공급자 독립 router | 🔴 미구현 — Gemini 키 선행 의존 제거와 함께 P0 |
+| GPT 로컬 도구 | 🟡 미구현 — OpenAI function calling 필요 |
+| 모델 메타데이터 | 🟡 미구현 — selected/resolved/fallback reason 저장 정책 결정 |
 
-**Gemini 3.5 Flash 전환 완료 — 후속 점검** (`DEFAULT_CHAT_MODEL = gemini-3.5-flash` 이미 적용):
-- [x] **모델 정책 정리** (2026-06-22, [DEV_260622 §3](./logs/2026/06/DEV_260622.md)) — 5/30 3.5 전환이 외부 API 도구 경로 전반을 느리게 한 회귀(drug_info는 Vercel 60s 초과 무응답)를 수정. **외부 API 도구 인텐트(drug_*/pharmacy/hospital/vet/law/movie/sports)는 2.5-flash**(fast-pass는 thinking off), **일반 대화(SDK)만 3.5 유지**. `langchain-path.ts` `pathModel` 다운시프트.
+#### 과거 Gemini 3.5/2.5 전환 기록 — 현재 정책이 아님
+
+아래 항목은 2026-06~07의 성능 판단 근거를 보존한 기록이다. 현재 기본 모델은 Gemini 3.6이며 GPT
+선택과 capability fallback이 추가됐다. 현재 할 일 판정에는 위 표와 멀티 공급자 계획을 우선한다.
+
+<details>
+<summary>과거 모델 전환·지연 최적화 기록 보기</summary>
+
+- [x] **Gemini 3.5 당시 모델 정책 정리** (2026-06-22, [DEV_260622 §3](./logs/2026/06/DEV_260622.md)) — 당시 외부 API 도구 인텐트를 2.5 Flash로 고정했다.
 - [x] `drug-info-tool.ts` — 본문 `temperature: 0.1` **유지 결정** (2026-06-20, 약품 정보 일관성). 단 `extractImprintViaVision`(각인 OCR)은 2026-06-22 OCR 버그픽스로 `temperature: 0` + 2.5-flash + `thinkingBudget:0`으로 변경(각인 1자 판독 결정성·속도).
 - [ ] LangChain path `maxOutputTokens: 8192` → 상향 검토 — 경로는 3-A로 [`langchain-path.ts`](../server/agent/nodes/langchain-path.ts)로 이동(generator.ts 아님). 도구 인텐트가 2.5로 내려간 지금은 우선순위 낮음.
 - [x] **YouTube 영상 턴 2.5 고정** (2026-06-22, [DEV_260622 §7](./logs/2026/06/DEV_260622.md)) — 배포 실측 YouTube 요약 59.20s/60s(천장 0.8s)로 무응답 위험. `generator.ts:81`에서 `isYoutubeRequest && hasVideoData`(영상 실제 전송 턴)일 때만 `resolvedModel`을 2.5로 고정 → 16.4s. 멀티턴 후속 텍스트 Q&A는 영상 미재전송(hasVideoData=false)이라 3.5 일반 정책 복귀.
@@ -458,3 +482,5 @@ M1(프로바이더 추상화) 없이 OpenAI 추가 시 `generator.ts` 과부하 
 - [ ] **하이브리드 Tier1 폴백 (검토)** — Tier1(유료) 키 실측 시 3.5가 **빠르고 안정**(URL 6~9s, 이미지 3.5s) + 품질 미세 우위(무료 86~97s/ERROR·이미지 56s는 3.5 탓이 아니라 무료티어 throughput/503 혼잡 탓으로 판명, 2026-06-26). **URL 요약·이미지·영상**을 무료 2.5 우선 → 503·전키 소진 시 Tier1 3.5 폴백하면 비용 최소화 + 혼잡 내성 + 고품질. 전제: `config.ts`가 현재 `API_KEY_TIER1` 미사용 → 별도 배선(Tier1 전용 getter 또는 경로별 키 오버라이드) 필요. 결정: 기본값은 무료 2.5 유지, 하이브리드는 추후.
   - **(2026-07-03 실측·기록)** 유튜브 요약 실패 건에서 이 Tier1 라우팅을 실제 배선해봄(`process.env.API_KEY_TIER1` 별도 로드 → 유튜브 턴만 라우팅). Tier1이 무료보다 ~10s 빠르나(raw 29.6 vs 39.9s), **§아래 mediaResolution LOW로 무료도 22.9s면 충분**해 불필요 → 코드 전부 제거. **재사용 가능한 지렛대로 기억**: 무거운 경로에서 무료 throughput이 부족하면 `API_KEY_TIER1`을 `process.env`로 별도 로드해 그 경로만 유료로 라우팅(정규식 `/^API_KEY\d*$/`엔 안 걸림).
 - [x] **유튜브 요약 60s 캡 초과 근본 해결 — `mediaResolution: LOW`** (2026-07-03, [DEV_260703 §7](./logs/2026/07/DEV_260703.md)) — 긴 영상 요약이 타임아웃(93.7s). `usageMetadata` 실측 결과 병목은 **영상 입력 토큰**(기본 해상도 315,695 토큰, 출력은 1,943뿐 → maxOutputTokens 축소 무효). `generator.ts`가 `isYtVideoTurn`일 때 config에 `mediaResolution: 'MEDIA_RESOLUTION_LOW'` 주입 → 입력 110,243 토큰(-65%)·앱 무료 22.9s/Tier1 17.7s. 요약 화질 무관이라 품질 손실 없음. 타임아웃 상향(48→57s)은 미봉책이었고 이게 근본. (업로드 영상 등 다른 무거운 멀티모달에도 확장 검토 여지 — 현재는 유튜브 턴만.)
+
+</details>

@@ -2,9 +2,10 @@
 import fs from 'node:fs';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { CHAT_MODELS, CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, isChatModelId } from '../src/lib/models.js';
-import { buildOpenAIChatRequest, generateOpenAIChat, OpenAIChatError } from '../server/openai/chat.js';
+import { buildOpenAIChatRequest, generateOpenAIChat, normalizeOpenAIWebCitations, OpenAIChatError } from '../server/openai/chat.js';
 import { isOpenAIChatModel, openAIModelCapabilities } from '../server/openai/models.js';
 import { classifyChatError, OPENAI_QUOTA_ERROR_CODES } from '../server/chat-error-policy.js';
+import { buildSearchProviderInstruction } from '../server/agent/search-provider.js';
 
 let pass = 0;
 let fail = 0;
@@ -32,6 +33,8 @@ for (const id of expectedIds) {
 check('서버 route에서 모델 문자열 검증',
     fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8').includes('isChatModelId(model)'));
 const chatRouteSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
+const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
+const generatorSource = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
 check('OpenAI quota 전용 안내 분기',
     chatRouteSource.includes('classifyChatError(error'));
 check('OpenAI quota 사용자 안내 문구',
@@ -39,6 +42,18 @@ check('OpenAI quota 사용자 안내 문구',
 check('기술 오류 문자열을 SSE로 직접 노출하지 않음',
     !chatRouteSource.includes("sendEvent({ error: 'LLM returned empty response.' })") &&
     !chatRouteSource.includes("sendEvent({ error: 'No API keys found in server environment.' })"));
+check('공급자별 hosted search 런타임 이름 매핑',
+    buildSearchProviderInstruction('google').includes('tool=googleSearch')
+    && buildSearchProviderInstruction('openai').includes('tool=web_search'));
+check('검색 비활성 프로필은 도구 없음 명시',
+    buildSearchProviderInstruction('none').includes('enabled=false')
+    && buildSearchProviderInstruction('none').includes('tool=none'));
+check('공통 프롬프트에서 google_search 고정 도구명 제거',
+    !promptSource.includes("'google_search' tool")
+    && promptSource.includes('[ACTIVE_WEB_SEARCH]'));
+check('Gemini SDK 요청에 실제 Google 공급자 프로필 주입',
+    generatorSource.includes("useGoogleSearch ? 'google' : 'none'")
+    && generatorSource.includes('systemInstruction: googleProviderInstruction'));
 
 for (const code of OPENAI_QUOTA_ERROR_CODES) {
     check(`OpenAI 영구 소진 코드 분류  ${code}`,
@@ -64,9 +79,27 @@ for (const model of ['gpt-5.4-mini', 'gpt-5.6-luna']) {
     check(`요청 reasoning=none  ${model}`, body.reasoning?.effort === 'none');
     check(`요청 저장 비활성  ${model}`, body.store === false);
     check(`요청 웹 검색 강제  ${model}`, body.tools?.[0]?.type === 'web_search' && body.tool_choice === 'required');
+    check(`OpenAI 검색 프롬프트 매핑  ${model}`,
+        body.instructions?.includes('provider=OpenAI Web Search')
+        && body.instructions?.includes('tool=web_search')
+        && !body.instructions?.includes('tool=googleSearch'));
+    check(`멀티턴 user 텍스트는 easy-input 문자열  ${model}`,
+        body.input?.[0]?.role === 'user' && body.input?.[0]?.content === '최신 소식');
+    check(`멀티턴 assistant 히스토리는 문자열  ${model}`,
+        body.input?.[1]?.role === 'assistant' && body.input?.[1]?.content === '이전 답변');
     check(`요청 이미지 전달  ${model}`,
-        body.input?.some((message: any) => message.content?.some((part: any) => part.type === 'input_image')));
+        body.input?.some((message: any) => Array.isArray(message.content) &&
+            message.content.some((part: any) => part.type === 'input_image')));
 }
+
+const noSearchBody = buildOpenAIChatRequest({
+    model: 'gpt-5.4-mini', instructions: '테스트 지시', messages: [new HumanMessage('안녕')],
+    useWebSearch: false, maxOutputTokens: 256,
+});
+check('OpenAI 검색 OFF 프롬프트 매핑',
+    noSearchBody.instructions?.includes('enabled=false')
+    && noSearchBody.instructions?.includes('tool=none')
+    && !noSearchBody.tools);
 
 let capturedAuthorization = '';
 const result = await generateOpenAIChat({
@@ -81,15 +114,40 @@ const result = await generateOpenAIChat({
         return new Response(JSON.stringify({
             status: 'completed',
             output: [
-                { type: 'web_search_call', action: { sources: [{ title: '공식 문서', url: 'https://example.com/source' }] } },
-                { type: 'message', content: [{ type: 'output_text', text: '테스트 응답', annotations: [] }] },
+                { type: 'web_search_call', action: { sources: [
+                    { title: '공식 문서', url: 'https://example.com/source?utm_source=openai' },
+                    { title: '인용되지 않은 문서', url: 'https://example.net/consulted' },
+                ] } },
+                { type: 'message', content: [{
+                    type: 'output_text',
+                    text: '테스트 응답 ([example.com](https://example.com/source?utm_source=openai))',
+                    annotations: [{
+                        type: 'url_citation', title: '공식 문서',
+                        url: 'https://example.com/source?utm_source=openai', start_index: 7, end_index: 72,
+                    }],
+                }] },
             ],
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch,
 });
-check('응답 텍스트 파싱', result.text === '테스트 응답');
-check('검색 출처 UI 형식 변환', result.sources[0]?.title === '공식 문서' && result.sources[0]?.uri === 'https://example.com/source');
+check('응답의 도메인 인용을 클릭 가능한 번호로 변환', result.text === '테스트 응답 [1](https://example.com/source)');
+check('실제 인용 출처에 번호 메타데이터 부여',
+    result.sources[0]?.title === '공식 문서'
+    && result.sources[0]?.uri === 'https://example.com/source'
+    && result.sources[0]?.citationNumber === 1
+    && result.sources[0]?.cited === true);
+check('검색했지만 인용하지 않은 출처는 기본 배지에서 제외', result.sources.length === 1);
 check('서버 키가 Authorization 헤더로만 전달', capturedAuthorization === 'Bearer test-key');
+
+const annotationOnlyText = '근거가 확인됩니다.';
+const annotationOnly = normalizeOpenAIWebCitations({
+    output: [{ type: 'message', content: [{ type: 'output_text', text: annotationOnlyText, annotations: [{
+        type: 'url_citation', title: '근거 문서', url: 'https://example.org/evidence',
+        start_index: 0, end_index: annotationOnlyText.length,
+    }] }] }],
+}, annotationOnlyText);
+check('Markdown 링크가 없는 annotation은 범위 끝에 번호 삽입',
+    annotationOnly.text === '근거가 확인됩니다. [1](https://example.org/evidence)');
 
 let quotaError: unknown;
 try {

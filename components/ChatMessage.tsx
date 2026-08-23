@@ -295,7 +295,27 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     li: ({ ...props }) => <li className="pl-1 text-slate-700 dark:text-slate-300 break-all" style={{ overflowWrap: 'anywhere' }} {...props} />,
     strong: ({ ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
     em: ({ ...props }) => <em className="italic text-slate-700 dark:text-slate-300" {...props} />,
-    a: ({ ...props }) => <a className="text-primary-600 dark:text-primary-400 hover:underline transition-all font-medium" target="_blank" rel="noopener noreferrer" {...props} />,
+    a: ({ children, href, ...props }: any) => {
+      const label = React.Children.toArray(children).join('').trim();
+      const source = message.groundingSources?.find(item => item.uri === href);
+      const isCitation = /^\d+$/.test(label) && source?.citationNumber === Number(label);
+      if (isCitation) {
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`출처 ${label}: ${source.title}`}
+            title={source.title}
+            className="relative -top-0.5 mx-0.5 inline-flex min-w-5 h-5 items-center justify-center rounded-md border border-primary-300/70 dark:border-primary-500/40 bg-primary-50 dark:bg-primary-500/10 px-1 text-[10px] font-bold leading-none text-primary-700 dark:text-primary-300 no-underline hover:bg-primary-100 dark:hover:bg-primary-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            {...props}
+          >
+            {label}
+          </a>
+        );
+      }
+      return <a className="text-primary-600 dark:text-primary-400 hover:underline transition-all font-medium" target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>;
+    },
     kbd: ({ ...props }) => <kbd className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded shadow-sm text-[11px] font-sans mx-0.5 font-bold" {...props} />,
     blockquote: ({ ...props }) => <blockquote className="border-l-4 border-slate-200 dark:border-indigo-400/50 pl-4 py-1 my-4 italic text-slate-500 dark:text-white/70" {...props} />,
     hr: () => <hr className="my-8 border-t border-slate-200 dark:border-white/5" />,
@@ -836,7 +856,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                   .filter(source => { try { new URL(source.uri); return true; } catch { return false; } })
                   .map((source, idx) => (
                   <a
-                    key={idx}
+                    key={`${source.uri}-${idx}`}
                     href={source.uri}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -847,6 +867,9 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                       alt="fav"
                       className="w-3.5 h-3.5 mr-2"
                     />
+                    {source.citationNumber && (
+                      <span className="mr-1.5 text-[10px] font-black text-primary-600 dark:text-primary-400">[{source.citationNumber}]</span>
+                    )}
                     <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{source.title}</span>
                   </a>
                 ))}

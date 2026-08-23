@@ -13,6 +13,7 @@ import { runLangChainPath } from "./langchain-path";
 import { buildDateLadder } from "../weather-followup";
 import { generateOpenAIChat } from "../../openai/chat";
 import { isOpenAIChatModel } from "../../openai/models";
+import { withSearchProviderInstruction } from "../search-provider";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -330,6 +331,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         latestUserText,
                         lastTurnSearched: state.lastTurnSearched,
                     });
+                    const googleProviderInstruction = withSearchProviderInstruction(
+                        finalInstruction,
+                        useGoogleSearch ? 'google' : 'none',
+                    );
 
                     // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
                     const resolvedMaxTokens = resolveMaxTokens({
@@ -395,7 +400,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             contents: sdkContents,
                             config: {
                                 abortSignal: attemptSignal,
-                                systemInstruction: finalInstruction,
+                                systemInstruction: googleProviderInstruction,
                                 tools: [{ googleSearch: {} }],
                                 temperature: 0.2,
                                 topP: 0.8,
@@ -433,7 +438,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 contents: sdkContents,
                                 config: {
                                     abortSignal: attemptSignal,
-                                    systemInstruction: finalInstruction,
+                                    systemInstruction: googleProviderInstruction,
                                     tools: [{ googleSearch: {} }],
                                     temperature: 0.2,
                                     topP: 0.8,
@@ -477,7 +482,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             contents: sdkContents,
                             config: {
                                 abortSignal: attemptSignal,
-                                systemInstruction: finalInstruction,
+                                systemInstruction: googleProviderInstruction,
                                 ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                 ...(is3xModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
                                 maxOutputTokens: effectiveMaxTokens,
@@ -506,7 +511,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 contents: sdkContents,
                                 config: {
                                     abortSignal: attemptSignal,
-                                    systemInstruction: finalInstruction,
+                                    systemInstruction: googleProviderInstruction,
                                     ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                     maxOutputTokens: effectiveMaxTokens,
                                     ...videoMediaResolution,
@@ -545,7 +550,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     contents: sdkContents,
                                     config: {
                                         abortSignal: attemptSignal,
-                                        systemInstruction: finalInstruction,
+                                        systemInstruction: googleProviderInstruction,
                                         ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                         temperature: 0.2,
                                         topP: 0.8,
@@ -593,7 +598,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                 contents: sdkContents,
                                 config: {
                                     abortSignal: attemptSignal,
-                                    systemInstruction: finalInstruction,
+                                    systemInstruction: withSearchProviderInstruction(finalInstruction, 'google'),
                                     tools: [{ googleSearch: {} }],
                                     temperature: 0.2,
                                     topP: 0.8,
@@ -748,7 +753,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         // media 턴이 여기 도달할 수 있다. 25s 일률이면 §4 와 같은 이유로 정상
                         // 분석을 끊는다. 예산 축을 위와 일치시킨다.
                         abortSignal: AbortSignal.timeout(isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS),
-                        systemInstruction: finalInstruction,
+                        systemInstruction: withSearchProviderInstruction(finalInstruction, 'none'),
                         temperature: 0.2, topP: 0.8, topK: 40,
                         maxOutputTokens: 8192,
                         thinkingConfig: { thinkingLevel: 'minimal' as any },
