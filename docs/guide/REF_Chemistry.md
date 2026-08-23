@@ -56,4 +56,4 @@ Reference prompts for testing the `json:smiles` renderer (smiles-drawer).
 - **SVG Export**: 구조 이미지 오른쪽 상단 버튼으로 PNG/SVG 다운로드 가능
 - **ViewBox 반응형**: 데스크톱 768px / 모바일 자동 스케일링
 - 복잡한 분자(콜레스테롤 등)는 가로 스크롤로 확인
-- SMILES 문법 오류 시 렌더링 실패 → Gemini가 검증된 IUPAC 기반 SMILES 사용
+- SMILES 문법 오류 시 렌더링 실패 → 선택 모델이 검증된 IUPAC 기반 SMILES를 사용하도록 프롬프트에서 제한

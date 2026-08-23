@@ -2,6 +2,8 @@
 
 Reference prompts for testing the `json:movie` renderer and the multiplex showtimes pipeline (CGV · 롯데시네마 · 메가박스).
 
+> 최종 수정: 2026-08-23
+
 > 기술 상세(스파이크·엔드포인트 발견·캐시·CGV 콜드 최적화): [`../logs/DEV_260610.md`](../logs/2026/06/DEV_260610.md), [`../logs/DEV_260611.md`](../logs/2026/06/DEV_260611.md) §6
 > ⚠️ CGV 조회는 `BROWSERLESS_KEY` 필요 (Cloudflare Bot Management 우회 — 실 헤드리스 Chrome). 롯데·메가박스는 direct JSON.
 
@@ -88,7 +90,7 @@ Reference prompts for testing the `json:movie` renderer and the multiplex showti
 
 > ⚠️ 이 부류가 프로덕션에서 일반 검색으로 새던 케이스(DEV_260612). 라우터 LLM 실패 시 정규식 폴백이 받도록 `intentRules.ts` 패턴을 보강함.
 >
-> ⚠️ **단, `영화관` 단독은 2026-08-16에 다시 뺐다** — `영화관 데이트 코스 글 써줘`(작문 소재)에 상영시간 카드가 떴다. 이 규칙은 **구제 경로**라 라우터 LLM이 성공해도 발동하므로 오탐 비용이 크다. 지금은 위치·상영 질의어를 동반할 때만 잡는다(`근처 영화관`·`영화관 어디`·`영화관 예매`…). 재현율을 넓히는 방향으로 다시 손대기 전에 `scripts/test-intent-rules.mts`의 오탐 케이스를 볼 것 — **이 파일의 위 문장이 넓히는 쪽 근거로 읽혀 실제로 과확장이 일어났다.**
+> ⚠️ **단, `영화관` 단독은 2026-08-16에 다시 뺐다** — `영화관 데이트 코스 글 써줘`(작문 소재)에 상영시간 카드가 떴다. 이 규칙은 **구제 경로**라 라우터 LLM이 성공해도 발동하므로 오탐 비용이 크다. 지금은 위치·상영 질의어를 동반할 때만 잡는다(`근처 영화관`·`영화관 어디`·`영화관 예매`…). 재현율을 넓히는 방향으로 다시 손대기 전에 `tests/test-intent-rules.mts`의 오탐 케이스를 볼 것 — **이 파일의 위 문장이 넓히는 쪽 근거로 읽혀 실제로 과확장이 일어났다.**
 
 ## 3. 체인 직접 지정
 
@@ -151,5 +153,5 @@ node scripts/test-branch-list.mjs   # 로컬 전용 — data/theater-branches.js
 - **채팅 변형 카드**: 칩 모바일 1열 / 데스크톱 2열, 패널 경량화(체인색 상단 액센트), 영화 `MOVIE_CAP=3` + 더보기, 회차 `CHIP_CAP=8` + 더보기.
 - **좌석 부족 강조**: 잔여/총석 15% 미만이면 칩 테두리·좌석수 적색.
 - **오늘 0건 시 내일 폴백**: 오늘 상영 회차 없으면 자동으로 내일 조회 후 `내일` 배지 표시.
-- **지점 데이터**: `data/theater-branches.json`(3사 532지점) 빌드 타임 번들 → 드롭다운 즉시 표시(추가 요청 없음). 갱신은 `scripts/test-branch-list.mjs` 재스크랩 후 복사.
+- **지점 데이터**: `data/theater-branches.json`(CGV 177 · 롯데 133 · 메가박스 114 = **424지점**) 빌드 타임 번들 → 드롭다운 즉시 표시(추가 요청 없음). 갱신은 로컬 전용 `scripts/test-branch-list.mjs` 재스크랩 후 복사.
 - **서울 리전**: `/api/showtimes`는 `preferredRegion='icn1'` — 한국 극장 API 접근(law-tool과 동일 이유).

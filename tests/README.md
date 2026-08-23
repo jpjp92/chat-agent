@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 8종 전부
+npm test        # 9종 전부
 npm run verify  # typecheck + test
 ```
 
@@ -54,6 +54,7 @@ npm run verify  # typecheck + test
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
+| `test-chat-models.mts` | 모델 레지스트리·OpenAI Responses 요청·reasoning none·출처 변환·영구 quota/일시 429·UI 오류 비노출 |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 
@@ -62,6 +63,28 @@ npm run verify  # typecheck + test
 ```bash
 npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json <스크립트>
 ```
+
+## OpenAI 채팅 모델 라이브 테스트
+
+`gpt-5.4-mini`와 `gpt-5.6-luna`를 실제 Responses API로 한 번씩 호출한다.
+API 비용이 발생하므로 일반 `npm test`에서는 실행하지 않는다.
+
+```bash
+npm run test:openai-live
+```
+
+`.env.local` 또는 `.env`에 서버 전용 `OPENAI_API_KEY_TIER1`이 필요하다.
+테스트는 키 값을 로그에 출력하지 않는다.
+
+2026-08-23 실측:
+
+- GPT-5.4 mini: 성공, 약 1.19s
+- GPT-5.6 Luna: 성공, 약 2.67s
+- 자동 회귀 `test-chat-models.mts`: 41개 통과
+
+자동 하니스는 `insufficient_quota` 외에도 `credit_balance_exhausted`, 조직/프로젝트 spend limit,
+조직 usage limit을 영구 소진으로 분류하고, 일시적 429는 `rateLimit`으로 남는지 확인한다. 공급자
+원문 오류 문자열이 SSE UI 경로에 직접 들어가지 않는 것도 함께 검사한다.
 
 2026-08-18 에 **웹 검색이 전 검색에서 출처 URL 을 0건 반환하던 버그**를 이걸로 한 번에 잡았다
 (DDG 가 속성 순서를 바꾸고 `uddg=` 리디렉션을 폐지 → 정규식 두 개가 동시에 죽어 있었다).

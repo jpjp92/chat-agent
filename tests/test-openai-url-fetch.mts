@@ -62,8 +62,9 @@ check('URL 정규화  @와 %40 동일',
 check('모델  URL fetch 기본값은 gpt-5-mini', DEFAULT_OPENAI_URL_FETCH_MODEL === 'gpt-5-mini');
 check('모델  gpt-5-mini web_search reasoning 최저값 low',
     openAIModelCapabilities('gpt-5-mini').reasoningEffort === 'low');
-check('모델  미검증 모델은 web_search 자동 활성화 금지',
-    openAIModelCapabilities('gpt-5.4-mini').webSearch === false);
+check('모델  채팅용 gpt-5.4-mini는 URL 원문 fetch 설정과 분리',
+    openAIModelCapabilities('gpt-5.4-mini').webSearch === true &&
+    openAIModelCapabilities('gpt-5.4-mini').reasoningEffort === undefined);
 
 let capturedBody: Record<string, unknown> = {};
 const targetUrl = 'https://brunch.co.kr/@ghidesigner/532';

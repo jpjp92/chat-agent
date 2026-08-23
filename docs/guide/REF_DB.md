@@ -1,7 +1,8 @@
-# DB Schema — 현재 구조 스냅샷
+# DB Schema — 현재 구조
 
-> 작성일: 2026-05-25  
-> 목적: DB 테이블 변경 전 현재 구조 기록. 마이그레이션 계획은 하단 섹션 참조.
+> 작성일: 2026-05-25 · 최종 수정: 2026-08-23
+>
+> 실제 DDL과 실행 순서의 유일한 출처: [db/README.md](db/README.md)
 
 ---
 
@@ -10,31 +11,37 @@
 | 항목 | 값 |
 |---|---|
 | 플랫폼 | Supabase (PostgreSQL) |
-| 클라이언트 키 | `service_role` JWT — **RLS 전면 비활성화 상태** |
-| 인증 방식 | 커스텀 `users` 테이블 (nickname 기반) — Supabase Auth 미사용 |
+| 인증 | Supabase Auth 익명 세션 → Google identity linking |
+| 사용자 라우트 | Bearer access token + anon key로 user-scoped client 생성 |
+| 인가 | `profiles`, `chat_sessions`, `chat_messages`, Storage에 RLS 적용 |
+| 서버 전용 | 공유 `url_cache`, `mfds_pills`와 `drug-cache/` Storage 쓰기에 `service_role` 사용 |
 
-> `SUPABASE_KEY`가 `service_role`이므로 현재 모든 테이블에 RLS가 적용되지 않는다.  
-> IDOR 취약점(IDOR-1, IDOR-2)의 근본 원인. Supabase Auth 마이그레이션 이후 일괄 해소 예정.
+`app/api/sessions`, `app/api/chat`, `app/api/create-signed-url`, `app/api/parse-document`는 요청의
+Bearer 토큰으로 `createRouteClient()`를 만들며 DB/Storage가 JWT와 소유권을 검증한다. API가 요청
+body의 `user_id`를 신뢰하지 않는다. 2026-08-17 이전의 nickname 인증과 service-role 전면 사용은
+아래 레거시 설명이 아니라 [인증 계획](../plans/PLAN_AUTH_MVP_260709.md)과 개발 이력에서만 참조한다.
 
 ---
 
 ## 테이블
 
-### `users`
+### `profiles`
 
-사용자 계정. nickname 기반 로그인, Supabase Auth 미사용.
+`auth.users`와 1:1인 표시 정보와 게스트 사용량. 로그인 식별과 provider identity는 Supabase Auth가 담당한다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| `id` | `bigint` | PK, auto-increment | 사용자 고유 ID (프론트에서 `number`로 취급) |
-| `nickname` | `text` | UNIQUE, NOT NULL | 로그인 식별자. 한 번 설정 후 변경 불가 |
-| `display_name` | `text` | | 표시 이름. 초기값 = nickname |
+| `id` | `uuid` | PK, FK → `auth.users.id` | 사용자 고유 ID |
+| `display_name` | `text` | NOT NULL | 표시 이름. 익명 사용자는 자동 생성, identity 연결 시 조건부 동기화 |
 | `avatar_url` | `text` | nullable | 프로필 이미지 Supabase Storage URL |
+| `is_guest` | `boolean` | DEFAULT true | 익명/정식 계정 상태 |
+| `message_count` | `integer` | DEFAULT 0 | 삭제로 줄지 않는 게스트 메시지 제한 카운터 |
 | `created_at` | `timestamptz` | DEFAULT now() | |
+| `updated_at` | `timestamptz` | DEFAULT now() | |
 
-**API 접근:** `app/api/auth/route.ts`  
-**조작:** POST(login/signup), PATCH(display_name, avatar_url)  
-**보안 이슈:** PATCH에 소유권 검증 없음 → 누구든 임의 id로 타 사용자 수정 가능 (IDOR-1)
+**생성/동기화:** `auth.users` INSERT와 `auth.identities` INSERT 트리거
+
+**RLS:** 본인 행만 SELECT, `display_name`/`avatar_url`만 UPDATE 가능. `is_guest`와 `message_count`는 클라이언트가 변경할 수 없다.
 
 ---
 
@@ -45,14 +52,15 @@
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `id` | `uuid` | PK, DEFAULT gen_random_uuid() | 세션 고유 ID |
-| `user_id` | `bigint` | FK → users.id | 세션 소유자 |
+| `user_id` | `uuid` | DEFAULT auth.uid(), FK → auth.users.id | 세션 소유자. API 요청값으로 받지 않음 |
 | `title` | `text` | DEFAULT 'New Chat' | 세션 제목 (AI 자동 생성) |
 | `created_at` | `timestamptz` | DEFAULT now() | |
 | `updated_at` | `timestamptz` | | 마지막 메시지 시각. 사이드바 정렬 기준 |
 
 **API 접근:** `app/api/sessions/route.ts`, `app/api/chat/route.ts`  
-**조작:** GET(user_id로 목록, offset/limit 페이지네이션), POST(생성), DELETE(삭제), PATCH(title 변경)  
-**보안 이슈:** 세션 ID만 알면 타 사용자 세션 전체 열람·수정·삭제 가능 (IDOR-2)
+**조작:** GET(offset/limit 페이지네이션), POST, DELETE, PATCH
+
+**RLS:** `auth.uid() = user_id`. 타 사용자 세션은 조회·수정·삭제되지 않는다.
 
 ---
 
@@ -62,12 +70,12 @@
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
-| `id` | `uuid` or `bigint` | PK | 메시지 고유 ID |
+| `id` | `uuid` | PK, DEFAULT gen_random_uuid() | 메시지 고유 ID |
 | `session_id` | `uuid` | FK → chat_sessions.id | 소속 세션 |
 | `role` | `text` | NOT NULL | `'user'` \| `'assistant'` |
 | `content` | `text` | NOT NULL | 메시지 본문. 마크다운 포함 |
 | `attachment_url` | `text` | nullable | 첨부파일 첫 번째 항목의 Storage URL |
-| `grounding_sources` | `jsonb` | nullable | Google Search 출처 칩. `[{title, uri}]` 배열 |
+| `grounding_sources` | `jsonb` | nullable | Gemini/OpenAI 웹 출처 칩. `[{title, uri}]` 배열 |
 | `created_at` | `timestamptz` | DEFAULT now() | 메시지 시각. 조회 정렬 기준 |
 
 **API 접근:** `app/api/sessions/route.ts`(조회), `app/api/chat/route.ts`(삽입)  
@@ -82,14 +90,14 @@
 
 ### `url_cache`
 
-URL 프리페치 결과 캐시. browserless/ScrapingBee/ScraperAPI 유닛 절약 목적.
+URL 프리페치 결과 캐시. direct 성공을 재사용하고 ScrapingBee/browserless 유닛을 절약한다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `url_key` | `text` | PK | 정규화된 URL (fragment 제거) |
 | `content` | `text` | NOT NULL | 추출된 본문 |
 | `status` | `text` | NOT NULL, DEFAULT `'ok'` | `'ok'` (성공 응답만 저장) |
-| `provider` | `text` | nullable | `'direct'` \| `'scrapingbee'` \| `'scrapingbee-static'` \| `'browserless'` \| `'scraperapi'` |
+| `provider` | `text` | nullable | 현재 신규 값: `'direct'` \| `'scrapingbee'` \| `'scrapingbee-static'` \| `'browserless'` \| `'openai-web-search'`(flag ON); 과거 행에는 제거된 provider 값이 남을 수 있음 |
 | `fetched_at` | `timestamptz` | NOT NULL, DEFAULT now() | 캐시 기록 시각 |
 
 **TTL:** 14일 (애플리케이션 레벨 판정 — `fetch-url/route.ts`에서 `fetched_at < now() - 14 days` 체크).  
@@ -190,7 +198,7 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 | 업로더 | 파일 경로 패턴 |
 |---|---|
-| `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` |
+| `app/api/create-signed-url/route.ts` | `{uid}/{timestamp}_{safe-name}` |
 
 ---
 
@@ -200,7 +208,7 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 | 업로더 | 파일 경로 패턴 | 비고 |
 |---|---|---|
-| `app/api/create-signed-url/route.ts` | `{timestamp}_{safe-name}` | |
+| `app/api/create-signed-url/route.ts` | `{uid}/{timestamp}_{safe-name}` | RLS가 첫 경로 세그먼트를 `auth.uid()`와 대조 |
 
 **자동 라우팅:** `useChatStream.ts`에서 1MB 이상 문서는 인라인 base64 대신 이 버킷에 업로드 후 URL만 전달 → Vercel 4.5MB payload 초과 방지
 
@@ -228,10 +236,10 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 | 키 | 내용 | 위치 |
 |---|---|---|
-| `preferred_model` | 선택된 AI 모델 (기본 `gemini-3.5-flash`) | `App.tsx` |
-| `language` | UI 언어 (ko/en/es/fr) | `App.tsx` |
-| `chat_user` | 로그인 사용자 정보 캐시 | `useAuthSession.ts` |
-| `chat_sessions_cache` | 세션 목록 로컬 캐시 | `useChatSessions.ts` |
+| `preferred_model` | 선택된 AI 모델 (기본 `gemini-3.6-flash`) | `App.tsx` |
+| `gemini_language` | UI 언어 (ko/en/es/fr) | `App.tsx` |
+| `theme` | 다크/라이트 테마 | `components/Header.tsx` |
+| `chat_sessions_cache_v1` | owner id와 세션 메타데이터 캐시 | `src/hooks/useChatSessions.ts` |
 
 ---
 
@@ -239,17 +247,14 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 | 구분 | 내용 |
 |---|---|
-| **RLS 비활성** | service_role 키 사용으로 전 테이블 RLS 우회. 인증 없이 타 사용자 데이터 접근 가능 |
-| **IDOR-1** | `api/auth.ts` PATCH — 소유권 검증 없음 |
-| **IDOR-2** | `api/sessions.ts` GET/DELETE/PATCH — 세션 소유자 확인 없음 |
+| **공개 Storage 읽기** | 버킷은 아직 public. RLS가 쓰기·열거는 막지만 URL을 아는 제3자의 읽기는 막지 못함(Phase 2 대기) |
 | **attachment 단일 저장** | 첫 번째 첨부만 `attachment_url`에 저장. 멀티 첨부 히스토리 복원 불가 |
-| **nickname 기반 인증** | UUID/이메일이 아닌 평문 nickname으로 사용자 식별. 충돌 위험, Auth 연동 불가 |
+| **모델 메타데이터 미저장** | `selectedModel`, `resolvedModel`, capability fallback 이유가 메시지 행에 저장되지 않음 |
+| **레거시 공개 URL** | 비공개 버킷 전환 전에 기존 `attachment_url` 백필과 서명 다운로드 경로가 필요 |
 
 ---
 
-## 마이그레이션 계획 (예정)
-
-> 아직 구체적 일정 미확정. 변경 전 이 문서 업데이트 필요.
+## 후속 마이그레이션
 
 ### 단기 검토
 
@@ -257,17 +262,13 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
   현재 첫 번째 첨부만 저장 → `[{url, mimeType, fileName}]` 배열로 확장  
   → 멀티 첨부 히스토리 복원 가능
 
-- **`chat_sessions.model` 컬럼 추가**  
-  세션별 사용 모델 기록 (TODO: M6 세션별 모델 기억)
+- **메시지 모델 메타데이터**
 
-### 중기 검토 (Supabase Auth 전환 전제)
+  `selected_model`, `resolved_model`, `fallback_reason` 저장 여부 결정. 응답 중 모델 전환 관측과 세션 복원에 필요.
 
-- **`users` 테이블 → Supabase Auth 연동**  
-  - `auth.users.id` (UUID) 기반으로 전환  
-  - 기존 `users.nickname` 기반 레코드 마이그레이션 필요  
-  - RLS 정책 활성화 → IDOR-1/2 자동 해소
+- **Storage Phase 2**
 
-- **`chat_sessions.user_id`** `bigint` → `uuid` (auth.users.id 참조)
+  세 버킷 비공개 전환, 기존 공개 `attachment_url` 백필, 표시 시 signed download URL 발급.
 
 ### 장기 후보 (Agentic 업그레이드 연계)
 

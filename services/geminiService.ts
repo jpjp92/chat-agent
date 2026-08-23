@@ -11,6 +11,21 @@ export class GuestLimitError extends Error {
   }
 }
 
+/** 서버가 사용자에게 공개하도록 정제한 채팅 오류만 이 타입으로 전달한다. */
+export class UserFacingChatError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserFacingChatError';
+  }
+}
+
+const CHAT_REQUEST_FAILED: Record<Language, string> = {
+  ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.',
+  en: 'Failed to generate a response. Please try again.',
+  es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.',
+  fr: 'Échec de la génération de la réponse. Veuillez réessayer.',
+};
+
 let currentAudioSource: AudioBufferSourceNode | null = null;
 let sharedAudioContext: AudioContext | null = null;
 
@@ -298,7 +313,7 @@ export const streamChatResponse = async (
     }
     if (bodyBytes > MAX_BODY_BYTES) {
       // 413 은 서버 코드에 닿기 전에 거부되므로 여기서 사람이 읽을 수 있는 안내로 대체한다.
-      throw new Error(`요청이 너무 큽니다 (${(bodyBytes / 1024 / 1024).toFixed(1)}MB). 첨부 파일 크기를 줄이거나 새 대화에서 다시 시도해주세요.`);
+      throw new UserFacingChatError(`요청이 너무 큽니다 (${(bodyBytes / 1024 / 1024).toFixed(1)}MB). 첨부 파일 크기를 줄이거나 새 대화에서 다시 시도해주세요.`);
     }
 
     const response = await authedFetch('/api/chat', {
@@ -309,19 +324,18 @@ export const streamChatResponse = async (
     });
 
     if (!response.ok) {
-      let errorMsg = `Server error: ${response.status}`;
       try {
         const ct = response.headers.get('content-type') || '';
         if (ct.includes('application/json')) {
           const errorData = await response.json();
           // 게스트 횟수 초과는 에러 토스트가 아니라 로그인 유도로 이어져야 한다.
           if (errorData.error === GUEST_LIMIT_ERROR) throw new GuestLimitError();
-          errorMsg = errorData.error || errorMsg;
         }
       } catch (e) {
         if (e instanceof GuestLimitError) throw e;
       }
-      throw new Error(errorMsg);
+      console.error('[Chat API] Non-success response hidden from UI', { status: response.status });
+      throw new UserFacingChatError(CHAT_REQUEST_FAILED[language] || CHAT_REQUEST_FAILED.ko);
     }
 
     const reader = response.body?.getReader();
@@ -352,7 +366,8 @@ export const streamChatResponse = async (
           if (data.heartbeat) continue;
           if (data.done) { receivedDone = true; continue; }
           if (data.cutOff && onCutOff) { onCutOff(); continue; }
-          if (data.error) throw new Error(data.error);
+          // /api/chat은 공급자 원문 대신 화이트리스트 메시지만 보낸다.
+          if (data.error) throw new UserFacingChatError(data.error);
           if (data.text) { onChunk(data.text, false); receivedAnyText = true; }
           if (data.sources && onMetadata) onMetadata(data.sources);
         }

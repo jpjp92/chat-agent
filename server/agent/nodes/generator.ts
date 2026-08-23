@@ -11,6 +11,8 @@ import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { runLangChainPath } from "./langchain-path";
 import { buildDateLadder } from "../weather-followup";
+import { generateOpenAIChat } from "../../openai/chat";
+import { isOpenAIChatModel } from "../../openai/models";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -168,9 +170,21 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 p.fileData?.fileUri && !/youtube\.com|youtu\.be/.test(p.fileData.fileUri))
         );
         const pinUrlFileData = hasUrlFileData && !selCaps.urlFileData;
+        // OpenAI 선택 모델은 텍스트·이미지를 직접 처리한다. 현재 어댑터가 전달하지 않는
+        // 영상·오디오·PDF fileData/inline 문서는 기존 검증된 Gemini 2.5 경로로 핀한다.
+        const hasOpenAIUnsupportedMedia = isOpenAIChatModel(sel) && state.messages.some((m: any) =>
+            Array.isArray(m.content) && m.content.some((p: any) =>
+                Boolean(p.fileData) ||
+                (p.type === 'image_url' && typeof p.image_url?.url === 'string' &&
+                    /^data:(?:application\/pdf|audio\/|video\/)/i.test(p.image_url.url))
+            )
+        );
+        const pinOpenAIUnsupportedMedia = hasOpenAIUnsupportedMedia;
         // 예산형 단일 데드라인 대상 — 영상 토큰이 무거운 단일 heavy 호출이라 25s 로는 정상 응답이 끊긴다.
         const isHeavyMediaTurn = isYtVideoTurn || hasUrlFileData;
-        const resolvedModel = (pinYoutube || pinUrl || pinUrlFileData) ? SERVER_MODELS.FLASH : sel;
+        const resolvedModel = (pinYoutube || pinUrlFileData || pinOpenAIUnsupportedMedia || (pinUrl && !isOpenAIChatModel(sel)))
+            ? SERVER_MODELS.FLASH
+            : sel;
         if (pinYoutube) {
             // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
             console.log(`[LangGraph] YouTube video turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
@@ -178,6 +192,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             console.log(`[LangGraph] URL summary turn → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         } else if (pinUrlFileData) {
             console.log(`[LangGraph] Uploaded media (URL fileData) → model pinned to ${resolvedModel} (was state.model=${state.model})`);
+        } else if (pinOpenAIUnsupportedMedia) {
+            console.log(`[LangGraph] OpenAI unsupported media → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         }
 
         // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
@@ -199,6 +215,42 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
         // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
         let ytPrimaryTimedOut = false;
+
+        // OpenAI 선택 경로. 라우팅과 로컬 도구 인텐트는 기존 Gemini 그래프를 유지하고,
+        // 일반 생성·URL 본문·이미지·웹 검색 답변만 Responses API의 선택 모델이 담당한다.
+        if (!useLangChain && isOpenAIChatModel(resolvedModel)) {
+            const { hasMultimodalContent, hasDocumentContent } = buildSdkContents(state.messages, false);
+            const { useGoogleSearch: useWebSearch, hasUrlContent } = decideGoogleSearch({
+                webContent: state.webContent,
+                messages: state.messages,
+                intent: state.intent,
+                needsSearch: state.needsSearch,
+                hasMultimodalContent,
+                dropImageForSearch: false,
+                isYoutubeRequest,
+                hasVideoData,
+                latestUserText,
+                lastTurnSearched: state.lastTurnSearched,
+            });
+            const resolvedMaxTokens = resolveMaxTokens({
+                hasDocumentContent,
+                isYoutubeRequest,
+                hasMultimodalContent,
+                hasUrlContent,
+                intent: state.intent,
+            });
+            const effectiveMaxTokens = useWebSearch && resolvedMaxTokens < 8192 ? 8192 : resolvedMaxTokens;
+            console.log('[LangGraph] Starting OpenAI Responses call | model:', resolvedModel, '| useWebSearch:', useWebSearch, '| maxTokens:', effectiveMaxTokens);
+            const result = await generateOpenAIChat({
+                model: resolvedModel,
+                messages: state.messages,
+                instructions: finalInstruction,
+                useWebSearch,
+                maxOutputTokens: effectiveMaxTokens,
+            });
+            if (sendEvent) sendEvent({ text: result.text });
+            return { messages: [new AIMessage(result.text)], groundingSources: result.sources };
+        }
 
         if (!useLangChain) {
             const MAX_KEY_RETRIES = API_KEYS.length;

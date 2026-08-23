@@ -14,7 +14,8 @@
     "audit:url-openai": "node tests/manual/audit-url-openai-web-search.mjs",
     "audit:wikidocs-openai": "node tests/manual/audit-url-openai-web-search.mjs",
     "audit:wikidocs-puppeteer": "node tests/manual/audit-wikidocs-puppeteer-cheerio.mjs",
-    "test": "tsx tests/test-intent-rules.mts && tsx tests/test-search-policy.mts && tsx tests/test-weather-followup.mts && tsx tests/test-storage-name.mts && tsx tests/test-pill-messages.mts && tsx tests/test-ddg-parse.mts && tsx tests/test-thinking-config.mts && tsx tests/test-openai-url-fetch.mts",
+    "test:openai-live": "tsx tests/manual/test-openai-chat-models-live.mts",
+    "test": "tsx tests/test-intent-rules.mts && tsx tests/test-search-policy.mts && tsx tests/test-weather-followup.mts && tsx tests/test-storage-name.mts && tsx tests/test-pill-messages.mts && tsx tests/test-ddg-parse.mts && tsx tests/test-thinking-config.mts && tsx tests/test-openai-url-fetch.mts && tsx tests/test-chat-models.mts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test"
   },

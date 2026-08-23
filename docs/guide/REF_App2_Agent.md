@@ -1,15 +1,17 @@
 # REF_App2_Agent — 통신 부가서비스 에이전트(`app2`) 코어 검토
 
 > 정리: 2026-07-31 · 대상: `reference/Wireless-Value-Added-Agent-main/app2` (Python, LangGraph, 69,672줄)
+>
+> 현행 상태(2026-08-23): 이 문서는 외부 코드에서 가져올 설계 원칙을 기록한 분석본이다. 현재 Gemini/OpenAI 모델·라우팅 계약은 [REF_Architecture](REF_Architecture.md)가 우선하며, 아래 `scripts/test-*` 프로브는 로컬 전용으로 Git에서 추적되지 않는다.
 > 선행 검토: [REF_ExternalAgents.md](REF_ExternalAgents.md) / [DEV_260724](../logs/2026/07/DEV_260724.md) — 그때는 `Master-Agent-main`(오케스트레이터)과 상담봇을 봤고, **`app2` 는 미검토 영역**이었다.
 >
 > ⚠️ **전제 차이(이식 판단의 기준선)**
 > | | app2 | chat-agent |
 > |---|---|---|
-> | 실행 | 상주 서버(FastAPI) + 세션 상태 | **stateless 서버리스, 60s 캡** [[chat-agent-vercel-60s-cap]] |
+> | 실행 | 상주 서버(FastAPI) + 세션 상태 | **stateless 서버리스, chat route `maxDuration=300`** |
 > | 상태 | 세션·체크포인터에 누적 | 매 턴 히스토리에서 재구성 |
 > | 관측 | OTEL + log_server(자체 백엔드) | Vercel Hobby 런타임 로그 **1시간 휘발** |
-> | 모델 | GPT 계열 | Gemini (프롬프트 기법 재검증 필수) |
+> | 모델 | GPT 계열 | Gemini/OpenAI 멀티 공급자(모델·SDK별 재검증 필수) |
 >
 > 상태를 서버에 쌓는 패턴은 통째로 이식 불가. **개념만** 가려 받는다.
 
@@ -152,9 +154,9 @@ else:                        state.conditions.extend(conditions) # 누적
 | `clarification` 필드(되묻기 통합) | 🟡 1순위와 함께 검토 | 영화 지역 되묻기 rescue(정규식)를 대체 가능 |
 | 컨텍스트 믹스인 상태 설계 | ⏸ 보류 | LangGraph.js Annotation은 믹스인 조립이 부자연스럽고, 2순위를 하면 증식 압력이 줄어듦 |
 | `BaseNode` 자동 계측(OTEL/log_server) | ❌ | 수신 백엔드 부재 + Hobby 로그 1시간 휘발. 별도 검토에서 결론 |
-| `llm_json_repair` | ❌ | +1 LLM 왕복, 60s 캡에서 손해. 렌더러 JSON 15/15 유효 (DEV_260724 판단 유지) |
+| `llm_json_repair` | ❌ | +1 LLM 왕복으로 TTFT·비용·실패 지점 증가. 렌더러 JSON 15/15 유효 (DEV_260724 판단 유지) |
 | `StreamUiSplitter` 접미사 hold | ❌→⚠️ 값어치 하락 | [ChatMessage.tsx:506-541](../../components/ChatMessage.tsx#L506-L541)이 이미 미완성 viz 블록을 숨기고 로딩 표시. 남는 건 한 프레임 |
-| `###UI_JSON###` 고정 JSON 응답 | ❌ | 우리는 펜스 기반 렌더러 7종 위에 서 있고, 구조화 JSON은 **산문 토큰 스트리밍을 포기**해야 함(그들도 마커 뒤는 버퍼링) — 60s 캡에서 체감 지연 악화 |
+| `###UI_JSON###` 고정 JSON 응답 | ❌ | 우리는 펜스 기반 렌더러 위에 서 있고, 구조화 JSON은 **산문 토큰 스트리밍을 포기**해야 함(그들도 마커 뒤는 버퍼링) — 체감 지연 악화 |
 | `PreProcessStep`/`@parallel` | ❌ | 노드 4개 규모에 과잉 |
 | slot filling 15종 | ❌ | 도메인 특화(가입/변경 업무). 우리는 슬롯필링 업무 없음 |
 
@@ -200,7 +202,7 @@ weatherCardShown 일 때:
 **(3) 영화 경로도 동일 적용** — `MOVIE_FOLLOWUP_QUESTION` / `MOVIE_CONTEXT_TERMS` 정규식이 하는 판정을 같은 `follow_up` 값으로 보강(카드 종류만 다르고 판정은 동일).
 
 ### 6-4. 검증
-- 기존 [test-weather-multiturn.ts](../../scripts/test-weather-multiturn.ts) 8턴 × 3모델 = **24/24 유지**가 합격선(회귀 없음).
+- 기존 로컬 `scripts/test-weather-multiturn.ts` 8턴 × 3모델 = **24/24 유지**가 당시 합격선이었다. 현재 결정론 회귀는 `tests/test-weather-followup.mts`로 확인한다.
 - 신규 케이스 추가: 정규식이 못 잡는 변형 — "그거 말고 딴 데는?", "아까 그 표 다시 보여줘", "여기서 제일 추운 날은?", "이제 영화 얘기하자".
 - **A/B 필수**: `follow_up` 필드를 무시하는 플래그로 한 번, 사용하는 걸로 한 번 — 개선 폭을 수치로 남긴다(§7 교훈: "카드 안 뜸"이 아니라 **라우팅 결정**으로 판정).
 - 영화용 멀티턴 회귀 테스트가 아직 없다 → (3) 적용 시 `test-movie-multiturn.ts` 신규 필요.
@@ -224,7 +226,7 @@ weatherCardShown 일 때:
 | [router.ts:110-118](../../server/agent/nodes/router.ts#L110-L118) | 라우터 프롬프트에 `follow_up: "refine" \| "new" \| "unrelated"` 3분류 추가 (기존 JSON 응답에 필드 1개) |
 | [router.ts:141-143](../../server/agent/nodes/router.ts#L141-L143) | 화이트리스트 파싱 — 세 값이 아니면 `undefined`(폴백) |
 | [router.ts:245-282](../../server/agent/nodes/router.ts#L245-L282) | 판정 4단 우선순위로 재구성: **① 강한 새 조회(규칙) → ② 강한 해석(규칙) → ③ 회색지대(LLM) → ④ 폴백(결정론)**. `DISABLE_LLM_FOLLOWUP=1` A/B 스위치 포함 |
-| [test-weather-multiturn.ts](../../scripts/test-weather-multiturn.ts) | 회색지대 케이스 3종 추가(`gray: true`), 회귀/회색지대 점수 분리 집계 |
+| 로컬 `scripts/test-weather-multiturn.ts` | 회색지대 케이스 3종 추가(`gray: true`), 회귀/회색지대 점수 분리 집계 |
 
 계획(§6) 대비 **추가로 한 것**: 카드 상태를 프롬프트에 명시(§7-1 첫 행). 초기 실행에서 LLM이 카드 존재를 못 읽어 `unrelated`로 기우는 경향이 있었다.
 계획 대비 **안 한 것**: 영화 경로 확장(§6.6 2단계) — 계획대로 날씨 안정화 후로 미룸.
@@ -335,7 +337,7 @@ weatherCardShown 일 때:
 
 이 변경의 실패 모드는 하나다 — **라우터가 의도를 틀리면 그 턴엔 스펙 자체가 없다.** 전량 주입 시절엔 오분류돼도 스펙은 있었다.
 
-그래서 [scripts/test-prompt-sections.ts](../../scripts/test-prompt-sections.ts)는 스펙을 직접 넣고 보는 게 아니라 **발화 → 라우터 → generator 실그래프**로 친다.
+그래서 로컬 `scripts/test-prompt-sections.ts`는 스펙을 직접 넣고 보는 게 아니라 **발화 → 라우터 → generator 실그래프**로 친다. 이 프로브는 Git 비추적이며 재현 가능한 자동 회귀의 목록은 [tests/README](../../tests/README.md)를 따른다.
 - PART A(API 불필요): 의도별 조립에 기대 섹션이 있고 무관 섹션이 없는지 — 14개 의도 전부 통과.
 - PART B(실그래프): 렌더러 5종 발화가 실제로 기대 `json:TYPE`을 내는지 + **오염 회귀**(날씨 무관 general 턴에 5일 예보 표가 끼는지) — 3.6·2.5 각 6/6 통과.
 - 카드 멀티턴 회귀도 재실행: 날씨 11/11, 영화 8/8 (3.6·2.5).
@@ -401,7 +403,7 @@ base 프롬프트가 *"실시간 정보엔 **ALWAYS** 'google_search' 도구를 
 
 - **얻은 것**: 의도와 무관한 규칙이 프롬프트에서 사라졌다. 오염 회귀 테스트가 생겨 "표가 왜 또 나오지"류를 코드로 잡을 수 있다. 덤으로 빈응답 버그 하나를 실제로 고쳤다 — **분리 작업 자체보다 이쪽이 사용자 체감이 크다.**
 - **한계**: PART B는 발화 5종 + 오염 1종이다. 라우터 오분류 리스크를 **없앤 게 아니라 관측 가능하게** 만든 것뿐이다. 의도가 늘거나 라우터 프롬프트를 손대면 이 테스트를 같이 돌려야 한다.
-- **안 한 것**: app2식 **단계별 프롬프트 파일 분리**(YAML/파일 단위)는 하지 않았다. 우리 단계는 라우터·generator 둘뿐이고 라우터 프롬프트는 이미 router.ts 안에 격리돼 있다 — 파일로 쪼개면 관리 지점만 늘고 얻는 게 없다. `###UI_JSON###` 고정 응답 구조도 §5 판정대로 채택하지 않는다(산문 스트리밍 포기 비용이 60s 캡에서 너무 크다).
+- **안 한 것**: app2식 **단계별 프롬프트 파일 분리**(YAML/파일 단위)는 하지 않았다. 우리 단계는 라우터·generator 둘뿐이고 라우터 프롬프트는 이미 router.ts 안에 격리돼 있다 — 파일로 쪼개면 관리 지점만 늘고 얻는 게 없다. `###UI_JSON###` 고정 응답 구조도 §5 판정대로 채택하지 않는다(산문 스트리밍을 포기해 체감 지연이 커진다).
 - **다음**: 2순위(`activeCard`/`cardFollowup` 일반화)는 세 번째 카드가 생길 때 재판단.
 
 ---

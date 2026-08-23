@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Language } from '../types';
-import { CHAT_MODEL_OPTIONS, type ChatModelId } from '../src/lib/models';
+import { CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, type ChatModelId } from '../src/lib/models';
 
 interface HeaderProps {
   userProfile: UserProfile;
@@ -37,14 +37,23 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "이미지 변경",
       photoDesc: "정사각형 이미지, 최대 10MB",
       placeholder: "이름을 입력하세요",
+      modelSectionGemini: "Google Gemini",
+      modelSectionOpenAI: "OpenAI",
+      modelSectionLegacy: "이전 모델",
+      model37Flash: "Gemini 3.7 Flash",
+      model37FlashDesc: "최신 Gemini Flash",
       model36Flash: "Gemini 3.6 Flash",
-      model36FlashDesc: "최신 모델, 가장 빠름",
+      model36FlashDesc: "빠르고 안정적인 기본 모델",
       model35Flash: "Gemini 3.5 Flash",
-      model35FlashDesc: "강력한 성능",
+      model35FlashDesc: "균형 잡힌 이전 세대 모델",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "빠르고 균형 잡힌 응답",
       model25LiteDesc: "가볍고 빠른 한국어 최적화",
+      modelGpt54Mini: "GPT-5.4 mini",
+      modelGpt54MiniDesc: "빠르고 효율적인 OpenAI 모델",
+      modelGpt56Luna: "GPT-5.6 luna",
+      modelGpt56LunaDesc: "균형 잡힌 OpenAI 모델",
       sizeError: "용량 초과 (최대 10MB)",
       signIn: "Google로 계속하기",
       signInDesc: "로그인하면 어느 기기에서든 대화를 이어갈 수 있어요.",
@@ -59,14 +68,23 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Change Photo",
       photoDesc: "Square image, max 10MB",
       placeholder: "Enter your name",
+      modelSectionGemini: "Google Gemini",
+      modelSectionOpenAI: "OpenAI",
+      modelSectionLegacy: "Previous models",
+      model37Flash: "Gemini 3.7 Flash",
+      model37FlashDesc: "Latest Gemini Flash",
       model36Flash: "Gemini 3.6 Flash",
-      model36FlashDesc: "Latest & fastest",
+      model36FlashDesc: "Fast, stable default",
       model35Flash: "Gemini 3.5 Flash",
-      model35FlashDesc: "Powerful & capable",
+      model35FlashDesc: "Balanced previous-generation model",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Fast & balanced",
       model25LiteDesc: "Lightweight & fast",
+      modelGpt54Mini: "GPT-5.4 mini",
+      modelGpt54MiniDesc: "Fast, efficient OpenAI model",
+      modelGpt56Luna: "GPT-5.6 luna",
+      modelGpt56LunaDesc: "Balanced OpenAI model",
       sizeError: "File too large (Max 10MB)",
       signIn: "Continue with Google",
       signInDesc: "Sign in to pick up your chats on any device.",
@@ -81,14 +99,23 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Cambiar foto",
       photoDesc: "Imagen cuadrada, máx 10MB",
       placeholder: "Introduce tu nombre",
+      modelSectionGemini: "Google Gemini",
+      modelSectionOpenAI: "OpenAI",
+      modelSectionLegacy: "Modelos anteriores",
+      model37Flash: "Gemini 3.7 Flash",
+      model37FlashDesc: "El Gemini Flash más reciente",
       model36Flash: "Gemini 3.6 Flash",
-      model36FlashDesc: "El más nuevo y rápido",
+      model36FlashDesc: "Modelo predeterminado rápido y estable",
       model35Flash: "Gemini 3.5 Flash",
-      model35FlashDesc: "Potente y capaz",
+      model35FlashDesc: "Modelo equilibrado de generación anterior",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Rápido y equilibrado",
       model25LiteDesc: "Ligero y eficiente",
+      modelGpt54Mini: "GPT-5.4 mini",
+      modelGpt54MiniDesc: "Modelo OpenAI rápido y eficiente",
+      modelGpt56Luna: "GPT-5.6 luna",
+      modelGpt56LunaDesc: "Modelo OpenAI equilibrado",
       sizeError: "Archivo muy grande (Máx 10MB)",
       signIn: "Continuar con Google",
       signInDesc: "Inicia sesión para continuar tus chats en cualquier dispositivo.",
@@ -103,14 +130,23 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       changePhoto: "Changer la photo",
       photoDesc: "Image carrée, max 10Mo",
       placeholder: "Entrez votre nom",
+      modelSectionGemini: "Google Gemini",
+      modelSectionOpenAI: "OpenAI",
+      modelSectionLegacy: "Modèles précédents",
+      model37Flash: "Gemini 3.7 Flash",
+      model37FlashDesc: "Le dernier Gemini Flash",
       model36Flash: "Gemini 3.6 Flash",
-      model36FlashDesc: "Le plus récent et rapide",
+      model36FlashDesc: "Modèle rapide et stable par défaut",
       model35Flash: "Gemini 3.5 Flash",
-      model35FlashDesc: "Puissant et performant",
+      model35FlashDesc: "Modèle équilibré de génération précédente",
       model25Flash: "Gemini 2.5 Flash",
       model25FlashLite: "Gemini 2.5 Flash Lite",
       model25FlashDesc: "Rapide et équilibré",
       model25LiteDesc: "Léger et rapide",
+      modelGpt54Mini: "GPT-5.4 mini",
+      modelGpt54MiniDesc: "Modèle OpenAI rapide et efficace",
+      modelGpt56Luna: "GPT-5.6 luna",
+      modelGpt56LunaDesc: "Modèle OpenAI équilibré",
       sizeError: "Fichier trop lourd (Max 10Mo)",
       signIn: "Continuer avec Google",
       signInDesc: "Connectez-vous pour retrouver vos conversations sur tout appareil.",
@@ -192,14 +228,22 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
               <i className={`fa-solid fa-chevron-down text-xs text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
             </button>
             {isModelMenuOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden py-1 z-50">
-                {CHAT_MODEL_OPTIONS.map(option => (
-                  <div key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors">
-                    <div>
-                      <div className="font-semibold text-sm text-slate-800 dark:text-white/90">{t[option.labelKey]}</div>
-                      <div className="text-[10px] font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t[option.descriptionKey]}</div>
+              <div className="model-menu-scrollbar absolute top-full left-0 mt-1 w-60 max-h-[min(19rem,60vh)] overflow-y-auto overscroll-contain bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 py-1 z-50">
+                {CHAT_MODEL_SECTIONS.map((section, sectionIndex) => (
+                  <div key={section.id} className={sectionIndex > 0 ? 'border-t border-slate-100 dark:border-white/10' : ''}>
+                    <div className={`px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] flex items-center gap-1.5 ${section.id === 'gemini' ? 'text-indigo-500/75 dark:text-indigo-300/65' : section.id === 'openai' ? 'text-emerald-600/75 dark:text-emerald-300/65' : 'text-slate-400 dark:text-white/35'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${section.id === 'gemini' ? 'bg-indigo-400/80' : section.id === 'openai' ? 'bg-emerald-400/80' : 'bg-slate-300/80 dark:bg-slate-500/70'}`} />
+                      {t[section.labelKey]}
                     </div>
-                    {selectedModel === option.id && <i className="fa-solid fa-check text-primary-500 dark:text-white"></i>}
+                    {CHAT_MODEL_OPTIONS.filter(option => option.section === section.id).map(option => (
+                      <button type="button" key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className={`w-full px-4 py-2.5 flex justify-between items-center gap-3 text-left transition-colors ${section.id === 'gemini' ? 'hover:bg-indigo-50/60 dark:hover:bg-indigo-400/5' : section.id === 'openai' ? 'hover:bg-emerald-50/60 dark:hover:bg-emerald-400/5' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-sm text-slate-800 dark:text-white/90">{t[option.labelKey]}</span>
+                          <span className="block text-[10px] font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{t[option.descriptionKey]}</span>
+                        </span>
+                        {selectedModel === option.id && <i className={`fa-solid fa-check shrink-0 ${section.id === 'gemini' ? 'text-indigo-500 dark:text-indigo-300' : section.id === 'openai' ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-300'}`}></i>}
+                      </button>
+                    ))}
                   </div>
                 ))}
               </div>

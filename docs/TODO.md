@@ -6,7 +6,21 @@
 
 ## 🟡 P1 — 기능 개선
 
-### 0. 이미지+검색 할루시네이션 — 가짜 출처 생성
+### 0. 멀티 공급자 모델 라우팅 안정화
+
+> 2026-08-23 GPT-5.4 mini/GPT-5.6 Luna 선택과 일반 Responses 생성은 연결했다. 현재 initial router와
+> generator가 Gemini 키에 선행 의존하므로 Gemini 소진 후 GPT 전환이 막힐 수 있다. 상세 계획:
+> [PLAN_MULTI_PROVIDER_ROUTING_260823](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)
+
+- [ ] 🔴 GPT 일반 요청에서 Gemini API 키 선행 요구 제거
+- [ ] 선택 공급자별 initial router 분리(Gemini→2.5 Flash Lite, GPT→5.6 Luna)
+- [ ] GPT 로컬 도구 intent function calling 연결
+- [ ] 영상·오디오만 Gemini 2.5 capability fallback 유지
+- [ ] 응답 중 모델 변경 잠금 또는 `다음 메시지부터 적용` UX
+- [ ] selected/resolved model과 fallback reason 관측 로그
+- [ ] 모델 메뉴 모바일·다크모드 실기기 확인
+
+### 0-a. 이미지+검색 할루시네이션 — 가짜 출처 생성
 
 > **구현 완료 (2026-06-20)** — 이미지 첨부 후 후속턴 "검색해서 확인" 요청이 실제 grounding 없이 가짜 출처(`[1]`·ScienceDaily URL 등)를 지어내던 버그 근본 수정. `generator.ts`에 `dropImageForSearch` 가드 신설(general·현재턴 이미지없음·history 이미지있음·명시적 검색요청 시 이미지 파트 제거 후 grounding 활성화) + `prompt.ts`에 `[CRITICAL — NEVER FABRICATE SOURCES]` 절대 규칙을 모든 포맷 지시보다 최상단 배치. 상세·재현테스트: [DEV_260620](./logs/2026/06/DEV_260620.md).
 

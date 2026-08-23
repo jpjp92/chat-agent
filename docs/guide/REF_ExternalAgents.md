@@ -1,11 +1,12 @@
 # REF_ExternalAgents — 외부 에이전트 레퍼런스 검토 참고사항
 
 > 정리: 2026-07-24 · 원본 검토 로그: [DEV_260724](../logs/2026/07/DEV_260724.md)
+> 현행 주석: 2026-08-23 — chat-agent도 Gemini/OpenAI 멀티 공급자이므로 아래 이식 판단은 공급자별로 재검증한다.
 > 대상: `reference/` 하위 외부 에이전트 시스템 2종(둘 다 LangGraph 기반 Python).
 >
 > - **참고 자료 1**: 멀티도메인 상담봇(슬롯 필링·인증).
 > - **참고 자료 2**: 오케스트레이터(의도분류→서브에이전트 라우팅).
->   ⚠️ **둘 다 GPT 5.2 계열 기반** — 우리는 Gemini. 프롬프트·structured output 기법은 그대로 이식 금지, Gemini 재검증 필수.
+>   ⚠️ **둘 다 GPT 5.2 계열 기반** — 현재 앱의 GPT/Gemini 모델과 버전·SDK 계약이 다르다. 프롬프트·structured output 기법은 그대로 이식하지 않고 대상 공급자에서 재검증한다.
 
 이 문서는 검토 결론의 **재활용용 요약**이다. 상세 근거·비교표는 원본 로그 참조.
 
@@ -56,7 +57,7 @@ near-miss 쌍(`"A" → 차단 / "B" → 허용`)으로 경계를 못박는 기�
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 슬롯 필링/인증 노드                  | 상담 트랜잭션용 다단계 수집·인증. 단발 대화형엔 과설계                                                                              |
 | IntentSlotRegistry                   | 우리`MODEL_CAPS` 능력 테이블이 이미 같은 데이터-레지스트리 철학                                                                    |
-| **쿼리 재작성(reformulation)** | 두 레퍼런스**모두 안 함**(컨텍스트 주입, 쿼리 원문 유지 = 우리와 동일). 툴/렌더러 기반이라 이득 작고 +1 왕복이라 [60s 캡] 상충 |
+| **쿼리 재작성(reformulation)** | 두 레퍼런스**모두 안 함**(컨텍스트 주입, 쿼리 원문 유지 = 우리와 동일). 툴/렌더러 기반이라 이득이 작고 +1 왕복은 TTFT·비용·실패 지점을 늘림 |
 | 대화체 별도 패스                     | 친근 말투 2차 LLM 재작성 = +1 왕복. 우리는 단일 패스에 톤 내장                                                                       |
 | PII 마스킹                           | 통신 PII(주민·IMEI·여권·계좌). 소비자 채팅 미수집 → 과설계                                                                       |
 | 용어사전(glossary)                   | 고정 도메인 용어→라우팅 힌트. 범용 채팅 부적합                                                                                      |
@@ -66,15 +67,15 @@ near-miss 쌍(`"A" → 차단 / "B" → 허용`)으로 경계를 못박는 기�
 
 ---
 
-## 4. GPT 5.2 → Gemini 이식 주의 (필독)
+## 4. GPT 5.2 설계 이식 주의 (필독)
 
 - **순수 코드(1-A)**: 모델 무관, 무영향.
-- **structured output**(`with_structured_output(function_calling/json_schema, strict)`): GPT 규격 튜닝 → Gemini 이식 시 동작·성능·비용 상이. 우리는 `responseMimeType:"application/json"` + 파싱 방식이 다름. **재검증 필수.**
-- **Checklist·reasoning_thoughts 필드**: 모델이 실제 사고를 거치는 전제 → 우리 **router 는 `thinkingBudget:0`(무사고)라 무효**. generator(사고 가능)엔 유효 여지.
+- **structured output**(`with_structured_output(function_calling/json_schema, strict)`): GPT 규격 튜닝을 Gemini `responseMimeType:"application/json"`에 그대로 옮길 수 없다. 향후 GPT router도 OpenAI Responses strict schema로 별도 구현해야 한다. **공급자별 재검증 필수.**
+- **Checklist·reasoning_thoughts 필드**: 모델이 실제 사고를 거치는 전제 → 현재 Gemini router는 `thinkingBudget:0`, 목표 GPT router도 reasoning none이므로 부적합. generator에만 유효 여지가 있다.
 - **290줄 규칙 벽**: GPT 5.2 는 소화하나 **flash-lite 는 규칙 과다 시 성능 저하** → router 는 린 유지, 선별만.
 - **대조 예시·JSON 계약**: 모델 무관에 가까워 이식 안전.
 
-관련 메모리: [[chat-agent-vercel-60s-cap]] · [[35-flash-free-tier-throughput]]
+현재 시간 제한과 모델 정책은 [REF_Architecture](REF_Architecture.md)를 따른다.
 
 ---
 

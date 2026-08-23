@@ -43,6 +43,86 @@ html {
   background: #3f3f41;
 }
 
+/* Model picker: current providers remain visible; legacy models sit just below the fold. */
+.model-menu-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.55) transparent;
+  scrollbar-gutter: stable;
+}
+
+.model-menu-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.model-menu-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 8px;
+}
+
+.model-menu-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.58), rgba(139, 92, 246, 0.58));
+  background-clip: padding-box;
+}
+
+.model-menu-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(79, 70, 229, 0.78), rgba(124, 58, 237, 0.78));
+  background-clip: padding-box;
+}
+
+.dark .model-menu-scrollbar {
+  scrollbar-color: rgba(167, 139, 250, 0.48) transparent;
+}
+
+.dark .model-menu-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.45), rgba(167, 139, 250, 0.45));
+  background-clip: padding-box;
+}
+
+.dark .model-menu-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.7), rgba(167, 139, 250, 0.7));
+  background-clip: padding-box;
+}
+
+/* Sidebar history: subdued against the translucent panel, clearer only on hover. */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.2) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 8px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.38);
+}
+
+.dark .sidebar-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.13) transparent;
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 139, 250, 0.32);
+}
+
 /* Table scrollbar - thinner, subtle */
 .table-scrollbar::-webkit-scrollbar {
   width: 4px;

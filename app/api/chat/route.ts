@@ -5,10 +5,11 @@ import { API_KEYS } from '../../../server/config';
 import { getSystemInstruction } from '../../../server/agent/prompt';
 import { toLangName, pickByLang, type LangName } from '../../../server/agent/lang';
 import { compileAgentGraph } from '../../../server/agent/graph';
-import { DEFAULT_CHAT_MODEL } from '../../../server/models';
+import { DEFAULT_CHAT_MODEL, isChatModelId } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
+import { classifyChatError } from '../../../server/chat-error-policy';
 
 export const runtime = 'nodejs';
 // 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
@@ -25,6 +26,7 @@ export const preferredRegion = 'icn1';
 const CHAT_ERRORS: Record<string, Record<string, string>> = {
   rateLimit:      { ko: '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.', en: 'Too many requests. Please try again in a moment.', es: 'Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.', fr: 'Trop de requêtes. Veuillez réessayer dans un instant.' },
   dailyExhausted: { ko: '오늘의 API 사용량이 모두 소진되었습니다. 내일 다시 이용해주세요.', en: 'Daily API quota has been exhausted. Please try again tomorrow.', es: 'La cuota diaria de API se ha agotado. Por favor, inténtelo mañana.', fr: 'Le quota API journalier est épuisé. Veuillez réessayer demain.' },
+  openAIQuota:    { ko: 'GPT 토큰 할당량이 모두 소진되었습니다. 나중에 다시 시도해주세요.', en: 'The GPT token quota has been exhausted. Please try again later.', es: 'La cuota de tokens de GPT se ha agotado. Inténtelo de nuevo más tarde.', fr: 'Le quota de jetons GPT est épuisé. Veuillez réessayer plus tard.' },
   unavailable:    { ko: '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.', en: 'Server temporarily unavailable. Please try again shortly.', es: 'Servidor temporalmente no disponible. Por favor, inténtelo de nuevo.', fr: 'Serveur temporairement indisponible. Veuillez réessayer.' },
   auth:           { ko: '인증 오류가 발생했습니다. 관리자에게 문의해주세요.', en: 'Authentication error. Please contact the administrator.', es: 'Error de autenticación. Por favor, contacte al administrador.', fr: "Erreur d'authentification. Veuillez contacter l'administrateur." },
   safety:         { ko: '안전 정책에 의해 응답이 차단되었습니다. 질문을 다르게 표현해보세요.', en: 'Response blocked by safety policy. Please rephrase your question.', es: 'Respuesta bloqueada por política de seguridad. Reformule su pregunta.', fr: 'Réponse bloquée par la politique de sécurité. Reformulez votre question.' },
@@ -63,6 +65,9 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder();
   const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext, activeCards } = await req.json();
+  // 클라이언트 문자열을 그대로 공급자 API에 넘기지 않는다. 등록된 채팅 모델만 허용한다.
+  const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;
+  const publicLang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -75,7 +80,12 @@ export async function POST(req: NextRequest) {
       }, 8000);
 
       if (API_KEYS.length === 0) {
-        sendEvent({ error: 'No API keys found in server environment.' });
+        console.error('[Chat API] Provider configuration error', {
+          model: finalModel,
+          status: 500,
+          code: 'gemini_api_key_missing',
+        });
+        sendEvent({ error: CHAT_ERRORS.auth[publicLang] });
         clearInterval(heartbeatInterval);
         controller.close();
         return;
@@ -140,8 +150,6 @@ export async function POST(req: NextRequest) {
 
       const videoUrl = isYoutubeRequest ? `https://www.youtube.com/watch?v=${ytMatch![1]}` : '';
       const enrichedWebContent = isYoutubeRequest ? `URL: ${videoUrl}\n${webContent || ''}` : (webContent || '');
-      const finalModel = model || DEFAULT_CHAT_MODEL;
-
       const initialState = {
         messages: contents, webContent: enrichedWebContent, attachments: processedAttachments,
         contextInfo: '', pillData: null, sessionId: session_id || '',
@@ -154,7 +162,7 @@ export async function POST(req: NextRequest) {
 
       const unhandledRejectionGuard = (reason: any) => {
         console.error('[Chat API] Unhandled rejection:', reason?.message ?? reason);
-        try { sendEvent({ error: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.' }); } catch {}
+        try { sendEvent({ error: CHAT_ERRORS.generic[publicLang] }); } catch {}
       };
       process.once('unhandledRejection', unhandledRejectionGuard);
 
@@ -285,26 +293,30 @@ export async function POST(req: NextRequest) {
             console.error('[Chat API] DB save failed:', dbError.message);
           }
         } else if (!fullAiResponse) {
-          sendEvent({ error: 'LLM returned empty response.' });
+          console.error('[Chat API] Empty model response', {
+            model: finalModel,
+            status: 502,
+            code: 'empty_model_response',
+          });
+          sendEvent({ error: CHAT_ERRORS.generic[publicLang] });
         }
 
         sendEvent({ done: true });
 
       } catch (error: any) {
-        console.error('[LangGraph] Execution Error:', error?.status, error?.message ?? error);
-        const status = error?.status ?? error?.code;
-        const msg = error?.message ?? '';
-        const lang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
-        const errorType =
-          error?.safetyBlock ? 'safety'
-          : status === 429 || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') ?
-            (isDailyQuotaError(error) || isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
-          : msg.includes('No API key available') || msg.includes('All API keys') ?
-            (isAllKeysDailyExhausted() ? 'dailyExhausted' : 'rateLimit')
-          : status === 503 || status === 504 || msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('DEADLINE_EXCEEDED') ? 'unavailable'
-          : status === 401 || status === 403 ? 'auth'
-          : 'generic';
-        sendEvent({ error: CHAT_ERRORS[errorType][lang] });
+        // 원문은 서버 로그에만 남긴다. UI에는 아래 화이트리스트 안내 문구만 보낸다.
+        console.error('[Chat API] Model request failed', {
+          model: finalModel,
+          status: error?.status,
+          code: error?.code,
+          type: error?.type,
+          name: error?.name,
+          message: error?.message ?? String(error),
+        });
+        const errorType = classifyChatError(error, {
+          geminiDailyQuota: isDailyQuotaError(error) || isAllKeysDailyExhausted(),
+        });
+        sendEvent({ error: CHAT_ERRORS[errorType][publicLang] });
       } finally {
         clearInterval(heartbeatInterval);
         process.off('unhandledRejection', unhandledRejectionGuard);

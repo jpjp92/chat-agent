@@ -1,14 +1,19 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-06-20)  
+> 작성일: 2026-06-03 (갱신: 2026-08-23)
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
 ---
 
-## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-17)
+## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
+
+> 📌 **2026-08-23 모델 공급자 축:** Gemini 3.7, GPT-5.4 mini, GPT-5.6 Luna 선택과 OpenAI 일반
+> Responses 생성은 연결됐다. 다만 initial router와 generator의 Gemini 키 선행 의존 때문에 Gemini
+> 소진 후 GPT 전환이 막힐 수 있다. 다음 모델 작업은
+> [PLAN_MULTI_PROVIDER_ROUTING_260823](PLAN_MULTI_PROVIDER_ROUTING_260823.md)의 P0 두 항목을 먼저 처리한다.
 
 > 📌 **서버 경계(인증·쿼터·SSRF·DTO) 축은 [PLAN_HARDENING_260822](PLAN_HARDENING_260822.md)** —
 > 외부 리뷰(GPT 5.6)를 한 항목씩 코드로 대조한 검증본이다. **무인증 라우트가 8개**로 확인됐고
@@ -60,6 +65,7 @@
 
 | Priority | Area | Plan | Status | Next action |
 |---:|---|---|---|---|
+| P1 | **멀티 공급자 모델 라우팅** | [PLAN_MULTI_PROVIDER_ROUTING_260823.md](PLAN_MULTI_PROVIDER_ROUTING_260823.md) | Gemini 3.7·GPT-5.4 mini·GPT-5.6 Luna 선택 UI와 OpenAI 일반 생성 연결 완료. 오류 원문 UI 비노출 정책 적용. **Gemini 키 선행 의존·GPT 로컬 도구 호출은 미해결** | `/api/chat`·generator의 Gemini 키 선취득 제거 → 공급자별 initial router → OpenAI function calling 순서 |
 | — | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Bucket whitelist verification guide; SSRF/redirect blocking applied (DEV_260504) | IDOR-1/2는 인증 MVP로 해소(라우트 삭제 + RLS). 남은 IDOR-3(Storage prefix)·xlsx·CSP는 `docs/TODO.md` §보안 |
 | P1 | **인증 MVP (실행)** | [PLAN_AUTH_MVP_260709.md](PLAN_AUTH_MVP_260709.md) | **스테이징 검증 완료 (2026-07-14)** — 익명로그인 + Google `linkIdentity` + RLS. Bearer 세션. 라우트가 유저 id 불요(`user_id default auth.uid()` + RLS) → IDOR-1/2 소멸. 구현 로그 [DEV_260714](../logs/2026/07/DEV_260714.md) | **프로덕션 이관만 남음** — SQL 3종 + 대시보드 3종(Anonymous·**Manual Linking**·Google) + Google Cloud 운영 콜백 URI |
 | P1 | **인증 dev 이관 런북** | [PLAN_AUTH_DEV_ROLLOUT_260716.md](PLAN_AUTH_DEV_ROLLOUT_260716.md) | **✅ dev 이관 완료 (2026-07-19)** — 스테이징을 dev 상시 DB 로 승격(main DB 미변경). dev 머지·배포 후 스테이징(서울) 정상 바인딩·로그인/대화/업로드 실동작 확인. 검증 중 버그 3개 수정 + 함수 리전 icn1 최적화([DEV_260719](../logs/2026/07/DEV_260719.md)) | **프로덕션 이관은 별도 단계** → [PLAN_AUTH_PROD_ROLLOUT_260719](PLAN_AUTH_PROD_ROLLOUT_260719.md) |

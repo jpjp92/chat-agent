@@ -210,10 +210,10 @@ export const lowestThinkingLevel = (m: string) => THINKING_MODE[m]?.levels[0];
 
 ### 5-2. 3.7 을 선택지로 추가 (기본은 3.6 유지)
 
-- [ ] `FLASH_3_7` — `src/lib/models.ts`(`CHAT_MODELS`·`CHAT_MODEL_OPTIONS`·`isChatModelId`)
+- [x] `FLASH_3_7` — `src/lib/models.ts`(`CHAT_MODELS`·`CHAT_MODEL_OPTIONS`·`isChatModelId`) (2026-08-23)
       · `server/models.ts`(`SERVER_MODELS`·`ChatModelId`·`MODEL_CAPS`)
-- [ ] i18n 4개 로케일 — `components/Header.tsx` (`model37Flash`/`model37FlashDesc`)
-- [ ] `MODEL_CAPS` 3.7 값(§2 of API_REVIEW). `fastLongInput` 은 **잠정 false**(503 때문, 지연 아님)
+- [x] i18n 4개 로케일 — `components/Header.tsx`·`components/ChatInput.tsx` (`model37Flash`/`model37FlashDesc`) (2026-08-23)
+- [x] `MODEL_CAPS` 3.7 값(§2 of API_REVIEW). `fastLongInput` 은 **잠정 false**(503 때문, 지연 아님) (2026-08-23)
 
 ### 5-3. 프로브 A·B 통과 후 기본 전환
 
@@ -247,3 +247,18 @@ export const lowestThinkingLevel = (m: string) => THINKING_MODE[m]?.levels[0];
 - [ ] 3.7 이 검색 지원표에 없는 이유 — 실측은 **지원함**(15/15 발동, 5/5 정답)이므로 문서 누락으로 본다
 - [ ] `low` 의 사고 토큰 비용 — `"1+1은?"` 기준 3.7 low **48 tok** vs 3.6 minimal **15 tok**.
       출력 과금에 사고 토큰이 포함되므로 **단가는 같아도 총액은 오를 수 있다.** 실사용 분포로 재볼 것
+
+---
+
+## 8. 2026-08-23 상태 업데이트
+
+- [x] Gemini 3.7 Flash를 서버/클라이언트 허용 목록과 모델 선택 UI에 추가
+- [x] 3.7은 `minimal`을 쓰지 않고 지원 하한인 `low`를 사용
+- [x] 검색 필요 턴·URL 긴 입력·임의 URL fileData에 대한 2.5 capability fallback 유지
+- [x] `test-thinking-config.mts`에서 3.7 지원 레벨과 재시도 하한 회귀 고정
+- [ ] **기본 모델은 아직 3.6 유지** — 긴 히스토리/실사용 비용 측정 후 별도 전환
+- [ ] 3.7의 tool intent별 2.5 fallback 필요 범위를 실환경에서 다시 확정
+- [ ] OpenAI 모델 추가로 생긴 공급자별 초기 router 정책은 별도 계획에서 처리
+
+멀티 공급자 라우팅 후속은 [PLAN_MULTI_PROVIDER_ROUTING_260823](PLAN_MULTI_PROVIDER_ROUTING_260823.md)을
+기준으로 한다. 3.7 전환과 GPT 공급자 독립성은 서로 다른 작업이며 함께 묶어 배포하지 않는다.

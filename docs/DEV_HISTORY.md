@@ -1,6 +1,6 @@
 # 개발 이력 (Development History)
 
-> 버전별 상세 변경 내역. 기능 단위 구현 기록은 `docs/logs/DEV_YYMMDD.md` 파일 참조.
+> 버전별 상세 변경 내역. 기능 단위 구현 기록은 `docs/logs/YYYY/MM/DEV_YYMMDD.md` 파일 참조. 문서 진입점은 [docs/README](README.md), 월별 날짜 대응은 각 로그 폴더의 `README.md`를 따른다.
 
 ---
 
@@ -10,7 +10,9 @@
 >
 > 📌 **검증 스크립트는 원칙적으로 링크가 아니라 인라인 코드로 적습니다** — `scripts/test-*` 는 `.gitignore` 대상이라(`.gitignore` §54–86: `audit-`·`test-`·`debug-`·`check-`·`verify-` 등 접두사) **레포에 올라가지 않습니다.** 클론한 환경에는 없으므로 링크로 걸면 항상 깨집니다. 실행 방법과 결과는 해당 날짜의 `docs/logs/` 로그 본문에 남깁니다.
 >
-> **회귀 하니스 8종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
+> **회귀 하니스 9종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
+
+- **2026-08-23 · Gemini/OpenAI 모델 선택·라우팅·오류 UI 정책 현행화** → [DEV_260823 §7–11](logs/2026/08/DEV_260823.md) · [PLAN_MULTI_PROVIDER_ROUTING](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) — Gemini 3.7 Flash, GPT-5.4 mini, GPT-5.6 Luna를 모델 목록에 연결하고 공급자별 그룹 UI와 legacy 스크롤을 적용했다. GPT 일반 생성은 OpenAI Responses API(`store:false`, reasoning none)로 연결하고 실 API 검증을 통과했다. 쿼터·인증·일시 오류는 Gemini로 자동 전환하지 않으며 raw provider code/message는 서버 로그에만 남기고 UI에는 정제된 안내만 표시한다. 영상·오디오/fileData만 Gemini 2.5 capability fallback으로 유지한다. 초기 Gemini router와 Gemini 키 선행 의존, GPT 로컬 도구 호출은 후속 P0/P1로 분리했다.
 
 - **2026-08-23 · URL Fetch 공급자 재검증 — Wikidocs는 ScrapingBee, GeekNews는 direct, OpenAI는 기본 OFF** → [DEV_260823](logs/2026/08/DEV_260823.md) — Wikidocs 신규 글을 교체한 ScrapingBee 키의 `render_js + premium_proxy + KR`로 **200 · 5.66s · 본문 12,460자 · cost 25**, 변경 후 로컬 라우트로 **200 · 6.10s · 본문 13,085자** 확인. GPT-5 mini와 GPT-5.6 Luna는 신규·미색인 Wikidocs 글에서 모두 정확 본문을 얻지 못해 모델 문제가 아닌 Web Search 접근 한계로 판정하고 `OPENAI_URL_FALLBACK_ENABLED` 기본 OFF로 보류했다. GeekNews는 Chrome/141 direct **169ms · 7,604자**, Brunch 실주소는 캐시 우회 종단에서 `scrapingbee-static` **200 · 8.89s · 4,507자**. `/@other/999`는 실글이 아니라 URL mismatch 회귀용 가짜 주소임을 문서에 명시했다. 아키텍처에서 제거된 ScraperAPI와 OpenAI 직행 설명을 현행화하고 typecheck·전체 테스트·OpenAI 하니스 20/20을 통과했다.
 

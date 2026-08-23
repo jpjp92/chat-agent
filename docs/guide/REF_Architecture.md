@@ -1,6 +1,6 @@
 # REF: Architecture
 
-> 작성일: 2026-06-26 · 최종 수정: 2026-08-01  
+> 작성일: 2026-06-26 · 최종 수정: 2026-08-23
 > 관련: [README §2](../../README.md#2-architecture) · [REF_App2_Agent](REF_App2_Agent.md)(에이전트 설계 근거)
 
 상세 다이어그램과 런타임 정책을 모아둔 레퍼런스. README는 개요 다이어그램만 유지하고 상세는 여기에 기록한다.
@@ -34,25 +34,25 @@ flowchart TB
 
 ## Agent Runtime Branches
 
-`generator.ts` 내부 두 실행 경로: SDK 경로(`@google/genai`) vs LangChain 경로(`ChatGoogleGenerativeAI`).
+`generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 다만 초기 intent router와 로컬 도구 호출은 아직 Gemini에 의존한다.
 
 ```mermaid
 flowchart TB
-    Intent["Router intent"]
-    SDK["SDK path\n@google/genai"]
-    LC["LangChain path\nChatGoogleGenerativeAI"]
-    GoogleSearch{"Google Search needed?"}
-    SinglePass["2.5 Flash single-pass\n(3.5 free tier → 2.5로 폴백,\nStage-2 재합성 제거 DEV_260624 §6)"]
-    Direct["Direct generation\n(no search)"]
+    Selected["Selected chat model"]
+    Capability{"Unsupported media\nfor selected GPT?"}
+    OpenAI["OpenAI Responses\ntext / URL / image / web search"]
+    SDK["Gemini SDK\ngeneral / renderer / multimodal"]
+    LC["Gemini LangChain\nlocal tool intents"]
+    Gemini25["Gemini 2.5 capability fallback\nvideo / audio / fileData"]
     ToolCall{"AIMessage.tool_calls?"}
     Tools["ToolNode executes tool"]
     Final["Final response"]
 
-    Intent --> SDK
-    Intent --> LC
-    SDK --> GoogleSearch
-    GoogleSearch -- "yes (3.5 → 2.5 fallback)" --> SinglePass --> Final
-    GoogleSearch -- "no" --> Direct --> Final
+    Selected --> Capability
+    Capability -- "GPT + supported input" --> OpenAI --> Final
+    Capability -- "GPT + video/audio/fileData" --> Gemini25 --> Final
+    Capability -- "Gemini SDK intent" --> SDK --> Final
+    Capability -- "local tool intent" --> LC
     LC --> ToolCall
     ToolCall -- "yes" --> Tools --> LC
     ToolCall -- "no" --> Final
@@ -62,14 +62,16 @@ flowchart TB
 
 | Path | Intents | Model |
 |------|---------|-------|
-| SDK | `general`, `medical_qa`, `astronomy`, `biology`, `chemistry`, `physics`, `data_viz` | `gemini-3.5-flash` (기본); search 시 `gemini-2.5-flash` single-pass |
+| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색 | 선택한 GPT 모델 유지 |
+| Gemini SDK | `general`, `medical_qa`, `astronomy`, `biology`, `chemistry`, `physics`, `data_viz` | 선택한 Gemini 모델; capability/search 정책에 따라 2.5 사용 |
 | LangChain | `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`, `weather` | `gemini-2.5-flash` (fast-pass intents: thinking off) |
 | Vision (pill pre-process) | `drug_id` + image | `gemini-2.5-flash`, thinking off |
 
 추가 규칙:
-- **YouTube 영상 턴**: `isYoutubeRequest && hasVideoData` 시 `gemini-2.5-flash` 강제 (60s 초과 방지; DEV_260622 §7)
+- **GPT + YouTube 원본/업로드 영상·오디오/fileData**: `gemini-2.5-flash` capability fallback
+- **YouTube 자막이 텍스트로 확보된 경우**: 선택 모델 유지
 - **Multimodal + Search**: 동시 불가 → Google Search 강제 OFF
-- **URL 컨텐츠 있을 때**: `[URL_CONTENT]` 주입 시 Google Search OFF (페이지 본문 우선) + 모델 `gemini-2.5-flash` + thinking off 고정 (throughput; DEV_260626 §2)
+- **URL 컨텐츠 있을 때**: `[URL_CONTENT]` 주입 시 별도 Google Search는 OFF하고 페이지 본문을 선택 모델이 처리. Gemini 3.x는 모델별 long-input capability 정책 적용
 - **문서 첨부 시**: `[EXTRACTED_CONTENT:]` 있으면 grounding 기본 OFF, 사용자 명시 요청 시만 ON
 - **Renderer intents**: Google Search 기본 OFF; 사용자가 "검색/최신/출처" 명시 시 ON
 - **`sports` intent**: 전체 마크다운 표를 `on_chain_end` 단일 청크로 전송 (셀 단위 스트리밍 방지)
@@ -195,22 +197,22 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | `weather` | LangChain + `weatherTool` (KMA + OpenWeather) → `json:weather` fast-pass | 2.5 Flash |
 | `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
 | `sports` | LangChain + `worldCupTool` (football-data.org, markdown) | 2.5 Flash |
-| `medical_qa` | SDK + Google Search grounding | 3.5 Flash; search 시 2.5 single-pass |
-| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | SDK renderer | 3.5 Flash; Search 기본 OFF |
-| `general` | SDK + `needsSearch` 3-gate classifier | 3.5 Flash; search 시 2.5 single-pass |
+| `medical_qa` | 선택 공급자 일반 생성 + 필요 시 검색 | 선택 모델; Gemini는 모델별 search capability 적용 |
+| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | 선택 공급자 renderer 경로 | 선택 모델; Search 기본 OFF |
+| `general` | 선택 공급자 생성 + `needsSearch` 3-gate classifier | 선택 모델 |
 
 **Router:**
-- LLM: `gemini-2.5-flash-lite`, `thinkingBudget:0` 명시
+- LLM: 현재 `gemini-2.5-flash-lite`, `thinkingBudget:0` 명시. GPT가 선택돼도 이 선행 의존성이 남아 있으며 공급자별 router 분리는 [멀티 공급자 라우팅 계획](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)의 P0이다
 - 규칙 기반 폴백: `server/agent/intentRules.ts` (KO/EN/ES/FR 키워드)
   - **폴백은 확신할 때만 잡는다 — 재현율보다 정밀도가 우선.** 놓친 것은 `general`이 받아주지만(검색 붙고 산문으로 답함), 잘못 잡은 것은 받아줄 곳이 없다(렌더러 스펙 주입 + 검색 OFF). 한국어는 공백 없이 결합해 `\b`가 안 먹으므로 **단독 명사는 대개 문맥 동반을 요구해야 한다** — `힘`·`속도`·`날씨`·`병원`·`달`이 전부 이 이유로 좁혀졌다(PLAN_INTENT_RULES_PRECISION_260816).
   - `FALLBACK_RULES` **배열 순서 = 우선순위**(first-match-wins). 특히 `vet_search`가 `hospital_search`보다 **앞이어야 한다** — `동물병원`의 `병원`이 먼저 걸리면 수의 경로가 죽는다. `data_viz`는 맨 끝(`차트`·`그래프`는 모든 분야와 결합).
-  - 검증: `npx tsx scripts/test-intent-rules.mts` — 양방향(잡아야 할 것 / 잡으면 안 될 것) 채점. **정규식을 복사하지 않고 프로덕션을 import한다.**
-- **단일 JSON 호출로 세 가지를 한 번에 판정**한다 — `intent` · `needs_search` · `follow_up`. 호출을 쪼개면 그만큼 지연이 붙고, 60s 캡 아래에서는 그게 곧 실패다.
+  - 검증: `npx tsx tests/test-intent-rules.mts` — 양방향(잡아야 할 것 / 잡으면 안 될 것) 채점. **정규식을 복사하지 않고 프로덕션을 import한다.**
+- **단일 JSON 호출로 세 가지를 한 번에 판정**한다 — `intent` · `needs_search` · `follow_up`. `/api/chat`의 현재 `maxDuration=300`과 무관하게 선행 호출을 쪼개면 TTFT와 공급자 실패 지점이 늘어난다.
 - 판정 구조는 **3단**이다: ① 강한 규칙(확실한 것만) → ② 회색지대만 LLM → ③ 결정론적 폴백. `follow_up` LLM 판정은 `DISABLE_LLM_FOLLOWUP=1` 로 끄고 A/B 비교할 수 있다.
   - 영화 후속 판정에서 **물음표는 약한 신호**로 낮췄다. 강한 신호로 두면 `신촌은 어때?`(새 지역 요청)까지 후속으로 삼켜 카드가 안 뜬다(DEV_260801).
   - 🔴 **3단 구조는 1단이 넓으면 무너진다.** 날씨 후속에서 `날씨 + 알려/줘`가 1단(새 조회)에 있어 날씨를 묻는 **모든** 자연스러운 발화가 거기서 끝났고, 2·3단은 **사실상 죽은 코드**였다. 사용자가 같은 걸 세 번 물어도 카드만 세 번 뜨고 한 번도 답하지 않았다. → 판정 축을 *"날씨를 물었나"* 에서 **"화면에 없는 도시가 나왔나"** 로 교체(2026-08-17, DEV_260815_DEPLOY_CHECK §5차).
 - 날씨 후속 판정은 `server/agent/weather-followup.ts` 의 **순수 함수**다(하니스가 임포트해야 해서 라우터 인라인에서 분리).
-  - 검증: `npx tsx scripts/test-weather-followup.mts` — 23 케이스.
+  - 검증: `npx tsx tests/test-weather-followup.mts`.
   - **닫힌 부류만 거부목록으로 다룬다**(지시어·담화표지·시간어). 도시명은 열린 부류라 사전(`isKnownCityName`, `server/lib/weather`의 `CITY_ALIASES` 재사용)으로 판정한다. 거부목록에 `아니`가 없어서 `아니 날씨 추세 알려줘`의 `아니`가 도시로 잡히던 결함이 이 구분을 만들었다.
 
 ---
@@ -285,19 +287,18 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 
 | 용도 | 모델 |
 |------|------|
-| 기본 채팅 (SDK) | `gemini-3.5-flash` |
-| YouTube 영상 분석 턴 | `gemini-2.5-flash` (영상 전송 턴만; 후속 텍스트는 3.5 복귀). **이유: 60s 캡** — 3.5는 영상 분석 59.2s로 천장 위험 (DEV_260622 §7) |
-| 이미지·업로드 영상 턴 | `gemini-2.5-flash` + `thinkingBudget:0` (`hasMultimodalContent && !hasDocumentContent`; 최근 3턴 윈도우 내 미디어 재전송 동안 유지, 윈도우 밖이면 3.5 복귀). **이유: 60s 캡 + throughput** — 무료 3.5 이미지 분석 56s(2.5는 5s), Tier1 3.5는 3.5s (DEV_260626 §2) |
-| URL 요약 턴 | `gemini-2.5-flash` + `thinkingBudget:0` (`[URL_CONTENT:` 주입 턴만; 후속은 3.5 복귀). **이유: throughput** — 본문이 답을 결정하는 추출성 작업, 3.5 무료티어 지연/503 회피 (DEV_260626 §2) |
+| 기본 채팅 | `gemini-3.6-flash` |
+| 선택 가능 모델 | Gemini 3.7 / 3.6 / 3.5 / 2.5 Flash, GPT-5.4 mini, GPT-5.6 Luna |
+| GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
+| GPT + YouTube 원본·업로드 영상/오디오·fileData | `gemini-2.5-flash` capability fallback. 텍스트 자막이면 GPT 유지 |
+| Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
 | 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie/sports; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
-| 3.5 + Search grounding | `gemini-2.5-flash` single-pass (3.5 무료 티어 grounding 불가 → 2.5가 최종 답변 생성; Stage-2 재합성 제거 DEV_260624 §6) |
-| 3.5 SDK 503/timeout 발생 시 | `gemini-2.5-flash`로 강등 후 재시도 (`unavailableDowngrade`; 같은 혼잡 3.5에 키 로테이션 무용). 호출당 25s `AbortSignal` 컷으로 Vercel 60s 캡 안에서 강등 예산 확보 (DEV_260626 §3 · DEV_260627 §3) |
 | TTS | `gemini-2.5-flash-preview-tts` |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
-| 라우터 | `gemini-2.5-flash-lite`, thinkingBudget:0 |
+| 초기 라우터 (현재) | `gemini-2.5-flash-lite`, thinkingBudget:0. GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
 
-**정책 원칙:** 외부 API 도구 인텐트(tool JSON → 답변 구성)는 모델 추론보다 API 데이터가 답변의 질을 결정하므로 빠른 2.5로 고정. 일반 대화는 3.5 유지.
+**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. 현재 Gemini 선행 router와 GPT 로컬 도구 호출 미구현은 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
 ---
 

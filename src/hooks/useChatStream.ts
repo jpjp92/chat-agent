@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage, GuestLimitError } from '../../services/geminiService';
+import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage, GuestLimitError, UserFacingChatError } from '../../services/geminiService';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
@@ -17,6 +17,7 @@ const STATUS: Record<Language, {
   analyzingPaper: string;
   watchingVideo: string;
   fetchingUrl: string;
+  chatFailed: string;
 }> = {
   ko: {
     uploadFailed: '업로드 실패',
@@ -27,6 +28,7 @@ const STATUS: Record<Language, {
     analyzingPaper: '논문 데이터를 정밀하게 분석 중입니다...',
     watchingVideo: 'Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)',
     fetchingUrl: 'URL에서 내용을 가져오는 중...',
+    chatFailed: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.',
   },
   en: {
     uploadFailed: 'Upload failed',
@@ -37,6 +39,7 @@ const STATUS: Record<Language, {
     analyzingPaper: 'Analyzing paper data in detail...',
     watchingVideo: 'Gemini is watching the video... (May take about 1 min)',
     fetchingUrl: 'Fetching content from URL...',
+    chatFailed: 'Failed to generate a response. Please try again.',
   },
   es: {
     uploadFailed: 'Error de subida',
@@ -47,6 +50,7 @@ const STATUS: Record<Language, {
     analyzingPaper: 'Analizando datos del artículo...',
     watchingVideo: 'Gemini está viendo el video... (Puede tomar 1 min)',
     fetchingUrl: 'Obteniendo contenido de URL...',
+    chatFailed: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.',
   },
   fr: {
     uploadFailed: "Échec d'envoi",
@@ -57,6 +61,7 @@ const STATUS: Record<Language, {
     analyzingPaper: "Analyse des données de l'article...",
     watchingVideo: 'Gemini regarde la vidéo... (Peut prendre 1 min)',
     fetchingUrl: 'Récupération du contenu URL...',
+    chatFailed: 'Échec de la génération de la réponse. Veuillez réessayer.',
   },
 };
 
@@ -536,7 +541,11 @@ export const useChatStream = ({
       hasError = true;
       // 한도 초과는 실패가 아니라 전환 지점이다. 에러 문구 대신 로그인 유도를 띄운다.
       if (error instanceof GuestLimitError) onGuestLimit?.();
-      else onError(error.message);
+      else if (error instanceof UserFacingChatError) onError(error.message);
+      else {
+        console.error('[useChatStream] Internal chat error hidden from UI:', error);
+        onError(status.chatFailed);
+      }
     } finally {
       // Apply any pending sources after streaming completes — chips appear only after full response
       if (pendingSources.length > 0) {

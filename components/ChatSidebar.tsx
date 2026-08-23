@@ -221,7 +221,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
           {/* Scrollable List Part: Hidden when collapsed */}
           {(!isCollapsed || isOpen) && (
-            <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4 custom-scrollbar">
+            <div ref={scrollRef} onScroll={handleScroll} className="sidebar-scrollbar flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4">
               <div className="flex items-center justify-between px-2 mb-2">
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest tabular-nums">{t.history}</h3>
               </div>

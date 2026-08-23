@@ -1,6 +1,6 @@
 # Chat Agent
 
-A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Google Search grounding, multimodal input, and 12 interactive visualization renderers.
+A multi-provider AI messenger powered by Gemini and OpenAI — LangGraph.js agent pipeline, web grounding, multimodal input, and 12 interactive visualization renderers.
 
 ---
 
@@ -16,12 +16,12 @@ A Gemini 3.5 Flash / 2.5 Flash AI messenger — LangGraph.js agent pipeline, Goo
 
 ### 1-2. AI Intelligence
 
-- **Models**: `gemini-3.5-flash` (default) / `gemini-2.5-flash` (optional) — header dropdown, persisted in `preferred_model` local storage
-- **Google Search Grounding**: real-time web search with source chips. On the free tier, 3.5 falls back to a 2.5 single-pass for grounded answers
-- **Intent routing**: `gemini-2.5-flash-lite` router + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, and `follow_up` together — splitting it into separate calls costs latency the 60s cap cannot afford
+- **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage
+- **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
+- **Intent routing**: currently `gemini-2.5-flash-lite` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, and `follow_up`; provider-native routing for GPT is a tracked follow-up
 - **Card follow-up**: weather/movie cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages
-- **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc)
-- **YouTube**: native Gemini video analysis (standard URL / youtu.be / Shorts)
+- **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
+- **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
 
 Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
@@ -80,8 +80,8 @@ flowchart TB
     subgraph FetchAPI ["/api/fetch-url"]
         URLCache["url_cache (14-day TTL)"]
         Direct["Direct HTML fetch"]
-        ScrapingBee["ScrapingBee (non-wikidocs fallback)"]
-        CFChain["ScrapingBee → browserless → ScraperAPI\n(wikidocs CF bypass chain)"]
+        ScrapingBee["ScrapingBee static/render"]
+        Browserless["browserless /unblock"]
     end
 
     subgraph ChatAPI ["/api/chat"]
@@ -98,6 +98,7 @@ flowchart TB
 
     subgraph External ["External"]
         Gemini[["Google Gemini AI"]]
+        OpenAI[["OpenAI API"]]
         Supabase[("Supabase")]
         APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org / KMA + OpenWeather)"]]
         Multiplex[["CGV / Lotte / Megabox"]]
@@ -107,8 +108,9 @@ flowchart TB
 
     In --> UI --> Stream
     Stream -->|URL prefetch| URLCache -->|miss| Direct
-    Direct -->|blocked/boilerplate, wikidocs| CFChain
     Direct -->|blocked/boilerplate, other| ScrapingBee
+    URLCache -->|wikidocs miss; direct skipped| ScrapingBee
+    ScrapingBee -->|fail| Browserless
     URLCache <--> Supabase
     Stream -->|POST /api/chat| Router
     Router -->|drug_id + image| Vision --> Generator
@@ -116,6 +118,7 @@ flowchart TB
     Generator -->|tool_calls| ToolNode --> APIs
     Renderers -->|movie card| SWR --> ChainFetch <--> Multiplex
     Generator <--> Gemini
+    Generator <--> OpenAI
     ToolNode -.->|ToolMessage| Generator
     Generator -.->|SSE stream| Stream -.-> UI -.-> Renderers -.-> Out
     Stream <--> Supabase
@@ -162,7 +165,7 @@ Per-intent tool binding and routing details: [docs/guide/REF_Architecture.md](do
 | Markdown      | react-markdown + remark-gfm / remark-math (`$$` only) / remark-cjk-friendly / rehype-katex |
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
 | Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
-| AI            | Gemini 3.5 Flash / 2.5 Flash / Flash-Lite, @google/genai SDK, LangChain  |
+| AI            | Gemini 3.7/3.6/3.5/2.5 Flash, GPT-5.4 mini / GPT-5.6 Luna, Google GenAI SDK, OpenAI Responses API, LangChain |
 | Database      | Supabase (PostgreSQL + Storage)                                           |
 
 Per-model usage policy: [docs/guide/REF_Architecture.md#model-policy](docs/guide/REF_Architecture.md)  
@@ -179,7 +182,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── chat/route.ts               # LangGraph SSE streaming (maxDuration 300)
 │       ├── speech/route.ts             # TTS (gemini-2.5-flash-preview-tts)
 │       ├── showtimes/route.ts          # 3-chain showtimes + SWR cache
-│       ├── fetch-url/route.ts          # URL prefetch: cache → direct → ScrapingBee/CF chain
+│       ├── fetch-url/route.ts          # URL prefetch: cache → direct/ScrapingBee → browserless
 │       ├── parse-document/route.ts     # HWP/DOCX/PPTX → kordoc Markdown
 │       ├── sessions/route.ts           # Session/message CRUD
 │       ├── summarize-title/route.ts
@@ -190,6 +193,8 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 ├── server/
 │   ├── config.ts                       # API key pool + rotation
 │   ├── models.ts                       # Server model registry
+│   ├── chat-error-policy.ts            # Provider error classification + client-safe messages
+│   ├── openai/                         # OpenAI Responses adapter + model metadata
 │   ├── mfds-logic.ts / pill-logic.ts
 │   ├── supabase.ts
 │   ├── lib/weather/index.ts             # KMA + OpenWeather core (dfsXyConv, precip parse)
@@ -223,6 +228,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 ├── tests/                              # 🔴 회귀 하니스 (`npm test`). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-storage-name / test-pill-messages / test-ddg-parse
+│   ├── test-thinking-config / test-openai-url-fetch / test-chat-models
 │   └── tsconfig.probe.json + lib/      # `server-only` 모듈을 tsx 로 직접 돌리는 우회
 ├── utils/
 │   ├── astronomyHelper.ts / celestialMath.ts
@@ -247,7 +253,8 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 | `docs/plans/`        | Plans, designs, analyses     | `PLAN_<TOPIC>[_YYMMDD].md` | `PLAN_THINKING_LATENCY_260602.md`  |
 | `docs/guide/`        | Renderer & feature reference | `REF_<Topic>.md`           | `REF_Chart.md`                     |
 
-- When creating a new log file, add a one-line entry to `DEV_HISTORY.md`.
+- Start at [docs/README.md](docs/README.md) for the current documentation map and latest work; feature references are indexed at [docs/guide/README.md](docs/guide/README.md).
+- When creating a new log file, add a one-line entry to `DEV_HISTORY.md` and the relevant monthly log index.
 - `docs/plans/` — always `PLAN_` prefix, `UPPER_SNAKE_CASE`. Detailed analyses get a `_YYMMDD` suffix.
 
 ---
@@ -299,12 +306,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 6종 (tests/) — intent·검색정책·날씨후속·파일명·알약응답·웹검색파싱
+npm test           # 하니스 9종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 6종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)).
+> **`tests/`** 회귀 하니스 9종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

@@ -26,8 +26,7 @@ export const THINKING_MODE: Record<string, { levels: readonly ThinkingLevel[]; b
     "gemini-2.5-flash-lite": { levels: [],                                budget: true  },  // 기본 thinking Off
     "gemini-3.5-flash":      { levels: ["minimal", "low", "medium", "high"], budget: true  },
     "gemini-3.6-flash":      { levels: ["minimal", "low", "medium", "high"], budget: false },  // budget 거부
-    // 🟡 3.7 은 아직 선택지가 아니다(SERVER_MODELS·MODEL_CAPS 에 없음). 여기 먼저 적는 이유는
-    //    **하니스가 지금부터 `minimal` 주입을 막게 하기 위해서**다. 표에만 있으면 동작은 안 바뀐다.
+    // 3.7은 minimal을 거부하므로 선택 경로에서도 반드시 이 실측 표를 통해 low를 사용한다.
     "gemini-3.7-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
 };
 

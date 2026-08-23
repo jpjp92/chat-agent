@@ -2,7 +2,9 @@
 
 Reference prompts for testing the `json:law` renderer and the Korean statute lookup pipeline (국가법령정보센터 Open API).
 
-> 기술 상세(API 구조·스크립트·주의사항): [`LAW_API_TEST.md`](LAW_API_TEST.md)
+> 최종 수정: 2026-08-23
+>
+> 기술 상세와 API 실측: [DEV_260517](../logs/2026/05/DEV_260517.md), [DEV_260609](../logs/2026/06/DEV_260609.md). 예전 `LAW_API_TEST.md`는 현재 저장소에 없으므로 깨진 링크를 제거했다.
 
 ---
 

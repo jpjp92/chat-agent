@@ -5,15 +5,18 @@ export { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinking
 export type { ThinkingLevel } from './model-thinking';
 
 export const SERVER_MODELS = {
+    FLASH_3_7: "gemini-3.7-flash",
     FLASH_3_6: "gemini-3.6-flash",
     FLASH_3_5: "gemini-3.5-flash",
     FLASH: "gemini-2.5-flash",
     FLASH_LITE: "gemini-2.5-flash-lite",
     TTS: "gemini-2.5-flash-preview-tts",
+    GPT_5_4_MINI: "gpt-5.4-mini",
+    GPT_5_6_LUNA: "gpt-5.6-luna",
 } as const;
 
 export type ServerModelId = typeof SERVER_MODELS[keyof typeof SERVER_MODELS];
-export type ChatModelId = typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE;
+export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA;
 
 // 기본 모델 = 3.6 (Phase A 실그래프 검증 통과, DEV_260723 §11). 3.5·2.5 는 옵션으로 유지.
 export const DEFAULT_CHAT_MODEL: ChatModelId = SERVER_MODELS.FLASH_3_6;
@@ -45,6 +48,7 @@ export const SUMMARY_MODELS = [
 //      · **유료 TIER1 키도 동일하게 429** — 티어를 올려도 안 풀린다
 //    업로드 영상은 항상, PDF 는 1MB 초과 시(useChatStream 임계값) 이 경로를 탄다.
 export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimodal: boolean; fastLongInput: boolean; urlFileData: boolean; groundingReliable: boolean }> = {
+    "gemini-3.7-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5; 긴 입력은 무료티어 혼잡 때문에 핀
     "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false, groundingReliable: false },  // 🔴 정답률 2/5
     "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5
     "gemini-2.5-flash": { freeTierSearch: true,  fastMultimodal: true,  fastLongInput: true,  urlFileData: true , groundingReliable: true  },  // 5/5
@@ -57,4 +61,15 @@ export const modelCaps = (m: string) => MODEL_CAPS[m] ?? { freeTierSearch: false
 // ⚠️ thinkingLevel 결정에는 **쓰지 않는다** — 그건 `usesThinkingLevel`/`lowestThinkingLevel`(실측표) 몫이다.
 //    계열이 같아도 받는 레벨이 다르다(3.5·3.6 은 minimal 을 받고 **3.7 은 400 으로 거부**).
 // ⚠️ 접두사 판정(`/^gemini-3\./`)으로 바꾸지 않는다 — 3.7 을 목록에 추가할 때는 여기도 함께 고친다.
-export const isThreeXFlash = (m: string): boolean => m === SERVER_MODELS.FLASH_3_5 || m === SERVER_MODELS.FLASH_3_6;
+export const isThreeXFlash = (m: string): boolean => m === SERVER_MODELS.FLASH_3_5 || m === SERVER_MODELS.FLASH_3_6 || m === SERVER_MODELS.FLASH_3_7;
+
+export const isChatModelId = (m: unknown): m is ChatModelId =>
+    typeof m === 'string' && [
+        SERVER_MODELS.FLASH_3_7,
+        SERVER_MODELS.FLASH_3_6,
+        SERVER_MODELS.FLASH_3_5,
+        SERVER_MODELS.FLASH,
+        SERVER_MODELS.FLASH_LITE,
+        SERVER_MODELS.GPT_5_4_MINI,
+        SERVER_MODELS.GPT_5_6_LUNA,
+    ].includes(m as ChatModelId);

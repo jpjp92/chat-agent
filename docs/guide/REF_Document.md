@@ -2,6 +2,8 @@
 
 업로드 가능한 모든 파일 타입과 각 처리 경로(멀티모달 네이티브 vs 텍스트 추출) 레퍼런스. 첨부 → 추출/전달 → 모델 입력까지의 흐름과 한도·동작을 한 곳에 정리한다.
 
+> 최종 수정: 2026-08-23
+
 > 관련: kordoc HWP 연동 [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md) §6·§7, 검증·설계 [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §2, [`../plans/PLAN_KORDOC_INTEGRATION_260620.md`](../plans/PLAN_KORDOC_INTEGRATION_260620.md)
 > 코드: 첨부 처리 [`components/ChatInput.tsx`](../../components/ChatInput.tsx) `processFile`, 서버 파싱 [`app/api/parse-document/route.ts`](../../app/api/parse-document/route.ts), 컨텍스트 주입 [`src/hooks/useChatStream.ts`](../../src/hooks/useChatStream.ts)
 
@@ -22,15 +24,17 @@
 
 ## 두 가지 처리 경로
 
-### A. 멀티모달 네이티브 (Gemini가 직접 인식)
+### A. 멀티모달 네이티브
 
-바이너리/`fileData`로 모델에 그대로 전달 — 레이아웃·이미지·표를 모델이 본다. 텍스트 추출 안 함.
+바이너리/`fileData`를 모델 입력으로 전달해 레이아웃·이미지·표를 직접 인식한다. 이미지는 선택한
+Gemini/GPT가 처리한다. 영상·오디오·PDF/fileData를 GPT가 선택된 상태에서 첨부하면 현재 OpenAI
+어댑터가 지원하지 않는 입력이므로 Gemini 2.5 Flash capability fallback을 사용한다.
 
 | 타입 | 처리 | 비고 |
 |---|---|---|
 | **이미지** (`image/*`) | 클라에서 최대 1920px·JPEG 85% 압축 후 `image_url` | GIF는 애니메이션 보존 위해 원본 유지 |
-| **영상** (`video/*`) | 네이티브 비디오 파트 | YouTube는 URL 분석 경로(별도) |
-| **PDF** (`application/pdf`) | 네이티브 멀티모달(`fileData` fileUri/base64) | **kordoc 경유 안 함** — 레이아웃·이미지 인식 손실(회귀) 방지. 30MB+ 가능 |
+| **영상** (`video/*`) | Gemini 네이티브 비디오 파트 | GPT 선택 시 Gemini 2.5 capability fallback. YouTube 원본도 동일 |
+| **PDF** (`application/pdf`) | Gemini 네이티브 멀티모달(`fileData` fileUri/base64) | GPT 선택 시 Gemini 2.5 capability fallback. **kordoc 경유 안 함** |
 
 > 서버 `supportedMimeTypes`는 `audio/`도 멀티모달로 수용하나 `accept`에 없어 파일 선택기로는 노출 안 됨(백엔드 capable, UI 미노출).
 
@@ -65,13 +69,13 @@ HWP 첨부 → ChatInput.parseViaKordoc(file)
 
 - 라우트: `runtime=nodejs`, `preferredRegion=icn1`, `maxDuration=60`. `next.config.ts`에 `serverExternalPackages:['kordoc']`(webpack이 kordoc 내부 pdfjs worker 정적 import 번들하려다 빌드 실패 → 외부화).
 - **길이 상한(L4)**: 마크다운 100,000자 초과 시 트렁케이트 + 안내(`truncated:true`). NIA 159K자 사례 대응.
-- **보안**: `{filePath}`는 `^\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$` 형식 검증(traversal 차단), 정리용 `remove()`는 IDOR(임의 삭제) 우려로 제거 → 고아 파일은 버킷 TTL 위임(백로그).
+- **인증·보안**: 두 `/api/parse-document` 경로 모두 Bearer 토큰을 요구한다. Storage 경로는 `^{uuid}/\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$` 형태만 받고, 첫 세그먼트 소유권은 Storage RLS가 `auth.uid()`와 대조한다. 정리용 `remove()`는 두지 않으며 고아 파일 정리는 별도 백로그다.
 
 ---
 
 ## PDF 처리 상세 (네이티브 멀티모달)
 
-PDF는 **텍스트 추출(kordoc/mammoth) 경유 금지** — Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다(추출하면 회귀). `[EXTRACTED_CONTENT:]` 마커를 만들지 않으며, 멀티모달 경로로만 흐른다.
+PDF는 **텍스트 추출(kordoc/mammoth) 경유 금지**다. Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다. `[EXTRACTED_CONTENT:]` 마커를 만들지 않으며, GPT가 선택돼도 이 턴만 Gemini 2.5로 capability fallback한다.
 
 ```
 PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
@@ -88,9 +92,9 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 
 **핵심 동작**
 - **크기**: 네이티브라 30MB+ 가능. **1MB 임계값**으로 인라인(base64)/Storage(공개 URL) 분기 — HWP의 4MB 임계값과는 별개(PDF는 base64라 임계값이 더 보수적).
-- **검색 게이트**: PDF는 멀티모달이므로 `hasMultimodalContent=true` → Gemini API 제약상 Search 동시 사용 불가 → grounding 자동 off. (HWP/문서의 `[EXTRACTED_CONTENT:]` 게이트가 아니라 멀티모달 경로로 off — 결과는 동일)
+- **검색 게이트**: PDF는 Gemini 멀티모달 경로로 처리되므로 Search 동시 사용을 끄고 첨부 본문을 우선한다.
 - **멀티턴**: PDF는 `extractedText`가 없어 `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]` 복원 대상이 아님. 대신 chat 라우트가 **최근 3턴**의 첨부를 history에 재전송(`fileData`/`image_url`)해 컨텍스트 유지, 그 이전 턴은 `[Attached File: 파일명]` 텍스트 마커로만 남음. → 긴 대화에서 PDF를 다시 참조하려면 재첨부 권장.
-- **저장/표시**: 업로드된 PDF는 `chat-docs` 버킷 공개 URL(`getPublicUrl`)로 히스토리 미리보기 복원. (버킷 공개 특성은 보안 백로그의 인증/유저별 prefix 항목과 연계 — DEV_260621 §6)
+- **저장/표시**: 업로드 경로는 `${auth.uid()}/{timestamp}_{name}`이고 쓰기·열거는 Storage RLS가 격리한다. 다만 버킷은 아직 public이라 `getPublicUrl`을 아는 제3자의 읽기는 가능하며, 비공개 전환과 기존 URL 백필은 Phase 2 백로그다.
 
 > 비교: **표/키-값 추출이 목적**이면 HWP/XLSX/CSV(구조 보존)가 유리하고, **레이아웃·이미지·스캔 인식**이 목적이면 PDF 네이티브가 최선. 같은 한글 문서라도 .hwp는 kordoc(표 마크다운), .pdf는 멀티모달로 서로 다른 강점.
 
@@ -104,12 +108,13 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 
 ---
 
-## 첨부 문서 search-gate (grounding 기본 off)
+## 첨부 문서 search-gate (웹 검색 기본 off)
 
-첨부 문서가 답변 근거이므로, 문서가 있으면 **Google Search grounding 기본 비활성** → 문서 요약/검토에 불필요한 two-track 검색이 붙어 레이턴시·환각이 늘던 문제 해소.
+첨부 문서가 답변 근거이므로 문서가 있으면 웹 검색을 기본 비활성화한다. 선택한 Gemini/GPT가 추출
+본문을 그대로 처리하고, 사용자가 외부 검증을 명시한 경우에만 해당 공급자의 검색 경로를 연다.
 
 - 트리거 마커: `[EXTRACTED_CONTENT:]`(현재 턴) / `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]`(후속 턴)
-- **예외(grounding on)**: 사용자가 **문서 외 추가 검증**을 명시 요청할 때 — `검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|latest|recent|search|source|cite`. `검토`/`정리`/`요약`은 매치 안 됨.
+- **예외(검색 on)**: 사용자가 **문서 외 추가 검증**을 명시 요청할 때 — `검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|latest|recent|search|source|cite`. `검토`/`정리`/`요약`은 매치 안 됨.
 - 동작: 게이트 열림 → general 게이트(`needsSearch`)가 최종 판정. URL 게이트와 동일 철학. PDF는 멀티모달이라 `[EXTRACTED_CONTENT:]` 미생성 + 이미 grounding off → 충돌 없음.
 - 구현: [`server/agent/nodes/generator.ts`](../../server/agent/nodes/generator.ts) renderer 게이트 직후. (DEV_260621 §7)
 
