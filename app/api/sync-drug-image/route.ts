@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
 import crypto from 'crypto';
+import { BROWSER_UA } from '../../../server/browser-ua';
 
 /**
  * 🔴 이 라우트의 Storage 쓰기는 **admin 권한이 필요하다.** 이름으로 명시한다. (2026-08-18)
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
 
         const fetchHeaders = {
             Referer: referer,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': BROWSER_UA,
         };
         const fetchWithRetry = async (retries = 1): Promise<Response> => {
             const ctrl = new AbortController();

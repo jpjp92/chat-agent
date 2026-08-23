@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
+import { BROWSER_UA } from '../../../server/browser-ua';
+import { fetchUrlContentWithOpenAI, isOpenAIUrlFallbackHost } from '../../../server/openai/url-fetch';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 const FETCH_FAILED_CONTENT = '[FETCH_ERROR: 해당 페이지는 보안 정책, 접속 제한 또는 사이트 차단으로 인해 서버에서 직접 접근할 수 없습니다.]';
-const SCRAPER_API_TIMEOUT_MS = 45000;
 const SCRAPINGBEE_TIMEOUT_MS = 40000;
 const SCRAPINGBEE_STATIC_TIMEOUT_MS = 15000; // no render_js — SSR 사이트용 빠른 경로
 const BROWSERLESS_TIMEOUT_MS = 30000;
 const BROWSERLESS_BASE = (process.env.BROWSERLESS_REST_URL || 'https://production-sfo.browserless.io').replace(/\/+$/, '');
 const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14일
+// 실험 중인 OpenAI web_search 폴백은 명시적으로 켠 환경에서만 사용한다.
+// 기본값은 OFF: Wikidocs는 ScrapingBee(render/premium/KR)를 우선 사용한다.
+const OPENAI_URL_FALLBACK_ENABLED = process.env.OPENAI_URL_FALLBACK_ENABLED === 'true';
 
 // cache 쓰기는 서비스키 우선(없으면 anon). 근거: docs/logs/DEV_260606.md §11
 const db = supabaseAdmin ?? supabase;
@@ -29,6 +33,24 @@ const isSecurityBlock = (text: string) => {
         t.includes('cloudflare ray id') ||
         t.includes('보안 확인 수행 중') || t.includes('악의적인 봇') ||
         t.includes('잠시만 기다리십시오');
+};
+
+/**
+ * 🔴 프로바이더의 **쿼터·인증 실패를 일반 실패와 구분한다.** (2026-08-22)
+ *
+ * 2026-08-22 장애: ScrapingBee 가 `401 {"message":"Monthly API calls limit reached: 1000"}` 을
+ * 내는데 로그는 `ScrapingBee(static) failed { textChars: 0 }` 로만 찍혔다 — **본문이 없는 것과
+ * 크레딧이 없는 것이 같은 문장**이었다. 그래서 "사이트가 막혔나" 를 먼저 의심하며 시간을 썼다.
+ *
+ * 이건 `url_cache` 45일 실종과 **같은 형태의 침묵**이다: 동작은 폴백으로 흘러가서 멀쩡해 보이는데,
+ * 원인만 안 보인다. 상태코드가 이미 답을 갖고 있으므로 그대로 드러낸다.
+ */
+const logProviderAuthFailure = (provider: string, status: number, body: string, url: string): boolean => {
+    if (status !== 401 && status !== 402 && status !== 429) return false;
+    const reason = status === 401 ? '인증/쿼터' : status === 402 ? '결제·크레딧' : '레이트리밋';
+    console.error(`[fetch-url] 🔴 ${provider} ${status} (${reason}) — 사이트 차단이 아니라 **우리 계정 문제**다:`,
+        body.slice(0, 200), { url });
+    return true;
 };
 
 const isWikidocsHost = (hostname: string) => hostname === 'wikidocs.net' || hostname.endsWith('.wikidocs.net');
@@ -187,9 +209,38 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        // 보류 중인 Brunch/Wikidocs 보조 공급자. 기본값은 OFF이며, ScrapingBee와 browserless가
+        // 모두 실패한 뒤 OPENAI_URL_FALLBACK_ENABLED=true인 경우에만 호출한다.
+        const openAIUrlFallback = async (): Promise<string | null> => {
+            const result = await fetchUrlContentWithOpenAI(targetUrl);
+            if (result.content) {
+                console.info('[fetch-url] OpenAI URL fallback succeeded', {
+                    url: targetUrl,
+                    model: result.model,
+                    elapsedMs: result.elapsedMs,
+                    textChars: result.textChars,
+                    exactUrlEvidence: result.exactUrlEvidence,
+                    usage: result.usage,
+                });
+                await setCached(cacheKey, result.content, 'openai-web-search');
+                return result.content;
+            }
+            console.error('[fetch-url] OpenAI URL fallback failed ' + JSON.stringify({
+                url: targetUrl,
+                model: result.model,
+                elapsedMs: result.elapsedMs,
+                status: result.status,
+                reason: result.reason,
+                errorCode: result.errorCode,
+                errorType: result.errorType,
+                errorMessage: result.errorMessage,
+            }));
+            return null;
+        };
+
         let html = '';
         // wikidocs는 Cloudflare가 항상 403 "Just a moment" 챌린지를 반환 → direct fetch 10s는 순수 낭비.
-        // 바로 ScrapingBee(render_js) CF 우회 체인으로 보낸다 (캐시 미스 시 ~10s 단축).
+        // 캐시 미스면 바로 ScrapingBee(render_js + premium_proxy + KR) 경로로 보낸다.
         let directFetchBlocked = useCloudflareUnblock;
         if (!useCloudflareUnblock) {
             const ctrl = new AbortController();
@@ -198,7 +249,7 @@ export async function POST(req: NextRequest) {
                 const response = await fetch(targetUrl, {
                     signal: ctrl.signal,
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'User-Agent': BROWSER_UA,
                         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
                     },
@@ -230,7 +281,9 @@ export async function POST(req: NextRequest) {
                 });
                 const raw = await res.text();
                 if (!res.ok) {
-                    console.warn('[fetch-url] browserless non-ok', { url: targetUrl, status: res.status, sample: raw.slice(0, 120) });
+                    if (!logProviderAuthFailure('browserless', res.status, raw, targetUrl)) {
+                        console.warn('[fetch-url] browserless non-ok', { url: targetUrl, status: res.status, sample: raw.slice(0, 120) });
+                    }
                     return null;
                 }
                 let json: any;
@@ -254,64 +307,10 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        const scraperApiFetch = async () => {
-            const apiKey = process.env.SCRAPER_KEY || process.env.SCRAPERAPI_KEY;
-            if (!apiKey) {
-                console.warn('[fetch-url] ScraperAPI fallback skipped: SCRAPER_KEY missing', { url: targetUrl });
-                return null;
-            }
-
-            const sCtrl = new AbortController();
-            const st = setTimeout(() => sCtrl.abort(), SCRAPER_API_TIMEOUT_MS);
-            try {
-                const params = new URLSearchParams({
-                    api_key: apiKey,
-                    url: targetUrl,
-                    render: 'true',
-                });
-                const res = await fetch(`https://api.scraperapi.com/?${params.toString()}`, {
-                    signal: sCtrl.signal,
-                    headers: { Accept: 'text/html, text/plain, */*' },
-                });
-                const renderedHtml = await res.text();
-                const extracted = extractReadableContent(renderedHtml);
-                const cost = res.headers.get('sa-credit-cost');
-                const finalUrl = res.headers.get('sa-final-url');
-                const securityBlock = isSecurityBlock(`${extracted.ogTitle}\n${extracted.bodyText}`);
-
-                if (res.ok && extracted.bodyText.length >= 300 && !securityBlock) {
-                    console.info('[fetch-url] ScraperAPI fallback succeeded', {
-                        url: targetUrl,
-                        status: res.status,
-                        finalUrl,
-                        selector: extracted.selector,
-                        textChars: extracted.bodyText.length,
-                        cost,
-                    });
-                    return extracted.content;
-                }
-
-                console.warn('[fetch-url] ScraperAPI fallback failed', {
-                    url: targetUrl,
-                    status: res.status,
-                    finalUrl,
-                    selector: extracted.selector,
-                    textChars: extracted.bodyText.length,
-                    cost,
-                    sample: extracted.bodyText.slice(0, 180),
-                });
-                return null;
-            } catch (error: any) {
-                console.warn('[fetch-url] ScraperAPI fallback error', {
-                    url: targetUrl,
-                    timeoutMs: SCRAPER_API_TIMEOUT_MS,
-                    error: error?.message ?? String(error),
-                });
-                return null;
-            } finally {
-                clearTimeout(st);
-            }
-        };
+        // 🔴 ScraperAPI 는 2026-08-22 체인에서 제외했다.
+        // 실측(ZDNet, 정상 확인된 대상): **500 · 55.8초** — "Protected domains may require
+        // premium=true OR ultra_premium=true". 성공은 0인데 45초 타임아웃 예산만 먹는다.
+        // 구현은 git 이력에 있다(이 커밋의 부모). 되살리려면 premium 파라미터가 선행 조건이다.
 
         // ScrapingBee static (no render_js) — SSR 뉴스/블로그 사이트용 빠른 경로 (~3-5s).
         // render_js=false이므로 Chrome headless 불필요 → 크레딧 절약 + 지연 최소화.
@@ -340,7 +339,9 @@ export async function POST(req: NextRequest) {
                     console.info('[fetch-url] ScrapingBee(static) succeeded', { url: targetUrl, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
                     return extracted.content;
                 }
-                console.warn('[fetch-url] ScrapingBee(static) failed', { url: targetUrl, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost });
+                if (!logProviderAuthFailure('ScrapingBee(static)', res.status, renderedHtml, targetUrl)) {
+                    console.warn('[fetch-url] ScrapingBee(static) failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost });
+                }
                 return null;
             } catch (error: any) {
                 console.warn('[fetch-url] ScrapingBee(static) error', { url: targetUrl, error: error?.message ?? String(error) });
@@ -381,7 +382,9 @@ export async function POST(req: NextRequest) {
                     console.info('[fetch-url] ScrapingBee(render) succeeded', { url: targetUrl, status: res.status, selector: extracted.selector, textChars: extracted.bodyText.length, cost });
                     return extracted.content;
                 }
-                console.warn('[fetch-url] ScrapingBee(render) failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost, sample: extracted.bodyText.slice(0, 180) });
+                if (!logProviderAuthFailure('ScrapingBee(render)', res.status, renderedHtml, targetUrl)) {
+                    console.warn('[fetch-url] ScrapingBee(render) failed', { url: targetUrl, status: res.status, textChars: extracted.bodyText.length, securityBlock, boilerplate, cost, sample: extracted.bodyText.slice(0, 180) });
+                }
                 return null;
             } catch (error: any) {
                 console.warn('[fetch-url] ScrapingBee(render) error', { url: targetUrl, timeoutMs: SCRAPINGBEE_TIMEOUT_MS, error: error?.message ?? String(error) });
@@ -391,26 +394,41 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Cloudflare 차단 사이트(wikidocs): ScrapingBee(render) 1차 → browserless /unblock → ScraperAPI
-        const cloudflareUnblock = async (): Promise<string | null> => {
+        /**
+         * 범용 폴백 체인. Wikidocs는 실패가 확정된 static 단계를 생략하고
+         * ScrapingBee(render/premium/KR)부터 시작한다.
+         *
+         * 🔴 왜 고쳤나: 이전 구조는 `cloudflareUnblock()`(= ScrapingBee → browserless → ScraperAPI)을
+         *    **`isWikidocsHost` 로 잠가** 뒀다. 그래서 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**,
+         *    그것도 static·render 로 두 번이었다. ScrapingBee 월 쿼터가 소진되자
+         *    **정상 작동하는 browserless 를 두고도 전 사이트가 502** 로 떨어졌다
+         *    (실측 2026-08-22: ScrapingBee 401 "Monthly API calls limit reached: 1000",
+         *     같은 시각 browserless 는 같은 URL 에 200·767KB).
+         *
+         *    DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 가 **네 번째**로 걸린 자리다
+         *    (`pinYoutube`·`YOUTUBE_CALL_TIMEOUT_MS`·`fastLongInput`·라우터 지름길에 이어).
+         *    이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만, 안에 든 것은
+         *    **범용 프로바이더 사다리**였다. → 이름과 게이트를 걷어내고 하나로 합친다.
+         *
+         * ⚠️ 남은 문제(별도 작업): 이 범용 체인이 다 돌면 최대 `10+15+40+30 = 95s` 인데
+         *    클라이언트 타임아웃은 **65s** 다(`services/geminiService.ts`). 범용 사다리의
+         *    전체 deadline은 아직 별도 과제다.
+         */
+        const renderFallback = async (): Promise<string | null> => {
+            // CF 상시 챌린지 호스트(wikidocs)는 static 을 건너뛴다 — 항상 챌린지라 순수 낭비다.
+            if (!useCloudflareUnblock) {
+                const sbStatic = await scrapingBeeStaticFetch();
+                if (sbStatic) { await setCached(cacheKey, sbStatic, 'scrapingbee-static'); return sbStatic; }
+            }
             const sb = await scrapingBeeFetch();
             if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
             const bl = await browserlessFetch();
             if (bl) { await setCached(cacheKey, bl, 'browserless'); return bl; }
-            const sc = await scraperApiFetch();
-            if (sc) { await setCached(cacheKey, sc, 'scraperapi'); return sc; }
-            return null;
-        };
-
-        // 비-wikidocs 폴백: static(~3s) → render_js(~40s) 2단계.
-        // SSR 사이트(뉴스·블로그)는 static으로 충분. SPA만 render_js까지 진행.
-        // 폴백 실패 시 FETCH_FAILED — 모델의 제목 기반 추정 차단.
-        const renderFallback = async (): Promise<string | null> => {
-            if (useCloudflareUnblock) return await cloudflareUnblock();
-            const sbStatic = await scrapingBeeStaticFetch();
-            if (sbStatic) { await setCached(cacheKey, sbStatic, 'scrapingbee-static'); return sbStatic; }
-            const sb = await scrapingBeeFetch();
-            if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
+            if (OPENAI_URL_FALLBACK_ENABLED && isOpenAIUrlFallbackHost(targetHostname)) {
+                const openAIText = await openAIUrlFallback();
+                if (openAIText) return openAIText;
+            }
+            console.error('[fetch-url] 🔴 폴백 전멸 — ScrapingBee·browserless 둘 다 실패했다:', { url: targetUrl });
             return null;
         };
 

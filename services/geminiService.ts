@@ -1,6 +1,7 @@
 import { Role, Message, MessageAttachment, Language, GroundingSource } from "../types";
 import { getAccessToken } from "../lib/supabase/client";
 import { GUEST_LIMIT_ERROR } from "../lib/limits";
+import { DEFAULT_CHAT_MODEL } from "../src/lib/models";
 
 /** 게스트 메시지 한도 초과. 호출부가 토스트 대신 로그인 모달을 띄우도록 구분한다. */
 export class GuestLimitError extends Error {
@@ -131,9 +132,9 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
  */
 export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
   const controller = new AbortController();
-  // 35초: browserless /unblock 1차(성공 ~10~24s, 일시 500 재시도 포함)를 커버.
-  // 서버는 maxDuration 120s로 폴백/캐시까지 완주하므로, 더 느린 경우라도 재요청 시 캐시 HIT로 즉시 성공.
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  // 65초: Brunch direct 최대 10s + OpenAI URL 추출 최대 45s + 네트워크 여유.
+  // 성공 결과는 url_cache에 저장되므로 이후 요청은 즉시 반환된다.
+  const timeout = setTimeout(() => controller.abort(), 65000);
   try {
     const response = await fetch('/api/fetch-url', {
       method: 'POST',
@@ -217,7 +218,9 @@ export const streamChatResponse = async (
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
   attachments?: MessageAttachment[],
-  model: string = 'gemini-3.5-flash',
+  // 기본값은 레지스트리에서 가져온다 — 리터럴이면 기본 모델이 바뀔 때 조용히 뒤처진다
+  // (실제로 기본이 3.6 이 된 뒤에도 여기만 3.5 로 남아 있었다). 호출부가 항상 넘기므로 동작 변화는 없다.
+  model: string = DEFAULT_CHAT_MODEL,
   onCutOff?: () => void,
   movieContext?: string,
   // 화면에 떠 있는 카드 종류. 서버는 최근 10개 메시지만 받아서 카드 존재를 추정하는데,

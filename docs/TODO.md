@@ -223,7 +223,7 @@
 
 > 배경: wikidocs 블로그 502 근본 원인은 `isSecurityBlock`의 `'cloudflare'` 오판이었고 수정 완료. 아래는 그 과정에서 드러난 구조적 취약점.
 
-- [ ] **wikidocs 블로그 redundancy 부재** — 블로그형 페이지는 실질적으로 ScrapingBee 단일 의존(browserless는 본문 0·en-US 셸, scraperapi는 45s 타임아웃). ScrapingBee가 실제로 실패(크레딧 소진·bad window)하면 여전히 502 → **ScrapingBee 1회 재시도**(DEV_260606 "간격 재시도" 학습) 또는 wikidocs 블로그용 browserless 렌더 옵션(waitForSelector) 보강 검토.
+- [x] **wikidocs 블로그 redundancy 복구** (2026-08-23) — `gpt-5-mini` Responses `web_search`를 본문 추출 전용으로 연결. 정확 URL의 `open_page` 증거와 300자 이상 본문을 모두 요구하고, 성공 결과만 `url_cache`에 저장한다. 키·쿼터·rate limit·URL 불일치는 기존 URL 접근 실패 안내로 종료한다.
 - [ ] **`isSecurityBlock` substring 매칭의 콘텐츠 오판 소지** — 추출 본문에 특정 단어 포함만으로 CF 챌린지 판정 → 정상 기사가 그 단어를 언급하면 오판(이번 `cloudflare` 케이스). 챌린지 판정은 가능하면 HTTP status·응답 크기·`<title>` 등 **구조 신호 우선**으로 리팩토링 검토.
 
 ### 응답 산문 가독성 규칙 (DEV_260707 §6 후속, 보류)
@@ -294,6 +294,18 @@
   - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
   - [ ] 라우터를 `3.5-flash-lite` 로 검토 — ⚠️ 기본 thinking 이 **On(minimal)** 이라 명시 지정 필요
   - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
+- [x] ✅ **🔴 낡은 User-Agent 가 무료 경로를 막고 있었다 — `Chrome/120` → `Chrome/141`** (2026-08-22) — **URL 장애 조사의 진짜 수확.** GeekNews 403 을 "사이트가 우리를 막았다"로 읽었는데, 갈라 보니 **낡은 UA 를 봇 시그니처로 막은 것**이었다. 같은 URL·같은 나머지 헤더로 `Chrome/120 → 403 · 10바이트` / `Chrome/141 → 200 · 43,009바이트 · 13ms`. `Chrome/120` 은 **2023-12 릴리스**라 2년 넘게 묵어 있었다.
+  - **결과**: GeekNews 가 direct fetch 만으로 **169ms · 본문 7,604자 · 유료 스크래퍼 불필요**. browserless 가 4.4초에 가져오던 것과 **글자 수까지 동일**하다 — 즉 **돈 주고 사던 것을 공짜로 얻을 수 있었다.**
+  - **배치도 틀려 있었다**: UA 가 4곳에 하드코딩돼 값이 셋으로 갈려 있었다(`120`×3, `124`×1) → [`server/browser-ua.ts`](../server/browser-ua.ts) 한 곳으로. SSRF 정규식 중복([PLAN_HARDENING §2-A](plans/PLAN_HARDENING_260822.md))과 같은 형태다.
+  - ⚠️ **이 값은 코드가 안 바뀌어도 조용히 썩는다.** 특정 사이트만 403 을 받기 시작하면 **여기를 가장 먼저 의심할 것** — 최신 Chrome UA 로 한 번 더 쳐서 갈리는지 보면 즉시 판별된다.
+  - 🔴 **쿼터 소진에 이것이 얼마나 기여했는지 미측정** — 무료 경로가 실패하면 전부 유료로 떠넘겨졌다. 충전 전에 소모율을 다시 잴 것
+- [x] ✅ **Brunch 리다이렉트 루프 폴백** (2026-08-23) — direct는 `redirect count exceeded`지만 범용 체인이 처리한다. 캐시 우회 `/@ghidesigner/532?codex_doc_probe=260823`: `scrapingbee-static` · 200 · 8.89s · 본문 4,507자. `/@other/999`는 실글이 아니라 OpenAI URL mismatch 회귀용 가짜 주소다.
+- [x] ✅ **ScrapingBee 월 쿼터 소진 복구** (2026-08-23) — 기존 trial 키는 `1,006 / 1,000` credits로 `401 {"message":"Monthly API calls limit reached: 1000"}`를 반환했고 URL 요약 전면 장애의 직접 원인이었다. 키 교체 후 Wikidocs 신규 글에서 `render_js + premium_proxy + KR` **200 · 5.66s · 본문 12,460자 · cost 25**, 로컬 라우트 **200 · 6.10s · 13,085자** 확인. 🔴 `url_cache` 45일 실종이 소모를 키웠으므로 캐시 오류 로깅과 소모율 관측은 계속 유지한다.
+- [ ] 🟡 **fetch-url 범용 타임아웃 예산 재설계** — 일반 URL 체인은 최대 `10+15+40+30 = 95s`라 클라이언트 **65s**를 넘는다. Wikidocs는 direct/static을 생략해 `40+30 = 70s`지만 역시 최악에는 65s를 넘는다. 서버 전체 deadline과 공급자별 잔여 예산을 정렬해야 한다.
+- [x] ✅ **OpenAI URL fallback 기본 OFF로 보류** (2026-08-23) — 과거 검색 색인 Wikidocs는 일부 성공했지만 신규·미색인 글은 GPT-5 mini와 GPT-5.6 Luna 모두 실패했다. `OPENAI_URL_FALLBACK_ENABLED=true`를 명시해야만 ScrapingBee·browserless 전멸 뒤 호출하며 기본값은 OFF. 구현·20/20 하니스는 재평가용으로 보존.
+- [ ] 🟡 **ScraperAPI 재평가** — 2026-08-22 체인에서 제외했다(실측 **500 · 55.8s**, "Protected domains may require premium=true"). 되살리려면 premium 파라미터가 선행이고, 크레딧을 더 먹는다. 표본 1회라 판단은 잠정
+- [x] ✅ **fetch-url 폴백 체인 재구성 — browserless 를 전 호스트에 개방** (2026-08-22) — `cloudflareUnblock()` 이 **`isWikidocsHost` 로 잠겨** 있어 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**이었다(static·render 두 번). 쿼터가 마르자 **정상 작동하는 browserless 를 두고 전 사이트가 502.** 🔴 **DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 네 번째 사례** — 이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만 내용물은 범용 사다리였다. 검증: GeekNews(직접 403) → browserless **200 · 4.4s · 본문 7,604자 · article** 실물 확인
+- [x] ✅ **프로바이더 401/402/429 를 일반 실패와 구분** (2026-08-22) — 쿼터 소진이 `failed { textChars: 0 }` 로만 찍혀 **"사이트가 막혔나"를 먼저 의심하게 만들었다.** `url_cache` 45일 실종과 **같은 형태의 침묵**(폴백이 흘러가서 동작은 멀쩡해 보이는데 원인만 안 보임). 상태코드가 이미 답을 갖고 있었다
 - [x] ✅ **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** (2026-08-18 완료 · `b7f99ea`) — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
 - [x] ✅ **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다" (2026-08-18 완료 · `b7f99ea` · 캐시 히트 1.33s→0.137s 로 양성 검증)
   - [x] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다

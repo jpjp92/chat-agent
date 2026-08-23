@@ -6,7 +6,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint, getRendererSections } from "../prompt";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
-import { resolveMaxTokens, resolveThinkingConfig } from "./generation-config";
+import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { runLangChainPath } from "./langchain-path";
@@ -187,8 +187,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // on the free tier. When 3.5 Flash is selected and grounding is needed, fall back
         // to 2.5 Flash for the grounded response.
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
-        // 무료티어 Google Search grounding 미지원 모델(3.5·3.6 → 429)이면 2.5 로 grounding 강등.
-        const needsSearchFallback = !modelCaps(resolvedModel).freeTierSearch;
+        // 검색 턴을 2.5 로 강등하는 조건 — **독립된 두 축의 OR** 다.
+        //   ① freeTierSearch=false : 무료티어에서 3.x grounding 이 아예 429 (과금 사실)
+        //   ② groundingReliable=false : 검색이 발동해도 모델이 결과를 반영하지 않음 (답변 품질)
+        // 🔴 지금 두 축은 3.5·3.6 에서 우연히 같은 값을 낸다. 합쳐 두면, 유료 티어로 올리며
+        //    ①만 보고 `freeTierSearch: true` 로 뒤집었을 때 **에러 없이** 3.6 의 2/5 오답이
+        //    출처 칩을 달고 나가기 시작한다. 그래서 이름을 나눠 둔다.
+        const rmCaps = modelCaps(resolvedModel);
+        const needsSearchFallback = !rmCaps.freeTierSearch || !rmCaps.groundingReliable;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
         // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
         // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
@@ -324,7 +330,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     //   - Others: undefined (model default)
                     const is3xModel = isThreeXFlash(effectiveModel);
                     const thinkingConfig = resolveThinkingConfig({
-                        is3xModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
+                        model: effectiveModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
                     });
 
                     // 3.5 + Google Search → 2.5 single-pass grounding (Stage2 3.5 재합성 제거, DEV_260624 §6).
@@ -435,11 +441,14 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                             .join('')).trim();
 
                         // If empty and we used a non-minimal thinkingLevel, retry with minimal thinking
-                        if (!responseText && is3xModel && thinkingConfig && (thinkingConfig as any).thinkingLevel && (thinkingConfig as any).thinkingLevel !== 'minimal') {
+                        // 🔴 재시도 목표는 `'minimal'` 리터럴이 아니라 **그 모델의 최저 레벨**이다.
+                        // 3.7 은 minimal 을 400 으로 거부하므로 리터럴이면 복구 시도가 곧 에러가 된다.
+                        const retryLevel = thinkingRetryLevel(effectiveModel, (thinkingConfig as any)?.thinkingLevel);
+                        if (!responseText && retryLevel) {
                             const candidate0 = singlePassResponse.candidates?.[0];
                             const finishReason = candidate0?.finishReason;
                             const thoughtOnlyParts = singleParts.filter((p: any) => p.thought).length;
-                            console.warn('[LangGraph] Empty response - finishReason:', finishReason, '| thoughtParts:', thoughtOnlyParts, '| thinkingLevel:', (thinkingConfig as any).thinkingLevel, '— retrying with minimal thinking');
+                            console.warn('[LangGraph] Empty response - finishReason:', finishReason, '| thoughtParts:', thoughtOnlyParts, '| thinkingLevel:', (thinkingConfig as any).thinkingLevel, `— retrying with thinkingLevel=${retryLevel}`);
                             singlePassResponse = await genai.models.generateContent({
                                 model: effectiveModel,
                                 contents: sdkContents,
@@ -449,7 +458,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                                     ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
                                     maxOutputTokens: effectiveMaxTokens,
                                     ...videoMediaResolution,
-                                    thinkingConfig: { thinkingLevel: 'minimal' } as any,
+                                    thinkingConfig: { thinkingLevel: retryLevel } as any,
                                 }
                             });
                             singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];

@@ -86,9 +86,10 @@ flowchart TB
     Prompt["URL 포함 프롬프트"]
     Cache["url_cache 조회\n(14-day TTL, Supabase)"]
     Direct["Direct HTML fetch (10s)"]
+    ScrapingBeeStatic["ScrapingBee static\nno render_js (15s)"]
     ScrapingBee["ScrapingBee\nrender_js + premium_proxy (40s)"]
     Browserless["browserless /unblock (30s)"]
-    ScraperAPI["ScraperAPI render (45s)"]
+    OpenAI["OpenAI Web Search\nfeature flag, default OFF"]
     Content["[URL_CONTENT] → chat 전달\n→ Generator에서 Google Search OFF"]
     Failed["[URL_FETCH_FAILED]\n접근 제한 안내 메시지"]
 
@@ -96,23 +97,27 @@ flowchart TB
     Cache -- hit --> Content
     Cache -- miss --> Direct
     Direct -- "ok + readable body" --> Content
-    Direct -- "blocked/boilerplate\nnon-wikidocs" --> ScrapingBeeStatic["ScrapingBee static\nno render_js (15s)"]
-    Direct -- "blocked\nwikidocs (CF chain)" --> ScrapingBee
+    Direct -- "blocked/boilerplate\nnon-wikidocs" --> ScrapingBeeStatic
+    Cache -- "miss\nwikidocs (direct 생략)" --> ScrapingBee
     ScrapingBeeStatic -- ok --> Content
     ScrapingBeeStatic -- fail, SPA --> ScrapingBee
     ScrapingBee -- ok --> Content
-    ScrapingBee -- fail, wikidocs --> Browserless
+    ScrapingBee -- fail --> Browserless
     Browserless -- ok --> Content
-    Browserless -- fail --> ScraperAPI
-    ScraperAPI -- ok --> Content
-    ScraperAPI -- fail --> Failed
-    ScrapingBee -- fail, non-wikidocs --> Failed
+    Browserless -- "fail, flag OFF 또는 비허용 호스트" --> Failed
+    Browserless -. "OPENAI_URL_FALLBACK_ENABLED=true\n허용 호스트만" .-> OpenAI
+    OpenAI -- ok --> Content
+    OpenAI -- fail --> Failed
 ```
 
 **폴백 요약:**
-- non-wikidocs: Direct → ScrapingBee static(15s) → ScrapingBee render_js(40s) → FAILED
-- wikidocs(Cloudflare): Direct → ScrapingBee render_js → browserless → ScraperAPI → FAILED
+- 일반 URL: Direct → ScrapingBee static(15s) → ScrapingBee render_js/premium/KR(40s) → browserless(30s) → FAILED
+- Wikidocs(Cloudflare): Direct 생략 → ScrapingBee render_js/premium/KR → browserless → FAILED
+- OpenAI Web Search는 기본 OFF. `OPENAI_URL_FALLBACK_ENABLED=true`일 때 허용 호스트에서만 최후단 보조 폴백
+- ScraperAPI는 2026-08-22 실측 500/55.8s 후 체인에서 제외
 - 성공 응답은 `url_cache`에 upsert (14-day TTL)
+
+**2026-08-23 실측:** GeekNews는 Chrome/141 direct 200·169ms·7,604자로 유료 호출 없이 끝난다. Brunch 실주소는 direct redirect loop 후 ScrapingBee static 200·8.89s·4,507자, Wikidocs 신규 글은 ScrapingBee render/premium/KR 200·5.66s·12,460자로 확인했다. 세부 표는 [DEV_260823](../logs/2026/08/DEV_260823.md)을 따른다.
 
 ---
 

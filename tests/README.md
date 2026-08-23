@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 6종 전부
+npm test        # 8종 전부
 npm run verify  # typecheck + test
 ```
 
@@ -15,6 +15,25 @@ npm run verify  # typecheck + test
 
 ③ 이 가장 중요하다. 정규식이나 문구를 **복사해 두면 프로덕션이 바뀐 뒤에도 하니스는 계속 초록**이다.
 실제로 그런 하니스가 있었다(`test-search-rules.mjs`).
+
+## `manual/` — 수동 네트워크 프로브
+
+`tests/manual/`은 외부 공급자·실사이트 상태를 재현하는 수동 진단 도구다. 환경변수와 네트워크를
+사용할 수 있지만 `npm test`에는 포함하지 않는다. 자동 회귀 하니스의 위 세 조건과 섞지 않으며,
+실행 시 외부 API 크레딧이 소모될 수 있다.
+
+- `npm run audit:wikidocs-puppeteer -- <URL>`: Browserless Puppeteer와 Cheerio 결과 비교
+- `npm run audit:url-openai -- <URL>`: `OPENAI_API_KEY_TIER1`로 장애 표본의 웹 검색과 정확한 URL 출처 확인
+
+2026-08-23 네트워크 실측 요약:
+
+- Wikidocs direct/Jina/일반 Puppeteer는 Cloudflare challenge로 실패
+- ScrapingBee `render_js=true + premium_proxy=true + country_code=kr`는 신규 글 200·5.66s·12,460자
+- GPT-5 mini와 GPT-5.6 Luna는 신규·미색인 Wikidocs 글 실패; 과거 색인 글은 일부 성공
+- GeekNews는 Chrome/141 direct 200·169ms·7,604자, browserless도 200·4.4s·동일 7,604자
+- Brunch 실주소 캐시 우회 요청은 `scrapingbee-static` 200·8.89s·4,507자
+
+전체 판정과 URL별 수치는 [`DEV_260823`](../docs/logs/2026/08/DEV_260823.md)에 고정한다.
 
 ## 하니스가 실제로 잡는지 확인할 것
 
@@ -33,6 +52,8 @@ npm run verify  # typecheck + test
 | `test-storage-name.mts` | 업로드 파일명 정규화 — 확장자 보존은 `parse-document` 가 의존하는 계약 |
 | `test-pill-messages.mts` | 알약 응답 문구·파싱·웹 폴백 게이트·라우터 지름길 |
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
+| `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
+| `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 

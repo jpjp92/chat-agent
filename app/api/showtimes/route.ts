@@ -1,3 +1,4 @@
+import { BROWSER_UA } from '../../../server/browser-ua';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -16,7 +17,7 @@ export const maxDuration = 60;
 
 const KEY = process.env.BROWSERLESS_KEY || process.env.BROWSERLESS_TOKEN;
 const BASE = (process.env.BROWSERLESS_REST_URL || 'https://production-sfo.browserless.io').replace(/\/+$/, '');
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const UA = BROWSER_UA;
 
 const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000);
 const toYmd = (d: Date) => `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;

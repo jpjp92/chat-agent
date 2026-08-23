@@ -169,7 +169,20 @@ generator.ts:173  const resolvedModel = (pinYoutube || pinUrl || pinUrlFileData)
 
 ## 5. 전환 순서
 
-### 5-1. 지금 넣어도 안전한 것 (동작 변화 0)
+### 5-1. ✅ 완료 (2026-08-22) — 동작 변화 0
+
+> 🔴 **계획과 다르게 둔 것 하나**: 표를 `server/models.ts` 가 아니라 **`server/model-thinking.ts`**
+> (순수 모듈)에 뒀고 `models.ts` 가 re-export 한다. 이유는 `models.ts` 가 `import 'server-only'`
+> 라 **하니스가 임포트하면 throw** 하기 때문이다. 8/18 에 `image-flags.ts`·`ddg-parse.ts` 를
+> 뽑아낸 것과 같은 이유다 — *"테스트할 수 없는 자리에 둔 규칙은 테스트되지 않는다."*
+>
+> **하니스가 실패할 수 있음을 확인했다**: 옛 구현(`/^gemini-3\./ → minimal`)으로 되돌리자
+> **16건 빨간불**(3.7 경로 14 + 복구 2). 같은 조건에서 3.x·2.5 회귀 가드는 전부 초록 —
+> 이것이 "동작 변화 0" 의 근거다.
+
+- `needsSearchFallback` 진리값 대조: 3.6 `false||true`, 3.5 `false||true`, 2.5 `true&&true`
+  → **세 모델 모두 이전과 동일**. 축만 갈렸고 동작은 그대로다.
+
 
 **모델별 실측표로 계열 판정을 대체한다.** 3.7 을 추가하지 않아도 현재 동작이 동일하다.
 
@@ -184,11 +197,11 @@ export const THINKING_MODE: Record<string, { levels: readonly string[]; budget: 
 export const lowestThinkingLevel = (m: string) => THINKING_MODE[m]?.levels[0];
 ```
 
-- [ ] `resolveThinkingConfig` 의 `"minimal"` 리터럴 → `lowestThinkingLevel(model)`
-- [ ] `generator.ts` 빈 응답 재시도의 `!== 'minimal'` → **그 모델의 최저 레벨** 기준으로
-- [ ] `MODEL_CAPS` 에 `groundingReliable` 축 신설, 3.6 = false (§2)
-- [ ] `services/geminiService.ts:220` 의 `'gemini-3.5-flash'` 리터럴 → `DEFAULT_CHAT_MODEL`
-- [ ] 하니스 `scripts/test-thinking-config.mts` — **3.7 에 `minimal` 이 들어가면 즉시 빨간불**
+- [x] `resolveThinkingConfig` 의 `"minimal"` 리터럴 → `lowestThinkingLevel(model)`
+- [x] `generator.ts` 빈 응답 재시도 → `thinkingRetryLevel(model, current)` ([generation-config.ts](../../server/agent/nodes/generation-config.ts))
+- [x] `MODEL_CAPS` 에 `groundingReliable` 축 신설, 3.6 = false (§2) — `needsSearchFallback` 이 두 축의 OR
+- [x] `services/geminiService.ts` 의 `'gemini-3.5-flash'` 리터럴 → `DEFAULT_CHAT_MODEL` (호출부가 항상 넘겨서 dead default 였다)
+- [x] 하니스 [`tests/test-thinking-config.mts`](../../tests/test-thinking-config.mts) — **통과 46**. 렌더러·YouTube·URL·미디어·medical_qa 7경로를 전부 훑는다(한 경로만 보면 놓친다)
 
 > ⚠️ **`isThreeXFlash` 를 접두사 판정으로 바꾸지 않는다.** 한 번 그렇게 제안했는데,
 > 3.7 에 적용하면 `minimal` 이 자동 주입돼 **전 호출 400** 이 된다.
