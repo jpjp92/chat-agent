@@ -86,7 +86,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         //    전날 자료라 모델이 그쪽을 오늘로 삼는다 — 이 값이 유일한 근거임을 못 박는다.
         finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n`
             + `- This is the ONLY source for today's date. Never infer it from search results, article publication dates, or your training data.\n`
-            + `- Just after midnight most search results are from the previous day. That does NOT change today's date — it is still the value above.\n\n`
+            + `- Just after midnight most search results are from the previous day. That does NOT change today's date — it is still the value above.\n`
+            + `- If the user asks for "today" and the newest material you found is from an earlier date, give that material but say in one short sentence which date it is from and that little has been published yet today. Do not silently present an earlier date's material as today's.\n\n`
             + finalInstruction;
 
         // Inject Dynamic Contexts

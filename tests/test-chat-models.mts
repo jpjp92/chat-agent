@@ -320,6 +320,10 @@ check('오늘 날짜는 주입된 시스템 시각만 근거로 삼도록 고정
     generatorSource.includes("This is the ONLY source for today's date"));
 check('자정 직후 검색 결과가 날짜를 뒤집지 못하게 명시',
     generatorSource.includes('Just after midnight most search results are from the previous day'));
+// 새벽에 "오늘 뉴스"를 물으면 전날 기사가 나오는 건 정상이다. 날짜를 틀리게 말하지 않게 된 뒤에도
+// 왜 전날 자료인지 설명이 없으면 사용자에겐 여전히 이상해 보인다.
+check('전날 자료를 낼 때 날짜와 이유를 밝히도록 지시',
+    generatorSource.includes('say in one short sentence which date it is from'));
 check('generator가 grounding 인용 변환을 사용', generatorSource.includes('applyGeminiCitations('));
 check('generator에 가짜번호 선삭제가 남아 있지 않음', !generatorSource.includes("*\\]/g, '')"));
 
