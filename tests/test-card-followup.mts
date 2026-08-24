@@ -205,6 +205,21 @@ check('ykiho를 카드 JSON에 싣지 않음', hoursSource.includes('ykiho(암�
 check('병원 세부정보는 2.8 엔드포인트', hoursSource.includes('MadmDtlInfoService2.8/getDtlInfo2.8'), true);
 check('generator가 지목된 병원만 조회', generatorSource.includes('needsHospitalHoursLookup(kind, latestUserText)'), true);
 
+// 실측(2026-08-24): 심평원 백엔드가 느려지며 200 + 빈 본문을 돌려줬는데 errMsg가 없어
+// "광진구에 해당하는 병원 정보를 찾을 수 없습니다"로 표시됐다. 장애를 부재로 보고하면 안 된다.
+for (const [file, label] of [['hospital-tool.ts', '병원'], ['pharmacy-tool.ts', '약국']] as const) {
+  const source = fs.readFileSync(new URL(`../server/agent/${file}`, import.meta.url), 'utf8');
+  check(`${label} 빈 본문을 0건이 아닌 조회 실패로 처리`, source.includes("includes('<totalCount>')"), true);
+  check(`${label} 조회 실패는 재시도 안내로 표시`, source.includes('불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'), true);
+}
+
+// 실측(2026-08-24): 심평원 B551182만 5회 중 2회 무응답(25s)·성공도 10.2~10.8초.
+// 같은 시각 약국 0.3s·동물병원 0.22s → 백엔드별 문제다. 단발 시도로는 그대로 실패한다.
+const hospitalSource = fs.readFileSync(new URL('../server/agent/hospital-tool.ts', import.meta.url), 'utf8');
+check('병원 조회는 짧게 끊고 재시도', hospitalSource.includes('attempt <= 2'), true);
+check('정상 응답(~11초)이 잘리지 않는 attempt 타임아웃', hospitalSource.includes('HOSP_ATTEMPT_TIMEOUT_MS = 13000'), true);
+check('빈 본문도 재시도 대상', hospitalSource.includes("empty body, retrying"), true);
+
 const routeSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
 check('law_qa는 중간 법률 카드를 SSE로 노출하지 않음', routeSource.includes("event.name === 'lawTool' && detectedIntent === 'law_qa'"), true);
 

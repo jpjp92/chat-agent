@@ -72,6 +72,17 @@ export const pharmacyTool = tool(
             const url = `https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${PHARM_KEY}&${new URLSearchParams(baseQs)}`;
 
             const xmlResponse = await httpsGet(url);
+            // 🔴 `<totalCount>`가 없으면 정상 응답이 아니다 — 0건이 아니라 **조회 실패**다.
+            //    병원 도구와 같은 결함이었다(2026-08-24 실측: 공공데이터 백엔드가 느려지며
+            //    200 + 빈 본문을 돌려줬다). 일시적 장애를 "그런 약국이 없다"로 보고하면 안 된다.
+            if (!xmlResponse.includes('<totalCount>')) {
+                console.warn('[PharmacyTool] API error or empty body: len=', xmlResponse.length);
+                return buildCardToolOutput('pharmacy', {
+                    query: `${sido} ${sigungu || ''} ${keyword || ''}`.trim(), checked_at: checkedAt,
+                    count: 0, pharmacies: [],
+                    notice: '약국 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                });
+            }
             let { items: allItems } = parseXmlItems(xmlResponse);
 
             // 키워드(동, 약국명 등) 필터링

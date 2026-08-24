@@ -7,15 +7,35 @@ import { buildCardToolOutput } from "./card-tool-output";
 //       (pharmacy B552657은 반대로 native fetch hang → https 모듈 사용)
 const HOSP_KEY = process.env.PHARM_KEY || '';
 
+/**
+ * 🔴 심평원(B551182) 백엔드는 간헐적으로 죽는다. 실측(2026-08-24): 같은 조회 5회 중 **2회가
+ *    25초까지 완전 무응답**이었고 성공해도 10.2~10.8초였다(같은 시각 약국 B552657은 0.3초,
+ *    동물병원 1741000은 0.22초 — 심평원만 그렇다). 단발 20초 시도로는 그대로 실패한다.
+ *    한 번에 오래 기다리는 대신 **짧게 끊고 한 번 더** 시도한다 — 정상 응답(~11초)은 통과하고,
+ *    죽은 호출은 13초에 잘라 재시도로 건진다. 최악 26초로 단발 20초보다 조금 길 뿐이다.
+ */
+const HOSP_ATTEMPT_TIMEOUT_MS = 13000;
+
 async function fetchXml(url: string): Promise<string> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-    try {
-        const res = await fetch(url, { signal: controller.signal });
-        return await res.text();
-    } finally {
-        clearTimeout(timer);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), HOSP_ATTEMPT_TIMEOUT_MS);
+        try {
+            const res = await fetch(url, { signal: controller.signal });
+            const text = await res.text();
+            // 200이어도 본문이 비어 오는 경우가 있다 — 그것도 실패로 보고 재시도한다.
+            if (text.includes('<totalCount>') || attempt === 2) return text;
+            console.warn('[HospitalTool] empty body, retrying');
+        } catch (error) {
+            lastError = error;
+            if (attempt === 2) throw error;
+            console.warn('[HospitalTool] attempt 1 failed, retrying:', (error as Error)?.name);
+        } finally {
+            clearTimeout(timer);
+        }
     }
+    throw lastError ?? new Error('hospital API unavailable');
 }
 
 function parseXmlItems(xml: string): { totalCount: number; items: any[] } {
@@ -260,9 +280,16 @@ export const hospitalTool = tool(
             const url = `https://apis.data.go.kr/B551182/hospInfoServicev2/getHospBasisList?serviceKey=${HOSP_KEY}&${new URLSearchParams(baseQs)}`;
             const xml = await fetchXml(url);
 
-            const errMatch = xml.match(/<errMsg>(.*?)<\/errMsg>/);
-            if (errMatch && !xml.includes('<totalCount>')) {
-                console.warn('[HospitalTool] API error:', errMatch[1]);
+            // 🔴 `<totalCount>`가 없으면 정상 응답이 아니다 — 0건이 아니라 **조회 실패**다.
+            //    실측(2026-08-24): 심평원 백엔드가 느려지며 200 + 빈 본문을 돌려줬고, errMsg도 없어
+            //    이 가드를 빠져나가 "광진구에 해당하는 병원 정보를 찾을 수 없습니다"로 표시됐다.
+            //    일시적 장애를 "그런 병원이 없다"로 보고하면 사용자가 잘못된 결론을 내린다.
+            // 실측(2026-08-24 09:07): 장애 시 `resultCode 99` + weblogic
+            // `ResourceLimitException: No resources ... in pool dsOpenapi` — 심평원 서버의 DB
+            // 커넥션 풀 고갈이다. 우리 키·쿼터 문제가 아니므로 원인 메시지를 그대로 남긴다.
+            const errMatch = xml.match(/<errMsg>(.*?)<\/errMsg>/) ?? xml.match(/<resultMsg>(.*?)<\/resultMsg>/);
+            if (!xml.includes('<totalCount>')) {
+                console.warn('[HospitalTool] API error or empty body:', errMatch?.[1]?.slice(0, 160) ?? `len=${xml.length}`);
                 return buildCardToolOutput('hospital', {
                     query: [sido_name, sigungu_name, dong_name, hospital_name, hospital_type].filter(Boolean).join(' '),
                     count: 0, hospitals: [], notice: '병원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
