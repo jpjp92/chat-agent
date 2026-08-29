@@ -365,7 +365,7 @@
 - [ ] `ChatInput.tsx` — `onSend` 완료 전 입력값·첨부 상태 보존
 
 ### 프롬프트 언어 혼합 (한국어 메인, 실체감 낮음)
-- [ ] `prompt.ts` — URL summary placeholder / YouTube fallback / `getPillWarnFallback` 언어별 분리
+- [ ] `prompt.ts` — URL summary placeholder / YouTube fallback 언어별 분리 (`getPillWarnFallback` 은 2026-08-29 데드코드 정리에서 제거 — 호출자가 없었다)
 - [ ] `router.ts` — intent 수 주석과 `in Seoul` stale 설명 정리
 - [ ] `generator.ts` — current time 주입 포맷 중립화 또는 언어별 locale 적용
 - [x] `prompt.ts` — renderer schema 전역 주입을 intent별 주입으로 분리 (완료: `generator.ts` 의 `getRendererSections(state.intent, langName)`)
@@ -374,7 +374,7 @@
 - [ ] `generator.ts` — non-exact 후보 안내 문구 정밀화
 - [ ] `pill-logic.ts` — 추출 shape 기준 후보 정렬 보강 (타원형·장방형 상단 배치)
 - [ ] `drug-info-tool.ts` — 약품명 기반 `mfds_pills` 로컬 1차 조회/fallback 구조
-- [ ] `app/api/pill-search/route.ts` — `searchMfdsPills()` 우선 + `searchPill()` 폴백
+- [ ] `server/agent/tools.ts` (`identify_pill`) — `searchMfdsPills()` 우선 + `searchPill()` 폴백. 🔴 대상이 바뀌었다: `app/api/pill-search/route.ts` 는 호출자가 없어 2026-08-29 에 제거됐고, 알약 식별은 에이전트 도구 경로만 남았다
 - [ ] `mfds-logic.ts` — 무각인/복수 후보 랭킹에 크기·제형·양면 색상 활용
 - [ ] `mfds_pills` — 약품명 검색 랭킹 설계 (mg 정규화, 오탐 방지)
 
@@ -440,7 +440,10 @@
   - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
   - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
 
-- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+  - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
+    ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
+    남은 6개의 계약은 그대로 미결이다. 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
   - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
   - 🟡 **실질 위험 ② 서비스 도메인 대리 요청** — 우리 IP·도메인으로 임의 사이트에 요청이 나간다. 차단당하면 우리가 막힌다
@@ -522,8 +525,9 @@
 - [ ] Chem-Viz 대형 분자 동적 스케일링
 
 ### 코드 품질
-- [ ] ESLint / Prettier 설정
-- [ ] 단위 테스트 (Vitest)
+- [x] ESLint 설정 — `eslint.config.mjs` (2026-08-17 복구, Next 16 flat config). 잔여 에러 30건 정리는 §P1-3
+- [ ] Prettier 설정 — 아직 없다
+- [ ] 단위 테스트 (Vitest) — 현재는 `tests/` 회귀 하니스 13종(`npm test`)이 대신한다. 프레임워크 도입 여부는 별건
 
 > `attachment`/`attachments` 단일화 · `ChatInput` 훅 분리는 §아키텍처 리팩토링 항목 참조 (중복 제거).
 
