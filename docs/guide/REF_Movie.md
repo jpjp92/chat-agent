@@ -36,7 +36,7 @@ Reference prompts for testing the `json:movie` renderer and the multiplex showti
 }
 ```
 
-> `region`은 사용자가 말한 지역(미지정 시 `"강남"`). `defaults`는 `lib/theaters.findDefaultBranch()`가 지역 키워드로 고른 3사 지점. CGV `code`=siteNo, 롯데 `code`=cinemaID(`Division|int(Detail)|CinemaID`), 메가박스 `code`=brchNo.
+> `region`은 사용자가 말한 지역(미지정 시 `"강남"`). `defaults`는 `lib/theaters.defaultsForRegion()`이 지역 키워드로 고른 3사 지점(해당 지역에 지점이 없는 체인은 `null`). CGV `code`=siteNo, 롯데 `code`=cinemaID(`Division|int(Detail)|CinemaID`), 메가박스 `code`=brchNo.
 
 ### 2) `GET /api/showtimes?chain=&code=&nm=` 응답 (실 상영표)
 

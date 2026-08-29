@@ -5,7 +5,7 @@
 > 트리거: reference `news` 프로젝트의 KMA+OpenWeather 하이브리드 날씨 구현 검토
 > 선행 검토·검증: [DEV_260705](../logs/2026/07/DEV_260705.md) (실험 결과·강수 파싱·언어 매핑)
 > 프리뷰: [preview/weather-card-sample.html](../../preview/weather-card-sample.html) (카드 디자인, 라이트/다크 + 4개 언어)
-> 검증 스크립트: [scripts/test-weather-hybrid.ts](../../scripts/test-weather-hybrid.ts)
+> 검증 스크립트: `scripts/test-weather-hybrid.ts`
 
 ---
 
@@ -26,7 +26,7 @@
 3. [prompt.ts:10-35](../../server/agent/prompt.ts#L10) 지시대로 LLM이 마크다운 이모지 표 **직접 생성**
 
 문제:
-- **느림** — grounding 왕복 + LLM 표 생성 15s+. [Vercel 60s 천장](../../CLAUDE.md) 압박
+- **느림** — grounding 왕복 + LLM 표 생성 15s+. `Vercel 60s 천장` 압박
 - **부정확** — 숫자를 LLM이 grounding 텍스트에서 추출 → 할루시네이션·stale
 - **비구조** — 카드 아닌 매번 재생성 마크다운 표
 
@@ -54,7 +54,7 @@ weather intent (router 분리, search:false)
 - 레퍼런스는 24개 도시 `nx/ny`를 표에 하드코딩(24개 도시 제약).
 - **`dfsXyConv(lat,lon)` LCC 공식**(~30줄, 오프라인) 채택 → 표 폐기 + **전국 커버**.
 - 파이프라인: `도시명 → OpenWeather geocoding(lat/lon) → dfsXyConv → nx/ny → KMA`.
-- **✅ 검증**: 공식 결과가 레퍼런스 하드코딩값과 정확 일치(서울 60,127·부산 98,76). ([DEV_260705 §4](../logs/2026/07/DEV_260705.md), [test-weather-hybrid.ts](../../scripts/test-weather-hybrid.ts))
+- **✅ 검증**: 공식 결과가 레퍼런스 하드코딩값과 정확 일치(서울 60,127·부산 98,76). ([DEV_260705 §4](../logs/2026/07/DEV_260705.md), `scripts/test-weather-hybrid.ts`)
 - **육상예보(`getLandFcst`) 생략** — `shortRegId`/`stnId`는 공식 없음(코드표 파일만). notes는 규칙기반으로 충분 + KMA 호출 3→2종(33%↓).
 
 ### 3-2. 강수: 현재 우선 + 예보 fallback + PCP 파싱 강화
@@ -128,7 +128,7 @@ weather intent (router 분리, search:false)
 ## 7. 참조
 
 - 검토·검증 로그: [DEV_260705](../logs/2026/07/DEV_260705.md)
-- 검증 스크립트: [scripts/test-weather-hybrid.ts](../../scripts/test-weather-hybrid.ts)
+- 검증 스크립트: `scripts/test-weather-hybrid.ts`
 - 카드 프리뷰: [preview/weather-card-sample.html](../../preview/weather-card-sample.html)
 - 레퍼런스 구현: [reference/news/app/api/weather/route.ts](../../reference/news/app/api/weather/route.ts)
 - TODO 항목: [TODO.md §P3 ⓪](../TODO.md)

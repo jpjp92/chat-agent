@@ -1,7 +1,7 @@
 # PLAN: theater-branches.json 데이터 관리 정비
 
 > 작성일: 2026-06-27
-> 관련: [REF_Movie.md](../guide/REF_Movie.md), [lib/theaters.ts](../../lib/theaters.ts), [scripts/test-branch-list.mjs](../../scripts/test-branch-list.mjs)
+> 관련: [REF_Movie.md](../guide/REF_Movie.md), [lib/theaters.ts](../../lib/theaters.ts), `scripts/test-branch-list.mjs`
 
 ---
 
@@ -39,7 +39,7 @@ DB가 정당한 3조건(① 재배포 없이 갱신 ② 대용량 ③ 다중 서
 
 ### ① 생성 스크립트가 `data/`에 직접 쓰기 (원자적 + sanity 게이트)
 
-[scripts/test-branch-list.mjs](../../scripts/test-branch-list.mjs):
+`scripts/test-branch-list.mjs`:
 - 출력 대상을 `data/theater-branches.json`으로 변경. **임시 파일에 쓰고 검증 통과 시 rename**(부분 실패가 기존 정상 데이터를 덮지 않게).
 - **sanity 게이트**: 스크랩 결과가 임계치 미만이면 **쓰지 않고 exit 1**.
   - 기준(현재 177/239/116 대비 ~-15% 허용): `cgv ≥ 150`, `lotte ≥ 200`, `mega ≥ 100`.

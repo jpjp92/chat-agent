@@ -179,7 +179,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const t = i18n[language] || i18n.ko;
 
-  const attachment = message.attachment || message.image;
+  const attachment = message.attachment;
 
   useEffect(() => {
     return () => {
@@ -459,9 +459,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       );
     }
 
-    // Fallback to legacy single attachment
-    const single = message.attachment || message.image;
-    return renderSingleAttachment(single);
+    // 단일 첨부(attachments 배열 이전 형태)
+    return renderSingleAttachment(message.attachment);
   };
 
   const renderContent = (content: string) => {

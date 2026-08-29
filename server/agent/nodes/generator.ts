@@ -43,8 +43,6 @@ export const SDK_CALL_TIMEOUT_MS = 25_000;
 //    돌리면 57 이 곧바로 새 병목이 된다 — 6.5MB PDF 실측 최대가 54.9s 라 **여유가 2s 뿐**이었다.
 //    90s 로 잡으면 실측 최대의 1.6배이고, 강등 재시도까지 90×2=180s < 300s 로 예산 안에 든다.
 export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 90_000;
-/** @deprecated 이름이 대상을 좁게 말한다 — HEAVY_MEDIA_CALL_TIMEOUT_MS 를 쓸 것. */
-export const YOUTUBE_CALL_TIMEOUT_MS = HEAVY_MEDIA_CALL_TIMEOUT_MS;
 
 /**
  * Generator Node

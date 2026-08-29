@@ -133,7 +133,7 @@ create policy "own messages" on public.chat_messages
 
 - 업로드 경로에 **유저 prefix 강제**: `${user.id}/${timestamp}_${safeName}` (chat-imgs/chat-videos/chat-docs 3버킷 공통) → IDOR-3 근본 해소(경로 자체가 소유권).
 - `storage.objects` policy: `(storage.foldername(name))[1] = (select auth.uid())::text` 기준, **`TO authenticated`** 명시.
-- 🔴 **upsert는 INSERT + SELECT + UPDATE 3개 정책 모두 필요** — [upload/route.ts](../../app/api/upload/route.ts)가 `upsert: true`로 업로드하는데, INSERT만 걸면 신규 업로드는 되지만 **덮어쓰기가 조용히 실패**(에러 없이 0행). 여기에 삭제 정리를 위한 DELETE까지 = 사실상 4개 verb 정책. (단 아래처럼 서버가 admin 클라로 처리하면 이 정책들은 방어적 심층 방어 역할.)
+- 🔴 **upsert는 INSERT + SELECT + UPDATE 3개 정책 모두 필요** — `upload/route.ts`가 `upsert: true`로 업로드하는데, INSERT만 걸면 신규 업로드는 되지만 **덮어쓰기가 조용히 실패**(에러 없이 0행). 여기에 삭제 정리를 위한 DELETE까지 = 사실상 4개 verb 정책. (단 아래처럼 서버가 admin 클라로 처리하면 이 정책들은 방어적 심층 방어 역할.)
 - 단, 서버 라우트(upload/create-signed-url)는 admin 클라이언트를 유지하되 **세션에서 얻은 `user.id`로 prefix를 서버가 조립**(클라 지정 불가). admin은 RLS를 우회하므로 위 storage 정책은 클라 직접 접근 대비 심층 방어.
 
 ## 5. 게스트 · 계정 전환 플로우

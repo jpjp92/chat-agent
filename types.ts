@@ -36,8 +36,6 @@ export interface Message {
   sourceType?: SourceType;
   groundingSources?: GroundingSource[];
   isCutOff?: boolean;
-  // 하위 호환성을 위해 image 필드 유지
-  image?: MessageAttachment;
 }
 
 export interface ChatSession {

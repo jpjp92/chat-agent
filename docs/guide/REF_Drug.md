@@ -75,7 +75,7 @@ Current runtime usage:
 
 - Strongly used: image-based visual identification.
 - Underused: text-based drug info lookup (`search_drug_info`) still calls the MFDS Open API directly.
-- Underused: `/api/pill-search` still uses the legacy `searchPill()` path only.
+- `/api/pill-search` was removed on 2026-08-29 (no caller). `searchPill()` remains, reached only through the agent tool in `server/agent/tools.ts`.
 
 DB audit snapshot (2026-06-04):
 

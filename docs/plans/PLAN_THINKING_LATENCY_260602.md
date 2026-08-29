@@ -39,14 +39,14 @@
 
 ## 3. 측정 결과
 
-### 3-1. 3.5 grounding 동작 / 과금 ([test-grounding-35-tier1.ts](../../scripts/test-grounding-35-tier1.ts))
+### 3-1. 3.5 grounding 동작 / 과금 (`scripts/test-grounding-35-tier1.ts`)
 
 - ✅ **Tier1 키로 3.5 + grounding 정상 동작** — 날씨·주가 실시간 데이터 + 출처(weather.go.kr, yna.co.kr 등) 정상.
 - ✅ **무료키는 204ms 만에 429** → 무료티어 3.5 grounding 차단 = two-track의 전제 확인.
 - 💰 **과금 구조**: `groundingMetadata` 존재 = "grounded 요청"으로 과금. 토큰 과금 + grounded 요청 건당 과금(별도). **내부 webSearchQueries 개수와 무관, 1 generateContent = 1 grounded 요청.**
 - 현재 운영이 무료였던 이유: **무료키 12개 로테이션 + 2.5 grounding(무료티어 허용)**. "SDK라서 무료"가 아니라 "무료티어 2.5를 12키로 돌려 무료 유지".
 
-### 3-2. 투트랙 vs 단일패스 속도 ([test-grounding-latency-compare.ts](../../scripts/test-grounding-latency-compare.ts))
+### 3-2. 투트랙 vs 단일패스 속도 (`scripts/test-grounding-latency-compare.ts`)
 
 생성 구간만(라우터 제외), ms:
 
@@ -59,7 +59,7 @@
 - **Stage2(3.5 minimal)는 1.4~2.0초뿐** → "Stage2가 주범" 가설 기각.
 - 진짜 병목 = ① **grounding 검색 라운드트립(~4~4.5초, 콜 수와 무관한 바닥비용)** + ② **thinking 토큰**(low면 주가 thoughts 831 → +6초 폭증).
 
-### 3-3. minimal vs low 응답 품질 ([test-thinking-minimal-vs-low.ts](../../scripts/test-thinking-minimal-vs-low.ts))
+### 3-3. minimal vs low 응답 품질 (`scripts/test-thinking-minimal-vs-low.ts`)
 
 | 유형 | 쿼리 | low | minimal | 판정 |
 |---|---|---|---|---|
@@ -69,7 +69,7 @@
 
 - **검색·개념설명·최신정보 전반에서 minimal이 low와 동급 이상.** MoE에서 low가 thinking 1,409토큰을 쓰고도 품질 우위 없음 → thinking = 이 유형들에선 순수 낭비(지연+비용).
 
-### 3-4. 렌더러 JSON 무결성 ([test-json-minimal-vs-low.ts](../../scripts/test-json-minimal-vs-low.ts))
+### 3-4. 렌더러 JSON 무결성 (`scripts/test-json-minimal-vs-low.ts`)
 
 실제 production 프롬프트(`getSystemInstruction`) + intent hint 사용, googleSearch off, 3.5:
 
@@ -106,18 +106,18 @@
 > - **결론: thinking 레벨 관점에서 지금 안전하게 바꿀 곳은 없다.** (검색=이미 minimal / 396 low=미검증 코드·추론 영역)
 
 1. **[1순위 ✅ 적용완료 2026-06-02] Stage1(2.5 grounding) thinking → `thinkingBudget: 0`** — [generator.ts:421](../../server/agent/nodes/generator.ts#L421)·[458](../../server/agent/nodes/generator.ts#L458)·[584](../../server/agent/nodes/generator.ts#L584) 3곳 적용. `thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 }` (이전: 비-medical은 thinkingConfig 미지정=dynamic).
-   - **검증** ([test-stage1-thinking-budget.ts](../../scripts/test-stage1-thinking-budget.ts), 날씨·주가·뉴스 × dynamic/0/512):
+   - **검증** (`scripts/test-stage1-thinking-budget.ts`, 날씨·주가·뉴스 × dynamic/0/512):
      - budget0이 **평균 8,536ms → 4,470ms (~48% 단축)**, 3쿼리 전부 일관.
      - **grounding 품질 저하 없음**: 출처 수 동등(평균 4=4), 숫자 데이터 budget0이 오히려 많음(17 vs 12), 텍스트 동등/더 최신.
    - **추가 발견**: 실제 production 시스템 프롬프트(~41KB)가 dynamic thinking을 폭증시킴(thoughts 147→879, 4.2s→8.5s). 초안의 "Stage1 ~4초" 추정은 프롬프트 누락 탓 과소평가였고, **실 production Stage1은 ~8.5s**. budget0은 프롬프트 크기와 무관하게 thoughts=0.
    - **적용 범위**: 비-medical Stage1 한정. medical_qa Stage1은 budget 3000 의도적 유지. Stage1 빈응답 재시도([454](../../server/agent/nodes/generator.ts#L454))·폴백([578](../../server/agent/nodes/generator.ts#L578))도 동일 변경 대상.
    - budget512는 어정쩡(7,079ms, thoughts 558 잔존) → **budget0 채택 권장**.
-   - **스트레스 검증** ([test-stage1-budget0-stress.ts](../../scripts/test-stage1-budget0-stress.ts), 순위표·비교·시계열·스포츠순위·정밀단일·다중홉 × dynamic/budget0):
+   - **스트레스 검증** (`scripts/test-stage1-budget0-stress.ts`, 순위표·비교·시계열·스포츠순위·정밀단일·다중홉 × dynamic/budget0):
      - **빈응답 0/6**, 평균 9,312ms → 4,745ms(~49% 단축), 출처 동등(5=5).
      - 6개 중 **5개에서 budget0 동등~우수** (시총표 컬럼 추가, EPL은 budget0만 완전한 순위표 생성, 다중홉은 dynamic이 thinking 2549토큰 쓰고 **자기모순** → budget0가 더 정확).
      - 유일한 약점: "이번 주 흐름 정리"류 **장문 요약에서 budget0가 덜 상세**(그래도 정확). Stage1은 Stage2 입력이라 비치명적.
      - 결론: **까다로운 grounding(순위 완전성·비교·표 생성)도 budget0로 충분히 처리됨. thinking이 grounding을 항상 돕지 않으며 때론 해침.**
-   - **적용 후 e2e 회귀검증** ([test-generator-budget0-e2e.ts](../../scripts/test-generator-budget0-e2e.ts), 실제 generator 노드 직접 호출 = 3.5→두-트랙 경로):
+   - **적용 후 e2e 회귀검증** (`scripts/test-generator-budget0-e2e.ts`, 실제 generator 노드 직접 호출 = 3.5→두-트랙 경로):
      - 날씨·주가·뉴스(general) + 타이레놀(medical_qa) **4/4 정상, 빈응답 0**. 출처 수집(1/4/6/15), 표 생성·medical 상세(15출처/1672자) 전부 무손실.
      - medical_qa는 budget3000 경로 유지 확인(최다 출처·최장 응답). **적용이 두-트랙을 깨지 않음을 확인.**
      - ⚠️ 절대 latency(콜드 tsx + free-tier 두-트랙 2콜)는 production warm 기준 아님 — budget0 속도이득은 위 격리 측정(~48%)이 정확한 신호.
@@ -132,13 +132,13 @@
 
 | 스크립트 | 검증 내용 |
 |---|---|
-| [scripts/test-grounding-35-tier1.ts](../../scripts/test-grounding-35-tier1.ts) | 3.5 grounding 동작 + 과금 신호 + 무료키 대조 |
-| [scripts/test-grounding-latency-compare.ts](../../scripts/test-grounding-latency-compare.ts) | 투트랙 vs 단일패스 속도 |
-| [scripts/test-thinking-minimal-vs-low.ts](../../scripts/test-thinking-minimal-vs-low.ts) | minimal vs low 응답 품질 |
-| [scripts/test-json-minimal-vs-low.ts](../../scripts/test-json-minimal-vs-low.ts) | 렌더러 JSON 무결성 |
-| [scripts/test-stage1-thinking-budget.ts](../../scripts/test-stage1-thinking-budget.ts) | Stage1 thinking budget(dynamic/0/512) 속도·grounding 품질 |
-| [scripts/test-stage1-budget0-stress.ts](../../scripts/test-stage1-budget0-stress.ts) | Stage1 budget0 스트레스(순위·비교·시계열·다중홉) 처리 충분성 |
-| [scripts/test-generator-budget0-e2e.ts](../../scripts/test-generator-budget0-e2e.ts) | **적용 후** generator 노드 직접 호출 e2e 무손실 회귀(general+medical) |
+| `scripts/test-grounding-35-tier1.ts` | 3.5 grounding 동작 + 과금 신호 + 무료키 대조 |
+| `scripts/test-grounding-latency-compare.ts` | 투트랙 vs 단일패스 속도 |
+| `scripts/test-thinking-minimal-vs-low.ts` | minimal vs low 응답 품질 |
+| `scripts/test-json-minimal-vs-low.ts` | 렌더러 JSON 무결성 |
+| `scripts/test-stage1-thinking-budget.ts` | Stage1 thinking budget(dynamic/0/512) 속도·grounding 품질 |
+| `scripts/test-stage1-budget0-stress.ts` | Stage1 budget0 스트레스(순위·비교·시계열·다중홉) 처리 충분성 |
+| `scripts/test-generator-budget0-e2e.ts` | **적용 후** generator 노드 직접 호출 e2e 무손실 회귀(general+medical) |
 
 실행: `npx tsx scripts/<파일명>.ts` (⚠️ grounding 호출 발생)
 - e2e는 generator.ts가 `server-only`를 import하므로 shim 필요: `npx tsx --import ./scripts/_loader-server-only-shim.mjs scripts/test-generator-budget0-e2e.ts`

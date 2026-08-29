@@ -201,7 +201,7 @@ prev="오늘 AI 뉴스 알려줘" → classifySearchNeed=on   → prevSearched=t
 
 문제는 **왜 아무도 몰랐나**다:
 
-- `test-search-rules.mjs`는 정규식을 **프로덕션에서 import하지 않고 파일 상단에 복사**해 두고 있다([L15-40](../../scripts/test-search-rules.mjs#L15-L40)).
+- `test-search-rules.mjs`는 정규식을 **프로덕션에서 import하지 않고 파일 상단에 복사**해 두고 있다(`scripts/test-search-rules.mjs#L15-L40`).
   → 프로덕션이 바뀌어도 **프로토타입은 그대로 22/22 초록**. 실제로 지금도 초록이다.
 - 드리프트를 잡으라고 만든 `verify-intentrules-search.mts`는 RED가 됐지만, **CI에 물려 있지 않아** 아무도 보지 않았다.
 

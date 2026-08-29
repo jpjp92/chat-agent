@@ -167,11 +167,6 @@ export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, cont
   }
 };
 
-export const fetchUrlContent = async (url: string): Promise<string> => {
-   const data = await fetchUrlData(url);
-   if (!data.content || data.content.startsWith('[FETCH_ERROR')) return '';
-   return data.content;
-};
 
 
 function decodeBase64(base64: string): Uint8Array {

@@ -3,7 +3,7 @@ import mammoth from "mammoth";
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
-import { CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, type ChatModelId } from '../src/lib/models';
+import { CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, pickLabel, type ChatModelId } from '../src/lib/models';
 import { authedFetch } from '../services/geminiService';
 
 interface ChatInputProps {
@@ -111,14 +111,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
 
   const t = i18n[language] || i18n.ko;
 
-  // 모델 i18n — Header에서 이동(라벨은 4개 언어 공통, 설명만 번역). 드롭다운은 입력창 우측에 통합.
-  const modelI18n: Record<string, Record<string, string>> = {
-    ko: { modelSectionGemini: "Google Gemini", modelSectionOpenAI: "OpenAI", modelSectionLegacy: "이전 모델", model37Flash: "Gemini 3.7 Flash", model37FlashDesc: "최신 Gemini Flash", model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "빠르고 안정적인 기본 모델", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "균형 잡힌 이전 세대 모델", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "빠르고 균형 잡힌 응답", modelGpt54Mini: "GPT-5.4 mini", modelGpt54MiniDesc: "빠르고 효율적인 OpenAI 모델", modelGpt56Luna: "GPT-5.6 luna", modelGpt56LunaDesc: "균형 잡힌 OpenAI 모델" },
-    en: { modelSectionGemini: "Google Gemini", modelSectionOpenAI: "OpenAI", modelSectionLegacy: "Previous models", model37Flash: "Gemini 3.7 Flash", model37FlashDesc: "Latest Gemini Flash", model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "Fast, stable default", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Balanced previous-generation model", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Fast & balanced", modelGpt54Mini: "GPT-5.4 mini", modelGpt54MiniDesc: "Fast, efficient OpenAI model", modelGpt56Luna: "GPT-5.6 luna", modelGpt56LunaDesc: "Balanced OpenAI model" },
-    es: { modelSectionGemini: "Google Gemini", modelSectionOpenAI: "OpenAI", modelSectionLegacy: "Modelos anteriores", model37Flash: "Gemini 3.7 Flash", model37FlashDesc: "El Gemini Flash más reciente", model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "Modelo predeterminado rápido y estable", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Modelo equilibrado de generación anterior", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rápido y equilibrado", modelGpt54Mini: "GPT-5.4 mini", modelGpt54MiniDesc: "Modelo OpenAI rápido y eficiente", modelGpt56Luna: "GPT-5.6 luna", modelGpt56LunaDesc: "Modelo OpenAI equilibrado" },
-    fr: { modelSectionGemini: "Google Gemini", modelSectionOpenAI: "OpenAI", modelSectionLegacy: "Modèles précédents", model37Flash: "Gemini 3.7 Flash", model37FlashDesc: "Le dernier Gemini Flash", model36Flash: "Gemini 3.6 Flash", model36FlashDesc: "Modèle rapide et stable par défaut", model35Flash: "Gemini 3.5 Flash", model35FlashDesc: "Modèle équilibré de génération précédente", model25Flash: "Gemini 2.5 Flash", model25FlashDesc: "Rapide et équilibré", modelGpt54Mini: "GPT-5.4 mini", modelGpt54MiniDesc: "Modèle OpenAI rapide et efficace", modelGpt56Luna: "GPT-5.6 luna", modelGpt56LunaDesc: "Modèle OpenAI équilibré" },
-  };
-  const mt = modelI18n[language] || modelI18n.ko;
   const selectedModelOption = CHAT_MODEL_OPTIONS.find(o => o.id === selectedModel) ?? CHAT_MODEL_OPTIONS[0];
 
   const adjustHeight = () => {
@@ -658,7 +650,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                 onClick={() => setIsModelMenuOpen(prev => !prev)}
                 className="flex items-center gap-1 pl-2.5 pr-2 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
-                <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{mt[selectedModelOption.labelKey]}</span>
+                <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{pickLabel(selectedModelOption.label, language)}</span>
                 <i className={`fa-solid fa-chevron-down text-[10px] text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
               </button>
               {isModelMenuOpen && (
@@ -667,13 +659,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
                     <div key={section.id} className={sectionIndex > 0 ? 'border-t border-slate-100 dark:border-white/10' : ''}>
                       <div className={`px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] flex items-center gap-1.5 ${section.id === 'gemini' ? 'text-indigo-500/75 dark:text-indigo-300/65' : section.id === 'openai' ? 'text-emerald-600/75 dark:text-emerald-300/65' : 'text-slate-400 dark:text-white/35'}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${section.id === 'gemini' ? 'bg-indigo-400/80' : section.id === 'openai' ? 'bg-emerald-400/80' : 'bg-slate-300/80 dark:bg-slate-500/70'}`} />
-                        {mt[section.labelKey]}
+                        {pickLabel(section.label, language)}
                       </div>
                       {CHAT_MODEL_OPTIONS.filter(option => option.section === section.id).map(option => (
                         <button type="button" key={option.id} onClick={() => { onModelChange(option.id); setIsModelMenuOpen(false); }} className={`w-full px-4 py-2.5 flex justify-between items-center gap-3 text-left transition-colors ${section.id === 'gemini' ? 'hover:bg-indigo-50/60 dark:hover:bg-indigo-400/5' : section.id === 'openai' ? 'hover:bg-emerald-50/60 dark:hover:bg-emerald-400/5' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}>
                           <span className="min-w-0">
-                            <span className="block font-semibold text-sm text-slate-800 dark:text-white/90">{mt[option.labelKey]}</span>
-                            <span className="block text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{mt[option.descriptionKey]}</span>
+                            <span className="block font-semibold text-sm text-slate-800 dark:text-white/90">{pickLabel(option.label, language)}</span>
+                            <span className="block text-[10px] sm:text-xs font-medium text-slate-500 dark:text-white/40 mt-0.5 tracking-wide">{pickLabel(option.description, language)}</span>
                           </span>
                           {selectedModel === option.id && <i className={`fa-solid fa-check shrink-0 ${section.id === 'gemini' ? 'text-indigo-500 dark:text-indigo-300' : section.id === 'openai' ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-300'}`}></i>}
                         </button>

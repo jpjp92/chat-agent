@@ -21,10 +21,6 @@ export function setChainShowtimes(chainKey: string, data: MovieCtxChain | null):
   store[chainKey] = data;
 }
 
-/** 현재 표시 중인 카드 데이터가 있는지 */
-export function hasMovieContext(): boolean {
-  return Object.keys(store).length > 0;
-}
 
 /**
  * LLM에 주입할 컴팩트 텍스트. 화면에 없으면 빈 문자열.
@@ -49,7 +45,3 @@ export function getMovieContextText(): string {
   return `[현재 화면에 표시된 영화 상영시간표 — 오늘 기준, 사용자가 보고 있는 카드 데이터]\n${lines.join('\n')}`;
 }
 
-/** 세션 전환 등으로 카드가 더 이상 유효하지 않을 때 */
-export function clearMovieContext(): void {
-  for (const k of Object.keys(store)) delete store[k];
-}

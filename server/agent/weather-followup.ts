@@ -124,8 +124,6 @@ export const detectCityMention = (text: string, shownCities: string[] = []): Cit
     return "none";
 };
 
-/** @deprecated detectCityMention을 쓸 것 — 하위 호환용 */
-export const mentionsCityWeather = (text: string): boolean => detectCityMention(text) !== "none";
 
 export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollowupResult => {
     const { text, intentIsWeather, llmFollowUp, useLlm = true, shownCities = [] } = input;

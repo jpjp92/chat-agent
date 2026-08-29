@@ -2,22 +2,6 @@
  * Celestial coordinate transformation utilities for constellation visualization
  */
 
-/**
- * Convert Right Ascension (hours) and Declination (degrees) to 3D Cartesian coordinates
- * @param ra Right Ascension in hours (0-24)
- * @param dec Declination in degrees (-90 to 90)
- * @returns [x, y, z] coordinates on unit sphere
- */
-export function sphericalToCartesian(ra: number, dec: number): [number, number, number] {
-    const raRad = ra * (Math.PI / 12);  // Convert hours to radians
-    const decRad = dec * (Math.PI / 180);  // Convert degrees to radians
-
-    return [
-        Math.cos(decRad) * Math.cos(raRad),
-        Math.cos(decRad) * Math.sin(raRad),
-        Math.sin(decRad)
-    ];
-}
 
 /**
  * Project celestial coordinates directly to 2D canvas

@@ -71,14 +71,6 @@ const REGION_ALIASES: Record<string, string[]> = {
   '영등포역': ['영등포'],
 };
 
-/**
- * 지역 키워드(예: "강남", "홍대", "노원")로 체인별 최적 지점을 찾음.
- * 1) 지점명에 키워드 포함(부분일치) → 질의로 시작하는 지점 우선, 그 다음 짧은 이름 우선
- * 2) 실패 시 강남 기본값으로 폴백.
- */
-export function findDefaultBranch(chain: ChainKey, region?: string): Branch {
-  return resolveBranch(chain, region).branch;
-}
 
 /**
  * 매칭 결과를 **성공 여부와 함께** 반환한다.

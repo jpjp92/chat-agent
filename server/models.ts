@@ -15,7 +15,6 @@ export const SERVER_MODELS = {
     GPT_5_6_LUNA: "gpt-5.6-luna",
 } as const;
 
-export type ServerModelId = typeof SERVER_MODELS[keyof typeof SERVER_MODELS];
 export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA;
 
 // 기본 모델 = 3.6 (Phase A 실그래프 검증 통과, DEV_260723 §11). 3.5·2.5 는 옵션으로 유지.

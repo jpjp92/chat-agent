@@ -319,7 +319,7 @@ weatherCardShown 일 때:
 
 ### 8-1. 무엇을 갈랐나
 
-[prompt.ts](../../server/agent/prompt.ts)의 렌더러 JSON 스펙 7종(chart·smiles·bio·diagram·constellation·drug·weather)을 base에서 떼어 `RENDERER_SECTIONS`로 옮기고, `INTENT_RENDERERS`가 의도별로 필요한 것만 고른다. 조립 순서는 **base → 렌더러 스펙 → 의도 힌트**(`composeInstruction`) — base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다.
+[prompt.ts](../../server/agent/prompt.ts)의 렌더러 JSON 스펙 7종(chart·smiles·bio·diagram·constellation·drug·weather)을 base에서 떼어 `RENDERER_SECTIONS`로 옮기고, `INTENT_RENDERERS`가 의도별로 필요한 것만 고른다. 조립 순서는 **base → 렌더러 스펙 → 의도 힌트** — base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다. (작성 당시엔 `composeInstruction` 한 함수가 셋을 합쳤다. 2026-08-29 데드코드 정리에서 이 래퍼는 제거됐고, 현재는 route.ts 의 `getSystemInstruction` + generator.ts 의 `getRendererSections`·`getIntentFocusHint` 로 나뉘어 같은 순서를 만든다 — [DEV_260829_DEADCODE](../logs/2026/08/DEV_260829_DEADCODE.md))
 
 | intent | 주입되는 스펙 | intent | 주입되는 스펙 |
 |---|---|---|---|

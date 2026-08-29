@@ -15,7 +15,6 @@ export type LangCode = 'ko' | 'en' | 'es' | 'fr';
 /** 프롬프트·렌더러 스펙에서 쓰는 표시 이름 (Gemini 프롬프트에 그대로 들어간다) */
 export type LangName = 'Korean' | 'English' | 'Spanish' | 'French';
 
-export const DEFAULT_LANG_CODE: LangCode = 'ko';
 export const DEFAULT_LANG_NAME: LangName = 'Korean';
 
 const CODE_TO_NAME: Record<LangCode, LangName> = {

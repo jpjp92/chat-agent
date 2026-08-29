@@ -141,7 +141,7 @@
 | 1 | **Phase 2: general `low → minimal`** | [generation-config.ts](../../server/agent/nodes/generation-config.ts) `resolveThinkingConfig` 3.5 분기 전체 minimal 통합 (RENDERER_INTENTS 상수 제거) | ✅ 적용 + tsc 0 |
 | 2 | **Stage2 503/429 분리** | [generator.ts](../../server/agent/nodes/generator.ts) Stage2 catch | ✅ 적용 + tsc 0 |
 
-**#1 근거** — 비검색 코드·수학·추론 5케이스 측정([scripts/test-low-vs-minimal-reasoning.ts](../../scripts/test-low-vs-minimal-reasoning.ts), prod 프롬프트, search OFF, 2런):
+**#1 근거** — 비검색 코드·수학·추론 5케이스 측정(`scripts/test-low-vs-minimal-reasoning.ts`, prod 프롬프트, search OFF, 2런):
 
 | 케이스 | low | minimal | 단축 | 정답 |
 |---|---|---|---|---|
@@ -245,5 +245,5 @@
 - [utils/streamingMarkdown.ts](../../utils/streamingMarkdown.ts) `gateStreamingTables(text, isStreaming)` — 꼬리의 미완성 표(연속 `|`행, 빈 줄 미마감) 제거. `isStreaming=false`면 원본 그대로(no-op).
 - [ChatMessage.tsx](../../components/ChatMessage.tsx): `isStreaming` prop 추가, `renderContent`의 remaining 텍스트에 게이트 적용(기존 bold/코드펜스/viz 보정과 동일 위치).
 - [ChatArea.tsx](../../components/ChatArea.tsx): `isStreaming = isTyping && 마지막 메시지 && role===MODEL` 전달.
-- 검증: [scripts/test-table-streaming.ts](../../scripts/test-table-streaming.ts) (`npx tsx`) — 동일 파서 스택으로 **RAW 14프레임(BROKEN 5+PARTIAL 9) → GATED 0** 확인. tsc 0.
+- 검증: `scripts/test-table-streaming.ts` (`npx tsx`) — 동일 파서 스택으로 **RAW 14프레임(BROKEN 5+PARTIAL 9) → GATED 0** 확인. tsc 0.
 - 남은 폴리시(선택): 표 숨김 구간(서브초)엔 로딩 표시 없음(현 타이핑 닷은 마지막이 USER일 때만). 코드펜스는 기존 "append ``` " 방식 유지(별도). 표 외 블록 게이팅은 추후.

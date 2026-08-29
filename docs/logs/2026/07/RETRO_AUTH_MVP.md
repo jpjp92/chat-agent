@@ -69,7 +69,7 @@ localStorage 닉네임 + `service_role` 전권 구조를 걷어내고 **Supabase
 
 ## 5. 미결 항목 (백로그)
 
-- **프로덕션 이관** — SQL 3종 적용 · 대시보드 3종 토글(Anonymous / Manual Linking / Google) · Google Cloud 운영 콜백 URI + JS 원본 · Supabase Redirect URLs. → [PLAN_AUTH_PROD_ROLLOUT_260719](../../plans/PLAN_AUTH_PROD_ROLLOUT_260719.md) 로 이어짐.
+- **프로덕션 이관** — SQL 3종 적용 · 대시보드 3종 토글(Anonymous / Manual Linking / Google) · Google Cloud 운영 콜백 URI + JS 원본 · Supabase Redirect URLs. → [PLAN_AUTH_PROD_ROLLOUT_260719](../../../plans/PLAN_AUTH_PROD_ROLLOUT_260719.md) 로 이어짐.
 - **IDOR-3 (Storage)** — `upload`/`create-signed-url`/`parse-document` 는 아직 admin 클라이언트 + 형식 검증뿐. 근본해결 = 유저별 prefix `${user.id}/...` + RLS. **미해결.**
 - **테스트 스크립트 가드** — `STG_SUPABASE_URL === SUPABASE_URL` 상대 비교 가드가 스테이징=dev DB 승격 시 오탐. 더 나은 가드 = 대상이 프로덕션 ref(`gaomgqnpsjtabrvwnpad`) 아님을 절대 확인. (PLAN_AUTH_DEV_ROLLOUT §3)
 - **동의 화면** — 앱 이름 대신 `*.supabase.co` 표시. Custom Domain(유료) 외 방법 없음. 보류.

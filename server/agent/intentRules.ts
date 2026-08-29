@@ -255,8 +255,6 @@ export const classifySearchNeed = (text: string): SearchDecision => evalSearchNe
 /** follow-up 가공형(요약·정리·비교·방금 등) 참조 여부 */
 export const isFollowupReference = (text: string): boolean => FOLLOWUP_REF_PATTERN.test(text);
 
-/** 과거참조("최근 검색한", "방금 알려준") 여부 — temporal ON이라도 새 최신요구가 아님을 구분 */
-export const isPastReference = (text: string): boolean => PAST_REF_PATTERN.test(text);
 
 // ============================================================
 // 명시적 검색 요청 탐지 — 단일 출처 (기획 PLAN_SEARCH_POLICY_260815 §2)

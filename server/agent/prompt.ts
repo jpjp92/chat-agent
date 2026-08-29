@@ -452,14 +452,6 @@ When the above conditions are met, you MUST adhere to the following logic:
 - THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
 };
 
-export const getPillWarnFallback = () => `
-[PILL_DB_LOOKUP_FAILED]
-약학정보원 DB 조회가 실패했습니다.
-이 경우 반드시 다음 지침을 따르세요:
-1. 어떤 약품명도 단언하거나 추측해서는 안 됩니다.
-2. 이미지에서 보이는 색상, 모양, 각인 등 시각적 특성만 설명하세요.
-3. "정확한 식별을 위해 약사 또는 의사에게 문의하거나, 약학정보원(www.pharm.or.kr)에서 직접 검색하세요"라고 안내하세요.
-4. 절대로 json:drug 블록을 생성해서는 안 됩니다.`;
 
 import type { IntentType } from "./state";
 
@@ -502,15 +494,6 @@ export const getRendererSections = (intent: IntentType, langName: LangName = DEF
         .join('\n\n');
 };
 
-/**
- * base + 렌더러 스펙 + 의도 힌트를 프로덕션과 동일한 순서로 합친다.
- * generator와 테스트 스크립트가 같은 함수를 쓰게 해 "테스트만 다른 프롬프트" 상황을 막는다.
- */
-export const composeInstruction = (langName: LangName, intent: IntentType): string => {
-    const sections = getRendererSections(intent, langName);
-    const hint = getIntentFocusHint(intent);
-    return [getSystemInstruction(langName), sections, hint].filter(Boolean).join('\n\n');
-};
 
 /**
  * Intent → additional prompt section hints.

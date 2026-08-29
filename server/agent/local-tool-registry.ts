@@ -166,5 +166,3 @@ const byIntent = new Map(tools.map(tool => [tool.intent, tool]));
 
 export const getLocalFunctionTool = (intent: string | undefined): LocalFunctionTool | undefined =>
     intent ? byIntent.get(intent) : undefined;
-
-export const LOCAL_FUNCTION_TOOL_INTENTS = Object.freeze(tools.map(tool => tool.intent));

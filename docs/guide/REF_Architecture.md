@@ -224,7 +224,7 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 
 ### 의도별 렌더러 스펙 주입
 
-`server/agent/prompt.ts` 는 시스템 인스트럭션을 **base + 의도별 조각**으로 조립한다(`composeInstruction(langName, intent)`).
+`server/agent/prompt.ts` 는 시스템 인스트럭션을 **base + 의도별 조각**으로 조립한다. 조립은 한 함수가 아니라 **두 지점에 나뉘어** 있다 — base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langName)` 으로 만들어 그래프 상태에 싣고, 렌더러 스펙(`getRendererSections`)과 의도 힌트(`getIntentFocusHint`)는 의도가 확정된 뒤 [generator.ts](../../server/agent/nodes/generator.ts) 가 붙인다. 순서는 **base → 렌더러 스펙 → 의도 힌트** 로 동일하다(base 선두 고정 = 암묵 캐싱 프리픽스 유지).
 
 - 예전엔 렌더러 스펙 전부가 base 에 상주해 모든 턴에 주입됐다. **비용 문제가 아니라 문맥 오염 문제**였다 — base 의 `[WEATHER FORMATTING]`("날씨 정보엔 ALWAYS 5일 표")이 날씨와 무관한 `general` 턴까지 오염시켜 후속 대화에서 표가 재출력됐다(DEV_260731 §3-3). 암묵 캐싱 할인(78~98%)이 있어 길이 자체는 문제가 아니었다.
 - `INTENT_RENDERERS` 가 의도 → 조각 목록을 결정한다. 예: `physics` → `diagram` + `chart`, `astronomy` → `constellation`, 약국·병원·법령 → **없음**(fast-pass 라 모델이 렌더러 블록을 쓸 일이 없다).
