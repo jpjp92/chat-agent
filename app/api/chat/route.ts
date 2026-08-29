@@ -187,7 +187,12 @@ export async function POST(req: NextRequest) {
         }
 
         let lcCitationBuffer = '';
-        const incompletecitation = /\s?\[\d*(?:,\s*\d*)*$/;
+        // 🔴 닫힌 `[1]` 도 보류 대상이다 — 다음 청크가 `(` 로 시작하면 그건 실제 링크
+        //    `[1](url)` 이라 지우면 안 되는데, 청크 경계에서는 아직 알 수 없다.
+        //    (`]?` 로 열린 `[1` 과 닫힌 `[1]` 을 함께 잡는다)
+        const incompletecitation = /\s?\[\d*(?:,\s*\d*)*\]?$/;
+        // 가짜 번호 제거 — `(?!\()` 로 실제 링크 `[1](url)` 는 보존한다(gemini-citations.ts 와 동일 규칙).
+        const stripFabricated = (t: string) => t.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
         // sports(월드컵 순위/일정 표)는 토큰 증분 스트리밍 시 마크다운 표가 셀 단위로 실시간
         // 조립되며 어색함 → 스트리밍을 건너뛰고 generator on_chain_end에서 완성본을 한 번에 전송.
         let detectedIntent = '';
@@ -211,9 +216,11 @@ export async function POST(req: NextRequest) {
               lcCitationBuffer = '';
               let sanitizedText = combined.replace(/(.)\1{49,}/g, '$1$1$1');
               sanitizedText = sanitizedText.replace(/(?:```json\s*)?\{\s*"tool_code":\s*".*?"\s*\}(?:\s*```)?/gs, '');
-              sanitizedText = sanitizedText.replace(/\s?\[\d+(?:,\s*\d+)*\]/g, '');
+              // 🔴 보류가 **먼저**다. 끝에 걸린 `[1]` 을 먼저 지워 버리면 다음 청크의 `(url)` 만
+              //    남아 화면에 생 URL 이 뜬다(실제 링크가 청크 경계에서 쪼개지는 경우).
               const incomplete = sanitizedText.match(incompletecitation);
               if (incomplete) { lcCitationBuffer = incomplete[0]; sanitizedText = sanitizedText.slice(0, -lcCitationBuffer.length); }
+              sanitizedText = stripFabricated(sanitizedText);
               sanitizedText = sanitizedText.replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '');
               sanitizedText = sanitizedText.replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '');
               sanitizedText = sanitizedText.replace(/⚠️\s*CRITICAL INSTRUCTION:[^\n]*/g, '');
@@ -229,7 +236,9 @@ export async function POST(req: NextRequest) {
             const ri = data?.output?.intent;
             if (typeof ri === 'string') detectedIntent = ri;
           } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && lcCitationBuffer) {
-            fullAiResponse += lcCitationBuffer; sendEvent({ text: lcCitationBuffer }); lcCitationBuffer = '';
+            // 스트림 끝이라 뒤에 `(` 가 올 일이 없다 → 보류분에도 가짜 번호 제거를 적용해 flush.
+            const flushed = stripFabricated(lcCitationBuffer); lcCitationBuffer = '';
+            if (flushed) { fullAiResponse += flushed; sendEvent({ text: flushed }); }
           } else if (event.event === 'on_chain_end' && event.name === 'generator') {
             const output = data?.output;
             const modelMsg = output?.messages?.[0];

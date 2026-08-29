@@ -14,7 +14,7 @@
  *   3.7 은 아직 선택지가 아니지만(§5-2 미적용), 표에는 이미 있으므로 지금부터 감시된다.
  */
 
-import { resolveThinkingConfig, thinkingRetryLevel } from '../server/agent/nodes/generation-config.js';
+import { resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from '../server/agent/nodes/generation-config.js';
 import { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinkingLevel } from '../server/model-thinking.js';
 
 let pass = 0, fail = 0;
@@ -87,6 +87,22 @@ for (const [model, spec] of Object.entries(THINKING_MODE)) {
 }
 check('표', 'budget 과 levels 를 둘 다 못 쓰는 모델은 없다',
     Object.values(THINKING_MODE).every(s => s.budget || s.levels.length > 0));
+
+// ── 4. 무거운 미디어 턴 타임아웃 — 강등 1회 ────────────────────────────────
+// 🔴 예전 코드는 무조건 stop 이었고 근거가 "60s 캡 초과"였는데 그 캡은 없어졌다
+//    (route.ts maxDuration=300, 90×2=180s). 재시도하면 건질 수 있는 실패를 버리고 있었다
+//    — 2026-08-29 실측: 3.7 은 같은 영상에 90s 타임아웃 2회·성공 2회, 2.5 는 17.3s 성공.
+//    감시 대상은 둘이다: ⓐ 첫 타임아웃은 강등한다 ⓑ 강등 뒤에는 반드시 멈춘다(폭주 방지).
+const FALLBACK = 'gemini-2.5-flash';
+const action = (alreadyDowngraded: boolean, resolvedModel: string) =>
+    heavyMediaTimeoutAction({ alreadyDowngraded, resolvedModel, fallbackModel: FALLBACK });
+
+for (const m of ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash']) {
+    check('미디어 타임아웃', `${m} 첫 타임아웃 → 2.5 로 강등`, action(false, m) === 'downgrade', action(false, m));
+    check('미디어 타임아웃', `${m} 강등 뒤 또 타임아웃 → 정지`, action(true, m) === 'stop', action(true, m));
+}
+check('미디어 타임아웃', '이미 2.5 면 강등할 곳이 없다 → 정지',
+    action(false, FALLBACK) === 'stop', action(false, FALLBACK));
 
 console.log(`\n통과 ${pass} · 실패 ${fail}`);
 process.exit(fail > 0 ? 1 : 0);

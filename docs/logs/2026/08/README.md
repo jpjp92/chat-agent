@@ -13,5 +13,6 @@
 | 08-22 | 별도 DEV 파일 없음 | [하드닝 계획](../../../plans/PLAN_HARDENING_260822.md) | 서버 경계·인증·쿼터·SSRF 점검 및 URL 장애 분석 시작 |
 | 08-23 | [DEV_260823](DEV_260823.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | URL 공급자 실측, 모델 UI, GPT 멀티턴·로컬 function calling, 약품 공급자 검색, OpenAI 번호 citation UI |
 | 08-24 | [DEV_260824](DEV_260824.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | 카드 후속 결함 3건, 심평원 진료시간 연동, 동물병원 인허가 고지·검색, Gemini 인용 번호화, 자정 직후 날짜 |
+| 08-29 | [DEV_260829](DEV_260829.md) | [DEV_260824 §5](DEV_260824.md#5-gemini-grounding-인용-번호화) | 후속 턴 grounding redirect URL 본문 노출 — 히스토리 되먹임 차단, 맨 URL 정리, 스트리밍 sanitize 정합, 무거운 미디어 타임아웃 강등 재시도 |
 
 앞으로 의미 있는 코드 변경이 있는 날은 날짜 로그를 만들고, 계획만 작성한 날도 이 월별 인덱스에 표시한다.

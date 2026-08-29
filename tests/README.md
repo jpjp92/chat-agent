@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 11종 전부
+npm test        # 12종 전부
 npm run verify  # typecheck + test
 ```
 
@@ -24,6 +24,9 @@ npm run verify  # typecheck + test
 
 - `npm run audit:wikidocs-puppeteer -- <URL>`: Browserless Puppeteer와 Cheerio 결과 비교
 - `npm run audit:url-openai -- <URL>`: `OPENAI_API_KEY_TIER1`로 장애 표본의 웹 검색과 정확한 URL 출처 확인
+- `npx tsx tests/manual/check-real-broken-citation.mts`: 생 URL 이 노출됐던 실제 DB 답변에 정리 규칙을 적용해 마커 보존/노출 0 확인 (Supabase 자격증명 필요)
+- `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
+  그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
 2026-08-23 네트워크 실측 요약:
 
@@ -57,6 +60,7 @@ npm run verify  # typecheck + test
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
+| `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 

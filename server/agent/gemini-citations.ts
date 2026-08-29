@@ -18,6 +18,27 @@ export type GroundedSource = { title: string; uri: string; citationNumber?: numb
 export const stripFabricatedCitations = (text: string): string =>
     text.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
 
+/** grounding redirect URL 패턴 — 사람이 읽을 수 없는 불투명 리다이렉트라 본문 노출은 항상 버그다. */
+const GROUNDING_REDIRECT_URL = String.raw`https?:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s)\]]+`;
+
+/**
+ * 🔴 모델이 **본문에 직접 써 넣은** grounding redirect URL 을 지운다.
+ *
+ * 후속 턴에서 실측된 현상(2026-08-24 세션 6bd6817b): 검색 턴 답변은 `[N](redirect)` 마커를
+ * 붙인 채 DB 에 저장되고, history.ts 가 그 본문을 **그대로** 모델에 되돌려 준다. 모델은 그
+ * 포맷을 흉내 내 자기 검색 결과 URL 을 맨 괄호로 본문에 쓴다 — `…입니다.(A)(B)`.
+ * groundingSupports 의 segment 경계가 그 괄호들 사이에서 끊기므로 우리 마커가 각 괄호 **앞에**
+ * 꽂혀 `[1](A)(A)[2](B)(B)` 가 되고, 뒤쪽 맨 괄호는 마크다운 자동링크로 화면에 생 URL 이 뜬다.
+ *
+ * 근본 원인은 history 되먹임(history.ts 에서 차단)이고, 여기는 안전망이다.
+ * `](` 바로 뒤 URL(= 우리 마커의 목적지)만 남기고 나머지는 지운다.
+ */
+export const stripBareGroundingUrls = (text: string): string => text
+    // ① 괄호로 감싼 형태 — `](` 뒤가 아니면 통째로 제거
+    .replace(new RegExp(String.raw`\s?(?<!\])\((?:${GROUNDING_REDIRECT_URL})\)`, 'g'), '')
+    // ② 괄호 없이 노출된 형태 — 마커 목적지(`](url)`)만 남긴다
+    .replace(new RegExp(String.raw`\s?(?<!\]\()${GROUNDING_REDIRECT_URL}`, 'g'), '');
+
 /**
  * UTF-8 바이트 오프셋 → JS 문자열 인덱스. 응답 1건당 한 번만 만들어 재사용한다.
  * 오프셋이 문자 경계 안쪽을 가리키면 그 문자의 시작으로 내림한다.
@@ -67,7 +88,7 @@ export function applyGeminiCitations(
     const supports: any[] = Array.isArray(groundingMetadata?.groundingSupports) ? groundingMetadata.groundingSupports : [];
 
     if (sources.length === 0 || supports.length === 0 || !rawText) {
-        return { text: stripFabricatedCitations(rawText), sources };
+        return { text: stripBareGroundingUrls(stripFabricatedCitations(rawText)), sources };
     }
 
     // 번호는 본문에 **처음 인용된 순서**로 매긴다. chunk 배열 순서는 검색 결과 순서라
@@ -103,5 +124,8 @@ export function applyGeminiCitations(
     }
 
     // 마커를 심은 뒤에 지운다 — 먼저 지우면 바이트 오프셋이 어긋난다.
-    return { text: stripFabricatedCitations(text), sources: sources.filter(source => source.citationNumber) };
+    return {
+        text: stripBareGroundingUrls(stripFabricatedCitations(text)),
+        sources: sources.filter(source => source.citationNumber),
+    };
 }

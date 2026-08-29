@@ -6,7 +6,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { getIntentFocusHint, getRendererSections } from "../prompt";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
-import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel } from "./generation-config";
+import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup } from "../card-followup";
@@ -726,12 +726,33 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                         }
                     } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) { markRateLimitKey(sdkApiKey, err); rateLimitedKeys.add(sdkApiKey); }
-                        // 무거운 미디어 턴 timeout은 이미 예산 대부분 소진 → 또 다른 시도/폴백은 60s 캡 초과.
-                        // 로테이션·폴백 모두 차단하고 즉시 종료(누적 타임아웃 폭주 방지).
+                        // 무거운 미디어 턴 timeout — **2.5 강등 1회만** 허용하고 그 다음엔 종료한다.
+                        //
+                        // 🔴 예전엔 무조건 즉시 종료였고 근거는 "또 다른 시도는 60s 캡 초과"였다. 그 60s 는
+                        //    이미 사라졌다 — route.ts 는 `maxDuration = 300` 이고, 이 파일 상수 주석도
+                        //    "강등 재시도까지 90×2=180s < 300s 로 예산 안에 든다"고 적고 있다(DEV_260808 §9).
+                        //    상수는 새 근거로 고쳤는데 **이 분기만 옛 근거로 남아** 있었다.
+                        //    2026-08-29 실측(19초 영상 4회): 3.7 은 90s 타임아웃 2회·성공 2회(15.5s·35.8s)로
+                        //    간헐적인데, 같은 영상을 2.5 는 17.3s 에 처리했다. 즉 재시도하면 건질 수 있는
+                        //    실패를 "일시적으로 불안정합니다" 로 버리고 있었다.
+                        //
+                        // 로테이션(같은 모델·다른 키)은 여전히 막는다 — 타임아웃은 키 쿼터가 아니라
+                        // 모델 측 혼잡이라 키만 바꾸면 90s 를 또 태운다. 바꿀 가치가 있는 건 **모델**이다.
                         if (isHeavyMediaTurn && isTimeout) {
-                            ytPrimaryTimedOut = true;
-                            console.warn('[LangGraph] heavy media timeout after', HEAVY_MEDIA_CALL_TIMEOUT_MS, 'ms — no budget for retry/fallback, stopping');
-                            break;
+                            const action = heavyMediaTimeoutAction({
+                                alreadyDowngraded: unavailableDowngrade,
+                                resolvedModel,
+                                fallbackModel: SEARCH_FALLBACK_MODEL,
+                            });
+                            if (action === 'stop') {
+                                ytPrimaryTimedOut = true;
+                                console.warn('[LangGraph] heavy media timeout after', HEAVY_MEDIA_CALL_TIMEOUT_MS, 'ms on', unavailableDowngrade ? SEARCH_FALLBACK_MODEL : resolvedModel, '— already downgraded, stopping');
+                                break;
+                            }
+                            unavailableDowngrade = true;
+                            sdkAttempt++;
+                            console.warn('[LangGraph] heavy media timeout after', HEAVY_MEDIA_CALL_TIMEOUT_MS, 'ms on', resolvedModel, `— downgrading to ${SEARCH_FALLBACK_MODEL} for one retry (budget ${HEAVY_MEDIA_CALL_TIMEOUT_MS * 2}ms < maxDuration 300s)`);
+                            continue;
                         }
                         // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
                         // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).

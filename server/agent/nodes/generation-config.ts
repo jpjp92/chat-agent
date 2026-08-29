@@ -84,3 +84,22 @@ export const thinkingRetryLevel = (model: string, current: unknown): string | un
     if (!lowest) return undefined;                       // budget 경로 — 내릴 칸이 없다
     return typeof current === 'string' && current !== lowest ? lowest : undefined;
 };
+
+/**
+ * 무거운 미디어(YouTube·업로드 영상·대용량 PDF) 턴이 **데드라인 타임아웃**으로 끝났을 때 다음 수.
+ *
+ * 🔴 예전엔 무조건 `'stop'` 이었고 근거는 "또 다른 시도는 60s 캡 초과"였다. 그 60s 는 이미
+ *    없다 — route.ts 는 `maxDuration = 300` 이고 `HEAVY_MEDIA_CALL_TIMEOUT_MS` 주석도
+ *    "90×2=180s < 300s 로 예산 안에 든다"고 적는다(DEV_260808 §9). 상수는 새 근거로 고쳤는데
+ *    분기만 옛 근거로 남아, **재시도하면 건질 수 있는 실패**를 에러 문구로 버리고 있었다
+ *    (2026-08-29 실측: 3.7 은 같은 영상에 90s 타임아웃 2회·성공 2회, 2.5 는 17.3s 성공).
+ *
+ * 키 로테이션은 답이 아니다 — 타임아웃은 키 쿼터가 아니라 모델 측 혼잡이라 키만 바꾸면 90s 를
+ * 또 태운다. 바꿀 가치가 있는 건 **모델**이고, 그래서 강등은 **1회뿐**이다(누적 폭주 방지).
+ */
+export const heavyMediaTimeoutAction = (ctx: {
+    alreadyDowngraded: boolean;
+    resolvedModel: string;
+    fallbackModel: string;
+}): 'downgrade' | 'stop' =>
+    !ctx.alreadyDowngraded && ctx.resolvedModel !== ctx.fallbackModel ? 'downgrade' : 'stop';

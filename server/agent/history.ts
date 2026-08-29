@@ -1,6 +1,19 @@
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 
 /**
+ * 🔴 이전 턴 답변의 인용 마커(`[1](https://…)`)를 모델에 되돌려 주지 않는다.
+ *
+ * 마커는 **서버가 groundingSupports 로 심은 표시**지 모델이 쓴 문장이 아니다(gemini-citations.ts).
+ * 그걸 그대로 히스토리에 넣으면 후속 턴 모델이 "URL 을 본문에 박는 포맷"으로 학습해, 자기
+ * 검색 결과 URL 을 맨 괄호로 써 넣는다 — 그 위에 서버 마커가 또 얹혀 화면에 생 URL 이 노출된다
+ * (2026-08-24 세션 6bd6817b 실측: 첫 턴 중복 0, 후속 턴 마커 14개 전부 중복).
+ *
+ * 숫자 라벨만 지운다 — `[약품정보](url)`·YouTube 타임스탬프 `[[01:23](url&t=83)]` 는 남는다.
+ */
+const CITATION_LINK = /\s?\[\d+(?:,\s*\d+)*\]\(https?:\/\/[^\s)]+\)/g;
+export const stripCitationLinksForHistory = (text: string): string => text.replace(CITATION_LINK, '');
+
+/**
  * 클라이언트 히스토리(JSON) → LangChain 메시지 변환.
  *
  * route.ts 에서 분리(move-only). 분리 이유: 이 매핑에 **역할 표기 불일치 버그**가 있었는데
@@ -60,7 +73,7 @@ export const buildHistoryMessages = (
             // 매핑한다(useChatSessions.ts). 'assistant'만 보던 탓에 과거 봇 답변이 전부 HumanMessage로
             // 들어가, 라우터의 직전응답 주입·날씨/영화 카드 후속 판정·search-gate의 prevSearched가
             // 모두 무효였다. 두 표기를 모두 받는다(DB 표기 'assistant' 하위호환 유지).
-            if (msg.role === 'assistant' || msg.role === 'model') return new AIMessage(msg.content);
+            if (msg.role === 'assistant' || msg.role === 'model') return new AIMessage(stripCitationLinksForHistory(msg.content || ''));
             const isRecent = index >= array.length - mediaWindow;
             const msgAttachments = msg.attachments || (msg.attachment ? [msg.attachment] : []);
             const parts: any[] = [{ type: 'text', text: msg.content || '' }];
