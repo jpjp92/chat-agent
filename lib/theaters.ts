@@ -71,6 +71,40 @@ const REGION_ALIASES: Record<string, string[]> = {
   '영등포역': ['영등포'],
 };
 
+/**
+ * **다른 도시의 지점**을 부분문자열로 물어오는 자리 — 관측된 것만 손으로 막는다.
+ *
+ * `nm.includes(q)` 는 "성남" 질의에 **울산성남**(울산 남구)을 돌려준다. 실측(2026-08-31,
+ * 질의형 지명 106종 × 3체인 = 318회): 비접두 매칭 22건 중 실제 오답은 아래 4건뿐이었다.
+ * 나머지 18건은 같은 도시 안(동수원·북포항·프리미엄안동)이거나 의도된 별칭이다.
+ *
+ * 🔴 **규칙으로는 못 가른다.** `북포항`(정답)과 `남양주`(오답)는 둘 다 `방위+질의` 모양이고,
+ * `동수원`(정답)과 `합성동`(오답)은 둘 다 질의가 토큰의 접미어다. 구조가 같으니 남는 건
+ * 지명 지식뿐인데, 그건 REGION_ALIASES 와 같은 이유로 손으로 관리하는 편이 정직하다.
+ * 새 오답이 관측되면 여기 한 줄을 추가한다(테스트: tests/test-theaters.mts §1).
+ */
+const BRANCH_EXCLUDE: Record<string, RegExp> = {
+  '성남': /울산성남/,   // 울산 남구. CGV 는 성남시에 지점이 없다
+  '하남': /광주하남/,   // 광주광역시 하남산단 ≠ 경기 하남시
+  '양주': /남양주/,     // 남양주시 ≠ 양주시
+  '성동': /합성동/,     // 창원 마산 합성동 ≠ 서울 성동구
+};
+
+/**
+ * 시·도 단위 질의는 **지점 이름으로 풀 수 없다.**
+ *
+ * "경기" → 상암월드컵**경기장**(서울)이 나왔다. 도 안의 아무 지점을 주는 것도 답이 아니다 —
+ * "경기 상영표" 에 경기광주(광주시) 회차를 채우면 사용자는 그걸 자기 지역 것으로 읽는다.
+ * 매칭 실패로 두면 호출부가 "지역을 좁혀 말해달라"고 안내한다(defaultsForRegion → null).
+ *
+ * `제주`·`광주`·`대구` 처럼 도이면서 시인 이름은 넣지 않는다 — 실제 지점이 있다.
+ */
+const PROVINCE_ONLY = new Set([
+  '경기', '경기도', '강원', '강원도', '충북', '충남', '전북', '전남', '경북', '경남',
+  '충청', '경상', '전라', '제주도', '충청북도', '충청남도', '전라북도', '전라남도',
+  '경상북도', '경상남도', '경기지역',
+]);
+
 
 /**
  * 매칭 결과를 **성공 여부와 함께** 반환한다.
@@ -88,13 +122,16 @@ export function resolveBranch(chain: ChainKey, region?: string): { branch: Branc
   const fallback = list.find((b) => b.code === DEFAULT_CODES[chain]) || list[0] || { code: '', nm: '' };
   const q = (region || '').trim();
   if (!q) return { branch: fallback, matched: false, regionGiven: false };
+  if (PROVINCE_ONLY.has(q)) return { branch: fallback, matched: false, regionGiven: true };
   // 공백/시·구 접미사 제거한 코어 키워드들로 후보 탐색
   const cores = q.replace(/[시군구동읍면]\s*$/g, '').split(/\s+/).filter(Boolean);
   // 별칭은 원 질의 뒤에 붙인다 — 원 질의로 직접 잡히면 그게 항상 우선.
   const aliases = [q, ...cores].flatMap((k) => REGION_ALIASES[k] ?? []);
   const keys = [...new Set([q, ...cores, ...aliases])].filter((k) => k.length >= 2);
+  // 배제는 **원 질의** 기준이다 — 별칭으로 넓힌 키에도 같은 금지가 걸려야 한다.
+  const deny = BRANCH_EXCLUDE[q];
   for (const k of keys) {
-    const hits = list.filter((b) => b.nm.includes(k));
+    const hits = list.filter((b) => b.nm.includes(k) && !(deny && deny.test(b.nm)));
     // 정렬 ①: 질의로 **시작하는** 지점을 먼저. 예전엔 "짧은 이름 우선"만 봐서 "광주"(광주광역시)가
     // 4자인 **경기광주**(경기도)를 골랐다 — 광주금남로·광주상무를 두고 다른 도시를 준 셈(DEV_260801 §3-3).
     // 정렬 ②: 그 다음 짧은 이름 우선(= 그 지역의 대표 지점일 확률이 높음).

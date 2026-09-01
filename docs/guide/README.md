@@ -21,6 +21,7 @@
 | 영화 | [Movie](REF_Movie.md) |
 | 의약품·약국·병원·동물병원 | [Drug](REF_Drug.md), [Pharmacy](REF_Pharmacy.md), [Hospital](REF_Hospital.md), [Vet](REF_Vet.md) |
 | 법령·스포츠 | [Law](REF_Law.md), [Sports](REF_Sports.md) |
+| 논문·근거 (PubMed·arXiv) | [Paper](REF_Paper.md) |
 | 차트·과학 시각화 | [Chart](REF_Chart.md), [Biology](REF_Biology.md), [Chemistry](REF_Chemistry.md), [Physics](REF_Physics.md), [Diagram](REF_Diagram.md), [Constellation](REF_Constellation.md) |
 
 ## 설계 참고자료

@@ -19,9 +19,9 @@
  *     ③ 바이트 오프셋 삽입이 한글에서 안 깨진다     (기존 계약 회귀 방지)
  */
 
-import fs from 'node:fs';
 import { applyGeminiCitations, stripFabricatedCitations, stripBareGroundingUrls } from '../server/agent/gemini-citations.js';
 import { buildHistoryMessages, stripCitationLinksForHistory } from '../server/agent/history.js';
+import { createStreamDispatch } from '../server/agent/stream-dispatch.js';
 
 let pass = 0, fail = 0;
 const check = (group: string, name: string, cond: boolean, detail = '') => {
@@ -129,28 +129,21 @@ check('5. history', 'YouTube 타임스탬프 링크는 보존한다',
 check('5. history', '숫자가 아닌 라벨 링크는 보존한다',
     stripCitationLinksForHistory(`[약품정보](https://nedrug.mfds.go.kr/x)`) === `[약품정보](https://nedrug.mfds.go.kr/x)`);
 
-// ── 6. 스트리밍 청크 경계 — route.ts 의 보류/제거 규칙 ─────────────────────────
-// 라우트 모듈은 tsx 로 임포트할 수 없으므로 **소스에서 정규식을 뽑아** 돌린다.
-// (규칙을 여기 복사해 두면 route.ts 가 되돌아가도 테스트는 계속 통과해 버린다)
+// ── 6. 스트리밍 청크 경계 — 진짜 디스패치를 태운다 ──────────────────────────
+// 예전엔 route.ts 소스에서 정규식을 **뽑아** 루프를 흉내 냈다(라우트 모듈은 import 가 안 됐다).
+// 흉내 낸 루프에는 분기 순서가 없어서 실제 회귀를 재현하지 못했다 — 이벤트 루프를
+// stream-dispatch.ts 로 빼면서 이제 진짜 코드를 부른다.
 {
-    const routeSrc = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
-    const pick = (label: string, re: RegExp) => {
-        const m = routeSrc.match(re);
-        check('6. 스트리밍', `route.ts 에서 ${label} 규칙을 찾는다`, !!m);
-        return m ? new RegExp(m[1], m[2] ?? '') : /$^/;
-    };
-    const incompletecitation = pick('보류(incompletecitation)', /const incompletecitation = \/(.+?)\/;/);
-    const fabricatedRe = pick('가짜 번호 제거', /const stripFabricated = \(t: string\) => t\.replace\(\/(.+?)\/(g\w*),/);
-    const stripFabricated = (t: string) => t.replace(fabricatedRe, '');
     const run = (chunks: string[]) => {
-        let buf = '', out = '';
+        let out = '';
+        const d = createStreamDispatch(f => { if (f.text) out += f.text; });
+        d.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'general' } } });
         for (const c of chunks) {
-            let s = buf + c; buf = '';
-            const m = s.match(incompletecitation);
-            if (m) { buf = m[0]; s = s.slice(0, -buf.length); }
-            out += stripFabricated(s);
+            d.handle({ event: 'on_chat_model_stream', metadata: { langgraph_node: 'generator' },
+                       data: { chunk: { content: c } } });
         }
-        return out + stripFabricated(buf);
+        d.handle({ event: 'on_chain_end', name: 'LangGraph', data: {} });
+        return out;
     };
     check('6. 스트리밍', '청크 경계에서 쪼개진 실제 링크가 살아남는다',
         run([`문장입니다.[1]`, `(${A}) 다음`]) === `문장입니다.[1](${A}) 다음`,

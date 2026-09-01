@@ -13,6 +13,7 @@
 | 08-22 | 별도 DEV 파일 없음 | [하드닝 계획](../../../plans/PLAN_HARDENING_260822.md) | 서버 경계·인증·쿼터·SSRF 점검 및 URL 장애 분석 시작 |
 | 08-23 | [DEV_260823](DEV_260823.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | URL 공급자 실측, 모델 UI, GPT 멀티턴·로컬 function calling, 약품 공급자 검색, OpenAI 번호 citation UI |
 | 08-24 | [DEV_260824](DEV_260824.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | 카드 후속 결함 3건, 심평원 진료시간 연동, 동물병원 인허가 고지·검색, Gemini 인용 번호화, 자정 직후 날짜 |
+| 08-30<br>~09-02 | [DEV_260830_EXTERNAL_SOURCES](DEV_260830_EXTERNAL_SOURCES.md) | [tests/README](../../../../tests/README.md), [09월 인덱스](../09/README.md) | 외부 의학·검색 소스 조사 — AI Hub 개방데이터 2종은 인용 URL 이 없어 평가셋 한정, NCMIK OpenAPI 는 `kwd` 가 동작하지 않아 폐기, PubMed+CrossRef 채택(`NCBI_KEY` 도입·프로브 신규), 네이버는 `doc`·papago 폐지 확인 후 의도별 화이트리스트 전제. **§6.13 이후는 08-31~09-02 의 후속 작업**(논문 카드 정착·카드 흡입 측정·빈 카드 복구 3층)이라 같은 파일에 이어 적었다 — 하나의 작업 줄기여서 날짜로 자르면 맥락이 끊긴다 |
 | 08-29 | [DEV_260829](DEV_260829.md) | [DEV_260824 §5](DEV_260824.md#5-gemini-grounding-인용-번호화) | 후속 턴 grounding redirect URL 본문 노출 — 히스토리 되먹임 차단, 맨 URL 정리, 스트리밍 sanitize 정합, 무거운 미디어 타임아웃 강등 재시도 |
 | 08-29 | [DEV_260829_DEADCODE](DEV_260829_DEADCODE.md) | [REF_Architecture](../../../guide/REF_Architecture.md) | 레거시·데드코드 전수 점검 — 고아 API 라우트 2개·죽은 export 13개·flash-lite 클라 잔재 제거, `composeInstruction` 문서 드리프트 정정, 모델 번역 문자열 이중 관리 통합(골든 하니스 선행), `Message.image` 제거, 문서 링크 전수 교정 |
 

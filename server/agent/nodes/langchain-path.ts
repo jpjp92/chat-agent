@@ -12,6 +12,9 @@ import { lawTool } from "../law-tool";
 import { movieTool } from "../movie-tool";
 import { worldCupTool } from "../worldcup-tool";
 import { weatherTool } from "../weather-tool";
+import { paperTool } from "../paper-tool";
+import { arxivTool } from "../arxiv-tool";
+import { cardHasResults, pinCardToProse } from "../card-tool-output";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage, shouldTryPillWebFallback, buildPillWebQuery } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
@@ -80,7 +83,9 @@ export const runLangChainPath = async (args: {
             //   · drug_info/drug_id/sports(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
             //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
             const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
-            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports", "law_qa"]);
+            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports", "law_qa", "paper_search", "arxiv_search"]);
+            // 산문은 모델이, 카드는 도구 출력이 그대로 간다.
+            const PINNED_CARD_INTENTS = { paper_search: "paper", arxiv_search: "paper" } as const;
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
             const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
             const is3xLcModel = isThreeXFlash(pathModel);
@@ -119,42 +124,42 @@ export const runLangChainPath = async (args: {
             }
             if (state.intent === "pharmacy_search" && lastMsg._getType() === "tool" && lastMsg.name === "pharmacyTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:pharmacy')) {
+                if (toolContent.includes('```json:pharmacy') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing pharmacyTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
             }
             if (state.intent === "hospital_search" && lastMsg._getType() === "tool" && lastMsg.name === "hospitalTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:hospital')) {
+                if (toolContent.includes('```json:hospital') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing hospitalTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
             }
             if (state.intent === "vet_search" && lastMsg._getType() === "tool" && lastMsg.name === "vetTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:vet')) {
+                if (toolContent.includes('```json:vet') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing vetTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
             }
             if (state.intent === "law_search" && lastMsg._getType() === "tool" && lastMsg.name === "lawTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:law')) {
+                if (toolContent.includes('```json:law') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing lawTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
             }
             if (state.intent === "movie_search" && lastMsg._getType() === "tool" && lastMsg.name === "movieTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:movie')) {
+                if (toolContent.includes('```json:movie') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing movieTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
             }
             if (state.intent === "weather" && lastMsg._getType() === "tool" && lastMsg.name === "weatherTool") {
                 const toolContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
-                if (toolContent.includes('```json:weather')) {
+                if (toolContent.includes('```json:weather') && cardHasResults(toolContent)) {
                     console.log('[LangGraph] Fast-passing weatherTool: Bypassing final LLM generation');
                     return { messages: [new AIMessage("")] };
                 }
@@ -269,6 +274,10 @@ export const runLangChainPath = async (args: {
                 allTools = [lawTool];
             } else if (state.intent === "movie_search") {
                 allTools = [movieTool];
+            } else if (state.intent === "paper_search") {
+                allTools = [paperTool];
+            } else if (state.intent === "arxiv_search") {
+                allTools = [arxivTool];
             } else if (state.intent === "sports") {
                 allTools = [worldCupTool];
             } else if (state.intent === "weather") {
@@ -306,6 +315,18 @@ export const runLangChainPath = async (args: {
 
             // 행 방지: fetch 끊김/혼잡 시 ~5분 매달림 대신 25s에 abort(Vercel 60s 캡 아래). DEV_260627 §3.
             const response = await llmWithTools.invoke(messages, { signal: AbortSignal.timeout(LC_CALL_TIMEOUT_MS) });
+
+            // 카드형 합성 intent 의 최종 답변에서는 카드를 도구 출력으로 고정한다.
+            // 모델이 카드 JSON 을 다시 쓰게 두면 3개 중 1개만 제대로 냈다(card-tool-output 주석 참조).
+            const pinned = PINNED_CARD_INTENTS[state.intent as keyof typeof PINNED_CARD_INTENTS];
+            if (pinned && !(response as any)?.tool_calls?.length) {
+                const toolMsg = [...state.messages].reverse()
+                    .find((m: any) => m._getType?.() === 'tool' && String(m.content ?? '').includes(`\`\`\`json:${pinned}`));
+                if (toolMsg) {
+                    const text = typeof response.content === 'string' ? response.content : '';
+                    response.content = pinCardToProse(text, String(toolMsg.content), pinned);
+                }
+            }
             return { messages: [response] };
 
         } catch (err: any) {

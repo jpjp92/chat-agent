@@ -120,3 +120,23 @@ console.log(`\n통과 ${pass} · 알려진 결함 ${red} · 신규통과 ${fixed
 if (regress > 0) { console.error('\n❌ 회귀가 있습니다.'); process.exit(1); }
 if (fixed > 0) { console.error(`\n⚠️  ${fixed}건이 고쳐졌습니다 — 케이스의 red 태그를 지우세요.`); process.exit(1); }
 console.log('\n기준선 유지.');
+
+// 🔴 "내일은?" 이 카드를 다시 그렸다(실측 2026-08-31, 사용자 로컬). 규칙 신호가 하나도 없어
+//   LLM 판정으로 떨어지고, LLM 이 'new' 라고 하면 재조회된다. 그런데 이 파일이 스스로 정한
+//   원칙은 **"새 조회의 유일한 근거는 다른 지역이 지목됐는가"** 다 — 시점만 옮긴 재질의는
+//   카드에 이미 +5일 예보가 있으므로 재조회해도 같은 데이터가 온다(화면이 그대로다).
+{
+    let bad = 0;
+    const t = (text: string, llm: any, want: string) => {
+        const r = decideWeatherFollowup({ text, intentIsWeather: true, llmFollowUp: llm,
+                                          useLlm: true, shownCities: ['부산광역시'] });
+        if (r.decision !== want) { bad++; console.log(`  🔴 ${r.decision}(${r.why}) 기대 ${want} ← "${text}" llm=${llm}`); }
+    };
+    // 시점만 옮긴 단독 재질의 — LLM 이 new 라고 해도 규칙이 이긴다
+    for (const q of ['내일은?', '모레는?', '주말은?', '오후는?', '내일은'])
+        t(q, 'new', 'refine');
+    // 지역 재질의는 그대로 새 조회여야 한다 (가드가 이걸 삼키면 날씨 멀티턴이 죽는다)
+    for (const q of ['서울은?', '부산은?', '제주도는?']) t(q, 'refine', 'new');
+    console.log(bad ? `🚨 시점 재질의 가드 ${bad}건 실패` : '✅ 시점 재질의 가드 통과');
+    if (bad) process.exit(1);
+}

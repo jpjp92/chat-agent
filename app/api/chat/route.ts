@@ -10,6 +10,7 @@ import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
 import { classifyChatError } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
+import { createStreamDispatch } from '../../../server/agent/stream-dispatch';
 
 export const runtime = 'nodejs';
 // 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
@@ -156,7 +157,6 @@ export async function POST(req: NextRequest) {
       process.once('unhandledRejection', unhandledRejectionGuard);
 
       try {
-        let fullAiResponse = '';
         const exactUrlFetchFailedMatch = enrichedWebContent.match(/\[URL_FETCH_FAILED: ([^\]\n]+)\]/);
         if (exactUrlFetchFailedMatch) {
           const failedUrl = exactUrlFetchFailedMatch[1];
@@ -166,128 +166,35 @@ export async function POST(req: NextRequest) {
             Spanish: `No pude obtener el contenido exacto de esta URL: ${failedUrl}\n\nLa página parece estar bloqueada.`,
             French: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée.`,
           };
-          fullAiResponse = pickByLang(msgs, langName);
-          sendEvent({ text: fullAiResponse });
+          const failMsg = pickByLang(msgs, langName);
+          sendEvent({ text: failMsg });
           sendEvent({ done: true });
           if (session_id) {
-            db.from('chat_messages').insert({ session_id, role: 'assistant', content: fullAiResponse, grounding_sources: null })
+            db.from('chat_messages').insert({ session_id, role: 'assistant', content: failMsg, grounding_sources: null })
             .then(({ error }) => { if (error) console.error('[Chat API] DB save failed:', error); });
           }
           return;
         }
 
-        const trackingEvent = (data: any) => { if (data.text) fullAiResponse += data.text; sendEvent(data); };
-        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, trackingEvent, langName);
+        // 🔴 콜백도 디스패치가 만든다. 여기서 따로 만들면 `fullAiResponse` 가 둘로 갈려
+        //   이미 나간 본문을 최종 메시지로 **다시** 보낸다(실측: 답변이 화면에 두 번 찍혔다).
+        const dispatch = createStreamDispatch(sendEvent);
+        const st = dispatch.state;
+        const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
         const streamEvents = await graph.streamEvents(initialState, { version: 'v2' });
 
-        const allSources: any[] = [];
         if (isYoutubeFromPrompt) {
-          allSources.push({ title: 'YouTube Video', uri: `https://www.youtube.com/watch?v=${ytMatch![1]}` });
-          sendEvent({ sources: allSources });
+          st.allSources.push({ title: 'YouTube Video', uri: `https://www.youtube.com/watch?v=${ytMatch![1]}` });
+          sendEvent({ sources: st.allSources });
         }
 
-        let lcCitationBuffer = '';
-        // 🔴 닫힌 `[1]` 도 보류 대상이다 — 다음 청크가 `(` 로 시작하면 그건 실제 링크
-        //    `[1](url)` 이라 지우면 안 되는데, 청크 경계에서는 아직 알 수 없다.
-        //    (`]?` 로 열린 `[1` 과 닫힌 `[1]` 을 함께 잡는다)
-        const incompletecitation = /\s?\[\d*(?:,\s*\d*)*\]?$/;
-        // 가짜 번호 제거 — `(?!\()` 로 실제 링크 `[1](url)` 는 보존한다(gemini-citations.ts 와 동일 규칙).
-        const stripFabricated = (t: string) => t.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
-        // sports(월드컵 순위/일정 표)는 토큰 증분 스트리밍 시 마크다운 표가 셀 단위로 실시간
-        // 조립되며 어색함 → 스트리밍을 건너뛰고 generator on_chain_end에서 완성본을 한 번에 전송.
-        let detectedIntent = '';
+        // 이벤트 → SSE 프레임 변환은 stream-dispatch.ts 가 한다. 여기 인라인이던 시절에는
+        // import 가 안 돼 하니스가 루프를 못 태웠고, 이름 없는 else-if 하나가 카드 6종을
+        // 삼킨 채 배포됐다 (DEV_260830 §6.14).
+        for await (const event of streamEvents) dispatch.handle(event);
 
-        for await (const event of streamEvents) {
-          const data = event.data;
-          const langGraphNode = (event as any).metadata?.langgraph_node;
-
-          if (event.event === 'on_chat_model_stream') {
-            // Only stream prose tokens from the final generation node. Nested LLM calls in
-            // other nodes (vision OCR, and Gemini Vision imprint reads inside the `tools` node
-            // via searchDrugInfoTool) otherwise leak their output (e.g. "JP","W") into the
-            // user-facing answer ahead of the real json:drug block.
-            if (langGraphNode !== 'generator') continue;
-            // sports: 증분 토큰을 흘리지 않고 generator on_chain_end에서 표 전체를 한 번에 전송.
-            if (detectedIntent === 'sports') continue;
-            const chunk = data?.chunk;
-            const chunkText = chunk?.content;
-            if (chunkText && typeof chunkText === 'string') {
-              const combined = lcCitationBuffer + chunkText;
-              lcCitationBuffer = '';
-              let sanitizedText = combined.replace(/(.)\1{49,}/g, '$1$1$1');
-              sanitizedText = sanitizedText.replace(/(?:```json\s*)?\{\s*"tool_code":\s*".*?"\s*\}(?:\s*```)?/gs, '');
-              // 🔴 보류가 **먼저**다. 끝에 걸린 `[1]` 을 먼저 지워 버리면 다음 청크의 `(url)` 만
-              //    남아 화면에 생 URL 이 뜬다(실제 링크가 청크 경계에서 쪼개지는 경우).
-              const incomplete = sanitizedText.match(incompletecitation);
-              if (incomplete) { lcCitationBuffer = incomplete[0]; sanitizedText = sanitizedText.slice(0, -lcCitationBuffer.length); }
-              sanitizedText = stripFabricated(sanitizedText);
-              sanitizedText = sanitizedText.replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '');
-              sanitizedText = sanitizedText.replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '');
-              sanitizedText = sanitizedText.replace(/⚠️\s*CRITICAL INSTRUCTION:[^\n]*/g, '');
-              if (sanitizedText.trim()) { fullAiResponse += sanitizedText; sendEvent({ text: sanitizedText }); }
-            }
-            const gm = chunk?.response_metadata?.groundingMetadata || chunk?.additional_kwargs?.groundingMetadata;
-            if (gm?.groundingChunks) {
-              const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
-              if (sources.length > 0) { sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) allSources.push(s); }); sendEvent({ sources: allSources }); }
-            }
-          } else if (event.event === 'on_chain_end' && event.name === 'router') {
-            // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
-            const ri = data?.output?.intent;
-            if (typeof ri === 'string') detectedIntent = ri;
-          } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && lcCitationBuffer) {
-            // 스트림 끝이라 뒤에 `(` 가 올 일이 없다 → 보류분에도 가짜 번호 제거를 적용해 flush.
-            const flushed = stripFabricated(lcCitationBuffer); lcCitationBuffer = '';
-            if (flushed) { fullAiResponse += flushed; sendEvent({ text: flushed }); }
-          } else if (event.event === 'on_chain_end' && event.name === 'generator') {
-            const output = data?.output;
-            const modelMsg = output?.messages?.[0];
-            const rawMsgText = typeof modelMsg?.content === 'string' ? modelMsg.content : '';
-            // 가짜 숫자 인용 제거는 **맨 대괄호에만** 적용한다. Gemini도 groundingSupports 기반
-            // 실제 링크 [1](url)을 심게 됐으므로(gemini-citations.ts), 뒤에 '('가 오면 남긴다.
-            // 예전 규칙은 대괄호를 통째로 지워 OpenAI 링크를 훼손했고, 그래서 공급자로 갈라 두었다.
-            const msgText = output?.provider === 'openai'
-              ? rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1')
-              : rawMsgText.replace(/(.)\1{49,}/g, '$1$1$1').replace(/`?json:drug`?\s*블록은\s*생성(?:하지\s*마세요|할\s*수\s*없습니다)[.]?\s*/g, '').replace(/\[MFDS_NOT_FOUND\][^\n]*/g, '').replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
-            if (msgText && !fullAiResponse) { fullAiResponse = msgText; sendEvent({ text: msgText }); }
-            const gm = modelMsg?.response_metadata?.groundingMetadata || modelMsg?.additional_kwargs?.groundingMetadata;
-            if (gm?.groundingChunks) {
-              const sources = gm.groundingChunks.map((c: any) => c.web ? { title: c.web.title, uri: c.web.uri } : null).filter(Boolean);
-              if (sources.length > 0) { let added = false; sources.forEach((s: any) => { if (!allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-            }
-            const stateSources: any[] = output?.groundingSources || [];
-            if (stateSources.length > 0) { let added = false; stateSources.forEach((s: any) => { if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-          } else if (event.event === 'on_tool_end' && ['pharmacyTool', 'hospitalTool', 'vetTool', 'lawTool', 'movieTool', 'weatherTool'].includes(event.name)) {
-            // law_search는 카드 fast-pass지만 law_qa는 같은 도구 결과를 선택 모델이 설명문으로
-            // 합성해야 한다. 중간 json:law를 먼저 스트리밍하면 fullAiResponse가 채워져 generator의
-            // 최종 설명이 억제되므로, 합성 intent에서는 도구 블록을 사용자 채널로 보내지 않는다.
-            if (event.name === 'lawTool' && detectedIntent === 'law_qa') continue;
-            const rawOutput = data?.output;
-            const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
-            const blockType = event.name === 'hospitalTool' ? 'hospital' : event.name === 'vetTool' ? 'vet' : event.name === 'lawTool' ? 'law' : event.name === 'movieTool' ? 'movie' : event.name === 'weatherTool' ? 'weather' : 'pharmacy';
-            // weatherTool은 멀티 도시 시 json:weather 블록을 여러 개 반환 → 전역 매칭으로 모두 스트리밍.
-            const blockMatches = toolOutput.match(new RegExp(`\`\`\`json:${blockType}\\n[\\s\\S]*?\\n\`\`\``, 'g'));
-            if (blockMatches) { const jsonBlock = '\n' + blockMatches.join('\n\n') + '\n\n'; fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock }); }
-          } else if (event.event === 'on_tool_end' && ['search_web', 'search_drug_info'].includes(event.name)) {
-            const rawOutput = data?.output;
-            const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
-            const urlBlockMatch = toolOutput.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
-            if (urlBlockMatch) { let added = false; urlBlockMatch[1].split('\n').forEach((line: string) => { const [url, ...tp] = line.split(' | '); const title = tp.join(' | ').trim() || url; if (url?.startsWith('http') && !allSources.some((e: any) => e.uri === url)) { allSources.push({ title, uri: url }); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-          } else if (event.event === 'on_chain_end' && event.name === 'LangGraph') {
-            const finalOutput = data?.output;
-            const finalMessages: any[] = finalOutput?.messages || [];
-            for (const msg of finalMessages) {
-              const msgType = msg._getType?.() ?? msg.getType?.() ?? msg.type;
-              if (msgType === 'tool') {
-                const content = typeof msg.content === 'string' ? msg.content : '';
-                const urlBlockMatch = content.match(/\[WEB_SOURCE_URLS\]\n([\s\S]+?)(?:\n\n|$)/);
-                if (urlBlockMatch) { let added = false; urlBlockMatch[1].split('\n').forEach((line: string) => { const [url, ...tp] = line.split(' | '); const title = tp.join(' | ').trim() || url; if (url?.startsWith('http') && !allSources.some((e: any) => e.uri === url)) { allSources.push({ title, uri: url }); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-              }
-            }
-            const finalSources: any[] = finalOutput?.groundingSources || [];
-            if (finalSources.length > 0) { let added = false; finalSources.forEach((s: any) => { if (s?.uri && !allSources.some((e: any) => e.uri === s.uri)) { allSources.push(s); added = true; } }); if (added) sendEvent({ sources: allSources }); }
-          }
-        }
+        const fullAiResponse = st.fullAiResponse;
+        const allSources = st.allSources;
 
         if (fullAiResponse && session_id) {
           try {

@@ -19,7 +19,7 @@
 //    복사본 하니스는 프로덕션이 바뀌어도 초록으로 남아 거짓 안심을 준다
 //    (PLAN_SEARCH_POLICY_260815 §4 C5).
 
-import { classifyIntentByRules } from '../server/agent/intentRules.js';
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness } from '../server/agent/intentRules.js';
 import type { IntentType } from '../server/agent/state.js';
 
 type Case = {
@@ -181,6 +181,83 @@ const run = (label: string, cases: Case[]) => {
     console.log(`\n  통과 ${pass} · 알려진 결함 ${knownRed} · 새로 고쳐짐 ${fixed} · 🚨회귀 ${regression}`);
     return { pass, knownRed, regression, fixed };
 };
+
+// ── 규칙이 LLM 을 이기는 경우 ────────────────────────────────────────
+// 🔴 실측(2026-08-31, TIER1 3회씩): 라우터 LLM 이 "서초구 소아과"·"강남 이비인후과"·
+//   "분당 피부과"·"근처 치과" 를 **3/3 전부 pharmacy_search** 로 보냈다. 흔들림이 아니라
+//   고정된 오분류다. 화면에는 빈 약국 카드가 떴다(사용자 로컬 스크린샷).
+//   약국 규칙은 "약국/pharmacy" 라는 **말 자체**를 요구하고, 병원 규칙은 진료과명을 명시
+//   열거한다 — 이 충돌에서는 규칙이 정밀하다. 그래서 코드가 이긴다(프롬프트로 밀지 않는다).
+{
+    let bad = 0;
+    const t = (llm: string, text: string, want: string) => {
+        const got = resolveClinicIntent(llm as any, classifyIntentByRules(text, false));
+        if (got !== want) { bad++; console.log(`  🔴 ${got} (기대 ${want}) ← LLM=${llm} "${text}"`); }
+    };
+    // 뒤집어야 하는 것 — 진료과명이 있고 약국이라는 말이 없다
+    for (const q of ['서초구 소아과', '강남 이비인후과', '분당 피부과', '근처 치과', '서초구 내과'])
+        t('pharmacy_search', q, 'hospital_search');
+    // 뒤집으면 안 되는 것 — 약국이라는 말이 실제로 있으면 규칙도 약국이라 충돌이 없다
+    t('pharmacy_search', '강남역 근처 약국', 'pharmacy_search');
+    t('pharmacy_search', '소아과 옆 약국 알려줘', 'pharmacy_search');
+    // 규칙이 병원이 아니면 손대지 않는다
+    t('pharmacy_search', '타이레놀 사려면', 'pharmacy_search');
+    // 다른 의도는 통과 — 이 가드는 약국↔병원 충돌 하나만 본다
+    t('vet_search', '근처 동물병원', 'vet_search');
+    t('general', '서초구 소아과', 'general');
+    console.log(bad ? `\n🚨 진료과 가드 ${bad}건 실패` : '\n✅ 진료과 가드 (약국 오분류 뒤집기) 통과');
+    if (bad) process.exit(1);
+}
+
+// ── 영화 — 제목이 앞에 오는 모양 ────────────────────────────────────
+// 🔴 실측(2026-08-31): "오디세이 영화"·"영화 오디세이 정보" 가 general 로 떨어졌고,
+//   날씨 카드가 떠 있던 탓에 LLM 이 weather 를 골라 **"도시를 찾지 못했어요 '오디세이'"**
+//   가 화면에 떴다. 규칙이 `영화 + 정보/상영/예매` 를 요구해서 제목이 앞에 오면 못 잡았다.
+//   규칙이 movie_search 를 확언해야 날씨 흡입 가드도 발동한다(둘이 물려 있다).
+{
+    let bad = 0;
+    const t = (text: string, want: string) => {
+        const got = classifyIntentByRules(text, false);
+        if (got !== want) { bad++; console.log(`  🔴 ${got} (기대 ${want}) ← "${text}"`); }
+    };
+    for (const q of ['오디세이 영화', '영화 오디세이', '영화 오디세이 정보', '듄 파트2 영화',
+                     '오디세이 영화정보 알려줘', '오디세이 상영시간']) t(q, 'movie_search');
+    // 🔴 오탐 — 이건 영화 검색이 아니라 잡담이다. 잘못 잡으면 검색이 꺼지고 렌더러가 붙는다
+    for (const q of ['인생 영화 추천해줘', '무서운 영화 보고 싶다', '한국 영화 역사',
+                     '영화 같은 인생이네', '영화 산업 전망은?', '요즘 영화 왜 재미없지'])
+        if (classifyIntentByRules(q, false) === 'movie_search') { bad++; console.log(`  🔴 오탐: "${q}"`); }
+    console.log(bad ? `\n🚨 영화 규칙 ${bad}건 실패` : '✅ 영화 규칙 (제목 선행형) 통과');
+    if (bad) process.exit(1);
+}
+
+// ── 날씨 카드 흡입 ───────────────────────────────────────────────────
+// 🔴 실측(2026-08-31): 날씨 카드가 화면에 있으면 라우터 LLM 이 무관한 질의를 weather 로
+//   끌어왔다 — "서초구 소아과"·"오디세이 영화정보 알려줘" 가 2/2 weather(llmFollowUp=new).
+//   **대조군(카드 없음)에서는 각각 hospital/movie 로 정상**이라, 카드의 존재 자체가 원인이다.
+//   라우터 프롬프트가 "화면에 날씨 카드가 있다" 를 알려주니 지명을 새 도시로 읽는다.
+//   `decideWeatherFollowup` 은 날씨 어휘가 없어 'none' 을 돌려주고 아무 교정도 하지 않았다.
+{
+    let bad = 0;
+    const t = (text: string, shown: boolean, want: string) => {
+        const got = resolveWeatherStickiness('weather', classifyIntentByRules(text, false), shown);
+        if (got !== want) { bad++; console.log(`  🔴 ${got} (기대 ${want}) ← 카드=${shown} "${text}"`); }
+    };
+    // 카드가 떠 있고 규칙이 **다른 카드 의도**를 가리키면 규칙이 이긴다
+    t('서초구 소아과', true, 'hospital_search');
+    t('오디세이 영화정보 알려줘', true, 'movie_search');
+    t('강남역 근처 약국', true, 'pharmacy_search');
+    t('근처 동물병원', true, 'vet_search');
+    t('근로기준법 연차 규정', true, 'law_search');
+    // 진짜 날씨 후속은 건드리지 않는다 — 규칙이 weather 이거나 general 이면 그대로
+    t('부산 날씨 어때', true, 'weather');   // 규칙도 weather
+    t('내일은?', true, 'weather');          // 규칙 general — 판단할 근거가 없으니 LLM 을 믿는다
+    t('부산은?', true, 'weather');
+    t('우산 챙길까?', true, 'weather');
+    // 카드가 없으면 이 가드는 아예 돌지 않는다
+    t('서초구 소아과', false, 'weather');
+    console.log(bad ? `\n🚨 날씨 흡입 가드 ${bad}건 실패` : '✅ 날씨 흡입 가드 통과');
+    if (bad) process.exit(1);
+}
 
 const r1 = run('1. 잡아야 하는 것 (회귀 가드)', TRUE_POSITIVES);
 const r2 = run('2. 잡으면 안 되는 것 (오탐)', FALSE_POSITIVES);

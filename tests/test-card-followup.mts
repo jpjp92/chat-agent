@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import { buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, decideLawInteraction, decideLocationCardFollowup, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup, needsLiveStatusSearch } from '../server/agent/card-followup.js';
+import { buildEmptyCardRules, buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, decideLawInteraction, decideLocationCardFollowup, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup, needsLiveStatusSearch } from '../server/agent/card-followup.js';
 import { resolveAreaCodesFromAddress } from '../server/agent/hospital-tool.js';
-import { assertSafeFastPassOutput, buildCardToolOutput, sanitizeActiveCards, sanitizeCardContexts } from '../server/agent/card-tool-output.js';
+import { assertSafeFastPassOutput, buildCardToolOutput, cardHasResults, sanitizeActiveCards, sanitizeCardContexts } from '../server/agent/card-tool-output.js';
 
 let passed = 0;
 const check = (name: string, actual: unknown, expected: unknown) => {
@@ -58,6 +58,22 @@ check('법률 원문 조회', decideLawInteraction('도로교통법 제44조 원
 check('법률 첫 설명은 근거 조회 후 합성', decideLawInteraction('도로교통법 제44조를 시나리오별로 설명해줘', false), 'synthesize');
 check('표시된 법률 카드 설명은 후속', decideLawInteraction('이 조항을 시나리오별로 설명해줘', true), 'refine');
 check('추가 처벌 질문은 추가 조회 합성', decideLawInteraction('처벌과 면허 취소 기준도 알려줘', true), 'synthesize');
+
+// 🔴 법률 카드가 떠 있으면 **무엇을 물어도** law_search 로 갔다(실측 2026-08-31, 사용자 로컬).
+//   "트랜스포머 어텐션 최적화 논문" → "관련 법령을 찾을 수 없습니다" 빈 카드.
+//   원인은 마지막 줄의 catch-all `return 'lookup'` 이다. 날씨 후속 판정에는 'unrelated' 가
+//   있는데 법률에는 없어서, 주제가 카드를 떠나도 계속 법률로 끌려갔다.
+//   ⚖️ intentIsLaw(라우터/규칙이 법률이라고 판정) 일 때는 예전처럼 조회가 맞다.
+check('카드가 떠 있어도 논문 질의는 법률이 아니다', decideLawInteraction('트랜스포머 어텐션 최적화 논문', true, false), 'unrelated');
+check('카드가 떠 있어도 날씨 질의는 법률이 아니다', decideLawInteraction('오늘 서울 날씨 어때?', true, false), 'unrelated');
+check('카드가 떠 있어도 약국 질의는 법률이 아니다', decideLawInteraction('강남역 근처 약국', true, false), 'unrelated');
+// 법률 신호가 있으면 카드가 떠 있어도 법률이다 — 조문 번호·법령명·법률 어휘
+check('조문 번호는 법률 신호다', decideLawInteraction('제61조는?', true, false), 'lookup');
+check('법령명은 법률 신호다', decideLawInteraction('산업안전보건법은?', true, false), 'lookup');
+check('해고·임금 같은 노동법 어휘도 법률 신호다', decideLawInteraction('부당해고 기준은?', true, false), 'lookup');
+// intent 가 법률이면 catch-all 조회가 그대로 옳다 (라우터/규칙이 이미 법률이라 판정한 경우)
+check('의도가 법률이면 신호가 약해도 조회', decideLawInteraction('그거 알려줘', true, true), 'lookup');
+check('카드가 없으면 예전 그대로', decideLawInteraction('아무 말', false, false), 'lookup');
 
 const safe = buildCardToolOutput('pharmacy', { query: '덕진구', count: 0, pharmacies: [] });
 assertSafeFastPassOutput(safe, 'pharmacy');
@@ -216,12 +232,63 @@ for (const [file, label] of [['hospital-tool.ts', '병원'], ['pharmacy-tool.ts'
 // 실측(2026-08-24): 심평원 B551182만 5회 중 2회 무응답(25s)·성공도 10.2~10.8초.
 // 같은 시각 약국 0.3s·동물병원 0.22s → 백엔드별 문제다. 단발 시도로는 그대로 실패한다.
 const hospitalSource = fs.readFileSync(new URL('../server/agent/hospital-tool.ts', import.meta.url), 'utf8');
+// 🔴 진료과가 통째로 버려졌다(실측 2026-08-31, 사용자 로컬). "서초구 소아과 알려줘" 에
+//   모델이 소아과를 넣을 자리가 없어 hospital_type='의원' 으로 바꿔 넣었고, 화면엔
+//   **치과병원 4곳**이 나왔다. 심평원 API 는 `dgsbjtCd`(진료과목코드)를 받는다 —
+//   실측: 서초구 필터 없음 대비 01내과 309 · 11소아청소년과 150 · 12안과 88 로 갈린다.
+check('진료과목 파라미터를 API 로 넘긴다', hospitalSource.includes('dgsbjtCd'), true);
+check('진료과 인자가 스키마에 있다', /subject:\s*z\.string\(\)\.optional\(\)/.test(hospitalSource), true);
+// 코드값은 `MadmDtlInfoService2.8/getDgsbjtInfo2.8`(병원별 진료과목 상세)에서 **직접 받은**
+// 값이다(43개, 2026-08-31). 기억으로 적었다가 §6.16 과 같은 사고를 낼 뻔했다 —
+// 이름 일치율 역산은 흔한 과에서 무력하다(코드 01 을 서울 의원 4,756곳이 부수 과목으로 신고).
+for (const [name, code] of [['내과','01'], ['소아청소년과','11'], ['안과','12'], ['피부과','14'],
+                            ['재활의학과','21'], ['가정의학과','23'], ['응급의학과','24'],
+                            ['치과교정과','52'], ['소아치과','53'], ['한방소아과','82']] as const) {
+    check(`진료과 코드 ${name}=${code}`, new RegExp(`'${name}':\\s*'${code}'`).test(hospitalSource), true);
+}
+check('구어(소아과)를 공식 코드로 맵핑', /'소아과':\s*'11'/.test(hospitalSource), true);
+check('구어(비뇨기과)를 공식 코드로 맵핑', /'비뇨기과':\s*'15'/.test(hospitalSource), true);
+// 🔴 표에 없는 과를 **버리지 않는다** — 그게 원래 결함이었다. 이름으로 거른다.
+check('코드 없는 진료과는 이름으로 거른다', /nameFilter[\s\S]{0,200}yadmNm\?\.includes/.test(hospitalSource), true);
+// 0건이면 "못 찾았다" 가 아니라 "그 지역엔 없다 + 넓혀 보라" 를 말한다
+check('0건 안내가 범위를 넓히라고 말한다', hospitalSource.includes('더 넓은 범위'), true);
+check('0건 안내에 진료과 이름이 들어간다', /\$\{subjectLabel\} 진료 기관이 검색되지 않았습니다/.test(hospitalSource), true);
+check('종별과 진료과를 섞지 않는다 — 소아과는 CL_CODE 에 없다',
+    !/CL_CODE[\s\S]{0,400}'소아과'/.test(hospitalSource), true);
+// 🔴 종별 코드표가 한 칸씩 밀려 있었다 — 실측(심평원 clCdNm 대조, 2026-08-31):
+//   의원=31(41은 치과병원) · 치과병원=41 · 치과의원=51 · 한의원=93 · 정신병원=29.
+//   "서초구 의원" 조회에 치과병원 5곳이 나왔다. 값이 바뀌면 조용히 틀린 병원이 나간다.
+for (const [label, code] of [['의원', '31'], ['치과병원', '41'], ['치과의원', '51'],
+                             ['한방병원', '92'], ['한의원', '93'], ['정신병원', '29'],
+                             ['종합병원', '11'], ['요양병원', '28']] as const) {
+    check(`종별 코드 ${label}=${code}`, new RegExp(`'${label}':\\s*'${code}'`).test(hospitalSource), true);
+}
 check('병원 조회는 짧게 끊고 재시도', hospitalSource.includes('attempt <= 2'), true);
-check('정상 응답(~11초)이 잘리지 않는 attempt 타임아웃', hospitalSource.includes('HOSP_ATTEMPT_TIMEOUT_MS = 13000'), true);
+// 🔴 13000 은 절반이 잘렸다 — 실측 8회 중 3회가 13초 초과(중앙 12.5s · 최대 16.5s).
+//   §6.16 으로 "의원" 조회가 5건·4KB → 986건·166KB 로 정직해지면서 무거워진 결과다.
+check('무거워진 응답을 자르지 않는 attempt 타임아웃', hospitalSource.includes('HOSP_ATTEMPT_TIMEOUT_MS = 25000'), true);
+// ⚠️ 종별을 진료과 표에 넣으면 라벨이 지워지고 엉뚱한 과로 조회된다(한의원 → 한방내과)
+for (const t of ['한의원', '한방병원', '의원', '치과병원', '종합병원'])
+    check(`종별 ${t} 이 진료과 표에 없다`,
+        !new RegExp(`DGSBJT_CODE[\\s\\S]{0,1400}'${t}':`).test(hospitalSource), true);
 check('빈 본문도 재시도 대상', hospitalSource.includes("empty body, retrying"), true);
 
-const routeSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
-check('law_qa는 중간 법률 카드를 SSE로 노출하지 않음', routeSource.includes("event.name === 'lawTool' && detectedIntent === 'law_qa'"), true);
+// 이벤트 루프는 stream-dispatch.ts 로 옮겼다. 동작 검증은 test-stream-dispatch.mts §4 가 한다.
+// 🔴 영화 카드 → "줄거리 알려줘" → "검색할까요?" → "ㅇㅇ 검색해줘" 순서에서, **검색 턴에**
+//   화면 상영작이 모델에게 전달되지 않았다(실측 2026-08-31, 사용자 로컬).
+//   generator 가 `movieFollowup` 일 때만 movieContext 를 주입하는데 검색 턴은 그 값이 false 다.
+//   결과: 화면에 오디세이가 CGV 강남·롯데 가산디지털에 걸려 있는데 모델이 **"'오디세이'라는
+//   제목의 영화는 찾기 어렵지만"** 이라며 마션 줄거리를 답했다. 화면과 정면으로 모순된다.
+const routerSrcMovie = fs.readFileSync(new URL('../server/agent/nodes/router.ts', import.meta.url), 'utf8');
+const generatorSrcMovie = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
+check('검색 턴 플래그를 라우터가 내보낸다', /movieSearchTurn: forceSearch/.test(routerSrcMovie), true);
+check('검색 턴에도 화면 상영작을 주입한다',
+    /state\.movieFollowup \|\| state\.movieSearchTurn/.test(generatorSrcMovie), true);
+check('화면에 있는 제목을 부정하지 말라고 명시한다',
+    generatorSrcMovie.includes('화면에 표시된 제목은 실재하는 상영작'), true);
+
+const dispatchSource = fs.readFileSync(new URL('../server/agent/stream-dispatch.ts', import.meta.url), 'utf8');
+check('law_qa는 중간 법률 카드를 SSE로 노출하지 않음', dispatchSource.includes("event.name === 'lawTool' && st.detectedIntent === 'law_qa'"), true);
 
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
 check('약국 intent가 도로명 keyword 지원을 명시', promptSource.includes('The tool supports a keyword for a road name'), true);
@@ -230,3 +297,105 @@ check('Gemini 로컬 카드 도구 호출 강제', langchainSource.includes('too
 check('약국 빈 결과를 웹 검색으로 넘기지 않음', langchainSource.includes('allTools = [pharmacyTool, searchWebTool]'), false);
 
 console.log(`\n총 ${passed}개 카드 후속·출력 안전성 검증 통과.`);
+
+
+console.log('\n§F fast-pass 는 결과가 있을 때만 — 빈 카드는 답을 삼킨다');
+{
+    /**
+     * 🔴 실측(사용자 화면, 2026-09-01~02). `변호사 수임료는 보통 얼마나 될까?`·`이혼 소송 비용
+     * 얼마나 들어?`·`강아지 사료 추천해줘` 에 **카드만 뜨고 산문이 0줄**이었다.
+     *
+     * 원인은 라우팅이 아니라 fast-pass 다(langchain-path.ts). 카드 펜스가 있으면 최종 LLM 생성을
+     * 통째로 건너뛰고 `AIMessage("")` 를 돌려준다 — 결과가 있을 땐 옳은 최적화(지연 절약)지만
+     * **카드가 비어도 똑같이 건너뛴다.** 그래서 사용자는 막다른 길을 받는다.
+     *
+     * ⚖️ 오분류만의 문제가 아니다. 의도가 맞아도 0건(`울릉도 약국`)·백엔드 장애면 같은 길이다.
+     * 라우터를 아무리 올려도 100% 는 없으므로, **틀렸을 때 복구되는 구조**가 진짜 방어선이다.
+     *
+     * ⚖️ 모르는 모양이면 `true`(현행 유지)로 떨어뜨린다 — 이 판정 때문에 멀쩡한 fast-pass 가
+     * 꺼지면 모든 카드 턴에 모델 호출이 하나씩 붙는다.
+     */
+    const card = (type: string, payload: object) => `\`\`\`json:${type}\n${JSON.stringify(payload)}\n\`\`\``;
+
+    check('법령 0건 → fast-pass 하지 않는다',
+        cardHasResults(card('law', { query: '변호사 수임료', count: 0, laws: [], notice: '관련 법령을 찾을 수 없습니다.' })), false);
+    check('법령 결과 있음 → 종전대로 fast-pass',
+        cardHasResults(card('law', { query: '근로기준법', count: 2, laws: [{ name: '근로기준법' }, { name: '시행령' }] })), true);
+    check('동물병원 인자 없음 → fast-pass 하지 않는다',
+        cardHasResults(card('vet', { query: '', count: 0, vets: [], notice: '지역명이나 병원명을 입력해 주세요.' })), false);
+    check('약국 결과 있음 → fast-pass',
+        cardHasResults(card('pharmacy', { count: 1, pharmacies: [{ name: '온누리약국' }] })), true);
+    check('병원 0건 → fast-pass 하지 않는다',
+        cardHasResults(card('hospital', { area: '울릉군', count: 0, hospitals: [], notice: '인접 지역으로…' })), false);
+    // count 가 없는 카드도 있다 — 배열로 본다
+    check('논문 0건 → fast-pass 하지 않는다',
+        cardHasResults(card('paper', { query: 'x', source: 'arxiv', total: 0, papers: [] })), false);
+    check('논문 결과 있음 → fast-pass',
+        cardHasResults(card('paper', { papers: [{ pmid: '1' }] })), true);
+    // 🔴 안전판 — 모르는 모양·깨진 JSON 은 현행 동작(fast-pass)을 유지한다
+    check('날씨처럼 count·목록이 없는 카드는 건드리지 않는다',
+        cardHasResults(card('weather', { location: { name: '서울' }, current: { temp: 27 } })), true);
+    // 날씨 조회 실패도 `error: true` 카드로 나간다 — 같은 막다른 길이라 같이 막는다
+    check('날씨 조회 실패는 fast-pass 하지 않는다',
+        cardHasResults(card('weather', { error: true, input: '서울', code: 'WEATHER_FETCH_FAILED' })), false);
+    check('깨진 JSON 은 현행 유지',
+        cardHasResults('```json:law\n{깨짐\n```'), true);
+    check('펜스가 없으면 현행 유지',
+        cardHasResults('그냥 텍스트'), true);
+    check('error 필드가 있으면 fast-pass 하지 않는다',
+        cardHasResults(card('paper', { papers: [{ pmid: '1' }], error: 'HTTP 502' })), false);
+
+    const lcSrc = fs.readFileSync(new URL('../server/agent/nodes/langchain-path.ts', import.meta.url), 'utf8');
+    // 배선 — 판정을 만들어 놓고 연결하지 않으면 아무 일도 안 일어난다(§6.22·§6.25 에서 두 번 당했다)
+    check(`🔴 fast-pass 6종이 전부 결과 유무를 본다 (연결 ${(lcSrc.match(/cardHasResults\(toolContent\)/g) ?? []).length}곳)`,
+        (lcSrc.match(/cardHasResults\(toolContent\)/g) ?? []).length >= 6, true);
+}
+
+console.log('\n§G 빈 카드 턴에 무엇을 말할지 준다 — fast-pass 를 끈 것만으로는 부족하다');
+{
+    // fast-pass 를 껐으니 모델이 불린다. 지시가 없으면 카드 안내문만 되풀이한다.
+    // 🔴 빈 카드는 원인이 셋이고 정답이 다르다 — 규칙도 셋을 나눠 적는다(§6.29).
+    const rules = buildEmptyCardRules();
+    const lines = rules.split('\n');
+    check('규칙이 8줄 이상', lines.length >= 8, true);
+    // 🔴 실측(2026-09-02): `이혼 소송비용` 에 산문이 카드 안내문을 **그대로 복창**했다
+    //   ("관련 법령을 찾을 수 없습니다. 법령명을 더 구체적으로 입력해 주세요.") — 그게 답의 전부였다.
+    check('🔴 실패 안내만으로 끝내지 못하게 한다',
+        rules.includes('조회 실패 안내만으로 끝나서는 안 됩니다'), true);
+    check('주제만 말한 발화를 조회 요청으로 보지 않게 한다',
+        rules.includes('주제만 말한 경우') && rules.includes('그 주제를 설명하세요'), true);
+    check('블록 제목이 있다', lines[0].startsWith('[조회 결과가 비었습니다'), true);
+    check('🔴 카드만 남기고 끝내지 말라고 한다', rules.includes('카드만 남기고 끝내지 마세요'), true);
+    // 오분류 복구 — 되묻지 말고 질문에 답하라
+    check('조회 요청이 아니면 질문 자체에 답하게 한다',
+        rules.includes('질문 자체에 답하세요') && rules.includes('되묻지 마세요'), true);
+    // 0건 — 공식 자료가 권위다. 추측으로 채우면 안 된다
+    check('0건은 없다고 말하고 다음 방법을 안내하게 한다',
+        rules.includes('없다는 사실을 분명히') && rules.includes('추측으로 채우지 마세요'), true);
+    // 장애 — 실패를 0건으로 바꿔 말하면 거짓이 된다
+    check('오류 실패를 결과 없음으로 바꿔 말하지 못하게 한다',
+        rules.includes('실패를 결과 없음으로 바꿔 말하지 마세요'), true);
+    // 화면에서 관측된 것 — 질문이 에러 문구에 그대로 박혀 돌아왔다
+    check('질문을 그대로 되받지 못하게 한다', rules.includes('질문을 그대로 되받아 적지 마세요'), true);
+
+    /**
+     * 🔴 **같은 fast-pass 가 두 곳에 있다.** langchain-path 만 고치고 화면을 봤더니
+     * `이혼 소송 비용 얼마나 들어?` 가 그대로 카드만 떴다. OpenAI 챗 모델(GPT-5.6 luna)은
+     * `law_search` 에 로컬 함수 도구가 있어 **langchain-path 가 아니라 `server/openai/chat.ts`**
+     * 를 탄다(generator.ts 의 `(!useLangChain || localFunctionTool) && isOpenAIChatModel`).
+     * 두 경로를 다 검사하지 않으면 절반만 고치고 고쳤다고 믿게 된다.
+     */
+    const oaiSrc = fs.readFileSync(new URL('../server/openai/chat.ts', import.meta.url), 'utf8');
+    check('🔴 OpenAI 경로도 빈 카드면 fast-pass 하지 않는다',
+        /resultMode === 'fast-pass' && hasResults/.test(oaiSrc), true);
+    check('🔴 OpenAI 경로의 followup 요청에 빈 카드 규칙이 실린다',
+        /extraInstructions: emptyCardTurn \? buildEmptyCardRules\(\)/.test(oaiSrc), true);
+    check('extraInstructions 가 실제로 instructions 에 합쳐진다',
+        /requestState\.extraInstructions[\s\S]{0,120}options\.instructions/.test(oaiSrc), true);
+
+    const genSrc = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
+    check('🔴 generator 가 빈 카드일 때만 규칙을 넣는다',
+        /!cardHasResults\(lastToolText\)[\s\S]{0,120}buildEmptyCardRules\(\)/.test(genSrc), true);
+    check('마지막 tool 메시지를 본다 (tools → generator 두 번째 통과)',
+        /_getType\?\.\(\) === 'tool'/.test(genSrc), true);
+}

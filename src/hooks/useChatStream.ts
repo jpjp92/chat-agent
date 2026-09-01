@@ -495,6 +495,9 @@ export const useChatStream = ({
             .filter(([, value]) => Boolean(value)));
           return {
             weather: hasRecentCard(messages, '```json:weather'),
+            // 🔴 논문 카드도 넣는다. 서버 창(10개)을 벗어나도 후속 질문("두번째 논문 설명해줘")이
+            //   재조회로 떨어지지 않게 — 밀려난 건 서버의 창이지 사용자의 화면이 아니다.
+            paper: hasRecentCard(messages, '```json:paper'),
             pharmacy: Boolean(contexts.pharmacy), hospital: Boolean(contexts.hospital),
             vet: Boolean(contexts.vet), law: Boolean(contexts.law),
             latest: getLatestFollowupCardKind(messages),

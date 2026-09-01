@@ -19,6 +19,8 @@ export type IntentType =
     | "movie_search"  // 영화 상영시간표 (CGV/롯데/메가박스)
     | "sports"        // 월드컵 순위/대진/득점왕 (football-data.org)
     | "weather"       // 날씨 카드 (KMA + OpenWeather 하이브리드)
+    | "paper_search"  // 의학·생명과학 논문 근거 조회 (PubMed)
+    | "arxiv_search"  // 물리·수학·전산·공학·계량경제 논문 조회 (arXiv). 라우터가 paper_source 에서 파생시킨다
     | "general";     // 나머지 모든 것
 
 /**
@@ -47,7 +49,7 @@ export const GraphState = Annotation.Root({
     // 화면에 떠 있는 카드 종류(클라이언트 판정). 서버가 받는 히스토리는 최근 10개로 잘려 있어
     // 카드가 그 창 밖으로 밀리면 후속 판정이 꺼진다 — 전체 히스토리를 가진 클라가 알려준다.
     // 구버전 클라(미전송)면 라우터의 창 내 스캔으로 폴백한다.
-    activeCards: Annotation<{ weather?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: "pharmacy" | "hospital" | "vet" | "law" }>({
+    activeCards: Annotation<{ weather?: boolean; paper?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: "pharmacy" | "hospital" | "vet" | "law" }>({
         reducer: (x, y) => y ?? x,
         default: () => ({}),
     }),
@@ -69,6 +71,18 @@ export const GraphState = Annotation.Root({
         reducer: (x, y) => y ?? x,
         default: () => false,
     }),
+    /**
+     * 이번 턴이 영화 카드 위에서 **웹 검색으로** 답하는 턴인가(줄거리·평점 등 상영표에 없는 정보).
+     *
+     * 🔴 이 플래그가 없던 시절, 검색 턴에는 화면 상영작이 모델에게 전달되지 않았다
+     * (generator 가 `movieFollowup` 만 봤는데 검색 턴은 그 값이 false 다). 그래서 모델이
+     * **화면과 정면으로 모순되는 답**을 했다 — 오디세이가 CGV 강남에 걸려 있는데
+     * "'오디세이'라는 제목의 영화는 찾기 어렵지만" 하며 마션 줄거리를 답했다(실측 2026-08-31).
+     */
+    movieSearchTurn: Annotation<boolean>({
+        reducer: (_prev, next) => next,
+        default: () => false,
+    }),
 
     // 이번 턴이 직전 답변의 **재구성 요청**인지(라우터 follow_up === "refine").
     // "표로 정리해줘"·"요약해줘"·"비교해줘" 같은 턴은 툴도 검색도 없이 도는 경우가 많아,
@@ -83,6 +97,15 @@ export const GraphState = Annotation.Root({
     // 이번 턴이 "화면에 떠 있는 날씨 카드"에 대한 후속 대화인지(라우터 판정).
     // generator가 카드 재생성·표 재출력 금지 지시를 주입하는 게이트.
     weatherFollowup: Annotation<boolean>({
+        reducer: (x, y) => y ?? x,
+        default: () => false,
+    }),
+
+    // 이번 턴이 "화면에 떠 있는 논문 카드"에 대한 후속 대화인지(라우터 판정).
+    // 🔴 라우터는 이 판정을 하고 있었는데 **지역 변수로 끝나** generator 가 몰랐다. 그래서
+    // 검색은 꺼졌지만 근거 고정 규칙이 안 붙었고, 초록에 없는 연구 결과지표가 사실처럼 나갔다
+    // (DEV_260830 §6.22). reformatTurn 과 같은 종류의 정보 손실이다.
+    paperFollowup: Annotation<boolean>({
         reducer: (x, y) => y ?? x,
         default: () => false,
     }),

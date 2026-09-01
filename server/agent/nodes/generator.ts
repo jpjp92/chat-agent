@@ -9,7 +9,8 @@ import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
-import { buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup } from "../card-followup";
+import { cardHasResults } from "../card-tool-output";
+import { buildCardFollowupFacts, buildEmptyCardRules, buildHospitalHoursFacts, buildPaperFollowupRules, buildSearchTargetBlock, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup } from "../card-followup";
 import { fetchHospitalOpenStatus } from "../hospital-hours";
 import { resolveAreaCodesFromAddress } from "../hospital-tool";
 import { runLangChainPath } from "./langchain-path";
@@ -97,8 +98,17 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         }
         // 영화 후속 질문(라우터가 movieFollowup으로 판정한 턴만): 화면 상영표 요약을 컨텍스트로 주입.
         // 데이터에 답이 없으면 솔직히 말하고 검색/지점조회를 안내(json:movie 카드는 재생성하지 말 것).
-        if (state.movieFollowup && state.movieContext) {
+        // 🔴 검색 턴(movieSearchTurn)도 포함해야 한다. 예전엔 movieFollowup 만 봐서, "줄거리
+        //    검색해줘" 턴에 화면 상영작이 모델에게 전달되지 않았다 — 오디세이가 CGV 강남에
+        //    걸려 있는데 "'오디세이'라는 제목의 영화는 찾기 어렵지만" 하며 **마션 줄거리**를
+        //    답했다(실측 2026-08-31). 모델의 학습 시점 이후 개봉작이면 그냥 없는 영화가 된다.
+        if ((state.movieFollowup || state.movieSearchTurn) && state.movieContext) {
             finalInstruction += `\n\n${state.movieContext}\n\n[영화 상영표 후속 질문 처리 규칙]\n- 위 "현재 화면에 표시된 영화 상영시간표" 데이터를 근거로 사용자의 후속 질문(비교·필터·"~만 상영"·가장 빠른/늦은 회차 등)에 간결히 답하세요.\n- 데이터에 없는 정보(줄거리·평점·예매율·관객수·장르·다른 지역/지점 등)는 절대 지어내지 마세요. 대신 "상영표에는 그 정보가 없어요"라고 밝힌 뒤, 반드시 마지막에 "웹에서 검색해 드릴까요?"라고 사용자에게 물어보세요. (사용자가 동의하면 다음 턴에 자동으로 웹 검색이 수행됩니다.)\n- json:movie 카드 블록을 다시 생성하지 마세요(이미 화면에 있음). 텍스트로만 답하세요.`;
+        }
+        if (state.movieSearchTurn && state.movieContext) {
+            // 🔴 검색 결과보다 화면이 우선이다. 상영표는 극장사에서 방금 받아온 값이라
+            //    "그 영화가 실재하고 지금 상영 중" 이라는 사실의 근거로는 웹 검색보다 강하다.
+            finalInstruction += `\n\n[화면 상영작에 대한 웹 검색 규칙]\n- 화면에 표시된 제목은 실재하는 상영작입니다. 극장 상영표에서 방금 조회한 값이므로, 검색 결과가 부실하더라도 "그런 영화를 찾을 수 없다"고 말하거나 **다른 영화로 바꿔 답하지 마세요**.\n- 사용자가 물은 그 제목에 대해서만 답하세요. 정보를 못 찾았으면 못 찾았다고 그대로 밝히세요(비슷한 다른 작품의 줄거리로 대체하는 것은 명백한 오답입니다).\n- 최신 개봉작이라 사전 지식에 없을 수 있습니다. 화면 상영표가 그 영화의 존재를 증명합니다.`;
         }
 
         // 날씨 후속 대화(라우터가 weatherFollowup으로 판정한 턴): 카드는 이미 화면에 있고 그 수치가
@@ -158,6 +168,21 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             finalInstruction += `\n\n[DISPLAYED_CARD_SOURCE: ${kind}]\n${cardContext}${cardFacts ? `\n\n${cardFacts}` : ''}\n\n[표시된 카드 후속 대화 규칙]\n- 위 카드 데이터만 근거로 현재 질문에 자연스러운 텍스트로 답하세요. 카드 JSON을 다시 출력하거나 새 카드를 만들지 마세요.\n${liveStatusSearch ? '- 공식 자료에 이 기관의 진료시간이 없습니다. 이번 턴에 한해 웹 검색 결과를 근거로 답할 수 있습니다.\n- 🔴 진료시간·영업시간은 **검색으로 확인된 것만** 말하세요. 검색 결과에 없으면 기억이나 추측으로 채우지 말고 확인되지 않는다고 말하세요. 상호명에 24시라는 표기가 있다는 것은 근거가 아닙니다.\n- 검색으로 찾았더라도 확정된 정보가 아니라는 점과 방문 전 전화 확인이 필요하다는 점을 반드시 함께 밝히세요.\n- 위 [검색 대상] 블록이 있으면 그 상호와 주소의 기관만 답하세요. 결과 주소가 다르면 동명의 다른 기관이므로 버리세요.\n- 검색 결과로 새 카드를 만들지 말고 문장으로 답하세요.\\n- 카드의 인허가 상태(영업·정상)는 폐업하지 않았다는 뜻일 뿐 지금 진료 중이라는 근거가 아닙니다. 이것만 보고 영업 중이라고 말하지 마세요.' : '- 카드에 없는 거리, 진료과, 영업 여부, 법적 효과나 수치를 추측하지 마세요. 필요한 정보가 없으면 카드에는 없다고 짧게 밝히세요.\\n- 병원·동물병원 카드에는 현재 진료 여부가 없습니다. 인허가 상태(영업·정상)를 영업 중으로 해석하지 말고, 확인하려면 전화가 필요하다고 밝히세요.'}\n- 약국 카드의 현재 영업 여부는 위 [약국 영업 상태] 블록을 최우선으로 따르세요. 카드에 적힌 영업시간만 보고 현재 영업 중이라고 판단하거나 그 블록과 모순되는 답을 하지 마세요.\n- 🔴 위 블록들은 내부 참고 자료입니다. 대괄호 제목, 항목 이름, JSON 키 이름(is_open_now, hours_today 등)을 답변에 그대로 쓰지 말고 자연스러운 한국어로 바꿔 말하세요.\n- 사용자의 추측이 카드 사실과 맞으면 긍정으로, 어긋나면 부정으로 답을 시작하세요. 사실을 확인해 주면서 '아니요'로 시작하지 마세요.\n- 사용자 위치 좌표와 거리 데이터가 없으면 도로명 일치 결과를 '가장 가까운 순서'라고 표현하지 마세요. 정확한 거리 비교에는 상세 위치가 필요하다고 짧게 밝히세요.\n- 사용자가 선택·확인·감사를 표현했다면 같은 목록을 반복하지 말고 한두 문장으로 응답하세요.\n- 법률 카드라면 조문 문언과 시행일을 구분해 설명하고, 개별 사건에 대한 확정적 법률 판단처럼 말하지 마세요.`;
         }
 
+        // 조회가 빈손으로 끝난 두 번째 통과(tools → generator). fast-pass 는 `cardHasResults` 가
+        // 껐고(langchain-path), 여기서는 **무엇을 말할지**를 준다 — 지시가 없으면 모델이 카드
+        // 안내문만 되풀이한다. 판정·문구는 순수 함수로 빼 하니스가 실물을 검사한다.
+        const lastToolMsg = [...state.messages].reverse().find(m => m._getType?.() === 'tool');
+        const lastToolText = typeof lastToolMsg?.content === 'string' ? lastToolMsg.content : '';
+        if (lastToolText.includes('```json:') && !cardHasResults(lastToolText)) {
+            finalInstruction += `\n\n${buildEmptyCardRules()}`;
+        }
+
+        // 화면 논문 카드를 두고 묻는 턴 — 카드가 유일한 근거다. 규칙 본문은 card-followup.ts 에
+        // 있다(하니스가 임포트해서 문구 자체를 검사한다. 소스 grep 은 문구가 바뀌면 조용히 통과한다).
+        if (state.paperFollowup) {
+            finalInstruction += `\n\n${buildPaperFollowupRules()}`;
+        }
+
         // 재구성 요청 턴(라우터 follow_up="refine"): "표로 정리해줘"·"요약해줘"·"비교해줘".
         // 이런 턴은 툴도 검색도 없이 도는 경우가 많아 모델이 추가한 내용을 검증할 장치가 없다.
         // 정적 프롬프트의 [REFORMAT REQUESTS] 규칙만으로는 안 먹혔다 — 직전 턴이 **빈 응답**이었는데
@@ -182,7 +207,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "sports", "weather"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "sports", "weather"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube

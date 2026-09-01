@@ -46,7 +46,13 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         //    라우터 LLM이 성공해도 발동하므로 오탐 비용이 특히 크다.
         //    → 위치·상영 질의어를 동반할 때만. (PLAN_INTENT_RULES_PRECISION_260816 Step 2)
         intent: "movie_search",
-        pattern: /(영화\s*(상영|시간|표|예매|정보|일정|스케줄|뭐)|상영\s*(시간|표|관|정보|중|작)|상영시간표|무슨\s*영화|볼만한\s*영화|개봉\s*영화|(근처|주변|가까운|인근)\s*영화관|영화관\s*(어디|위치|찾|추천|상영|예매|시간|정보|알려|목록)|멀티플렉스|cgv|롯데\s*시네마|롯데시네마|메가박스|씨지브이|showtime|movie\s*time|now\s*showing|cinema\s*schedule)/i,
+        // 🔴 제목이 앞에 오는 모양을 못 잡았다(실측 2026-08-31). `영화 + 정보/상영/예매` 를
+        //    요구해서 "오디세이 영화"·"영화 오디세이 정보" 가 general 로 떨어졌고, 날씨 카드가
+        //    떠 있던 탓에 LLM 이 weather 를 골라 **"도시를 찾지 못했어요 '오디세이'"** 가 떴다.
+        //    (규칙이 movie_search 를 확언해야 resolveWeatherStickiness 가 발동한다 — 둘이 물려 있다)
+        //    ⚠️ 오탐 비용이 크므로(검색 OFF + 렌더러 주입) **제목처럼 생긴 짧은 질의만** 잡는다:
+        //    토큰 2개 이하 + 일반 수식어 제외("인생 영화"·"무서운 영화"·"영화 산업"은 잡담이다).
+        pattern: /(^(?!.*(?:인생|무서운|무서|재밌|재미있|재미없|한국|외국|공포|로맨스|액션|스릴러|최신|요즘|옛날|같은|산업|역사|추천|보고\s*싶))(?:영화\s+\S{1,15}(?:\s+\S{1,15})?|\S{1,15}(?:\s+\S{1,15})?\s*영화)\s*(?:정보|알려줘?|어때|평점|줄거리)?\s*[?!.]?$|영화\s*(상영|시간|표|예매|정보|일정|스케줄|뭐)|상영\s*(시간|표|관|정보|중|작)|상영시간표|무슨\s*영화|볼만한\s*영화|개봉\s*영화|(근처|주변|가까운|인근)\s*영화관|영화관\s*(어디|위치|찾|추천|상영|예매|시간|정보|알려|목록)|멀티플렉스|cgv|롯데\s*시네마|롯데시네마|메가박스|씨지브이|showtime|movie\s*time|now\s*showing|cinema\s*schedule)/i,
     },
     {
         // ⚠️ `조항`·`고시` 단독은 뺐다. `이 조항 좀 다듬어줘`(문서 편집)·`계약서 조항 작성해줘`
@@ -54,6 +60,15 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         //    법률명이 이미 받는다. (PLAN_INTENT_RULES_PRECISION_260816 Step 5)
         intent: "law_search",
         pattern: /(법령|법률|법안|제\d+\s*조|몇\s*조|(행정|부처|장관|복지부|식약처|국토부|환경부)\s*고시|고시\s*제\s*\d|도로교통법|교통법|소방법|소방기본법|민법|형법|상법|근로기준법|근로법|개인정보\s*보호법|개인정보법|판례|헌재|행정규칙|법령해석|korean law|statute|legal article|article\s+\d+|law provision|loi coréenne|article de loi|ley coreana|artículo legal)/i,
+    },
+    {
+        // 라우터 LLM 이 429/503 으로 죽으면 이 폴백만 남는다. 규칙이 없으면 논문 질의가
+        // 통째로 general 로 떨어져 카드가 조용히 사라진다(실측: 쿼터 소진 시 15/15 누락).
+        // ⚠️ `연구`·`논문` 단독은 뺐다 — "논문 써줘"(작문)·"연구 계획서"가 걸린다.
+        //    의학·생명과학 주제어를 동반할 때만 잡는다.
+        intent: "paper_search",
+        // 조회 의도어를 반드시 동반하게 한다. `논문` 단독을 받으면 "논문 써줘"(작문)가 걸린다.
+        pattern: /((논문|연구|문헌|paper|study|studies)\s*\S{0,6}\s*(찾|검색|알려|보여|있어|있나|결과|자료|근거|추천|search|find)|임상\s*시험\s*(결과|자료|있|알려|찾)|메타\s*분석|체계적\s*문헌|clinical trial (result|evidence)|meta-?analysis|systematic review)/i,
     },
     {
         intent: "pharmacy_search",
@@ -291,3 +306,60 @@ export const shouldSuppressSearchForFollowup = (currentText: string, prevSearche
     const wantsFresh = (onTags.includes("temporal") || onTags.includes("domain")) && !pastRef;
     return !wantsFresh; // 새 최신요구가 아니면 억제
 };
+
+/**
+ * PubMed 가 다루지 않는 분야의 표지어.
+ *
+ * 라우터 LLM 은 분야를 가리지 않고 논문 요청을 전부 `paper_search` 로 보낸다
+ * (TIER1 무오염 실측: CS·공학 9/9 누수). 프롬프트로는 안 잡혀 결정적으로 막는다.
+ * PubMed 는 이런 질의에 **빈손으로 실패하지 않고** 그 주제의 의생명 응용을 돌려주므로
+ * (트랜스포머 → 단일세포 오믹스) 조용히 엉뚱한 근거가 나간다.
+ *
+ * ⚠️ 보건과 겹치는 말은 넣지 않는다 — `AI 진단`·`의료영상`은 진짜 의생명 문헌이 있다.
+ */
+const NON_BIOMEDICAL_FIELD = /(머신\s*러닝|딥\s*러닝|기계\s*학습|트랜스포머|어텐션|신경망|알고리즘|프로그래밍|소프트웨어|컴파일러|암호화폐|블록체인|반도체|공정\s*장비|웨이퍼|디스플레이|배터리\s*소재|토목|건축\s*구조|machine learning|deep learning|transformer|attention mechanism|neural network|algorithm|compiler|blockchain|semiconductor|wafer)/i;
+
+/** 논문 의도이지만 주제가 PubMed 밖이면 true. */
+export const isNonBiomedicalPaperTopic = (text: string): boolean => NON_BIOMEDICAL_FIELD.test(text);
+
+/**
+ * 라우터 LLM 의 약국↔병원 오분류를 규칙으로 되돌린다.
+ *
+ * 🔴 실측(2026-08-31, TIER1 3회씩): LLM 이 "서초구 소아과"·"강남 이비인후과"·"분당 피부과"·
+ * "근처 치과" 를 **3/3 전부 `pharmacy_search`** 로 보냈다. 확률적 흔들림이 아니라 고정된
+ * 오분류이고, 화면에는 빈 약국 카드가 떴다. 동사가 붙으면("서초구 내과 알려줘") 맞는 걸 보면
+ * "지역 + 진료과" 라는 **모양**에 걸리는 것으로 보인다.
+ *
+ * ⚖️ 왜 프롬프트가 아니라 코드인가. 약국 규칙은 `약국`/`pharmacy` 라는 **말 자체**를 요구하고
+ * (`/(약국|pharmacy|…)/`), 병원 규칙은 진료과명을 명시 열거한다. 즉 이 충돌에서는 규칙이
+ * LLM 보다 정밀하다 — 규칙이 병원이라고 말하는 순간 텍스트에 약국이라는 말이 **없다**는 뜻이다.
+ * 이번 주에 프롬프트로 세 번 밀어봤고 세 번 다 졌다(철회 논문·초록 없음·마커 범위).
+ *
+ * 이 가드는 약국→병원 **한 방향**만 본다. 반대 방향(LLM 병원 · 규칙 약국)은 실측에서 나오지
+ * 않았고, 넓히면 LLM 이 맥락으로 옳게 고른 경우까지 되돌릴 위험이 있다.
+ */
+export const resolveClinicIntent = (llmIntent: IntentType, ruleIntent: IntentType): IntentType =>
+    llmIntent === 'pharmacy_search' && ruleIntent === 'hospital_search' ? 'hospital_search' : llmIntent;
+
+/**
+ * 화면의 날씨 카드가 무관한 질의를 빨아들이는 것을 막는다.
+ *
+ * 🔴 실측(2026-08-31, 사용자 로컬 + TIER1 재현): 날씨 카드가 떠 있으면 라우터 LLM 이
+ * "서초구 소아과"·"오디세이 영화정보 알려줘" 를 `weather` 로 보냈다(llmFollowUp=new).
+ * **대조군(카드 없음)에서는 각각 hospital_search·movie_search 로 정상**이다 — 카드의
+ * 존재 자체가 원인이다. 라우터 프롬프트가 "화면에 날씨 카드가 있다" 를 알려주니 문장 속
+ * 지명을 새 도시 요청으로 읽는다. `decideWeatherFollowup` 은 날씨 어휘가 없어 'none' 을
+ * 돌려주고 아무 교정도 하지 않았다(그 함수의 관심사가 아니다).
+ *
+ * ⚖️ **규칙이 다른 카드 의도를 확언할 때만** 뒤집는다. `general` 이면 판단 근거가 없다는
+ * 뜻이므로 LLM 을 믿는다 — "내일은?"·"부산은?" 같은 진짜 후속이 여기 속하고, 이걸 뒤집으면
+ * 날씨 멀티턴이 통째로 깨진다. 날씨 규칙 자체가 날씨 어휘를 요구하므로, 규칙이 다른 카드
+ * 의도를 냈다는 건 그 문장에 날씨 어휘가 **없다**는 뜻이기도 하다.
+ */
+const CARD_INTENTS = new Set<IntentType>([
+    'hospital_search', 'pharmacy_search', 'vet_search', 'movie_search', 'law_search',
+]);
+export const resolveWeatherStickiness = (
+    llmIntent: IntentType, ruleIntent: IntentType, weatherCardShown: boolean,
+): IntentType =>
+    weatherCardShown && llmIntent === 'weather' && CARD_INTENTS.has(ruleIntent) ? ruleIntent : llmIntent;

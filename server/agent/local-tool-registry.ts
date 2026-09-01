@@ -6,6 +6,8 @@ import { lawTool } from './law-tool';
 import { movieTool } from './movie-tool';
 import { worldCupTool } from './worldcup-tool';
 import { weatherTool } from './weather-tool';
+import { paperTool } from './paper-tool';
+import { arxivTool } from './arxiv-tool';
 import type { FastPassCardType } from './card-tool-output';
 
 export type LocalToolResultMode = 'fast-pass' | 'synthesize';
@@ -148,6 +150,32 @@ const tools: LocalFunctionTool[] = [
         }),
         resultMode: 'synthesize',
         execute: executeTool(worldCupTool),
+    },
+    {
+        intent: 'paper_search',
+        name: 'search_papers',
+        description: 'PubMed 에서 의학·생명과학 논문을 검색해 제목·저널·연도·저자·DOI·인용 URL 과 초록 결론을 UI 카드 데이터로 반환한다.',
+        parameters: strictObject({
+            query: { type: 'string', description: 'PubMed 검색어. 한국어 질문이라도 의학 용어는 영어로 변환한다.' },
+            limit: nullable({ type: 'number', description: '반환할 논문 수. 기본 5, 최대 8' }),
+        }),
+        // synthesize 지만 cardType 을 준다 — 산문은 모델이 쓰고 카드는 도구 출력으로 고정된다.
+        resultMode: 'synthesize',
+        cardType: 'paper',
+        execute: executeTool(paperTool),
+    },
+    {
+        // 같은 json:paper 카드를 쓰지만 출처가 다르다 — 렌더러가 source 로 배지·문구를 가른다.
+        intent: 'arxiv_search',
+        name: 'search_arxiv',
+        description: 'arXiv 에서 물리·수학·전산·통계·공학·계량경제 논문을 검색해 제목·저자·연도·분류·arXiv ID·인용 URL 을 UI 카드 데이터로 반환한다.',
+        parameters: strictObject({
+            query: { type: 'string', description: 'arXiv 검색어. 한국어 질문이라도 학술 용어는 영어로 변환한다.' },
+            limit: nullable({ type: 'number', description: '반환할 논문 수. 기본 5, 최대 8' }),
+        }),
+        resultMode: 'synthesize',
+        cardType: 'paper',
+        execute: executeTool(arxivTool),
     },
     {
         intent: 'weather',

@@ -1,7 +1,8 @@
 import { isOpenAIChatModel, openAIModelCapabilities } from './models';
 import { withSearchProviderInstruction } from '../agent/search-provider';
 import type { LocalFunctionTool } from '../agent/local-tool-registry';
-import { assertSafeFastPassOutput } from '../agent/card-tool-output';
+import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../agent/card-tool-output';
+import { buildEmptyCardRules } from '../agent/card-followup';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_CHAT_TIMEOUT_MS = 60_000;
@@ -36,6 +37,11 @@ export type OpenAIChatOptions = {
 type OpenAIRequestState = {
     input?: JsonObject[];
     functionPhase?: 'initial' | 'followup';
+    /**
+     * 이번 요청에만 얹는 지시. 🔴 조회가 빈손일 때 "카드만 남기지 말고 답하라" 를 붙인다 —
+     * 이 경로는 그래프 tool 노드를 거치지 않아 generator 의 주입이 닿지 않는다(§6.29).
+     */
+    extraInstructions?: string;
     followupWebSearch?: boolean;
 };
 
@@ -97,7 +103,9 @@ export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
         model: options.model,
         store: false,
         instructions: withSearchProviderInstruction(
-            options.instructions,
+            requestState.extraInstructions
+                ? `${options.instructions}\n\n${requestState.extraInstructions}`
+                : options.instructions,
             hostedWebSearch ? 'openai' : 'none',
         ),
         input: requestState.input ?? options.messages.map(message => {
@@ -292,6 +300,9 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
             functionPhase: 'initial',
         }));
 
+        let pinnedCardOutput = '';
+        /** 이번 턴의 로컬 조회가 빈손이었나 — followup 요청에 규칙을 얹을지 정한다. */
+        let emptyCardTurn = false;
         if (options.functionTool) {
             // Responses의 reasoning/function_call 항목도 원형 그대로 다음 input에 되돌려야 한다.
             // parallel_tool_calls=false이지만 응답 방어 차원에서 배열 전체를 처리한다.
@@ -332,7 +343,21 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                             code: 'function_execution_error',
                         });
                     }
-                    if (options.functionTool.resultMode === 'fast-pass') {
+                    /**
+                     * 🔴 **빈 카드는 fast-pass 하지 않는다.** 카드 펜스만 보고 돌려보내면
+                     * 산문이 0줄인 막다른 길이 된다(실측: `이혼 소송 비용 얼마나 들어?` →
+                     * 법령 카드만, 답변 없음). langchain-path 와 같은 결함이 이 경로에도 있었다.
+                     * 비면 아래 synthesize 경로로 떨어뜨려 모델이 질문에 답하게 한다.
+                     */
+                    const hasResults = cardHasResults(output);
+                    if (!hasResults) emptyCardTurn = true;
+                    // 🔴 이 줄은 남겨 둔다. 카드 경로에서 값이 어디서 사라지는지 볼 수 있는
+                    // 유일한 관측점이다 — 없앴다가 화면만 보고 세 번 헛짚었다(§6.30).
+                    // (followup 산문 길이는 안 찍는다 — 빈 응답이면 아래에서 예외가 난다.)
+                    console.log(`[OpenAI] local tool "${options.functionTool.name}" → ` +
+                        `${output.length}자 · cardHasResults=${hasResults} · ` +
+                        `${options.functionTool.resultMode === 'fast-pass' && hasResults ? 'fast-pass' : 'synthesize(빈 카드 복구)'}`);
+                    if (options.functionTool.resultMode === 'fast-pass' && hasResults) {
                         try {
                             assertSafeFastPassOutput(output, options.functionTool.cardType);
                         } catch (error: any) {
@@ -343,6 +368,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                         }
                         return { text: output, sources: [], usage: json.usage };
                     }
+                    pinnedCardOutput = output;
                     outputs.push({ type: 'function_call_output', call_id: call.call_id, output });
                 }
 
@@ -356,6 +382,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                 json = await request(buildOpenAIChatRequest(options, {
                     input,
                     functionPhase: 'followup',
+                    extraInstructions: emptyCardTurn ? buildEmptyCardRules() : undefined,
                     followupWebSearch: options.functionTool.followupWebSearch,
                 }));
             }
@@ -369,6 +396,10 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
             });
         }
         const normalized = normalizeOpenAIWebCitations(json, rawText);
+        // 합성 모드라도 카드가 있는 intent 는 카드를 도구 출력으로 고정한다(모델 재작성 금지).
+        if (pinnedCardOutput && options.functionTool?.cardType) {
+            normalized.text = pinCardToProse(normalized.text, pinnedCardOutput, options.functionTool.cardType);
+        }
         return { ...normalized, usage: json.usage };
     } catch (error: any) {
         if (error instanceof OpenAIChatError) throw error;

@@ -19,7 +19,18 @@ export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.
 
 // 기본 모델 = 3.6 (Phase A 실그래프 검증 통과, DEV_260723 §11). 3.5·2.5 는 옵션으로 유지.
 export const DEFAULT_CHAT_MODEL: ChatModelId = SERVER_MODELS.FLASH_3_6;
-export const ROUTER_MODEL = SERVER_MODELS.FLASH_LITE;
+/**
+ * 의도 분류기. 매 턴 serial-blocking 이라 지연이 직접 체감된다.
+ *
+ * 🔴 flash-lite 에서 **카드 어휘에 반응하는 고정 오분류**가 있었다(실측 2026-09-01,
+ * `tests/manual/live-intent-routing.mts`): `강아지 사료 추천해줘` → `vet_search`,
+ * `변호사 비용 얼마나 들어?` → `law_search`, `변호사 시험 언제야` → `law_search`.
+ * `temperature: 0` 이라 3/3 일관되게 틀렸다 — 흔들림이 아니라 그 모델의 답이었다.
+ * 규칙 분류기는 셋 다 `general` 로 정확히 판정하지만, 규칙은 LLM 실패 시 폴백일 뿐이다.
+ *
+ * `SUMMARY_MODELS`(대화 제목)는 flash-lite 그대로다 — 별개 상수이고 성격도 다르다.
+ */
+export const ROUTER_MODEL = SERVER_MODELS.FLASH;
 export const SUMMARY_MODELS = [
     SERVER_MODELS.FLASH_LITE,
     SERVER_MODELS.FLASH,

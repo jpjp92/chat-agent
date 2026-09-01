@@ -4,9 +4,9 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
-import { classifyIntentByRules, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed } from "../intentRules";
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic } from "../intentRules";
 import { decideWeatherFollowup } from "../weather-followup";
-import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
+import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -73,6 +73,18 @@ export const routerNode = async (state: AgentStateType) => {
         vet: state.activeCards?.vet ?? cardInWindow('vet'),
     };
     const lawCardShown = state.activeCards?.law ?? cardInWindow('law');
+    /**
+     * 🔴 예전엔 창 스캔만 했고 주석에 "창을 벗어나면 재조회가 맞다(카드가 화면에서 밀려났으므로)"
+     * 라고 적어 뒀다. **틀렸다.** 밀려난 건 서버가 받는 창(최근 10개)이지 사용자의 화면이 아니다.
+     * 실측(2026-09-01): 여러 턴을 테스트한 뒤 "두번째 논문 설명해줘" 에 **빈 arXiv 카드**
+     * ("조건에 맞는 논문을 찾지 못했습니다")가 붙었다 — 사용자는 카드를 보면서 물었는데.
+     *
+     * 클라이언트는 최근 20개(`CARD_WINDOW`)로 판정해 `activeCards` 로 보내 준다. 날씨·약국·병원·
+     * 동물병원·법률이 전부 쓰는 장치인데 논문만 빠져 있었다. 구버전 클라는 창 스캔으로 폴백한다.
+     */
+    const paperCardInWindow = state.messages.some((m: any) =>
+        m._getType?.() === 'ai' && /```json\s*:\s*paper/.test(String(m.content ?? '')));
+    const paperCardShown = state.activeCards?.paper ?? paperCardInWindow;
 
     // 화면 카드가 어느 도시인가 — 후속 판정이 "화면에 없는 도시가 나왔나"를 보려면 필요하다.
     // (이게 없으면 서울 카드가 떠 있는데 "내일 부산 비와?"에 서울로 답한다.)
@@ -171,6 +183,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
 - "law_search"      : exact Korean statute lookup, article text, original provisions, or law lists
 - "law_qa"          : explanation, summary, comparison, scenario, or application of Korean law grounded in current statute data
+- "paper_search"    : the user is asking for RESEARCH PAPERS / studies / academic evidence — 논문, 연구 결과, 임상시험, 근거 자료, "관련 논문 찾아줘", "연구된 게 있어?". Judge only whether they want papers; do NOT judge the field here. The field is decided separately by "paper_source" below, which also decides whether any database can serve it. A medical question that never asks for research ("고혈압에 좋은 음식 알려줘", "감기 걸렸는데 어떻게 해?") is "medical_qa" — but "연구 있어?", "연구된 거 있어?", "연구 결과 알려줘" ARE paper requests even without the word 논문.
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "sports"          : CURRENT/ONGOING FIFA World Cup standings, group rankings, fixtures/bracket (16강/8강 대진), match results, top scorers. ONLY for the tournament happening now — past World Cups (2022 등) go to "general".
 - "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
@@ -194,7 +207,16 @@ CRITICAL for "new" — this is the case most often missed. Judge it in ANY langu
 - A bare place/theater name, with or without a question word, is "new": "부산은?" · "대구는 어때?" · "How about Busan?" · "And Daegu?" · "What about Busan" · "¿Y Busan?" · "Et Busan ?"
 - Asking to see something again is "new" (NOT "unrelated"): "아까 서울 거 다시 보여줘" · "Show me the Seoul one again" · "show that again" · "muéstrame Seúl otra vez"
 - A different day/time is "new": "내일은?" · "what about tomorrow?" · "et demain ?"
-If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it is "new" or "refine" — never "unrelated". Reserve "unrelated" for messages whose subject is genuinely something else (code, food, travel planning, directions).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated"}`;
+If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it is "new" or "refine" — never "unrelated". Reserve "unrelated" for messages whose subject is genuinely something else (code, food, travel planning, directions).\n${prevContext}\n\nUser Message: "${textContent}"\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated", "topic_field": "cooking", "paper_source": "none"}
+
+"topic_field": name the ACADEMIC FIELD the user's subject belongs to, in English, 1-3 words ("cardiology", "art history", "reinforcement learning", "monetary policy"). Always output it, for every intent. Decide it from the subject itself, not from the words used.
+
+"paper_source": read ONLY when intent is "paper_search". It picks which literature database can actually answer. Apply this test to the topic_field you just named — what does that field STUDY?
+- "pubmed" : a LIVING BODY — an organism, its structure, its function, its illness, or its care. Organisms of any kind (people, animals, plants, microbes) and anything about their bodies or minds: physiology, genetics, disease, drugs, nutrition, mental health, nursing, dentistry, veterinary medicine, public health, occupational and environmental health, exercise science, aging, and any therapy delivered to a patient.
+- "arxiv"  : a FORMAL, PHYSICAL, or COMPUTATIONAL SYSTEM — something with laws or mechanisms you can model, measure, or build. Mathematics, physics, astronomy, chemistry of matter, algorithms and computing, machine learning, electronics, robotics, engineering of any kind, statistics, and the quantitative side of economics and finance.
+- "none"   : a HUMAN RECORD — a text, an artwork, a past event, an institution, or a law. Literature, art history, musicology, history, archaeology, law, politics, philosophy, accounting, business practice, and the grammar of a language. People made these and people appear in them, but reading, trading, legislating, and adjudicating are neither bodily functions nor systems with laws. Neither database holds this field, so answer without a card.
+- If you cannot name what the field studies, answer "none". A wrong card is worse than no card: both databases return plausible-looking results for ANY query, so a miss sends the user confidently unrelated papers.
+Some words name a field on each side — the OBJECT decides, never the word: music therapy treats a patient (pubmed) but musicology studies music (none); sports medicine treats athletes (pubmed) but sports history studies events (none); computational linguistics builds language models (arxiv) but Korean syntax studies a grammar (none). "인상주의 회화 연구" studies paintings -> none, even though both databases happen to hold papers analysing paintings.`;
 
             const response = await ai.models.generateContent({
                 model: ROUTER_MODEL,
@@ -207,9 +229,35 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
+                }
+                if (parsed.intent === "paper_search") {
+                    // 라우터는 분야를 가리지 않고 논문 요청을 전부 paper_search 로 보낸다(무오염 실측
+                    // 차단 대상 30/30 누수). 블록리스트로는 분야 공간이 무한해 못 막으므로, 같은
+                    // 호출에서 두 칸을 더 받아 결정적으로 가른다(추가 LLM 호출 없음).
+                    //
+                    // 🔴 판정은 **분야 목록이 아니라 규칙**이다. 예전엔 "문학·예술사·경제는 false" 처럼
+                    //   열거했는데, 그러면 내가 적어둔 분야만 맞고 고고학·언어학·건축학처럼 안 적은
+                    //   분야는 그대로 샌다 — 블록리스트가 실패한 것과 같은 이유(분야 공간이 무한).
+                    //   그래서 순서를 둘로 나눴다: ① topic_field 로 주제를 학문 분야로 먼저 명명하고
+                    //   ② "그 분야가 무엇을 연구하는가" 로 데이터베이스를 고른다.
+                    //   음악치료/음악학처럼 같은 단어가 양쪽에 걸릴 때 대상이 가르도록 하는 게 핵심.
+                    //
+                    // 🔴 **3분기다.** "의생명이 아니면 arXiv" 가 아니다 — arXiv 도 PubMed 처럼 빈손으로
+                    //   실패하지 않는다(실측: "한국어 통사론" → astro-ph *Korean VLBI Network*).
+                    //   문학·역사·법학·예술은 어느 쪽에도 없으므로 카드 없이 산문으로 답한다.
+                    const source = parsed.paper_source;
+                    if (source === "arxiv") {
+                        // arxiv_search 는 모델이 고르는 의도가 아니다 — paper_source 에서 파생시킨다.
+                        // 모델에게 의도와 분야를 따로 물으면 두 판단이 어긋난다.
+                        intent = "arxiv_search";
+                    } else if (source !== "pubmed") {
+                        console.log(`[LangGraph] Paper intent downgrade (paper_search→general): field="${parsed.topic_field ?? '?'}" 는 두 DB 밖`);
+                        intent = "general";
+                    }
+                    console.log(`[LangGraph] Paper source: ${source ?? '(없음→general)'} · field="${parsed.topic_field ?? '?'}"`);
                 }
                 if (typeof parsed.needs_search === "boolean") {
                     llmNeedsSearch = parsed.needs_search;
@@ -273,6 +321,44 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
         intent = "movie_search";
     }
 
+    // 논문 의도인데 주제가 PubMed 밖이면 general 로 강등한다. 라우터 LLM 은 분야를 가리지
+    // 않고 논문 요청을 전부 paper_search 로 보내며(무오염 실측 CS·공학 9/9 누수), PubMed 는
+    // 빈손 대신 그 주제의 의생명 응용을 돌려줘 조용히 엉뚱한 근거가 나간다.
+    // ⚠️ `arxiv_search` 에는 적용하지 않는다 — 이 가드가 잡는 CS·공학 어휘가 arXiv 에서는
+    //   정답이다. 여기서 걸러야 할 건 "PubMed 로 가려는 비의생명 주제" 뿐이다.
+    if (intent === "paper_search" && isNonBiomedicalPaperTopic(textContent)) {
+        console.log('[LangGraph] Paper intent downgrade (paper_search→general): non-biomedical field');
+        intent = "general";
+    }
+
+    /**
+     * 논문 카드 후속 — 화면 카드를 두고 묻는 턴은 재조회하지 않는다.
+     *
+     * 🔴 실측(2026-08-31, gemini-3.7·gpt-5.6-luna 양쪽): 이 가드가 없어서 "세 번째 논문 좀 더
+     * 설명해줘" 가 PubMed 를 다시 검색해 **다른 목록의 새 카드**를 띄웠고, "표로 정리해줘" 는
+     * 얘기한 적도 없는 논문 카드를 새로 붙였다. 순서가 밀리면 `[3]` 이 딴 논문을 가리키므로
+     * §6.9 에서 없앤 귀속 오류가 멀티턴으로 되돌아오는 경로다.
+     *
+     * 판정은 `decidePaperCardFollowup` 로 나가 있다 — 하니스가 임포트해야 하기 때문이다.
+     *
+     * 🔴 **`general` 도 봐야 한다.** 처음엔 논문 의도일 때만 봤는데, 라우터 LLM 이 같은 발화를
+     * `general` 로 분류하는 일이 있다(실측: "세 번째 논문 좀 더 설명해줘" → `paper_source: none`
+     * → 두 DB 밖 강등 → general). 그러면 가드를 그냥 지나가고 `needsSearch` 가 켜진 채 웹 검색이
+     * 돌아 **화면에 카드가 멀쩡히 떠 있는데** 이런 답이 나갔다:
+     *   "죄송합니다. 세 번째 논문은 찾을 수 없었습니다. arXiv 데이터베이스에 연결할 수 없었습니다."
+     * 날씨 카드 가드가 `weatherCardShown` 만 보고 의도를 안 가리는 것과 같은 이유다.
+     *
+     * ⚠️ 세 의도로만 좁힌다. 논문 카드가 떠 있어도 "오늘 서울 날씨?" 는 날씨로 가야 한다.
+     */
+    let paperFollowup = false;
+    if (paperCardShown && (intent === "paper_search" || intent === "arxiv_search" || intent === "general")) {
+        if (decidePaperCardFollowup(textContent, true) === 'discuss') {
+            console.log(`[LangGraph] Paper card followup: discuss → general (재조회 없이 화면 카드로 답한다)`);
+            intent = "general";
+            paperFollowup = true;
+        }
+    }
+
     // 위치·법률 카드 후속은 카드 재조회와 카드 기반 대화를 분리한다. 카드에 이미 있는 운영시간·주소·
     // 의사수·조문을 묻거나 선택 결과에 반응하는 턴은 general로 보내 카드 원문만 근거로 답한다.
     // 다른 지역/기관의 새 목록을 요구할 때만 기존 조회 intent를 유지한다.
@@ -302,10 +388,23 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     }
 
     const ruleIntentForLaw = classifyIntentByRules(textContent, hasImage);
-    if (intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search' || (lawCardShown && state.activeCards?.latest === 'law')) {
-        const decision = decideLawInteraction(textContent, lawCardShown);
+    // 🔴 진료과명이 있는데 LLM 이 약국이라 하면 규칙이 이긴다 — 판정 근거는 intentRules 에 있다.
+    //   ("서초구 소아과" 가 3/3 pharmacy_search 로 가서 빈 약국 카드가 떴다, 실측 2026-08-31)
+    if (intent !== resolveClinicIntent(intent, ruleIntentForLaw)) {
+        console.log(`[LangGraph] Clinic guard: ${intent} → hospital_search (진료과명이 있고 약국이라는 말이 없다)`);
+        intent = resolveClinicIntent(intent, ruleIntentForLaw);
+    }
+    // 🔴 진입 근거를 구분해서 넘긴다. 카드가 떠 있다는 것 **하나만**으로 들어온 턴은
+    //   주제가 법률을 떠났을 수 있다 — 그 판정이 decideLawInteraction 의 'unrelated' 다.
+    //   구분 없이 돌리던 시절, 법률 카드가 화면에 있으면 논문·날씨·약국 질의까지 전부
+    //   law_search 로 가서 "관련 법령을 찾을 수 없습니다" 빈 카드가 나갔다(실측 2026-08-31).
+    const intentIsLaw = intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search';
+    if (intentIsLaw || (lawCardShown && state.activeCards?.latest === 'law')) {
+        const decision = decideLawInteraction(textContent, lawCardShown, intentIsLaw);
         if (decision === 'lookup') intent = 'law_search';
         else if (decision === 'synthesize') intent = 'law_qa';
+        // 주제가 카드를 떠났다 → 법률로 끌어오지 않는다. LLM 이 정한 의도를 그대로 둔다.
+        else if (decision === 'unrelated') { /* intent 유지 */ }
         else {
             intent = 'general';
             cardFollowup = 'law';
@@ -379,6 +478,18 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
         if (interp.test(textContent) && !weatherRequest.test(textContent)) {
             console.log('[LangGraph] Weather (no card) interpretation → general');
             intent = "general";
+        }
+    }
+
+    // 🔴 날씨 카드가 무관한 질의를 빨아들이는 것을 막는다 — 판정은 intentRules 에 있다.
+    //   후속 판정(위 블록) 뒤에 둔다. 카드가 떠 있을 때 intent 를 weather 로 만드는 경로가
+    //   LLM 직접 판정과 'new' 재조회 두 갈래라, 마지막에 한 번 거르는 편이 새지 않는다.
+    if (weatherCardShown) {
+        const resolved = resolveWeatherStickiness(intent, ruleIntentForLaw, weatherCardShown);
+        if (resolved !== intent) {
+            console.log(`[LangGraph] Weather stickiness: ${intent} → ${resolved} (규칙이 다른 카드 의도를 확언한다)`);
+            intent = resolved;
+            weatherFollowup = false;
         }
     }
 
@@ -470,6 +581,10 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     } else if (weatherFollowup) {
         // 화면 날씨 카드(히스토리 json:weather)로 답 — grounding 켜면 다른 수치로 답할 수 있어 off.
         needsSearch = false;
+    } else if (paperFollowup) {
+        // 화면 논문 카드(히스토리 json:paper)가 근거다 — 검색을 켜면 카드에 없는 논문을 끌어와
+        // 인용 번호가 가리키는 대상이 어긋난다. 날씨 카드와 같은 이유로 off.
+        needsSearch = false;
     } else if (intent === "general") {
         const ruleDecision = classifySearchNeed(textContent);
         if (ruleDecision === "on") needsSearch = true;
@@ -486,6 +601,6 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
     // 주입하면 "몇 시까지?"를 형식 변경 요청으로 오해하므로 카드 전용 후속에서는 끈다.
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
-    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}`);
-    return { nextNode: "generator", intent, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, weatherFollowup, reformatTurn };
+    console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, paperFollowup=${paperFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}, paperCardShown=${paperCardShown}`);
+    return { nextNode: "generator", intent, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
 };

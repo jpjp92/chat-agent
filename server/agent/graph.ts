@@ -15,6 +15,8 @@ import { lawTool } from "./law-tool";
 import { movieTool } from "./movie-tool";
 import { worldCupTool } from "./worldcup-tool";
 import { weatherTool } from "./weather-tool";
+import { arxivTool } from "./arxiv-tool";
+import { paperTool } from "./paper-tool";
 
 /**
  * Compiles the LangGraph StateGraph instance.
@@ -24,7 +26,7 @@ export const compileAgentGraph = (systemInstruction: string, isYoutubeRequest: b
 
     // langName: 렌더러 스펙(의도별 주입) 중 [WEATHER FORMATTING]이 언어별이라 generator까지 전달한다.
     const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent, langName);
-    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, worldCupTool, weatherTool]);
+    const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, worldCupTool, weatherTool, paperTool, arxivTool]);
 
     // 2. Define Conditional Routing
     // Evaluates if the generator LLM decided to invoke a tool

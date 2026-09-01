@@ -50,6 +50,8 @@ const VAGUE_BEFORE_WEATHER = /^(이런|그런|저런|이|그|저|요즘|요새|�
 // 담화표지·접속부사 — 문장 앞에 붙을 뿐 지명이 아니다.
 const DISCOURSE_MARKER = /^(아니|아니아니|근데|그런데|그래서|그러면|그럼|그리고|또|음+|어+|저기|야|참|일단|그냥|아까|방금|다시|좀|더|현재|지금)$/;
 // 시간 표현 — "이번 주 날씨"의 `주`, "오늘 날씨"의 `오늘`이 지명으로 오인되던 자리.
+/** "부산은?"·"내일은?" 꼴의 단독 재질의. 도시 판정과 시점 판정이 **같은 모양**을 본다. */
+const REASK = /^([가-힣A-Za-z]{1,10})\s*(?:은|는|도)\s*[?？]?$/;
 const TIME_TOKEN = /^(오늘|내일|모레|글피|어제|주|이번|다음|저번|지난|주말|평일|아침|점심|저녁|밤|낮|오후|오전|새벽|월요일|화요일|수요일|목요일|금요일|토요일|일요일|월욜|화욜|수욜|목욜|금욜|토욜|일욜)$/;
 const TIME_SHIFT = /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/;
 const WEATHER_WORD = /날씨|예보|기온|온도|몇\s*도|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)|강수|더[워울]|추[워울]|맑|흐[림려]/;
@@ -99,7 +101,7 @@ export const detectCityMention = (text: string, shownCities: string[] = []): Cit
     const candidates: string[] = [];
     for (const m of text.matchAll(/([가-힣A-Za-z]{1,12})\s*날씨/g)) candidates.push(m[1]);
     // "부산은?"·"내일은?" 꼴의 단독 재질의 — 여기서도 같은 잣대를 쓴다
-    const reask = text.trim().match(/^([가-힣A-Za-z]{1,10})\s*(?:은|는|도)\s*[?？]?$/);
+    const reask = text.trim().match(REASK);
     if (reask) candidates.push(reask[1]);
 
     let sawUnknown = false;
@@ -140,7 +142,22 @@ export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollo
     //     "날씨 추세 알려줘"를 구분하지 못해, 사용자가 같은 걸 세 번 물어도 카드만 세 번 떴다.
     const newFetch = city !== "none";
 
-    const strongRefine = (/날씨/.test(text) && city === "none") || weatherWord || INTERPRETIVE.test(text);
+    /**
+     * 🔴 시점만 옮긴 단독 재질의("내일은?"·"주말은?")는 **항상** 화면 카드로 답한다.
+     *
+     * 실측(2026-08-31, 사용자 로컬): "부산 날씨 어때?" 뒤의 "내일은?" 이 카드를 다시 그렸다.
+     * 규칙 신호가 하나도 없어(날씨 어휘도, 지역도 없다) LLM 판정으로 떨어졌고 LLM 이 'new' 를
+     * 골랐기 때문이다. 위에 적어 둔 원칙 ①과 정면으로 어긋난다 — 카드에 이미 +5일 예보가 있어
+     * 재조회해도 **같은 데이터**가 오고, 사용자 화면은 그대로다(아무 일도 안 일어난 것처럼 보인다).
+     * 지역 재질의("부산은?")는 위 newFetch 가 먼저 잡으므로 여기 걸리지 않는다.
+     */
+    const timeReask = (() => {
+        const m = text.trim().match(REASK);
+        return !!m && TIME_TOKEN.test(m[1]);
+    })();
+
+    const strongRefine = (/날씨/.test(text) && city === "none") || weatherWord
+        || INTERPRETIVE.test(text) || timeReask;
 
     if (newFetch) return { decision: "new", why: "rule" };
     if (strongRefine) return { decision: "refine", why: "rule" };

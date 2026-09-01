@@ -28,6 +28,7 @@ const HospitalRenderer = lazy(() => import('./HospitalRenderer').then(module => 
 const VetRenderer = lazy(() => import('./VetRenderer').then(module => ({ default: module.VetRenderer })));
 const LawRenderer = lazy(() => import('./LawRenderer').then(module => ({ default: module.LawRenderer })));
 const MovieRenderer = lazy(() => import('./MovieRenderer').then(module => ({ default: module.MovieRenderer })));
+const PaperRenderer = lazy(() => import('./PaperRenderer').then(module => ({ default: module.PaperRenderer })));
 const WeatherRenderer = lazy(() => import('./WeatherRenderer').then(module => ({ default: module.WeatherRenderer })));
 const YoutubeEmbed = lazy(() => import('./YoutubeEmbed'));
 
@@ -465,8 +466,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderContent = (content: string) => {
     // Split by Viz Blocks
-    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'weather' | 'chart_loading'; content?: string; data?: any }[] = [];
-    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|weather)\s*\n([\s\S]*?)\n```/gi;
+    const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'paper' | 'weather' | 'chart_loading'; content?: string; data?: any }[] = [];
+    const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|paper|weather)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
     let match;
 
@@ -526,6 +527,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'law', data: jsonData });
         } else if (blockType === 'movie') {
           parts.push({ type: 'movie', data: jsonData });
+        } else if (blockType === 'paper') {
+          parts.push({ type: 'paper', data: jsonData });
         } else if (blockType === 'weather') {
           parts.push({ type: 'weather', data: jsonData });
         }
@@ -698,6 +701,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
                   <LawRenderer data={part.data} language={language} />
+                </Suspense>
+              </ErrorBoundary>
+            );
+          }
+          if (part.type === 'paper') {
+            return (
+              <ErrorBoundary key={idx}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <PaperRenderer data={part.data} language={language} />
                 </Suspense>
               </ErrorBoundary>
             );

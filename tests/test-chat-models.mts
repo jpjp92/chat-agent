@@ -36,6 +36,24 @@ check('서버 route에서 모델 문자열 검증',
     fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8').includes('isChatModelId(model)'));
 const chatRouteSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
+
+// 🔴 "한 줄 요약" 헤딩의 본문 서식이 경로마다 달랐다(실측 2026-08-31, 사용자 화면):
+//   URL·영상 요약은 `> 인용문`, **이미지 분석은 그냥 문단**. 같은 헤딩이 다르게 보인다.
+//   이미지 쪽엔 서식 규칙이 아예 없어서 모델이 헤딩만 흉내 낸 결과였다.
+//   ⚖️ 구조 전체를 강요하지 않는다 — 알약 판독·표 추출 같은 다른 이미지 질문이 망가진다.
+//      규칙은 **헤딩을 쓸 때의 서식**에만 건다.
+{
+    const ps = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
+    check('한 줄 요약 서식 규칙이 한 곳에 정의돼 있다', ps.includes('[ONE-LINE SUMMARY FORMAT]'));
+    check('블록쿼트를 명시한다', /\[ONE-LINE SUMMARY FORMAT\][\s\S]{0,600}blockquote/.test(ps));
+    check('이미지·문서 분석에도 적용된다고 명시한다',
+        /\[ONE-LINE SUMMARY FORMAT\][\s\S]{0,600}image/i.test(ps));
+    // URL·영상 예시가 블록쿼트를 유지하는가 (예시가 규칙과 어긋나면 모델은 예시를 따른다)
+    const urlBlock = ps.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? '';
+    check('URL 예시가 블록쿼트를 쓴다', /\*\*\$\{lbl\.summary\}\*\*\s*\n\s*>/.test(urlBlock));
+    const videoBlock = ps.match(/Direct Video Analysis[\s\S]{0,600}/)?.[0] ?? '';
+    check('영상 예시가 블록쿼트를 쓴다', /\*\*\$\{lbl\.summary\}\*\*\s*\n\s*>/.test(videoBlock));
+}
 const generatorSource = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
 check('채팅 route가 Gemini 키를 모든 공급자에 선행 강제하지 않음',
     !chatRouteSource.includes('if (API_KEYS.length === 0)'));
@@ -46,10 +64,12 @@ check('GPT 일반 경로가 Gemini 키 취득보다 먼저 실행됨',
 check('OpenAI 응답은 generator에서 직접 중복 전송하지 않음',
     generatorSource.includes("provider: 'openai'")
     && !generatorSource.includes('if (sendEvent) sendEvent({ text: result.text })'));
-check('route가 OpenAI 번호 인용을 Gemini 정규식과 분리',
-    chatRouteSource.includes("output?.provider === 'openai'"));
+// 이벤트 처리는 stream-dispatch.ts 로 옮겼다(동작 검증은 test-stream-dispatch.mts).
+const dispatchSource = fs.readFileSync(new URL('../server/agent/stream-dispatch.ts', import.meta.url), 'utf8');
+check('디스패치가 OpenAI 번호 인용을 Gemini 정규식과 분리',
+    dispatchSource.includes("output?.provider === 'openai'"));
 // Gemini도 groundingSupports 기반 실제 링크를 심으므로, 가짜 번호 제거는 맨 대괄호에만 적용한다.
-check('가짜 인용 제거가 실제 링크를 훼손하지 않음', chatRouteSource.includes('(?!\\()/g'));
+check('가짜 인용 제거가 실제 링크를 훼손하지 않음', dispatchSource.includes('(?!\\()/g'));
 check('OpenAI quota 전용 안내 분기',
     chatRouteSource.includes('classifyChatError(error'));
 check('OpenAI quota 사용자 안내 문구',
