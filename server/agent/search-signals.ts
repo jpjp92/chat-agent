@@ -77,3 +77,30 @@ export const collectTextSearchSignals = (opts: {
 
     return signals;
 };
+
+/**
+ * 논문 카드 도구 + **사용자가 검색을 명시 요청** → 종합 단계에 웹 검색을 붙여 돌려준다.
+ *
+ * 🔴 왜 필요한가(2026-09-02 실사용). 라우터가 "클로드 skills 관련된 레포 검색" 을
+ *   `arxiv_search` 로 보내자, generator 의 `useWebSearch = !localFunctionTool && ...` 가
+ *   **로컬 함수가 있다는 이유만으로** 사용자의 명시 검색 요청(tier 300)을 버렸고, 논문 도구엔
+ *   `followupWebSearch` 도 없어서 답변 전체가 엉뚱한 arXiv 근거만 달고 나갔다 — 웹으로
+ *   빠져나갈 구멍이 하나도 없었다. 라우터 가드(`resolvePaperArtifactIntent`)가 1차 방어이고,
+ *   이건 그걸 뚫고 온 경우의 2차 방어다.
+ *
+ * ⚠️ 논문 두 intent 로만 좁힌다. 약국·병원·날씨 카드는 조회 결과가 곧 답이라 웹을 덧붙일
+ *   이유가 없고 레이턴시만 는다. `drug_info` 는 이미 상시 `followupWebSearch: true` 다.
+ *
+ * 🏠 여기 사는 이유: 개념상 local-tool-registry 가 맞지만, 그 모듈은 도구 12종을 통해
+ *   Supabase 클라이언트까지 끌고 와 시크릿 없이는 임포트되지 않는다. 판정은 텍스트 신호이므로
+ *   (이 파일의 주제) 여기 두고 도구 모양은 제네릭으로 받는다 — 하니스가 프로덕션을 그대로 실행한다.
+ */
+const PAPER_CARD_INTENTS = new Set(['paper_search', 'arxiv_search']);
+
+export const withExplicitSearchFollowup = <T extends { intent: string; followupWebSearch?: boolean }>(
+    tool: T | undefined,
+    latestUserText: string,
+): T | undefined =>
+    tool && PAPER_CARD_INTENTS.has(tool.intent) && detectExplicitSearchRequest(latestUserText)
+        ? { ...tool, followupWebSearch: true }
+        : tool;

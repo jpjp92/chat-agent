@@ -4,7 +4,7 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
-import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic } from "../intentRules";
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intentRules";
 import { decideWeatherFollowup } from "../weather-followup";
 import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 
@@ -183,7 +183,7 @@ export const routerNode = async (state: AgentStateType) => {
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
 - "law_search"      : exact Korean statute lookup, article text, original provisions, or law lists
 - "law_qa"          : explanation, summary, comparison, scenario, or application of Korean law grounded in current statute data
-- "paper_search"    : the user is asking for RESEARCH PAPERS / studies / academic evidence — 논문, 연구 결과, 임상시험, 근거 자료, "관련 논문 찾아줘", "연구된 게 있어?". Judge only whether they want papers; do NOT judge the field here. The field is decided separately by "paper_source" below, which also decides whether any database can serve it. A medical question that never asks for research ("고혈압에 좋은 음식 알려줘", "감기 걸렸는데 어떻게 해?") is "medical_qa" — but "연구 있어?", "연구된 거 있어?", "연구 결과 알려줘" ARE paper requests even without the word 논문.
+- "paper_search"    : the user is asking for RESEARCH PAPERS / studies / academic evidence — 논문, 연구 결과, 임상시험, 근거 자료, "관련 논문 찾아줘", "연구된 게 있어?". Judge only whether they want papers; do NOT judge the field here. The field is decided separately by "paper_source" below, which also decides whether any database can serve it. A medical question that never asks for research ("고혈압에 좋은 음식 알려줘", "감기 걸렸는데 어떻게 해?") is "medical_qa" — but "연구 있어?", "연구된 거 있어?", "연구 결과 알려줘" ARE paper requests even without the word 논문. NEGATIVE ANCHOR — judge what the user wants DELIVERED, not what the subject is about. If they want a SOFTWARE ARTIFACT handed to them — code repositories, GitHub/GitLab repos (레포, 레포지토리, 저장소, 깃허브), open-source projects, libraries, packages, SDKs, frameworks, tools, or documentation — that is "general", NOT paper_search, even when the topic is academic and even when the message says 검색/찾아줘: "클로드 skills 관련된 레포 검색" and "rag 라이브러리 추천해줘" want software, so "general". But those same words may merely NAME THE SUBJECT of a study — "깃허브 코파일럿 생산성 논문 있나", "오픈소스 라이선스 연구 있어?" ask for literature ABOUT software, so they stay paper_search. The deciding question: would a repository satisfy them, or does only a paper?
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "sports"          : CURRENT/ONGOING FIFA World Cup standings, group rankings, fixtures/bracket (16강/8강 대진), match results, top scorers. ONLY for the tournament happening now — past World Cups (2022 등) go to "general".
 - "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
@@ -215,6 +215,7 @@ If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it 
 - "pubmed" : a LIVING BODY — an organism, its structure, its function, its illness, or its care. Organisms of any kind (people, animals, plants, microbes) and anything about their bodies or minds: physiology, genetics, disease, drugs, nutrition, mental health, nursing, dentistry, veterinary medicine, public health, occupational and environmental health, exercise science, aging, and any therapy delivered to a patient.
 - "arxiv"  : a FORMAL, PHYSICAL, or COMPUTATIONAL SYSTEM — something with laws or mechanisms you can model, measure, or build. Mathematics, physics, astronomy, chemistry of matter, algorithms and computing, machine learning, electronics, robotics, engineering of any kind, statistics, and the quantitative side of economics and finance.
 - "none"   : a HUMAN RECORD — a text, an artwork, a past event, an institution, or a law. Literature, art history, musicology, history, archaeology, law, politics, philosophy, accounting, business practice, and the grammar of a language. People made these and people appear in them, but reading, trading, legislating, and adjudicating are neither bodily functions nor systems with laws. Neither database holds this field, so answer without a card.
+- If the user wants software artifacts (repos, libraries, packages, tools) HANDED TO THEM rather than literature, answer "none" — no literature database serves that. A paper ABOUT software is still literature: judge it by its field as usual.
 - If you cannot name what the field studies, answer "none". A wrong card is worse than no card: both databases return plausible-looking results for ANY query, so a miss sends the user confidently unrelated papers.
 Some words name a field on each side — the OBJECT decides, never the word: music therapy treats a patient (pubmed) but musicology studies music (none); sports medicine treats athletes (pubmed) but sports history studies events (none); computational linguistics builds language models (arxiv) but Korean syntax studies a grammar (none). "인상주의 회화 연구" studies paintings -> none, even though both databases happen to hold papers analysing paintings.`;
 
@@ -329,6 +330,18 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     if (intent === "paper_search" && isNonBiomedicalPaperTopic(textContent)) {
         console.log('[LangGraph] Paper intent downgrade (paper_search→general): non-biomedical field');
         intent = "general";
+    }
+
+    // 논문이 아니라 **소프트웨어 산출물**(레포·라이브러리·패키지)을 찾는 요청이면 강등한다.
+    // 🔴 실측(2026-09-02): "클로드 skills 관련된 레포 검색" → paper_search + arxiv → arXiv 카드.
+    //   위 가드는 `arxiv_search` 를 일부러 건너뛰므로 arXiv 쪽엔 안전망이 없었다 — 여기가 그 자리다.
+    //   판정은 `resolvePaperArtifactIntent` 로 나가 있다(하니스가 임포트해야 하기 때문).
+    {
+        const artifactResolved = resolvePaperArtifactIntent(intent, textContent);
+        if (artifactResolved !== intent) {
+            console.log(`[LangGraph] Paper intent downgrade (${intent}→general): 논문이 아니라 소프트웨어 산출물 요청`);
+            intent = artifactResolved;
+        }
     }
 
     /**

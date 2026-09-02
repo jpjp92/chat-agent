@@ -130,5 +130,52 @@ check('배선  Wikidocs도 OpenAI 직행 없이 ScrapingBee 체인을 우선 사
     routeSource.indexOf('const sb = await scrapingBeeFetch();') <
         routeSource.indexOf('OPENAI_URL_FALLBACK_ENABLED && isOpenAIUrlFallbackHost(targetHostname)'));
 
+// ── 논문 카드 + 명시 검색 요청 → 종합 단계 웹 검색 (2026-09-02) ────────────────
+// 🔴 라우터가 "클로드 skills 관련된 레포 검색" 을 arxiv_search 로 보내자, generator 의
+//   `useWebSearch = !localFunctionTool && ...` 가 로컬 함수가 있다는 이유만으로 사용자의
+//   명시 검색 요청(tier 300)을 버렸다. 논문 도구엔 followupWebSearch 도 없어서 답변 전체가
+//   엉뚱한 arXiv 근거만 달고 나갔다 — 웹으로 빠져나갈 구멍이 하나도 없었다.
+const { withExplicitSearchFollowup } = await import('../server/agent/search-signals.js');
+const { buildOpenAIChatRequest } = await import('../server/openai/chat.js');
+
+// 도구 모양만 필요하다 — 실제 레지스트리는 Supabase 를 끌고 와 시크릿 없이 임포트되지 않는다.
+const fakeTool = (intent: string) => ({
+    intent, name: `search_${intent}`, description: 'd', parameters: { type: 'object' },
+    resultMode: 'synthesize' as const, execute: async () => '',
+});
+const arxivTool = fakeTool('arxiv_search');
+const pubmedTool = fakeTool('paper_search');
+const weatherTool = fakeTool('weather');
+
+check('논문  arxiv + 명시 검색 요청 → followupWebSearch',
+    withExplicitSearchFollowup(arxivTool, '클로드 skills 관련된 레포 검색')?.followupWebSearch === true);
+check('논문  pubmed + 명시 검색 요청 → followupWebSearch',
+    withExplicitSearchFollowup(pubmedTool, '관련 자료 검색해줘')?.followupWebSearch === true);
+check('논문  명시 요청이 없으면 그대로 (불필요한 웹 호출 금지)',
+    withExplicitSearchFollowup(arxivTool, '두번째 논문 설명해줘')?.followupWebSearch === undefined);
+check('논문  과거참조는 새 검색 요청이 아니다',
+    withExplicitSearchFollowup(arxivTool, '아까 검색한 거 정리해줘')?.followupWebSearch === undefined);
+check('논문  논문 외 카드는 대상이 아니다 (레이턴시)',
+    withExplicitSearchFollowup(weatherTool, '서울 날씨 검색해줘')?.followupWebSearch === undefined);
+check('논문  도구가 없으면 undefined 그대로',
+    withExplicitSearchFollowup(undefined, '검색해줘') === undefined);
+
+// 배선: followupWebSearch 가 실제로 web_search 툴로 나가는가 (followup 단계에서만)
+const followupBody = buildOpenAIChatRequest(
+    { model: 'gpt-5.6-luna', messages: [], instructions: 'x', useWebSearch: false, maxOutputTokens: 4096,
+      functionTool: withExplicitSearchFollowup(arxivTool, '레포 검색해줘') },
+    { input: [], functionPhase: 'followup', followupWebSearch: true },
+);
+check('배선  종합 단계에 web_search 툴이 실린다',
+    JSON.stringify(followupBody.tools) === JSON.stringify([{ type: 'web_search' }]));
+
+const initialBody = buildOpenAIChatRequest(
+    { model: 'gpt-5.6-luna', messages: [], instructions: 'x', useWebSearch: false, maxOutputTokens: 4096,
+      functionTool: arxivTool },
+    { functionPhase: 'initial' },
+);
+check('배선  조회 단계는 여전히 로컬 함수만 (툴 혼용 금지 정책 보존)',
+    (initialBody.tools as any[])?.[0]?.type === 'function');
+
 console.log(`\n통과 ${pass} · 실패 ${fail}`);
 if (fail > 0) process.exit(1);

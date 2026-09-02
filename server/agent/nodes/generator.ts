@@ -20,6 +20,7 @@ import { generateOpenAIChat } from "../../openai/chat";
 import { isOpenAIChatModel } from "../../openai/models";
 import { withSearchProviderInstruction } from "../search-provider";
 import { getLocalFunctionTool } from "../local-tool-registry";
+import { withExplicitSearchFollowup } from "../search-signals";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -306,7 +307,13 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 intent: state.intent,
                 needsSearch: state.needsSearch || hospitalHoursUnavailable,
                 hasMultimodalContent,
+                // 🔴 Gemini 경로의 "이미지 빼고 검색 켜기" 가드(:383)에 대응하는 값이지만, 여기서는
+                //   애초에 뺄 이미지가 없다 — OpenAI 는 input_image 와 web_search 를 함께 보낸다.
+                //   대신 `provider: 'openai'` 로 TIER 400 자체를 내지 않게 한다. 예전엔 이 자리가
+                //   false 로 고정돼 있어, 대화에 이미지가 한 번이라도 있으면 그 뒤 모든 턴에서
+                //   사용자의 명시 검색 요청(300)이 남의 API 제약(400)에 눌렸다(2026-09-02 실측).
                 dropImageForSearch: false,
+                provider: 'openai',
                 isYoutubeRequest,
                 hasVideoData,
                 latestUserText,
@@ -315,6 +322,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             // 로컬 함수와 hosted web_search를 한 호출에 섞지 않는다. drug_info의 보조 웹
             // 검색은 기존 도구 내부에서 수행되며, 나머지 로컬 intent는 단일 책임 함수만 강제한다.
             const useWebSearch = !localFunctionTool && searchRequested;
+            // 논문 카드 + 명시 검색 요청이면 종합 단계에 웹 검색을 붙인다(판정은 레지스트리에).
+            const functionTool = withExplicitSearchFollowup(localFunctionTool, latestUserText);
             const resolvedMaxTokens = resolveMaxTokens({
                 hasDocumentContent,
                 isYoutubeRequest,
@@ -330,7 +339,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 instructions: finalInstruction,
                 useWebSearch,
                 maxOutputTokens: effectiveMaxTokens,
-                functionTool: localFunctionTool,
+                functionTool,
             });
             // Responses API는 현재 비스트리밍 호출이다. 텍스트 전송·DB 누적은 route의
             // generator on_chain_end 한 곳에서만 처리해 중복 전송을 막는다.

@@ -1,6 +1,6 @@
 # Chat Agent
 
-A multi-provider AI messenger powered by Gemini and OpenAI — LangGraph.js agent pipeline, web grounding, multimodal input, and 12 interactive visualization renderers.
+A multi-provider AI messenger powered by Gemini and OpenAI — LangGraph.js agent pipeline, web grounding, multimodal input, and 13 interactive visualization renderers.
 
 ---
 
@@ -31,10 +31,11 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 
 - **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage
 - **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
+- **Search on/off is decided by declared tiers, not by statement order** — `400` hard constraint > `300` user's explicit request > `200` answer already grounded (URL / attached doc / video) > `100` classifiers > `0` default-on. Nobody overwrites anybody; each gate submits a signal and the highest tier wins (`server/agent/search-policy.ts`). ⚠️ **Tier 400 is Gemini-only**: it encodes *"Gemini cannot put an image and grounding in one request"*, which is not true of OpenAI Responses — so the OpenAI path passes `provider: 'openai'` and the signal is never emitted (2026-09-02; before that, one image anywhere in a conversation silently disabled search for the rest of it)
 - **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
-- **Intent routing**: currently `gemini-2.5-flash-lite` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, and `follow_up`; provider-native routing for GPT is a tracked follow-up
-- **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for drug/pharmacy/hospital/vet/law/movie/sports/weather. Card tools fast-pass their renderer block; drug and sports results are synthesized by the selected GPT
-- **Card follow-up**: weather/movie cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages
+- **Intent routing**: currently `gemini-2.5-flash` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, `follow_up`, `topic_field`, and `paper_source`; provider-native routing for GPT is a tracked follow-up. Deterministic guards correct known LLM misroutes after the call — clinic vs pharmacy, weather-card stickiness, non-biomedical PubMed topics, and **literature vs software artifact** (`레포 검색` must not return an arXiv card)
+- **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for 11 intents — drug / pharmacy / hospital / vet / law_search / law_qa / movie / sports / PubMed papers / arXiv papers / weather. Card tools fast-pass their renderer block; drug, sports, and paper results are synthesized by the selected GPT. A hosted web search and a forced local function never share one request, but a paper lookup **plus an explicit user request to search** attaches web search to the synthesis step so the request is not silently dropped
+- **Card follow-up**: weather, movie, pharmacy, hospital, vet, law, and paper cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages. Guards also stop a displayed card from pulling in unrelated turns
 - **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
 - **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
@@ -42,7 +43,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 
 Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
 
-### 1-3. Visualization Renderers (12)
+### 1-3. Visualization Renderers (13)
 
 | Renderer             | Intent                          | Library / API                                     |
 | -------------------- | ------------------------------- | ------------------------------------------------- |
@@ -51,6 +52,7 @@ Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF
 | 🏨 Hospital-Viz      | `hospital_search`             | HIRA hospital information service API (expires 2028-05-07) + HIRA per-institution detail service `MadmDtlInfoService2.8` for treatment hours (expires 2028-08-23), with web-search fallback where no detail record exists |
 | 🐾 Vet-Viz           | `vet_search`                  | MOIS animal hospital lookup service (expires 2028-05-10) |
 | ⚖️ Law-Viz          | `law_search`                  | Korea Law Information Center Open API              |
+| 📄 Paper-Viz         | `paper_search` / `arxiv_search` | PubMed E-utilities + CrossRef (biomedical) · arXiv API (formal/physical/computational). The router's `paper_source` picks one, or answers without a card when neither database covers the field |
 | 🎬 Movie-Viz         | `movie_search`                | Lotte/Megabox direct JSON + CGV browserless (HMAC) |
 | 🌦️ Weather-Viz       | `weather`                     | KMA API Hub (한국, `dfsXyConv` 격자) + OpenWeather (해외·폴백) |
 | 🧪 Chem-Viz          | `chemistry`                   | smiles-drawer                                     |
@@ -90,7 +92,7 @@ flowchart TB
     subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
         UI[Main UI]
         Stream[useChatStream]
-        Renderers["Renderers (12)"]
+        Renderers["Renderers (13)"]
     end
 
     subgraph FetchAPI ["/api/fetch-url"]
@@ -116,7 +118,7 @@ flowchart TB
         Gemini[["Google Gemini AI"]]
         OpenAI[["OpenAI API"]]
         Supabase[("Supabase")]
-        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org / KMA + OpenWeather)"]]
+        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org / KMA + OpenWeather / PubMed + CrossRef / arXiv)"]]
         Multiplex[["CGV / Lotte / Megabox"]]
     end
 
@@ -218,18 +220,25 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── prompt.ts                   # Base + intent-scoped renderer sections
 │       ├── lang.ts                     # Single source for server language mapping
 │       ├── history.ts                  # Client history → LangChain messages
-│       ├── state.ts / intentRules.ts   # state: activeCards / *Followup / movieContext
+│       ├── state.ts                    # activeCards / *Followup / movieContext
+│       ├── intentRules.ts              # 폴백 규칙 + LLM 오라우팅 교정 가드 (순수 — 하니스가 import)
+│       ├── search-policy.ts            # 🔴 검색 tier 선언 — 우선순위가 코드가 아니라 데이터다
+│       ├── search-signals.ts           # 텍스트 → 검색 신호 (순수 — 하니스가 import)
+│       ├── local-tool-registry.ts      # OpenAI strict function calling 도구 11종
+│       ├── stream-dispatch.ts          # SSE 이벤트 루프 (route.ts 가 아니라 여기 — 하니스가 실물을 태운다)
+│       ├── card-followup.ts / card-tool-output.ts / gemini-citations.ts
 │       ├── tools.ts                    # identify_pill, search_web (DDG)
-│       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts
+│       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts / hospital-hours.ts
 │       ├── vet-tool.ts / law-tool.ts / movie-tool.ts / worldcup-tool.ts
+│       ├── paper-tool.ts / arxiv-tool.ts # PubMed+CrossRef · arXiv (같은 카드, 다른 출처)
 │       ├── weather-tool.ts              # weather intent (multi-city)
 │       └── nodes/
 │           ├── router.ts / vision.ts / generator.ts / langchain-path.ts
-│           ├── search-gate.ts / sdk-contents.ts
+│           ├── search-gate.ts / sdk-contents.ts   # search-gate: 신호 제출 (공급자 인지)
 │           ├── generation-config.ts / pill-messages.ts / retry.ts
 │           └── image-flags.ts               # 신규첨부 vs 히스토리 이미지 (순수 — 하니스가 import)
 │       └── weather-followup.ts         # 날씨 후속 판정 (순수 함수 — 하니스가 import)
-├── components/                         # 25 UI components (12 renderers + core)
+├── components/                         # 26 UI components (13 renderers + core)
 ├── lib/
 │   ├── supabase/client.ts / route.ts   # 인증 스택 (NEXT_PUBLIC_* 를 읽는다)
 │   ├── storage-name.ts                 # 업로드 파일명 → Storage 키 정규화 (순수)
@@ -240,12 +249,15 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
 │   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
-├── tests/                              # 🔴 회귀 하니스 13종 (`npm test`). tests/README.md
+├── tests/                              # 🔴 회귀 하니스 17종 (`npm test`). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-card-followup / test-storage-name / test-pill-messages
 │   ├── test-ddg-parse / test-thinking-config / test-openai-url-fetch
 │   ├── test-chat-models / test-drug-fallback / test-gemini-citations
 │   ├── test-model-labels               # 모델 선택 UI 문자열 골든 대조
+│   ├── test-paper-card / render-paper-card  # 논문 카드 — 소스 계약 + 실제 렌더 HTML
+│   ├── test-stream-dispatch            # SSE 이벤트 루프 — 카드 8종이 각자 나가는가
+│   ├── test-theaters                   # 상영관 지역 매칭 (data/theater-branches.json)
 │   ├── manual/                         # 외부 공급자·DB 실측 프로브 (npm test 제외)
 │   └── tsconfig.probe.json + lib/      # `server-only` 모듈을 tsx 로 직접 돌리는 우회
 ├── utils/
@@ -324,12 +336,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 13종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 17종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 13종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 17종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

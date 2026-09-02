@@ -363,3 +363,47 @@ export const resolveWeatherStickiness = (
     llmIntent: IntentType, ruleIntent: IntentType, weatherCardShown: boolean,
 ): IntentType =>
     weatherCardShown && llmIntent === 'weather' && CARD_INTENTS.has(ruleIntent) ? ruleIntent : llmIntent;
+
+/**
+ * 논문이 아니라 **소프트웨어 산출물**(레포·라이브러리·패키지)을 찾는 요청의 표지어.
+ *
+ * 🔴 실측(2026-09-02, 라우터 프롬프트 그대로 · temperature 0 · 2/2 동일):
+ *   `클로드 skills 관련된 레포 검색` → `paper_search` + `paper_source=arxiv`.
+ *   같은 문장을 `레포지토리`·`repo`·`깃허브 저장소` 로 풀어 쓰면 전부 `general` 이다.
+ *   즉 특정 토큰의 문제가 아니라 **조합**이다 — 축약형 `레포` 가 해소되지 않은 자리에서
+ *   `관련된 … 검색` 이 프롬프트 예시 `"관련 논문 찾아줘"` 와 같은 모양이 되고, 주제(AI)가
+ *   `paper_source` 의 arxiv 정의("algorithms and computing, machine learning")로 떨어진다.
+ *
+ * ⚖️ 왜 프롬프트가 아니라 코드도 필요한가. `isNonBiomedicalPaperTopic` 은 `arxiv_search` 에
+ *   **의도적으로 적용하지 않는다**(CS 어휘는 arXiv 에서 정상) — 그래서 arXiv 쪽에는 안전망이
+ *   아예 없었다. 게다가 arXiv 는 PubMed 처럼 빈손으로 실패하지 않고 그럴듯한 논문을 돌려주므로
+ *   오라우팅이 조용히 통과한다. 프롬프트(§2)는 재현율을 올리고, 이 규칙은 바닥을 만든다.
+ *
+ * ⚠️ 오탐 비용은 낮다 — `general` 로 내려가면 검색 붙은 산문이 받는다. 반대로 놓치면
+ *   무관한 논문 카드가 출처처럼 나간다. 그래서 여기서는 재현율 쪽으로 기운다.
+ */
+const SOFTWARE_ARTIFACT_PATTERN =
+    /(레포지토리|리포지토리|레포|저장소|깃허브|깃헙|github|gitlab|(?<![A-Za-z0-9])repos?(?:itor(?:y|ies))?(?![A-Za-z0-9])|오픈\s?소스|open\s?source|라이브러리|(?<![A-Za-z0-9])librar(?:y|ies)(?![A-Za-z0-9])|패키지|(?<![A-Za-z0-9])package(?![A-Za-z0-9])|npm|pypi|(?<![A-Za-z0-9])sdk(?![A-Za-z0-9])|프레임워크|framework|소스\s?코드|source\s?code)/i;
+
+/**
+ * 논문·문헌을 명시적으로 요구하는 어휘. 위 산출물 표지어와 함께 나오면 **논문 요청이 이긴다**
+ * ("깃허브 코파일럿 생산성 논문 있나"). `연구` 를 포함하는 것은 의도적이다 —
+ * 빠뜨렸을 때의 손실(진짜 논문 요청이 general 로 강등)이 반대 방향보다 크다.
+ */
+const PAPER_WORD_PATTERN =
+    /(논문|학술|저널|문헌|초록|연구|arxiv|pubmed|preprint|thesis|dissertation|(?<![A-Za-z0-9])papers?(?![A-Za-z0-9])|(?<![A-Za-z0-9])journal(?![A-Za-z0-9])|peer.?review)/i;
+
+/** 논문이 아니라 소프트웨어 산출물을 찾는 요청인가. */
+export const wantsSoftwareArtifact = (text: string): boolean =>
+    SOFTWARE_ARTIFACT_PATTERN.test(text) && !PAPER_WORD_PATTERN.test(text);
+
+/**
+ * 라우터 LLM 이 산출물 검색 요청을 논문 의도로 보낸 것을 규칙으로 되돌린다.
+ *
+ * `general` 로 내리는 이유: 이 요청에 답할 데이터베이스가 우리에겐 없다. 웹 검색이 답이고,
+ * `general` 이 그 경로다(라우터의 `paper_source: "none"` 3분기와 같은 처리).
+ */
+export const resolvePaperArtifactIntent = (llmIntent: IntentType, text: string): IntentType =>
+    (llmIntent === 'paper_search' || llmIntent === 'arxiv_search') && wantsSoftwareArtifact(text)
+        ? 'general'
+        : llmIntent;

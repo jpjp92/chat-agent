@@ -32,6 +32,21 @@ export const decideGoogleSearch = (ctx: {
     latestUserText: string;
     /** 직전 턴 실제 검색 여부(state). undefined면 정규식 근사로 폴백. */
     lastTurnSearched?: boolean;
+    /**
+     * 어느 공급자로 이 턴을 생성하는가. **TIER 400 의 적용 여부를 가른다.**
+     *
+     * 🔴 실사용 결함(2026-09-02, GPT-5.4 mini): 앞 턴에 이미지를 붙인 대화에서
+     *   "저기 저장소 검색해서 확인해봐" 에 검색이 안 붙어 *"지금은 실시간 검색 없이 학습된
+     *   지식 기준으로만 답할 수 있어요"* 가 나갔다. TIER 400 은 정책이 아니라 **물리 사실**
+     *   ("Gemini 는 이미지와 grounding 을 한 요청에 못 담는다")인데, OpenAI Responses 는
+     *   input_image 와 web_search 를 함께 보낸다 — 없는 제약이 사용자의 명시 요청(300)을 눌렀다.
+     *
+     * ⚠️ 걷어내는 건 400 뿐이다. 200(URL·문서·영상 본문이 근거)·100 은 공급자와 무관한
+     *   판단이므로 그대로 적용된다.
+     *
+     * 기본값 'gemini' — 기존 호출부의 동작을 한 글자도 바꾸지 않기 위해서다.
+     */
+    provider?: 'gemini' | 'openai';
 }): {
     useGoogleSearch: boolean;
     hasUrlContent: boolean;
@@ -39,7 +54,7 @@ export const decideGoogleSearch = (ctx: {
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
 } => {
-    const { webContent, messages, intent, needsSearch, hasMultimodalContent, dropImageForSearch, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched } = ctx;
+    const { webContent, messages, intent, needsSearch, hasMultimodalContent, dropImageForSearch, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched, provider = 'gemini' } = ctx;
 
     const signals: SearchSignal[] = [];
 
@@ -77,11 +92,15 @@ export const decideGoogleSearch = (ctx: {
     const explicitSearchRequested = wantsExternalVerification(latestUserText);
 
     // ── tier 400: 물리 제약 (Gemini API가 멀티모달 + grounding 동시 거부) ──
-    if (hasMultimodalContent) {
-        signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'multimodal', reason: '현재 턴 멀티모달 — API가 grounding 거부' });
-    }
-    if (historyHasImage && !dropImageForSearch) {
-        signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'history-image', reason: '히스토리 이미지 — API가 grounding 거부' });
+    // OpenAI 에는 이 제약이 없다(input_image + web_search 동시 전송 가능) → 신호 자체를 내지 않는다.
+    // 여기서 켜는 게 아니라 **끄지 않는 것**이다 — 아래 300/100 이 평소대로 판정한다.
+    if (provider === 'gemini') {
+        if (hasMultimodalContent) {
+            signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'multimodal', reason: '현재 턴 멀티모달 — API가 grounding 거부' });
+        }
+        if (historyHasImage && !dropImageForSearch) {
+            signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'history-image', reason: '히스토리 이미지 — API가 grounding 거부' });
+        }
     }
 
     // ── tier 200: 답변 근거가 이미 제공됨 ────────────────────────────────

@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-08-23
+> 최종 갱신: 2026-09-02
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -13,10 +13,13 @@
 | 알려진 라우팅 공백 | initial router는 아직 Gemini 2.5 Flash Lite 우선이며, 실패 시 규칙 분류로 복구한다. GPT 일반/도구 실행 자체는 Gemini 키와 분리됨 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
 | URL Fetch | Wikidocs는 ScrapingBee render/premium/KR 우선, 일반 URL은 direct 우선. browserless는 후순위, OpenAI URL fallback은 기본 OFF | [2026-08-23 실측](logs/2026/08/DEV_260823.md) |
 | 오류 노출 | 공급자 status/code/message는 서버 로그에만 기록하고 UI에는 지역화된 정제 문구만 표시 | [오류 분류 계약](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#4-오류-분류-계약) |
-| 자동 검증 | `npm test` 회귀 하니스 10종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 검색 grounding | tier 로 판정(400 물리제약 > 300 사용자 명시 > 200 근거제공 > 100 분류기). **400 은 Gemini 전용** — OpenAI 는 이미지와 web_search 를 함께 보낼 수 있어 신호를 내지 않는다 | [2026-09-02 로그](logs/2026/09/DEV_260902_SEARCH_ROUTING.md), [검색 정책 계획](plans/PLAN_SEARCH_POLICY_260815.md) |
+| 자동 검증 | `npm test` 회귀 하니스 17종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
 
 ## 최근 문서
 
+- **2026-09-02** — ["검색해"라고 했는데 검색이 안 되던 두 경로](logs/2026/09/DEV_260902_SEARCH_ROUTING.md)
+- **2026-08-30~09-02** — [외부 의학·검색 소스와 논문 카드 정착](logs/2026/08/DEV_260830_EXTERNAL_SOURCES.md), [9월 로그 인덱스](logs/2026/09/README.md)
 - **2026-08-23** — [URL 공급자 재검증과 모델/UI/오류 정책](logs/2026/08/DEV_260823.md), [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)
 - **2026-08-22** — [서버 경계 하드닝 검토](plans/PLAN_HARDENING_260822.md)
 - **2026-08-18** — 테스트 폴더 재편과 알약/DDG 수정은 [DEV_HISTORY](DEV_HISTORY.md#최근-작업-로그)에 통합 기록

@@ -19,7 +19,7 @@
 //    복사본 하니스는 프로덕션이 바뀌어도 초록으로 남아 거짓 안심을 준다
 //    (PLAN_SEARCH_POLICY_260815 §4 C5).
 
-import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness } from '../server/agent/intentRules.js';
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, resolvePaperArtifactIntent } from '../server/agent/intentRules.js';
 import type { IntentType } from '../server/agent/state.js';
 
 type Case = {
@@ -256,6 +256,45 @@ const run = (label: string, cases: Case[]) => {
     // 카드가 없으면 이 가드는 아예 돌지 않는다
     t('서초구 소아과', false, 'weather');
     console.log(bad ? `\n🚨 날씨 흡입 가드 ${bad}건 실패` : '✅ 날씨 흡입 가드 통과');
+    if (bad) process.exit(1);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 5. 논문↔소프트웨어 산출물 가드 (resolvePaperArtifactIntent)
+//
+// 🔴 실측(2026-09-02, 라우터 프롬프트 그대로 재현 · temperature 0 · 2/2 동일):
+//   "클로드 skills 관련된 레포 검색" → intent=paper_search · paper_source=arxiv.
+//   화면에는 arXiv 논문 카드가 떴고 사용자는 GitHub 레포를 물었다.
+//   `레포지토리`·`repo`·`깃허브` 로 풀어 쓰면 전부 general 이다 — 축약형 `레포` 가
+//   해소되지 않은 자리에 `관련된 … 검색` 이 프롬프트의 "관련 논문 찾아줘" 와 같은 모양이라
+//   주제(AI)가 그대로 arXiv 로 떨어졌다.
+//
+// ⚖️ isNonBiomedicalPaperTopic 은 `arxiv_search` 에 **적용하지 않는다**(CS 어휘는 arXiv 에서
+//   정상). 그래서 arXiv 쪽에는 안전망이 없었다. 이 가드가 그 자리를 메운다.
+//   오탐 비용은 낮다 — general 로 내려가면 검색 붙은 산문이 받는다.
+// ══════════════════════════════════════════════════════════════════════
+{
+    console.log(`\n${'='.repeat(76)}\n5. 논문↔소프트웨어 산출물 가드\n${'='.repeat(76)}`);
+    let bad = 0;
+    const t = (llm: IntentType, text: string, want: IntentType) => {
+        const got = resolvePaperArtifactIntent(llm, text);
+        if (got !== want) { bad++; console.log(`  🔴 ${got} (기대 ${want}) ← ${llm} "${text}"`); }
+    };
+    // 소프트웨어 산출물을 찾는데 논문 의도로 분류됐다 → general 로 되돌린다
+    t('arxiv_search', '클로드 skills 관련된 레포 검색', 'general');
+    t('arxiv_search', 'MCP 서버 오픈소스 프로젝트 검색', 'general');
+    t('paper_search', '단백질 구조 예측 깃허브 저장소 찾아줘', 'general');
+    t('arxiv_search', 'rag 라이브러리 추천해줘', 'general');
+    t('arxiv_search', 'github 에서 claude skills repo 찾아줘', 'general');
+    // 진짜 논문 요청은 건드리지 않는다 — 산출물 어휘가 있어도 논문/연구를 명시하면 유지
+    t('arxiv_search', '트랜스포머 논문 찾아줘', 'arxiv_search');
+    t('arxiv_search', '오픈소스 라이선스 관련 연구 있어?', 'arxiv_search');
+    t('paper_search', '깃허브 코파일럿 생산성 논문 있나', 'paper_search');
+    t('paper_search', '고혈압 임상시험 결과 알려줘', 'paper_search');
+    // 논문 의도가 아니면 이 가드는 아예 돌지 않는다
+    t('general', '클로드 skills 관련된 레포 검색', 'general');
+    t('drug_info', '타이레놀 성분', 'drug_info');
+    console.log(bad ? `\n🚨 산출물 가드 ${bad}건 실패` : '✅ 산출물 가드 통과');
     if (bad) process.exit(1);
 }
 

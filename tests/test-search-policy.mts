@@ -469,6 +469,54 @@ GATE_CASES.push(
     },
 );
 
+// ── Step 7: provider 인지 — TIER 400 은 Gemini 의 제약이다 ────────────────────
+// 🔴 실사용 결함(2026-09-02, GPT-5.4 mini): 앞 턴에 이미지를 붙인 대화에서
+//   "저기 저장소 검색해서 확인해봐" 에 검색이 안 붙어 "실시간 검색 없이 답할 수 있어요" 가 나왔다.
+//   400 은 "Gemini 는 이미지와 grounding 을 함께 못 보낸다" 는 **물리 사실**인데,
+//   OpenAI Responses 는 input_image 와 web_search 를 같이 보낸다 — 없는 제약에 눌린 것이다.
+GATE_CASES.push(
+    {
+        name: '★ Step7: OpenAI + 히스토리 이미지 + 명시 검색 요청 → on',
+        want: true,
+        ctx: {
+            provider: 'openai',
+            hasMultimodalContent: true,
+            messages: [human('이 이미지 설명해줘', [IMAGE_PART]), ai('...'), human('저기 저장소 검색해서 확인해봐')],
+            latestUserText: '저기 저장소 검색해서 확인해봐',
+        } as any,
+    },
+    {
+        name: 'Step7: OpenAI + 이미지 + 검색 요청 아님 → 분류기 판정대로',
+        want: false,
+        ctx: {
+            provider: 'openai',
+            needsSearch: false,
+            hasMultimodalContent: true,
+            messages: [human('이 이미지 설명해줘', [IMAGE_PART]), ai('...'), human('표로 정리해줘')],
+            latestUserText: '표로 정리해줘',
+        } as any,
+    },
+    {
+        name: 'Step7: OpenAI 라도 URL 본문(200)은 그대로 off — 400 만 걷어낸다',
+        want: false,
+        ctx: {
+            provider: 'openai',
+            webContent: '[URL_CONTENT: ...]',
+            messages: [human('요약해줘')],
+            latestUserText: '요약해줘',
+        } as any,
+    },
+    {
+        name: 'Step7 대조: provider 미지정(기본 gemini)은 기존대로 off',
+        want: false,
+        ctx: {
+            hasMultimodalContent: true,
+            messages: [human('이 이미지 설명해줘', [IMAGE_PART]), ai('...'), human('저기 저장소 검색해서 확인해봐')],
+            latestUserText: '저기 저장소 검색해서 확인해봐',
+        },
+    },
+);
+
 let gatePass = 0;
 const origLog = console.log;
 for (const c of GATE_CASES) {

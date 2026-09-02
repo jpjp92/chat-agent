@@ -93,15 +93,15 @@ npm run verify  # typecheck + test
 
 | 파일 | 무엇을 지키나 |
 |---|---|
-| `test-intent-rules.mts` | 의도 분류 룰 — 잡아야 할 것 / 잡으면 안 될 것 양방향 |
-| `test-search-policy.mts` | 검색 on/off 판정 |
+| `test-intent-rules.mts` | 의도 분류 룰 — 잡아야 할 것 / 잡으면 안 될 것 양방향 + **논문↔소프트웨어 산출물 가드**(`레포 검색` 이 arXiv 카드로 가지 않는가 / 진짜 논문 요청은 유지되는가) |
+| `test-search-policy.mts` | 검색 on/off 판정 + **공급자별 tier 400**(Gemini 의 이미지+grounding 제약을 OpenAI 턴에 적용하지 않는다 — 대조군으로 `provider` 미지정 시 기존 동작 고정) |
 | `test-weather-followup.mts` | 날씨 후속 발화 + 날짜 경계(KST 자정) |
 | `test-card-followup.mts` | 약국·병원·동물병원·법률 카드 후속 판정 + fast-pass 내부 지시문 차단 + Gemini 도구 강제 + 약국 현재 영업 상태 계약 |
 | `test-storage-name.mts` | 업로드 파일명 정규화 — 확장자 보존은 `parse-document` 가 의존하는 계약 |
 | `test-pill-messages.mts` | 알약 응답 문구·파싱·웹 폴백 게이트·라우터 지름길 |
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
-| `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 |
+| `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 + **논문 카드 종합단계 웹검색**(명시 검색 요청일 때만·논문 intent 만·과거참조 제외, 그리고 실제로 `web_search` 툴이 실리는지 배선까지) |
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
