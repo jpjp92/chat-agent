@@ -18,6 +18,7 @@ import { cardHasResults, pinCardToProse } from "../card-tool-output";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage, shouldTryPillWebFallback, buildPillWebQuery } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
+import { shouldAddWebSearchToPaperFollowup } from "../search-signals";
 
 // LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. Vercel 60s 캡 아래에서 빠른 실패.
 const LC_CALL_TIMEOUT_MS = 25_000;
@@ -103,6 +104,15 @@ export const runLangChainPath = async (args: {
 
             // Fast-pass: Bypass final LLM generation if pharmacyTool / hospitalTool has successfully executed
             const lastMsg = state.messages[state.messages.length - 1];
+            // 논문 종합 단계 웹검색 판정용 — 최신 human 발화. ToolMessage 이후에는 lastMsg 가
+            // 도구 결과라 마지막 메시지로는 사용자의 요청을 알 수 없다.
+            const latestUserTextForTools = (() => {
+                const h = [...state.messages].reverse().find((m: any) => m._getType() === 'human');
+                if (!h) return '';
+                return Array.isArray(h.content)
+                    ? (h.content as any[]).filter((p: any) => p?.type === 'text').map((p: any) => p.text ?? '').join('')
+                    : String(h.content ?? '');
+            })();
             if (state.intent === "drug_id" && lastMsg._getType() === "tool" && lastMsg.name === "identify_pill") {
                 const toolContent = (() => {
                     if (typeof lastMsg.content === 'string') return lastMsg.content;
@@ -274,10 +284,16 @@ export const runLangChainPath = async (args: {
                 allTools = [lawTool];
             } else if (state.intent === "movie_search") {
                 allTools = [movieTool];
-            } else if (state.intent === "paper_search") {
-                allTools = [paperTool];
-            } else if (state.intent === "arxiv_search") {
-                allTools = [arxivTool];
+            } else if (state.intent === "paper_search" || state.intent === "arxiv_search") {
+                // 🔴 조회는 논문 도구 **단독·강제**로 끝내고, ToolMessage 이후 종합 단계에서만
+                //    웹 검색을 더한다. 1차에 둘 주면 아래 forceDomainTool(allTools.length===1)이
+                //    풀려 모델이 논문 도구를 아예 안 부를 수 있다(DEV_260902 §9.3).
+                //    OpenAI 의 withExplicitSearchFollowup 과 같은 구조 — 라우터가 미끄러져도
+                //    사용자의 명시 검색 요청이 통째로 사라지지 않게 하는 2차 방어다.
+                const paperCardTool = state.intent === "paper_search" ? paperTool : arxivTool;
+                allTools = shouldAddWebSearchToPaperFollowup(state.intent, lastMsg._getType() === 'tool', latestUserTextForTools)
+                    ? [paperCardTool, searchWebTool]
+                    : [paperCardTool];
             } else if (state.intent === "sports") {
                 allTools = [worldCupTool];
             } else if (state.intent === "weather") {

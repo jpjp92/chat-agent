@@ -17,8 +17,7 @@ import { collectTextSearchSignals, wantsExternalVerification } from "../search-s
  *   > 100 분류기(라우터·멀티턴 가드) > 0 기본값
  *
  * Returns `useGoogleSearch` plus the side-values the caller consumes downstream
- * (token budget / diagnostic logs): hasUrlContent, historyHasImage,
- * rendererIntents, explicitSearchRequested.
+ * (token budget / diagnostic logs): hasUrlContent, rendererIntents, explicitSearchRequested.
  */
 export const decideGoogleSearch = (ctx: {
     webContent: string;
@@ -50,7 +49,6 @@ export const decideGoogleSearch = (ctx: {
 }): {
     useGoogleSearch: boolean;
     hasUrlContent: boolean;
-    historyHasImage: boolean;
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
 } => {
@@ -60,17 +58,6 @@ export const decideGoogleSearch = (ctx: {
 
     // ── 컨텍스트 증거 수집 ────────────────────────────────────────────────
     const hasTranscript = webContent.includes('[TRANSCRIPT]');
-
-    // Disable Google Search when image exists anywhere in conversation history.
-    // Gemini API does not support Google Search + image in the same request.
-    // Without this, follow-up turns (e.g. "표로 정리해줘") after an image analysis
-    // would enable Google Search (no image in *current* turn), causing the model
-    // to ignore the image history and return sparse, search-based responses.
-    const historyHasImage = messages.some((m: any) =>
-        Array.isArray(m.content) && m.content.some((p: any) =>
-            p.inlineData || (p.fileData && !p.fileData.fileUri?.includes('youtube'))
-        )
-    );
 
     // URL_CONTENT 태그 존재 여부로 Google Search 비활성 여부를 결정.
     // 이전에는 내용 길이 >= 300 조건을 사용했으나, Vercel(해외 IP)에서
@@ -94,13 +81,16 @@ export const decideGoogleSearch = (ctx: {
     // ── tier 400: 물리 제약 (Gemini API가 멀티모달 + grounding 동시 거부) ──
     // OpenAI 에는 이 제약이 없다(input_image + web_search 동시 전송 가능) → 신호 자체를 내지 않는다.
     // 여기서 켜는 게 아니라 **끄지 않는 것**이다 — 아래 300/100 이 평소대로 판정한다.
-    if (provider === 'gemini') {
-        if (hasMultimodalContent) {
-            signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'multimodal', reason: '현재 턴 멀티모달 — API가 grounding 거부' });
-        }
-        if (historyHasImage && !dropImageForSearch) {
-            signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'history-image', reason: '히스토리 이미지 — API가 grounding 거부' });
-        }
+    //
+    // 🔴 예전엔 `history-image` 신호가 하나 더 있었는데 **데드코드였다**(DEV_260902 §9.4).
+    //   술어가 `p.inlineData` 를 봤지만 `buildHistoryMessages` 는 인라인 이미지를
+    //   `type:'image_url'` 로 만든다 — 어떤 입력으로도 발동하지 않았다. `fileData` 케이스는
+    //   `hasMultimodalContent` 가 이미 잡으므로, 살려 놔도 중복 신호였다. 지웠다.
+    //   ⚠️ `hasMultimodalContent` 는 **서버가 받은 히스토리**(최근 10개, 첨부는 최근
+    //      mediaWindow 개까지만 미디어) 기준이다. 그래서 이미지가 꺼는 범위는 "대화 내내"가
+    //      아니라 **첨부 직후 턴**이다 — 그 경계는 history.ts 가 로그로 남긴다(§9.5).
+    if (provider === 'gemini' && hasMultimodalContent) {
+        signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'multimodal', reason: '멀티모달 — API가 grounding 거부' });
     }
 
     // ── tier 200: 답변 근거가 이미 제공됨 ────────────────────────────────
@@ -200,7 +190,6 @@ export const decideGoogleSearch = (ctx: {
     return {
         useGoogleSearch: decision.useGoogleSearch,
         hasUrlContent,
-        historyHasImage,
         rendererIntents,
         explicitSearchRequested,
     };

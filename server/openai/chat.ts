@@ -354,6 +354,11 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                     // 🔴 이 줄은 남겨 둔다. 카드 경로에서 값이 어디서 사라지는지 볼 수 있는
                     // 유일한 관측점이다 — 없앴다가 화면만 보고 세 번 헛짚었다(§6.30).
                     // (followup 산문 길이는 안 찍는다 — 빈 응답이면 아래에서 예외가 난다.)
+                    // 🔴 **인자도 찍는다**(2026-09-03). 출력만 보던 탓에 `cardHasResults=false` 를
+                    //   보고도 "모델이 무엇으로 조회했는가"를 몰라 조회를 재현할 수 없었다.
+                    //   카드가 비는 원인은 대부분 도구가 아니라 **모델이 만든 검색어**에 있다.
+                    console.log(`[OpenAI] local tool "${options.functionTool.name}" ← ` +
+                        `${JSON.stringify(argumentsValue).slice(0, 200)}`);
                     console.log(`[OpenAI] local tool "${options.functionTool.name}" → ` +
                         `${output.length}자 · cardHasResults=${hasResults} · ` +
                         `${options.functionTool.resultMode === 'fast-pass' && hasResults ? 'fast-pass' : 'synthesize(빈 카드 복구)'}`);

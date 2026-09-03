@@ -93,6 +93,10 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 **핵심 동작**
 - **크기**: 네이티브라 30MB+ 가능. **1MB 임계값**으로 인라인(base64)/Storage(공개 URL) 분기 — HWP의 4MB 임계값과는 별개(PDF는 base64라 임계값이 더 보수적).
 - **검색 게이트**: PDF는 Gemini 멀티모달 경로로 처리되므로 Search 동시 사용을 끄고 첨부 본문을 우선한다.
+  ⚖️ **이 차단은 Gemini 전용이다**(2026-09-02 정정). tier 400 은 *"Gemini 는 이미지와 grounding 을 한
+  요청에 못 담는다"* 는 API 사실이고, OpenAI Responses 는 `input_image` 와 `web_search` 를 함께 보낸다 —
+  그래서 `decideGoogleSearch` 가 `provider` 를 받아 400 을 Gemini 턴에서만 낸다
+  ([REF_SearchRouting §1-1](REF_SearchRouting.md), [DEV_260902 §3.1](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md)).
 - **멀티턴**: PDF는 `extractedText`가 없어 `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]` 복원 대상이 아님. 대신 chat 라우트가 **최근 3턴**의 첨부를 history에 재전송(`fileData`/`image_url`)해 컨텍스트 유지, 그 이전 턴은 `[Attached File: 파일명]` 텍스트 마커로만 남음. → 긴 대화에서 PDF를 다시 참조하려면 재첨부 권장.
 - **저장/표시**: 업로드 경로는 `${auth.uid()}/{timestamp}_{name}`이고 쓰기·열거는 Storage RLS가 격리한다. 다만 버킷은 아직 public이라 `getPublicUrl`을 아는 제3자의 읽기는 가능하며, 비공개 전환과 기존 URL 백필은 Phase 2 백로그다.
 
@@ -115,7 +119,8 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 
 - 트리거 마커: `[EXTRACTED_CONTENT:]`(현재 턴) / `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]`(후속 턴)
 - **예외(검색 on)**: 사용자가 **문서 외 추가 검증**을 명시 요청할 때 — `검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|latest|recent|search|source|cite`. `검토`/`정리`/`요약`은 매치 안 됨.
-- 동작: 게이트 열림 → general 게이트(`needsSearch`)가 최종 판정. URL 게이트와 동일 철학. PDF는 멀티모달이라 `[EXTRACTED_CONTENT:]` 미생성 + 이미 grounding off → 충돌 없음.
+- 동작: 게이트 열림 → general 게이트(`needsSearch`)가 최종 판정. URL 게이트와 동일 철학. PDF는 멀티모달이라 `[EXTRACTED_CONTENT:]` 미생성 + Gemini 턴은 이미 grounding off → 충돌 없음(**OpenAI 턴은 400 이 안 서므로 검색이 붙을 수 있다**).
+- ⚠️ **첨부가 미디어로 실리는 범위는 최근 `mediaWindow`(기본 3) 개까지다.** 그 밖으로 밀리면 `[Attached File: …]` 텍스트로 강등되고, **그 순간 Gemini 의 tier 400 이 사라져 같은 대화의 검색 판정이 뒤집힌다.** 강등 시 `[History] 첨부 미디어 → 텍스트 강등` 로그가 남는다(DEV_260902 §9.5).
 - 구현: [`server/agent/nodes/generator.ts`](../../server/agent/nodes/generator.ts) renderer 게이트 직후. (DEV_260621 §7)
 
 ---

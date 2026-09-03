@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-09-02
+> 최종 갱신: 2026-09-03
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -18,6 +18,7 @@
 
 ## 최근 문서
 
+- **2026-09-03** — [검색 라우팅 레퍼런스 + 테스트 질의](guide/REF_SearchRouting.md)
 - **2026-09-02** — ["검색해"라고 했는데 검색이 안 되던 두 경로](logs/2026/09/DEV_260902_SEARCH_ROUTING.md)
 - **2026-08-30~09-02** — [외부 의학·검색 소스와 논문 카드 정착](logs/2026/08/DEV_260830_EXTERNAL_SOURCES.md), [9월 로그 인덱스](logs/2026/09/README.md)
 - **2026-08-23** — [URL 공급자 재검증과 모델/UI/오류 정책](logs/2026/08/DEV_260823.md), [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)

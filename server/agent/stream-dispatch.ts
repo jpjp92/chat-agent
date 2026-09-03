@@ -1,4 +1,4 @@
-import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, PINNED_CARD_INTENT_SET } from './card-tool-output';
+import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
 
 /**
  * `graph.streamEvents` 이벤트 → SSE 프레임.
@@ -37,6 +37,8 @@ export interface DispatchState {
      *   (`live-paper-card.mts` 0건 경로: 인용 0개·PMID 0개).
      */
     pinnedPaperCount: number;
+    /** 카드 논문의 인용 URL — `[N](url)` 의 번호를 URL 로 교정하는 근거(순서 = 카드 순번). */
+    pinnedPaperUrls: string[];
 }
 
 export interface StreamDispatch {
@@ -60,12 +62,16 @@ export function createStreamDispatch(sendEvent: (data: any) => void): StreamDisp
         detectedIntent: '',
         lcCitationBuffer: '',
         pinnedPaperCount: 0,
+        pinnedPaperUrls: [],
     };
 
     // 🔴 닫힌 `[1]` 도 보류 대상이다 — 다음 청크가 `(` 로 시작하면 그건 실제 링크
     //    `[1](url)` 이라 지우면 안 되는데, 청크 경계에서는 아직 알 수 없다.
     //    (`]?` 로 열린 `[1` 과 닫힌 `[1]` 을 함께 잡는다)
-    const incompletecitation = /\s?\[\d*(?:,\s*\d*)*\]?$/;
+    // 🔴 링크형 `[1](https://…` 이 청크 경계에서 쪼개지는 경우도 보류한다(2026-09-03).
+    //    URL 이 절반만 온 상태에서는 `repairPaperMarkerLinks` 가 대상을 판정할 수 없고,
+    //    그대로 흘리면 화면에 생 URL 이 남는다. 닫는 `)` 가 올 때까지 붙잡는다.
+    const incompletecitation = /\s?\[\d*(?:,\s*\d*)*\](?:\([^)\s]*)?$|\s?\[\d*(?:,\s*\d*)*$/;
     // 가짜 번호 제거 — `(?!\()` 로 실제 링크 `[1](url)` 는 보존한다(gemini-citations.ts 와 동일 규칙).
     //
     // 🔴 논문 의도에서는 **끄다**. 이 턴의 `[1]`·`[2]` 는 모델이 지어낸 게 아니라
@@ -77,8 +83,11 @@ export function createStreamDispatch(sendEvent: (data: any) => void): StreamDisp
     const stripFabricated = (t: string) => t.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
     // 실제 스트리밍이 쓰는 건 이쪽이다 — 논문 턴에서만 위 규칙을 건너뛴다.
     // 논문 턴에서는 마커를 지우는 대신 **카드 범위 밖만** 걷어낸다(건수를 모르면 그대로 통과).
+    // 논문 턴: 먼저 링크형 번호를 URL 로 교정하고(카드 밖 논문 인용은 마커를 뗀다),
+    // 그 다음 남은 맨 마커의 범위를 본다. 순서가 반대면 교정 전 번호로 범위를 재게 된다.
     const stripCitations = (t: string) => PINNED_CARD_INTENT_SET.has(st.detectedIntent)
-        ? dropMarkersOutsideRange(t, st.pinnedPaperCount) : stripFabricated(t);
+        ? dropMarkersOutsideRange(repairPaperMarkerLinks(t, st.pinnedPaperUrls), st.pinnedPaperCount)
+        : stripFabricated(t);
     // sports(월드컵 순위/일정 표)는 토큰 증분 스트리밍 시 마크다운 표가 셀 단위로 실시간
     // 조립되며 어색함 → 스트리밍을 건너뛰고 generator on_chain_end에서 완성본을 한 번에 전송.
 
@@ -130,7 +139,10 @@ export function createStreamDispatch(sendEvent: (data: any) => void): StreamDisp
         if (block) {
           try {
             const papers = JSON.parse(block[1])?.papers;
-            if (Array.isArray(papers)) st.pinnedPaperCount = papers.length;
+            if (Array.isArray(papers)) {
+              st.pinnedPaperCount = papers.length;
+              st.pinnedPaperUrls = papers.map((pp: any) => String(pp?.url ?? ''));
+            }
           } catch { /* 부분 출력·에러 카드 — 0 으로 두면 아무것도 하지 않는다 */ }
         }
       } else if (event.event === 'on_chain_end' && event.name === 'router') {

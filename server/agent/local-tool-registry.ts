@@ -7,7 +7,7 @@ import { movieTool } from './movie-tool';
 import { worldCupTool } from './worldcup-tool';
 import { weatherTool } from './weather-tool';
 import { paperTool } from './paper-tool';
-import { arxivTool } from './arxiv-tool';
+import { arxivTool, ARXIV_QUERY_DESCRIPTION } from './arxiv-tool';
 import type { FastPassCardType } from './card-tool-output';
 
 export type LocalToolResultMode = 'fast-pass' | 'synthesize';
@@ -170,7 +170,9 @@ const tools: LocalFunctionTool[] = [
         name: 'search_arxiv',
         description: 'arXiv 에서 물리·수학·전산·통계·공학·계량경제 논문을 검색해 제목·저자·연도·분류·arXiv ID·인용 URL 을 UI 카드 데이터로 반환한다.',
         parameters: strictObject({
-            query: { type: 'string', description: 'arXiv 검색어. 한국어 질문이라도 학술 용어는 영어로 변환한다.' },
+            // 🔴 문안을 여기에 다시 쓰지 않는다 — 두 벌이던 시절 LangChain 쪽만 고쳐져
+            //   이 경로가 범용어를 덧붙인 채 남았다(arxiv-tool.ts 의 상수 주석 참고).
+            query: { type: 'string', description: ARXIV_QUERY_DESCRIPTION },
             limit: nullable({ type: 'number', description: '반환할 논문 수. 기본 5, 최대 8' }),
         }),
         resultMode: 'synthesize',

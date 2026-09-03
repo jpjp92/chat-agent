@@ -69,7 +69,7 @@ type SearchSignal = {
 > 🔴 **정정(2026-09-02).** 위 문장은 참이지만 **주어가 빠져 있었다** — 거부하는 것은 *Gemini* API 다.
 > OpenAI Responses 는 `input_image` 와 `web_search` 를 한 요청에 같이 보낸다. 그런데 400 은 공급자를
 > 가리지 않고 발동해, GPT 턴에서 *"지금은 실시간 검색 없이 학습된 지식 기준으로만 답할 수 있어요"* 가
-> 나갔다(대화에 이미지가 한 번이라도 있으면 그 뒤 모든 턴). `decideGoogleSearch` 에 `provider` 를 넘겨
+> 나갔다(이미지 첨부 **직후 턴** — history 가 첨부를 최근 `mediaWindow` 개까지만 미디어로 싣는다). `decideGoogleSearch` 에 `provider` 를 넘겨
 > **400 두 신호를 Gemini 턴에서만** 내도록 고쳤다. 200·100 은 공급자와 무관한 판단이라 그대로다.
 > 상세: [DEV_260902_SEARCH_ROUTING](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md)
 >

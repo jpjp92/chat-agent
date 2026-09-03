@@ -94,7 +94,7 @@ Reference prompts for testing the `json:paper` renderer and the research-paper p
 `search_query=all:<질의>` 는 공백을 **OR** 로 읽는다. `all:transformer attention optimization`
 은 576,986건을 반환하고 상위 5건 중 2건이 "optimization" 하나만 걸린 무관 논문이었다
 (실측 2026-08-31, 화면에서 발견). 단어마다 `all:` 을 붙여 ` AND ` 로 이으면 2,776건에
-상위 5건 전부 관련이다. `all:"구문 전체"` 는 색인이 없어 늘 0건이다.
+상위 5건 전부 관련이다.
 
 - 기능어(`is`·`the`·`for`·`all`·`using`…)는 뺀다 — arXiv 가 색인하지 않아 AND 가 0건이 된다
 - `cat:`·`ti:` 같은 필드 접두사나 `AND`/`OR` 가 이미 있으면 손대지 않는다 (`all:all:` 방지)
@@ -102,8 +102,53 @@ Reference prompts for testing the `json:paper` renderer and the research-paper p
   정답이다(arXiv 에 없는 분야). 넓히면 "kinetics" 만 걸린 논문이 근거가 되고, 무의미어는
   35,416건의 토픽모델링 논문을 물어 온다. 아래 §3 의 "빈손으로 실패하지 않는다" 가 이 실패다
 
-관련도는 **자동 검사가 없다**(하니스는 산문↔카드만 본다). 손으로 볼 때 카드 5건이 전부
-질문 주제인지 확인한다 — 이 결함은 하니스 전부 초록인 채 살아 있었다.
+⚖️ **정정(2026-09-03): *"`all:"구문 전체"` 는 색인이 없어 늘 0건"* 은 틀렸다.** 근거가
+`all:"transformer attention optimization"` **하나**였는데 그건 애초에 진짜 구절이 아니다.
+논문 제목은 걸린다 — `all:"Attention Is All You Need"` 45건, 원 논문 2위. 아래 §3-2 참고.
+
+### 3-1. 검색어에 범용어를 덧붙이지 않는다 (도구 설명)
+
+AND 로 묶이므로 **사용자가 말하지 않은 단어가 교집합의 순위를 자기 쪽으로 끌어당긴다.**
+실측(2026-09-03): `트랜스포머 논문 찾아줘` 에 모델이 `transformer neural network` 를 보내
+상위 5건 중 관련 **1건**(원 논문 없음, 베이즈 필터·음향 인식). `transformer` 만 보내면 5/5.
+
+🔴 **코드로 막으면 안 된다.** 범용어를 AND 에서 빼는 수정을 넣었더니 `graph neural network`
+가 5/5 → **0/5**(그래프 이론), `convolutional neural network` 가 **1/5**(부호이론)로 무너졌다.
+`neural network` 는 어떤 질의엔 군더더기고 어떤 질의엔 개념의 절반이다 — **가르는 건 문맥이고
+문맥은 모델만 안다.** 그래서 도구 설명에서 막는다.
+
+🔴 **문안은 `ARXIV_QUERY_DESCRIPTION` 상수 하나다.** 처음엔 `arxiv-tool.ts` 의 zod 스키마만
+고쳤는데, OpenAI 경로는 그 스키마를 안 쓰고 `local-tool-registry.ts` 에 **자기 사본**을 갖고
+있어 안 고쳐졌다. gpt-5.6-luna 가 `Attention Is All You Need Transformer architecture
+self-attention` 으로 조회해 원 논문 없는 카드를 냈다. **논문 도구 문안을 만지면 두 파일이
+아니라 상수 하나인지 먼저 확인한다.**
+
+### 3-2. 제목 질의는 구절을 먼저 친다 (`buildArxivQueryPlan`)
+
+제목은 키워드 묶음이 아니다. `Attention Is All You Need` 는 다섯 단어 중 `is`·`all`·`you` 가
+불용어라 `all:Attention AND all:Need`(7,982건)로 줄고 **원 논문이 상위 5건에 못 든다.**
+
+가르는 신호는 **버려지는 불용어의 존재**다 — 평범한 검색어(`graph neural network`,
+`probiotics depression`)에는 하나도 없고 제목·구절에는 있다. 불용어가 섞였을 때만
+`ti:"<원문>"` 을 먼저 치고, 0건이면 기존 AND 조립으로 내려온다.
+
+🔴 **`all:` 이 아니라 `ti:` 다.** `all:"Attention Is All You Need"` 는 원 논문이 **2위**이고
+1위는 2026년 `Tool Attention Is All You Need` 다. 모델이 `limit:1` 로 부르면 **카드에 그 논문만
+남고 산문이 그걸 답으로 설명한다**(실측 2026-09-03). `ti:` 는 1위다 — 제목을 물었으면 제목 필드를 본다.
+
+⚖️ 가운데에 `all:"…"` 를 끼운 3단 계획은 뺐다 — 구절 6종에서 **`ti:` 가 0이면 `all:"…"` 도
+예외 없이 0**이라 단독으로 건진 경우가 없는데 최악 지연만 두 배가 된다.
+
+- ⚠️ 한 번에 합치는 `all:"…" OR (AND 조립)` 은 **안 된다** — 관련도 정렬이 구절 일치를
+  우대하지 않아 원 논문이 여전히 상위 밖이다(실측). 그래서 순차 폴백이다
+- 3단어 미만은 구절로 보지 않는다(`based on` 같은 조각이 걸린다)
+- 폴백 비용 **~3초**, 거의 전부 arXiv 가 요구하는 `MIN_GAP_MS` 대기다. 한국어 질의는 번역에서
+  기능어가 떨어져(`위한` → 사라짐) 대개 계획이 1개라 **추가 호출이 없다**
+
+관련도는 **하니스로 못 잡는다**(산문↔카드만 본다). `tests/manual/live-arxiv-query.mts` 가
+실제 arXiv 로 상위 5건을 가져와 잰다 — 조립을 만졌으면 이걸 돌리기 전에는 판단할 수 없다.
+⚠️ **숫자만 보지 말고 제목을 읽을 것.** 관련도 정규식이 느슨해(`/graph/i`) 회귀를 5/5 로
+보이게 만든 적이 있다.
 
 ### 3. arXiv 는 프리프린트다 — 근거 등급을 재사용하지 않는다
 
@@ -270,8 +315,15 @@ npm run dev        # 또는 npx vercel dev
 | 인플레이션과 통화정책 논문 | `econ.EM` — 경제도 arXiv 다 |
 | 이족보행 로봇 제어 논문 | `cs.RO` · **게재됨**(초록) 배지가 섞여 나온다 |
 | 반도체 공정 관련 논문 찾아줘 | `cond-mat` |
+| 트랜스포머 논문 찾아줘 | 🔴 **검색어가 `transformer` 인가.** `transformer neural network` 면 §3-1 회귀 |
+| Attention Is All You Need 논문 찾아줘 | 🔴 **카드에 1706.03762 이 있는가.** 없으면 §3-2 구절 폴백이 죽은 것 |
+| 그래프 뉴럴 네트워크 논문 찾아줘 | 복합 개념이 통째로 가는가 — 쪼개지면 그래프 **이론** 논문이 온다 |
+| 의료 영상 분할을 위한 딥러닝 논문 | 검색어에 `for`·`위한` 이 안 붙는가. 카드 5건이 전부 주제인가 |
 
 하단 문구가 **"arXiv 는 프리프린트 저장소라…"** 로 바뀌는지 꼭 본다(PubMed 문구가 남아 있으면 버그).
+
+🔴 **검색어를 눈으로 확인하려면 서버 로그를 본다** — 화면에는 카드 헤더의 `query` 만 보인다.
+OpenAI 경로는 `[OpenAI] local tool "search_arxiv" ← {"query":…}` 한 줄에 인자가 찍힌다.
 
 ### C. 카드가 뜨면 안 된다
 
@@ -306,6 +358,14 @@ Gemini 는 LangChain, OpenAI 는 Responses API 로 **완전히 다른 경로**�
 1. 카드 앞에 **산문이 있는가** (카드만 나오면 근거의 해석이 빠진다)
 2. 산문의 PMID/arXiv ID·DOI 가 카드와 **같은가** (모델이 식별자를 고치면 안 된다)
 3. 모델이 **자기가 쓴 카드**를 내지 않았는가 (`pinCardToProse` 가 도구 출력으로 고정한다)
+
+🔴 **도구 스키마·설명을 만졌으면 두 공급자 모두에서 돌린다.** 두 경로는 파라미터 정의를
+공유하지 않았던 적이 있고(§3-1), 한쪽만 고친 채 초록으로 남았다. 2026-09-03 의 회귀는
+Gemini 에서는 안 보이고 `gpt-5.6-luna` 에서만 보였다.
+
+⚠️ **답이 정확하다고 카드가 나온 게 아니다.** 카드 없이 웹 grounding 으로 답해도 내용은
+맞을 수 있다 — 근거 칩이 `json:paper` 카드인지 출처 칩인지로 갈린다. 실제로 이걸로 한 번
+속았다. 확실한 판별점은 서버 로그의 도구 호출 줄이다.
 
 ### F. 멀티턴
 
@@ -387,6 +447,12 @@ Gemini 는 LangChain, OpenAI 는 Responses API 로 **완전히 다른 경로**�
 |---|---|
 | 카드 렌더 스냅샷 | `render-paper-card.mts` 는 HTML 문자열만 본다. 실제 브라우저에서 두 상자의 간격·다크모드는 아직 눈으로 안 봤다 |
 | 8건 초과(`limit` 상한) 질의 | `retmax = limit + 3` 이 `MAX_RESULTS` 8 에서 잘린다 — 제외가 많은 질의에서 목록이 얼마나 얇아지는지 |
+| `Attention Is All You Need` 가 `all:transformer` 상위에 없다 | arXiv `sortBy=relevance` 는 인용수·영향력을 안 본다. **"5/5 관련"과 "사람이 원한 답"은 다르다** — "대표 논문"류는 카드보다 웹 grounding 이 나을 수 있다 |
+| ~~링크형 `[N](url)` 우회~~ → **수정됨(2026-09-03)** | `repairPaperMarkerLinks` 가 URL 로 번호를 교정한다. ⚖️ **처음 진단이 틀렸다** — 실제 사례의 `[1]` 은 범위 **안**이라 `dropMarkersOutsideRange` 로는 원리적으로 못 잡았다. 판정 근거는 번호가 아니라 URL 이다 |
+| 모델이 `limit: 1` 로 부르면 카드가 1건이 된다 | `ti:` 로 제목 질의는 1위가 원 논문이 됐지만, 일반 질의에서 1건짜리 카드는 여전히 나갈 수 있다. 하한을 둘지는 미정 |
+| **동음이의 학술어** | `graph`(GNN / 그래프 이론) · `diffusion`(생성모델 / 확산방정식). `확산모델 논문` 카드 5건 중 1건이 `math.AP` 개체군 모델이었고 산문이 성실히 요약했다. 블로클리스트로는 못 막는다(위 §3 참고) — 라우터 `topic_field` 로 좁히는 방향은 측정 필요 |
+| 산문의 "모두 프리프린트" 과잉 단정 | `journal_ref` 부재를 산문이 *"정식 출판되지 않았다"* 는 **사실 주장**으로 옮긴다. 배지는 정확한데 문장이 샌다(Music Transformer 는 ICLR 2019 게재작) |
+| 카드 문구 `N건 중 관련도 상위 M건` | `total` 과 `papers.length` 사이에 **필터가 있는 것처럼** 읽힌다. arXiv 쪽엔 그 필터가 없고 M 은 모델이 넘긴 `limit` 이다 — 실제로 이 문구 때문에 없는 필터를 찾으러 갔다 |
 
 ### K. 철회·초록 없음 (2026-08-31 추가)
 
@@ -422,6 +488,14 @@ npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-retraction.mts
 
 # 멀티턴 — 후속 설명·새 주제·재구성 4턴을 실제 그래프로 이어 돌린다
 TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-multiturn.mts
+
+# arXiv 검색어 조립 — 실제 arXiv 로 상위 5건의 관련도를 잰다(11케이스 · ~80초)
+npx tsx tests/manual/live-arxiv-query.mts
+npx tsx tests/manual/live-arxiv-query.mts "spiking neural network"   # 인자를 주면 그 질의만
+
+# 🔴 논문 도구를 만졌으면 **두 공급자 모두** e2e (2026-09-03 회귀는 luna 에서만 보였다)
+TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-card.mts gemini-3.7-flash 'Attention Is All You Need 논문 찾아줘'
+TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-card.mts gpt-5.6-luna    'Attention Is All You Need 논문 찾아줘'
 ```
 
 🔴 **라이브 하니스는 `TIER1=1` 로 돌려라.** 무료 키가 일일 쿼터로 마르면 라우터 LLM 이 429 로
@@ -431,3 +505,19 @@ TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-mul
 
 조사 경위와 폐기한 후보(NCMIK·AI Hub·네이버)는
 [DEV_260830_EXTERNAL_SOURCES](../logs/2026/08/DEV_260830_EXTERNAL_SOURCES.md) 참고.
+
+---
+
+## 실측 기록 — arXiv 검색어 (2026-09-03)
+
+| 무엇 | 결과 |
+|---|---|
+| 라우터 (TIER1, 4질의 × 2회) | `arxiv_search` **8/8** — `Attention Is All You Need 논문 찾아줘` · `의료 영상 분할을 위한 딥러닝 논문` 포함 |
+| `live-arxiv-query.mts` | **11/11** (제목 질의 신규) |
+| e2e `gpt-5.6-luna` | 수정 전 `{"query":"Attention Is All You Need Transformer architecture self-attention"}` → 카드 없음/오답 · 수정 후 `{"query":"Attention Is All You Need"}` → 카드 5건 |
+| e2e `gemini-3.7-flash` | `deep learning medical image segmentation` → 카드 5건, 산문 `[1][2][3][5]` 가 카드 위치와 1:1, 주제가 비껴간 `[4]` 는 인용 안 함 |
+| 폴백 지연 (격리) | 계획 1개 ~20–300ms · 폴백 **3,031ms**(거의 전부 `MIN_GAP_MS`) |
+| `ti:` vs `all:` 구절 (2026-09-03) | `ti:` 35건 **원 논문 1위** · `all:` 45건 2위. 구절 6종에서 `ti:`=0 ⇒ `all:`=0 (예외 없음) |
+| 인용 번호 교정 e2e | luna·gemini 양쪽 **"인용 번호가 카드 순번과 맞는다"** 통과 |
+
+경위와 되돌린 수정은 [DEV_260902_SEARCH_ROUTING §10~§12](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md#10-후속--카드가-관련-없는-논문으로-채워지던-결함-09-03) 참고.

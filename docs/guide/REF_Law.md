@@ -8,6 +8,13 @@ Reference prompts for testing the `json:law` renderer and the Korean statute loo
 
 ---
 
+
+> ⚠️ **GPT 경로는 더 얇은 파라미터 지침을 받는다**(2026-09-03 확인, 미수정). zod 스키마의
+> *"통칭 소방법은 소방기본법 또는 소방으로 검색"* · *"항/호가 있어도 조 번호만 입력"* ·
+> *"조번호가 있으면 article 을 사용"* 이 `local-tool-registry.ts` 의 strict function 스키마에는
+> 없다. 도구 정의가 공급자마다 두 벌이기 때문이다
+> ([REF_Architecture — 도구 정의는 두 벌이다](REF_Architecture.md)).
+
 ## Renderer Schema
 
 ### mode: list — 법령 목록

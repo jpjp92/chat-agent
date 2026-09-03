@@ -64,6 +64,14 @@ npm run verify  # typecheck + test
   무관 75% vs 관련 50%)와 주제어 존재(코퍼스 수록량이 가장 적은 용어). 필터를 넣은 뒤로는 0건이 정상이라
   회귀 감시용이 됐다(5/50 → 0/49, §6.23). `--subject` 는 **개입어가 질병어보다 흔한 질의**를 더한다 —
   거기서 주제어가 뺏겨 fail-open 이 발동한다(18질의 중 2종, §6.27). 대안 규칙 ③의 분리력도 함께 찍는다
+- 🔴 **논문 도구의 스키마·설명을 만졌으면 `live-paper-card.mts` 를 두 공급자 모두에서 돌린다.**
+  Gemini(LangChain)와 OpenAI(strict function calling)는 파라미터 정의를 공유하지 않았던 적이 있어,
+  한쪽만 고친 회귀가 2026-09-03 에 `gpt-5.6-luna` 에서만 보였다(Gemini 는 정상이었다).
+- `npx tsx tests/manual/live-arxiv-query.mts [질의…]`: arXiv 검색어 조립을 **실제 API 로** 태워
+  상위 5건의 관련도를 잰다(11케이스, 케이스당 2회 호출 · 3초 간격이라 ~80초). 조립을 만졌으면
+  이걸 돌리기 전에는 판단할 수 없다 — 실제로 이 프로브가 *"범용어를 AND 에서 뺀다"* 는 수정이
+  `graph neural network` 를 0/5 로 무너뜨리는 걸 잡아 되돌리게 했다.
+  ⚠️ **숫자만 보지 말고 제목을 읽을 것** — 관련도는 정규식 근사고, 느슨한 정규식이 회귀를 숨긴 적이 있다.
 - `npx tsx --env-file=.env tests/manual/probe-paper-apis.mts`: PubMed E-utilities·CrossRef 가 실제로 검색되고
   DOI·인용 URL 을 주는지 검증 (NCMIK OpenAPI 는 `kwd` 를 무시해 폐기했다 — 그 판정을 재현한다).
   `NCBI_KEY` 없이도 돌지만 §4 에서 429 가 난다

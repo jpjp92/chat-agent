@@ -81,7 +81,14 @@ export const buildHistoryMessages = (
                 if (att.data && att.mimeType) {
                     const isSupported = SUPPORTED_ATTACHMENT_MIME_PREFIXES.some(t => att.mimeType.startsWith(t));
                     if (!isSupported) continue;
-                    if (!isRecent) { parts[0].text += `\n[Attached File: ${att.fileName || att.mimeType}]`; continue; }
+                    if (!isRecent) {
+                        // 🔴 조용한 전환에 관측점을 남긴다(DEV_260902 §9.5). 이 강등이 일어나는 순간
+                        //   Gemini 의 tier 400(멀티모달)이 사라져 **같은 요청의 검색 판정이 뒤집힌다.**
+                        //   로그가 없으면 "왜 이 턴만 검색이 됐지"를 나중에 답할 수 없다.
+                        console.log(`[History] 첨부 미디어 → 텍스트 강등 (mediaWindow ${mediaWindow} 밖): ${att.fileName || att.mimeType}`);
+                        parts[0].text += `\n[Attached File: ${att.fileName || att.mimeType}]`;
+                        continue;
+                    }
                     const isPublicUrl = att.data.startsWith('http');
                     if (isPublicUrl) {
                         // 영상/오디오/PDF는 실제 mimeType 단 fileData로(image_url 래핑 시 image/jpeg 오추론).

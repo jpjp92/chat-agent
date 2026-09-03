@@ -20,7 +20,7 @@ import { generateOpenAIChat } from "../../openai/chat";
 import { isOpenAIChatModel } from "../../openai/models";
 import { withSearchProviderInstruction } from "../search-provider";
 import { getLocalFunctionTool } from "../local-tool-registry";
-import { withExplicitSearchFollowup } from "../search-signals";
+import { withExplicitSearchFollowup, shouldDropImageForSearch } from "../search-signals";
 
 // SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
 // 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
@@ -310,8 +310,10 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                 // 🔴 Gemini 경로의 "이미지 빼고 검색 켜기" 가드(:383)에 대응하는 값이지만, 여기서는
                 //   애초에 뺄 이미지가 없다 — OpenAI 는 input_image 와 web_search 를 함께 보낸다.
                 //   대신 `provider: 'openai'` 로 TIER 400 자체를 내지 않게 한다. 예전엔 이 자리가
-                //   false 로 고정돼 있어, 대화에 이미지가 한 번이라도 있으면 그 뒤 모든 턴에서
-                //   사용자의 명시 검색 요청(300)이 남의 API 제약(400)에 눌렸다(2026-09-02 실측).
+                //   false 로 고정돼 있어, **이미지 첨부 직후 턴**에서 사용자의 명시 검색 요청(300)이
+                //   남의 API 제약(400)에 눌렸다(2026-09-02 실측).
+                //   ⚠️ 범위가 "직후 1턴"인 것은 history 가 첨부를 최근 mediaWindow 개까지만 미디어로
+                //      싣기 때문이다 — 처음엔 "대화 내내"로 적었다가 실측으로 정정했다(DEV_260902 §9.1).
                 dropImageForSearch: false,
                 provider: 'openai',
                 isYoutubeRequest,
@@ -389,7 +391,15 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             );
             const _explicitSearchForGuard = state.needsSearch === true
                 || /(검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|팩트체크|팩트 체크|사실확인|사실 확인|확인해|검증|웹에서|온라인에서|인터넷에서|실제로.*있|연구가.*있|논문|latest|recent|search|source|cite|fact.?check|verify|online)/i.test(latestUserText);
-            const dropImageForSearch = state.intent === 'general' && !_currentTurnHasImage && _historyHasImageForGuard && _explicitSearchForGuard;
+            // 판정은 search-signals 로 나가 있다 — 하니스가 프로덕션 함수를 그대로 실행하기 위해서다.
+            // 🔴 `medical_qa` 가 대상에 들어간 것이 2026-09-02 수정이다(§9.2): tier 100 검색 강제 ON 인
+            //    의도인데 400 에 눌려 "출처 기반 답변" 정책이 이미지 직후 턴 동안 무효였다.
+            const dropImageForSearch = shouldDropImageForSearch({
+                intent: state.intent,
+                currentTurnHasImage: _currentTurnHasImage,
+                historyHasImage: _historyHasImageForGuard,
+                explicitSearchSignal: _explicitSearchForGuard,
+            });
             if (dropImageForSearch) {
                 forceTextOnly = true;
                 console.log('[LangGraph] 이미지+검색 가드: history 이미지 제외 + Google Search 활성화 (명시적 팩트체크 요청)');
@@ -418,7 +428,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
                     // Google Search gate — decide grounding (multimodal/youtube/url/renderer/doc/general).
                     // Returns useGoogleSearch + side-values consumed downstream (token budget / diagnostic logs).
-                    const { useGoogleSearch, hasUrlContent, historyHasImage, rendererIntents, explicitSearchRequested } = decideGoogleSearch({
+                    const { useGoogleSearch, hasUrlContent, rendererIntents, explicitSearchRequested } = decideGoogleSearch({
                         webContent: state.webContent,
                         messages: state.messages,
                         intent: state.intent,
@@ -443,8 +453,8 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
                     // 멀티턴에서도 히스토리가 쌓인 상태에서 grounding 응답이 길어질 수 있으므로 최소 8192 보장.
                     const effectiveMaxTokens = (useGoogleSearch && resolvedMaxTokens < 8192) ? 8192 : resolvedMaxTokens;
 
-                    if ((hasMultimodalContent || historyHasImage) && !isYoutubeRequest) {
-                        console.log('[LangGraph] Image in conversation — Google Search disabled', { hasMultimodalContent, historyHasImage });
+                    if (hasMultimodalContent && !isYoutubeRequest) {
+                        console.log('[LangGraph] Image in conversation — Google Search disabled', { hasMultimodalContent, dropImageForSearch });
                     }
                     if (hasUrlContent) {
                         console.log('[LangGraph] URL content provided — Google Search disabled to use full article text');

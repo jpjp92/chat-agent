@@ -12,8 +12,8 @@
 import fs from 'node:fs';
 import { toEvidence, isRetracted, parseAbstracts, broadenQuery, relevanceTerms, pickHeadTerm, splitOffTopic, partitionPapers, filterOffTopicAside } from '../server/agent/paper-tool';
 import { decidePaperCardFollowup, buildPaperFollowupRules } from '../server/agent/card-followup';
-import { parseArxivFeed, unescapeXml, buildArxivSearchQuery } from '../server/agent/arxiv-tool';
-import { pendingCardBlocks, pinCardToProse, dropMarkersOutsideRange, sanitizeActiveCards } from '../server/agent/card-tool-output';
+import { parseArxivFeed, unescapeXml, buildArxivSearchQuery, buildArxivQueryPlan } from '../server/agent/arxiv-tool';
+import { pendingCardBlocks, pinCardToProse, dropMarkersOutsideRange, repairPaperMarkerLinks, sanitizeActiveCards } from '../server/agent/card-tool-output';
 import { classifyIntentByRules, isNonBiomedicalPaperTopic } from '../server/agent/intentRules';
 
 let failures = 0;
@@ -348,15 +348,85 @@ console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR �
     // 이미 문법이 들어 있으면 손대지 않는다 — 두 번 감싸면 all:all: 이 된다
     check('필드 접두사는 통과', buildArxivSearchQuery('cat:cs.CV AND ti:attention') === 'cat:cs.CV AND ti:attention');
     check('불리언 연산자는 통과', buildArxivSearchQuery('quantum OR photonic') === 'quantum OR photonic');
+
+    // 🔴 2026-09-03. 여기서 **범용어(`neural network` 등)를 AND 에서 빼는 수정을 넣었다가 되돌렸다.**
+    //   `transformer neural network` 는 1/5 → 5/5 로 나아졌지만, 같은 규칙이
+    //   `graph neural network` 를 5/5 → **0/5**(그래프 이론), `convolutional neural network` 를
+    //   5/5 → **1/5**(부호이론)로 무너뜨렸다. `neural network` 가 복합 개념의 일부일 때는
+    //   빼면 주제가 통째로 바뀐다. 하나 고치고 둘 깨는 교환이었다.
+    //   → 조립은 그대로 두고, **모델이 질의에 범용어를 덧붙이지 않게** 도구 설명에서 막는다.
+    //   측정: `npx tsx tests/manual/live-arxiv-query.mts`
+    check('범용어를 빼지 않는다 — 복합 개념이 깨진다 (graph/convolutional neural network)',
+        buildArxivSearchQuery('graph neural network') === 'all:graph AND all:neural AND all:network',
+        buildArxivSearchQuery('graph neural network'));
+    check('사용자가 말한 주제어만 오면 단일어 그대로',
+        buildArxivSearchQuery('transformer') === 'all:transformer');
+    // 조립으로 막을 수 없으니 도구 설명이 막는다 — 그 지시가 남아 있는지 본다(배선 검사).
+    check('도구 설명이 범용어 덧붙이기를 금지한다',
+        /말하지 않은 범용어/.test(read('../server/agent/arxiv-tool.ts')));
+    check('도구 설명이 복합 개념 예외를 함께 준다',
+        /graph neural network[\s\S]{0,120}하나의 개념이면 통째로/.test(read('../server/agent/arxiv-tool.ts')));
     check('따옴표 구문은 all: 만 씌운다', buildArxivSearchQuery('"neural painting"') === 'all:"neural painting"');
+
+    // 🔴 2026-09-03 실측: `Attention Is All You Need` 는 `is`·`all`·`you` 가 불용어라
+    //   `all:Attention AND all:Need`(7,982건) 로 줄고 **원 논문 1706.03762 가 상위 5건에 못 든다.**
+    //   구절(`all:"…"`)로 치면 45건에 원 논문 2위다. 가르는 신호는 **버려지는 불용어의 존재** —
+    //   평범한 검색어에는 불용어가 없고 제목·구절에는 있다.
+    //   ⚠️ 한 번에 합치는 `all:"…" OR (AND)` 는 실측상 원 논문을 여전히 못 올린다(관련도 정렬이
+    //     구절 일치를 우대하지 않는다). 그래서 순차 폴백이다.
+    // 🔴 `ti:` 가 `all:"…"` 보다 먼저다. 실측: `all:"…"` 는 원 논문이 **2위**(1위는 2026년
+    //   `Tool Attention Is All You Need`)라, 모델이 `limit:1` 로 부르면 카드에 엉뚱한 논문만
+    //   남고 산문이 그걸 답으로 설명한다. `ti:` 는 1위다.
+    //   ⚖️ 가운데에 `all:"…"` 를 끼운 3단 계획은 뺐다 — 구절 6종에서 `ti:` 가 0이면 `all:"…"` 도
+    //     예외 없이 0이라 단독으로 건진 경우가 없는데 최악 지연만 두 배가 된다.
+    check('불용어가 섞인 제목은 제목 필드를 먼저 친다',
+        JSON.stringify(buildArxivQueryPlan('Attention Is All You Need'))
+        === JSON.stringify(['ti:"Attention Is All You Need"', 'all:Attention AND all:Need']),
+        JSON.stringify(buildArxivQueryPlan('Attention Is All You Need')));
+    for (const q of ['graph neural network', 'probiotics depression', 'bridge seismic design', 'transformer']) {
+        check(`불용어 없는 평범한 검색어는 추가 호출이 없다 — ${q}`,
+            buildArxivQueryPlan(q).length === 1, JSON.stringify(buildArxivQueryPlan(q)));
+    }
+    check('두 단어짜리는 구절로 보지 않는다 — `based on` 같은 조각이 걸린다',
+        buildArxivQueryPlan('based on').length === 1, JSON.stringify(buildArxivQueryPlan('based on')));
+    check('이미 arXiv 문법이면 구절을 씌우지 않는다',
+        buildArxivQueryPlan('cat:cs.CV AND ti:attention').length === 1);
+    // 배선 — 계획을 실제로 순회하는가(판정만 맞고 아무 일도 안 일어나는 실수를 막는다)
+    check('배선: arxivTool 이 buildArxivQueryPlan 을 순회한다',
+        /buildArxivQueryPlan\(/.test(read('../server/agent/arxiv-tool.ts'))
+        && /for \(const searchQuery of plan\)/.test(read('../server/agent/arxiv-tool.ts')));
+    check('따옴표 0건 주석이 정정돼 있다 — "구절은 못 쓴다"는 과일반화였다',
+        /과일반화/.test(read('../server/agent/arxiv-tool.ts')));
+
+    // 🔴 2026-09-03. 같은 지시를 LangChain 스키마에만 넣었더니 **OpenAI 경로가 안 고쳐졌다** —
+    //   `local-tool-registry.ts` 가 `query` 설명의 자기 사본을 갖고 있었고, gpt-5.6-luna 가
+    //   `Attention Is All You Need Transformer architecture self-attention` 으로 조회해
+    //   원 논문 없는 카드를 냈다. 문안을 상수 하나로 합쳤으니 **두 벌로 갈라지는 걸** 막는다.
+    check('arXiv query 설명이 상수 하나다 — 레지스트리가 사본을 갖지 않는다',
+        /description: ARXIV_QUERY_DESCRIPTION/.test(read('../server/agent/local-tool-registry.ts'))
+        && !/description: 'arXiv 검색어/.test(read('../server/agent/local-tool-registry.ts')));
+    check('두 공급자 경로가 같은 상수를 import 한다',
+        /ARXIV_QUERY_DESCRIPTION/.test(read('../server/agent/local-tool-registry.ts'))
+        && /export const ARXIV_QUERY_DESCRIPTION/.test(read('../server/agent/arxiv-tool.ts')));
+    check('설명이 제목 질의를 따로 못박는다 — 제목에 범용어를 붙이면 원 논문이 사라진다',
+        /논문 제목을 물으면/.test(read('../server/agent/arxiv-tool.ts')));
+    // 관측점 — 카드가 비는 원인은 대부분 도구가 아니라 모델이 만든 검색어다(§12).
+    check('OpenAI 경로가 도구 **인자**를 로그에 남긴다',
+        /local tool "\$\{options\.functionTool\.name\}" ← /.test(read('../server/openai/chat.ts')));
 
     // 🔴 0건을 OR 로 넓히지 않는다 — 실측 `sourdough fermentation microbiome kinetics` 는
     // AND 0건이 정답이고(arXiv 에 없는 분야), 넓히면 "kinetics" 하나만 걸린 논문이 근거가 된다.
     // 무의미어 `zzqqxx nonexistent topic` 은 더 심해서 35,416건의 토픽모델링 논문을 물어 온다.
     const arxivToolSrc = read('../server/agent/arxiv-tool.ts');
-    check('0건을 OR 로 넓히지 않는다 — 조회는 한 번뿐',
-        (arxivToolSrc.match(/await fetchArxiv\(/g) ?? []).length === 1,
-        String((arxivToolSrc.match(/await fetchArxiv\(/g) ?? []).length));
+    // 🔴 이 검사는 원래 `await fetchArxiv(` 가 소스에 **한 번만** 나오는지 세고 있었다.
+    //   그런데 09-03 에 구절 폴백이 들어가면서 호출은 루프 안의 한 줄이 그대로라 **숫자는 안 변한다** —
+    //   즉 계약이 바뀌었는데 검사는 초록을 유지했다. 세는 대상이 계약이 아니었던 것이다.
+    //   실제 계약은 "**OR 로 넓히지 않는다**" 이므로 그걸 직접 본다.
+    check('0건을 OR 로 넓히지 않는다 — 계획 어디에도 OR 폴백이 없다',
+        buildArxivQueryPlan('sourdough fermentation microbiome kinetics')
+            .every(q => !/\bOR\b/.test(q)));
+    check('계획의 마지막은 항상 AND 조립 — 여기까지 0건이면 0건이 답이다',
+        buildArxivQueryPlan('Attention Is All You Need').at(-1) === buildArxivSearchQuery('Attention Is All You Need'));
     check('빈손 실패를 코드가 명시한다', /넓히지 않는다/.test(arxivToolSrc));
     check('검색어 조립을 fetch 가 아니라 순수 함수가 한다 — search_query 에 직접 박지 않는다',
         !/search_query: `all:\$\{query\}`/.test(arxivToolSrc));
@@ -814,7 +884,16 @@ console.log('\n§5 배선 — 카드가 실제로 화면까지 가는가');
     // arXiv 배선 — 하나라도 빠지면 도구가 안 붙거나 카드가 모델 손을 탄다(PubMed 에서 4곳 다 겪었다)
     const lc = read('../server/agent/nodes/langchain-path.ts');
     check('arxiv_search 가 LANGCHAIN_INTENTS 에 있다', /"arxiv_search"/.test(read('../server/agent/nodes/generator.ts')));
-    check('arxiv_search 에 arxivTool 을 묶는다', /state\.intent === "arxiv_search"[\s\S]{0,80}\[arxivTool\]/.test(lc));
+    // 2026-09-02: 논문 두 의도가 한 분기로 합쳐졌다(§9.3 — 종합 단계 웹검색). 검사 대상은
+    // 리터럴 모양이 아니라 **계약**이다: ① arxiv_search 는 arxivTool 을 묶는다
+    // ② 조회 1차 호출은 반드시 단일 도구다(forceDomainTool 이 allTools.length===1 을 요구하므로,
+    //    풀리면 모델이 논문 도구를 아예 안 부를 수 있다).
+    check('arxiv_search 에 arxivTool 을 묶는다',
+        /state\.intent === "paper_search" \? paperTool : arxivTool/.test(lc));
+    check('🔴 논문 조회 1차 호출은 단일 도구 — 강제가 풀리면 도구를 안 부른다',
+        /\? \[paperCardTool, searchWebTool\]\s*\n?\s*: \[paperCardTool\]/.test(lc));
+    check('논문 종합 단계 웹검색은 판정 함수를 거친다(명시 요청일 때만)',
+        /shouldAddWebSearchToPaperFollowup\(state\.intent, lastMsg\._getType\(\) === 'tool'/.test(lc));
     check('arxiv_search 도 도구 강제(SYNTH_TOOL_INTENTS)', /SYNTH_TOOL_INTENTS[^\n]*arxiv_search/.test(lc));
     check('arxiv_search 도 카드를 도구 출력으로 고정한다', /arxiv_search: "paper"/.test(lc));
     check('ToolNode 에 arxivTool 이 등록돼 있다', /arxivTool\]/.test(read('../server/agent/graph.ts')));
@@ -837,3 +916,42 @@ console.log('\n§5 배선 — 카드가 실제로 화면까지 가는가');
 
 console.log(`\n${failures === 0 ? '✅ 전부 통과' : `🔴 실패 ${failures}건`}`);
 process.exit(failures === 0 ? 0 : 1);
+
+console.log('\n§4h 링크형 인용의 번호를 URL 로 교정한다 (2026-09-03)');
+{
+    // 🔴 실측(gpt-5.6-luna, `Attention Is All You Need 논문 찾아줘`): 카드 8건 중 원 논문은 2번인데
+    //   산문이 `[1](https://arxiv.org/abs/1706.03762)` 라고 썼다. URL 은 맞고 번호가 틀렸다.
+    //   `dropMarkersOutsideRange` 로는 못 잡는다 — `[1]` 은 범위 **안**이다. 범위가 아니라
+    //   가리키는 대상이 틀린 결함이라 판정 근거가 URL 이어야 한다.
+    const urls = [
+        'https://arxiv.org/abs/2604.21816',
+        'https://arxiv.org/abs/1706.03762',
+        'https://arxiv.org/abs/2104.04692',
+    ];
+    const run = (t: string) => dropMarkersOutsideRange(repairPaperMarkerLinks(t, urls), urls.length);
+
+    check('실측 사례 — 카드 2번을 가리키게 고친다',
+        run('식별자: 1706.03762 [1](https://arxiv.org/abs/1706.03762)') === '식별자: 1706.03762 [2]',
+        run('식별자: 1706.03762 [1](https://arxiv.org/abs/1706.03762)'));
+    check('버전 접미사가 붙어도 같은 논문으로 본다',
+        run('어텐션 [3](https://arxiv.org/abs/1706.03762v2) 입니다') === '어텐션 [2] 입니다');
+    check('카드에 없는 arXiv 논문은 마커를 뗀다 — 카드 순번 계약 위반',
+        !/\[\d+\]/.test(run('다른 논문 [2](https://arxiv.org/abs/9999.99999) 도 있습니다')));
+    check('🔴 grounding 링크는 건드리지 않는다 — 출처가 사라지면 안 된다',
+        run('설명 [1](https://vertexaisearch.cloud.google.com/x) 끝')
+        === '설명 [1](https://vertexaisearch.cloud.google.com/x) 끝');
+    check('맨 마커는 그대로 통과한다', run('이 논문 [2] 입니다') === '이 논문 [2] 입니다');
+    check('PubMed 호스트도 대상이다',
+        !/\[\d+\]\(/.test(run('연구 [1](https://pubmed.ncbi.nlm.nih.gov/99999999/) 참고')));
+    check('카드가 비면 손대지 않는다', repairPaperMarkerLinks('a [1](https://arxiv.org/abs/1) b', []) === 'a [1](https://arxiv.org/abs/1) b');
+
+    // 배선 — 판정만 맞고 아무 일도 안 일어나는 실수를 막는다(DEV_260830 §6.22·§6.25 규칙)
+    const dispatchSrc = read('../server/agent/stream-dispatch.ts');
+    check('배선: 스트림이 교정을 **먼저** 하고 범위 검사를 뒤에 한다',
+        /dropMarkersOutsideRange\(repairPaperMarkerLinks\(t, st\.pinnedPaperUrls\), st\.pinnedPaperCount\)/.test(dispatchSrc));
+    check('배선: 스트림이 카드 URL 을 캡처한다', /pinnedPaperUrls = papers\.map/.test(dispatchSrc));
+    check('배선: 청크 경계 보류가 링크형까지 잡는다 — 반쪽 URL 이 화면에 남으면 안 된다',
+        /\\]\(\[\^\)\\s\]\*\)\?\$/.test(dispatchSrc));
+    check('배선: 최종 메시지 경로도 교정한다',
+        /repairPaperMarkerLinks\(prose, papers\.map/.test(read('../server/agent/card-tool-output.ts')));
+}

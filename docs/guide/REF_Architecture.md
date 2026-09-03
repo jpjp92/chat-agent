@@ -200,12 +200,35 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | `weather` | 공급자별 function calling + KMA/OpenWeather → `json:weather` fast-pass | 선택 공급자 |
 | `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
 | `sports` | 공급자별 function calling + football-data.org, 선택 모델이 Markdown 종합 | 선택 공급자 |
+| `paper_search` | 공급자별 function calling + PubMed E-utilities/CrossRef → `json:paper` (카드는 도구 출력으로 고정, 산문은 모델) | 선택 공급자 |
+| `arxiv_search` | 같은 카드·다른 출처. 라우터가 고르지 않고 `paper_source` 에서 파생된다 | 선택 공급자 |
 | `medical_qa` | 선택 공급자 일반 생성 + 필요 시 검색 | 선택 모델; Gemini는 모델별 search capability 적용 |
 | `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | 선택 공급자 renderer 경로 | 선택 모델; Search 기본 OFF |
 | `general` | 선택 공급자 생성 + `needsSearch` 3-gate classifier | 선택 모델 |
 
+### 🔴 도구 정의는 **두 벌**이다 — 한쪽만 고치면 조용히 반쪽이 된다
+
+같은 도구가 공급자마다 다른 파일에 정의돼 있다:
+
+| 경로 | 어디 | 무엇 |
+|---|---|---|
+| Gemini (LangChain) | `server/agent/*-tool.ts` 의 zod `.describe()` | ToolNode 가 바인딩 |
+| OpenAI (Responses) | `server/agent/local-tool-registry.ts` 의 `parameters` | strict function calling 스키마 |
+
+**둘은 문자열을 공유하지 않는다.** 2026-09-03 에 arXiv 검색어 지침을 zod 스키마에만 넣었더니
+OpenAI 경로가 안 고쳐졌고, `gpt-5.6-luna` 만 잘못된 카드를 냈다 — Gemini 로 확인했으면
+"고쳐졌다"로 넘어갔을 회귀다([DEV_260902 §12](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md)).
+arXiv 는 `ARXIV_QUERY_DESCRIPTION` 상수로 합쳤지만 **나머지 도구는 여전히 두 벌이다.**
+
+⚠️ **실재하는 드리프트**(2026-09-03 확인, 미수정): `lawTool` 의 zod 쪽엔
+*"통칭 소방법은 소방기본법 또는 소방으로 검색"* · *"항/호가 있어도 조 번호만 입력"* ·
+*"조번호가 있으면 article 을 사용"* 이 있는데 레지스트리는 *"법령명 후보"·"특정 조문 번호"·
+*"조회 모드"* 로 줄어 있다. 날씨·영화도 지역 예시가 빠졌다. **GPT 사용자는 더 얇은 지침을 받는다.**
+
+**규칙: 도구의 파라미터 설명·스키마를 만지면 두 파일을 함께 보고, e2e 는 두 공급자 모두에서 돌린다.**
+
 **Router:**
-- LLM: 현재 `gemini-2.5-flash-lite`, `thinkingBudget:0` 명시. GPT가 선택돼도 이 선행 의존성이 남아 있으며 공급자별 router 분리는 [멀티 공급자 라우팅 계획](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)의 P0이다
+- LLM: 현재 `gemini-2.5-flash`(`ROUTER_MODEL`), `thinkingBudget:0` 명시. ⚖️ **flash-lite 에서 올렸다**(2026-09-02) — `강아지 사료 추천해줘` 류의 오분류가 79% → 100% 로 개선되고 지연은 783 → 1,214ms 늘었다. GPT가 선택돼도 이 선행 의존성이 남아 있으며 공급자별 router 분리는 [멀티 공급자 라우팅 계획](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)의 P0이다
 - 규칙 기반 폴백: `server/agent/intentRules.ts` (KO/EN/ES/FR 키워드)
   - **폴백은 확신할 때만 잡는다 — 재현율보다 정밀도가 우선.** 놓친 것은 `general`이 받아주지만(검색 붙고 산문으로 답함), 잘못 잡은 것은 받아줄 곳이 없다(렌더러 스펙 주입 + 검색 OFF). 한국어는 공백 없이 결합해 `\b`가 안 먹으므로 **단독 명사는 대개 문맥 동반을 요구해야 한다** — `힘`·`속도`·`날씨`·`병원`·`달`이 전부 이 이유로 좁혀졌다(PLAN_INTENT_RULES_PRECISION_260816).
   - `FALLBACK_RULES` **배열 순서 = 우선순위**(first-match-wins). 특히 `vet_search`가 `hospital_search`보다 **앞이어야 한다** — `동물병원`의 `병원`이 먼저 걸리면 수의 경로가 죽는다. `data_viz`는 맨 끝(`차트`·`그래프`는 모든 분야와 결합).
@@ -299,9 +322,9 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
 | TTS | `gemini-2.5-flash-preview-tts` |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
-| 초기 라우터 (현재) | `gemini-2.5-flash-lite`, thinkingBudget:0. GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
+| 초기 라우터 (현재) | `gemini-2.5-flash`, thinkingBudget:0 (2026-09-02 에 flash-lite 에서 상향). GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
 
-**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. 현재 Gemini 선행 router와 GPT 로컬 도구 호출 미구현은 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
+**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 11종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
 ---
 

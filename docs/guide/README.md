@@ -1,6 +1,6 @@
 # Guide Index
 
-> 최종 점검: 2026-08-23
+> 최종 점검: 2026-09-03
 
 현재 동작을 설명하는 레퍼런스와 기능별 테스트 프롬프트의 진입점이다. 전체 프로젝트 현황은 [docs/README](../README.md), 구현 이력은 [DEV_HISTORY](../DEV_HISTORY.md), 실행 순서는 [PLAN_INDEX](../plans/PLAN_INDEX.md)를 따른다.
 
@@ -8,9 +8,10 @@
 
 | 문서 | 범위 | 상태 |
 |---|---|---|
-| [Architecture](REF_Architecture.md) | LangGraph, 모델·intent 라우팅, URL Fetch, 오류·스트리밍 정책 | 2026-08-23 현행화 |
+| [Architecture](REF_Architecture.md) | LangGraph, 모델·intent 라우팅, URL Fetch, 오류·스트리밍 정책 + **도구 정의가 두 벌인 구조** | 2026-09-03 현행화 |
 | [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블, Storage, URL 캐시, MFDS | 2026-08-23 현행화 |
-| [Document](REF_Document.md) | 업로드, HWP 파싱, PDF·영상 capability fallback | 2026-08-23 현행화 |
+| [Document](REF_Document.md) | 업로드, HWP 파싱, PDF·영상 capability fallback | 2026-09-03 검색 게이트 절 정정 |
+| [Search Routing](REF_SearchRouting.md) | 검색 on/off tier 정책(공급자별 400), 이미지+검색 탈출구, 논문↔소프트웨어 산출물 3층 방어 + **테스트 질의 카탈로그** | 2026-09-03 신규 |
 | [CI/CD](REF_CICD.md) | GitHub Actions와 dev/main 배포 흐름 | 기능 변경 시 별도 검증 필요 |
 
 ## 도구·렌더러
@@ -21,7 +22,7 @@
 | 영화 | [Movie](REF_Movie.md) |
 | 의약품·약국·병원·동물병원 | [Drug](REF_Drug.md), [Pharmacy](REF_Pharmacy.md), [Hospital](REF_Hospital.md), [Vet](REF_Vet.md) |
 | 법령·스포츠 | [Law](REF_Law.md), [Sports](REF_Sports.md) |
-| 논문·근거 (PubMed·arXiv) | [Paper](REF_Paper.md) |
+| 논문·근거 (PubMed·arXiv) | [Paper](REF_Paper.md) — **arXiv 검색어 3계약**(AND 조립 · 범용어 금지 · 제목 구절 폴백)과 로컬 확인 체크리스트 A~K · 실측 기록 |
 | 차트·과학 시각화 | [Chart](REF_Chart.md), [Biology](REF_Biology.md), [Chemistry](REF_Chemistry.md), [Physics](REF_Physics.md), [Diagram](REF_Diagram.md), [Constellation](REF_Constellation.md) |
 
 ## 설계 참고자료

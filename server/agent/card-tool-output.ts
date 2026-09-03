@@ -155,6 +155,8 @@ export const dropDanglingMarkers = (prose: string, cardBlock: string, type: Fast
         const papers = JSON.parse(json ?? '{}')?.papers;
         if (!Array.isArray(papers)) return prose;
         count = papers.length;
+        // 번호 교정이 **먼저**다 — 링크형을 맨 마커로 바꾼 뒤라야 범위 검사가 그걸 볼 수 있다.
+        prose = repairPaperMarkerLinks(prose, papers.map((p: any) => p?.url));
     } catch {
         return prose;
     }
@@ -176,6 +178,47 @@ export const dropDanglingMarkers = (prose: string, cardBlock: string, type: Fast
  * 그대로 화면에 남았다). 카드는 도구 종료 시점(이벤트 #19)에 이미 있고 본문 첫 토큰은
  * 그 뒤(#24)라, route.ts 가 건수를 먼저 잡아 두면 스트림에도 같은 계약을 적용할 수 있다.
  */
+/**
+ * 카드 논문의 인용 URL 을 비교 가능한 형태로 줄인다.
+ * `https://arxiv.org/abs/1706.03762v2` · `http://arxiv.org/abs/1706.03762/` → `arxiv.org/abs/1706.03762`
+ */
+const normalizeCitationUrl = (url: string): string =>
+    url.trim().toLowerCase()
+        .replace(/^https?:\/\//, '').replace(/^www\./, '')
+        .replace(/[/)\].,]+$/, '')
+        .replace(/(abs\/\S+?)v\d+$/, '$1');
+
+/** 카드 출처로 쓰는 두 도메인. 이 밖의 링크는 grounding 이라 건드리지 않는다. */
+const CARD_CITATION_HOST = /^(?:arxiv\.org|pubmed\.ncbi\.nlm\.nih\.gov)\//;
+
+/**
+ * 🔴 `[N](url)` 의 **번호를 URL 로 교정한다** — 논문 카드 턴 전용.
+ *
+ * 실측(2026-09-03, gpt-5.6-luna, `Attention Is All You Need 논문 찾아줘`): 카드 8건 중 원 논문은
+ * **2번**인데 산문이 `[1](https://arxiv.org/abs/1706.03762)` 라고 썼다. URL 은 맞고 번호가 틀렸다 —
+ * `[1]` 은 카드 1번(다른 논문 `Tool Attention Is All You Need`)을 가리킨다.
+ *
+ * ⚠️ `dropMarkersOutsideRange` 로는 **원리적으로 못 잡는다.** 그건 1..count 밖을 지우는데
+ * 여기서 `[1]` 은 범위 **안**이다. 범위가 아니라 **가리키는 대상**이 틀린 결함이라, 판정 근거는
+ * 번호가 아니라 URL 이어야 한다. 그리고 URL 은 카드가 갖고 있으므로 결정적으로 판정할 수 있다.
+ *
+ * 세 갈래로 나뉜다:
+ *   · URL 이 카드 M 번과 일치 → `[M]` 으로 **고친다**(맨 마커로 — 링크는 카드가 이미 준다)
+ *   · URL 이 arXiv/PubMed 인데 카드에 없음 → 마커만 뗀다. 카드 순번 계약을 어긴 번호이고,
+ *     그런 문장은 논문을 제목으로도 부르고 있어 뜻이 온전하다(`dropMarkersOutsideRange` 와 같은 판단)
+ *   · 그 밖의 호스트 → **손대지 않는다.** grounding 인용 링크다(vertexaisearch 등)
+ */
+export const repairPaperMarkerLinks = (prose: string, paperUrls: string[]): string => {
+    if (!prose || !Array.isArray(paperUrls) || paperUrls.length === 0) return prose;
+    const normalized = paperUrls.map(u => normalizeCitationUrl(String(u ?? '')));
+    return prose.replace(/(\s?)\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g, (whole, lead: string, _n: string, url: string) => {
+        const target = normalizeCitationUrl(url);
+        const idx = normalized.findIndex(u => u && u === target);
+        if (idx >= 0) return `${lead}[${idx + 1}]`;
+        return CARD_CITATION_HOST.test(target) ? '' : whole;
+    });
+};
+
 export const dropMarkersOutsideRange = (prose: string, count: number): string => {
     if (!prose || !Number.isFinite(count) || count <= 0) return prose;
     return prose

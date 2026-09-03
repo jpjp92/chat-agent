@@ -104,3 +104,55 @@ export const withExplicitSearchFollowup = <T extends { intent: string; followupW
     tool && PAPER_CARD_INTENTS.has(tool.intent) && detectExplicitSearchRequest(latestUserText)
         ? { ...tool, followupWebSearch: true }
         : tool;
+
+/**
+ * 히스토리 이미지를 이번 요청에서 빼고 검색을 켤 것인가 (Gemini SDK 경로 전용).
+ *
+ * Gemini 는 이미지와 grounding 을 한 요청에 못 담는다(tier 400). 그래서 **이미지를 빼는 것**이
+ * 유일한 탈출구다 — 이미지 내용은 직전 assistant 답변에 텍스트로 전사돼 있어 팩트체크가 가능하다.
+ * (OpenAI 는 이 제약이 없어 애초에 이 함수를 타지 않는다 — `provider: 'openai'` 로 400 자체가 안 난다.)
+ *
+ * 🔴 **`medical_qa` 를 넣은 것이 이번 수정의 핵심이다**(DEV_260902 §9.2). 예전엔 `general` 만
+ *   봤는데, `medical_qa` 는 게이트에서 **tier 100 검색 강제 ON** 인 의도다. 400 에 눌리면
+ *   *"의약 질의는 출처 기반으로 답한다"* 는 정책이 이미지 직후 턴 동안 조용히 무효가 됐다.
+ *
+ * ⚖️ **렌더러 4종(astronomy·biology·chemistry·physics·data_viz)은 일부러 제외한다.**
+ *   그쪽은 히스토리 이미지가 답의 **대상**일 수 있고(`이 사진 속 분자 구조 그려줘`),
+ *   tier 200 `renderer` 신호로 어차피 off 다. 이미지를 빼면 얻는 것보다 잃는 게 크다.
+ */
+const IMAGE_DROP_ELIGIBLE_INTENTS = new Set(['general', 'medical_qa']);
+
+export const shouldDropImageForSearch = (opts: {
+    intent: string;
+    /** 이번 턴에 새로 붙인 이미지가 있는가 — 있으면 그게 질문 대상이므로 빼면 안 된다. */
+    currentTurnHasImage: boolean;
+    historyHasImage: boolean;
+    /** 검색·팩트체크를 원한다는 신호(라우터 needsSearch 또는 발화 어휘). */
+    explicitSearchSignal: boolean;
+}): boolean =>
+    IMAGE_DROP_ELIGIBLE_INTENTS.has(opts.intent)
+    && !opts.currentTurnHasImage
+    && opts.historyHasImage
+    && opts.explicitSearchSignal;
+
+/**
+ * LangChain(Gemini) 논문 턴의 **종합 단계**에 웹 검색 도구를 더할 것인가.
+ *
+ * 🔴 Gemini 경로의 논문 의도는 웹 탈출구가 **아예 없었다**(DEV_260902 §9.3).
+ *   `drug_info` 는 `[searchDrugInfoTool, searchWebTool]` 로 웹을 함께 주는데 논문만 단일 도구였고,
+ *   LangChain 경로는 grounding 도 쓰지 않는다. 라우터가 미끄러지면 어떤 경로로도 웹에 못 갔다.
+ *
+ * ⚠️ **`afterToolResult` 가 필수인 이유.** 1차 호출에 도구를 둘 주면 `forceDomainTool`
+ *   (`allTools.length === 1` 요구)이 풀려 **모델이 논문 도구를 아예 안 부를 수 있다** —
+ *   그 강제가 존재하는 이유가 *"Gemini 가 실제로 지원하는 요청도 자체 판단으로 거절한다"* 이다.
+ *   그래서 조회는 단독·강제로 끝내고, `ToolMessage` 이후에만 웹을 더한다.
+ *   OpenAI 의 `functionPhase: 'followup'`(`withExplicitSearchFollowup`)과 같은 구조다.
+ */
+export const shouldAddWebSearchToPaperFollowup = (
+    intent: string,
+    afterToolResult: boolean,
+    latestUserText: string,
+): boolean =>
+    PAPER_CARD_INTENTS.has(intent)
+    && afterToolResult
+    && detectExplicitSearchRequest(latestUserText);

@@ -305,7 +305,10 @@ const human = (text: string, parts: any[] = []) => ({
     content: [{ type: 'text', text }, ...parts],
 });
 const ai = (text: string) => ({ _getType: () => 'ai', content: [{ type: 'text', text }] });
-const IMAGE_PART = { inlineData: { mimeType: 'image/png', data: 'x' } };
+// 🔴 production 의 state.messages 에는 `inlineData` 가 **없다** — buildHistoryMessages 는
+//    인라인 이미지를 `type:'image_url'`(data: URI) 로 만든다(history.ts). 예전 픽스처가
+//    `inlineData` 였던 탓에, 죽은 `historyHasImage` 신호가 초록을 유지하고 있었다(DEV_260902 §9.4).
+const IMAGE_PART = { type: 'image_url', image_url: { url: 'data:image/png;base64,x' } };
 
 type GateCase = {
     name: string;
@@ -331,11 +334,14 @@ const GATE_CASES: GateCase[] = [
         ctx: { hasMultimodalContent: true, latestUserText: '검색해서 알려줘', messages: [human('검색해서 알려줘')] },
     },
     {
-        name: '히스토리 이미지 → off',
+        // production 은 히스토리에 이미지가 남아 있으면 buildSdkContents 가 hasMultimodalContent=true 를
+        // 낸다 — 하니스는 그 체인을 건너뛰므로 같은 값을 직접 준다.
+        name: '히스토리 이미지 → off (multimodal 신호로)',
         want: false,
-        ctx: { messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('표로 정리해줘')], latestUserText: '표로 정리해줘' },
+        ctx: { hasMultimodalContent: true, messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('표로 정리해줘')], latestUserText: '표로 정리해줘' },
     },
     {
+        // 가드가 서면 generator 가 forceTextOnly 로 미디어를 빼므로 hasMultimodalContent 도 false 가 된다.
         name: 'dropImageForSearch=true면 히스토리 이미지 신호 없음',
         want: true,
         ctx: { dropImageForSearch: true, messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('오늘 날씨는?')], latestUserText: '오늘 날씨는?' },
@@ -575,3 +581,67 @@ for (const [name, hist, want] of D_CASES) {
 }
 console.log(`\nhistory 증거: ${dPass}/${D_CASES.length}`);
 if (dPass !== D_CASES.length) process.exitCode = 1;
+
+
+// ============================================================
+// Part E — 멀티턴 재점검 후속 (DEV_260902 §9)
+//   순수 함수 2종. 둘 다 호출부가 무거운 모듈(generator/langchain-path)에 있어
+//   여기로 빼 두었다 — 하니스가 프로덕션 판정을 그대로 실행하기 위해서다.
+// ============================================================
+console.log('\n' + '='.repeat(72));
+console.log('Part E — 이미지 드롭 가드 · 논문 종합단계 웹검색 (§9)');
+console.log('='.repeat(72));
+
+const { shouldDropImageForSearch, shouldAddWebSearchToPaperFollowup } =
+    await import('../server/agent/search-signals.js');
+
+let ePass = 0, eFail = 0;
+const e = (name: string, got: boolean, want: boolean) => {
+    if (got === want) { ePass++; console.log(`✅ want=${String(want).padEnd(5)} | ${name}`); }
+    else { eFail++; console.log(`❌ want=${String(want).padEnd(5)} got=${String(got).padEnd(5)} | ${name}`); }
+};
+
+// ── shouldDropImageForSearch ────────────────────────────────────────────────
+const drop = (intent: string, cur: boolean, hist: boolean, explicit: boolean) =>
+    shouldDropImageForSearch({ intent, currentTurnHasImage: cur, historyHasImage: hist, explicitSearchSignal: explicit });
+
+e('general + 히스토리 이미지 + 명시 요청 → 드롭', drop('general', false, true, true), true);
+// 🔴 §9.2: medical_qa 는 tier 100 검색 강제 ON 인데 400 에 눌려 정책이 무효였다
+e('medical_qa 도 드롭 대상 (검색 강제 정책 보호)', drop('medical_qa', false, true, true), true);
+e('현재 턴에 이미지가 있으면 드롭 금지 (그게 질문 대상)', drop('general', true, true, true), false);
+e('히스토리에 이미지가 없으면 드롭할 것도 없음', drop('general', false, false, true), false);
+e('명시 검색 신호가 없으면 드롭 금지 (이미지 보존 우선)', drop('general', false, true, false), false);
+// 렌더러는 일부러 제외 — 히스토리 이미지가 답의 대상일 수 있고 tier 200 으로 어차피 off
+e('astronomy 는 대상 아님 (렌더러 — 이미지가 답의 대상)', drop('astronomy', false, true, true), false);
+e('data_viz 는 대상 아님', drop('data_viz', false, true, true), false);
+e('카드 intent 는 SDK 경로가 아니라 무관', drop('movie_search', false, true, true), false);
+
+// ── shouldAddWebSearchToPaperFollowup ───────────────────────────────────────
+// §9.3: LangChain(Gemini) 논문 경로는 웹 탈출구가 아예 없었다.
+// ⚠️ 1차 호출에 도구를 둘 주면 forceDomainTool(allTools.length===1)이 풀려 논문 도구를
+//    아예 안 부를 수 있다 → ToolMessage 이후 종합 단계에서만 더한다.
+const web = shouldAddWebSearchToPaperFollowup;
+e('arxiv + 종합단계 + 명시 요청 → 웹 도구 추가', web('arxiv_search', true, '레포 검색해줘'), true);
+e('paper_search 도 동일', web('paper_search', true, '관련 자료 검색해줘'), true);
+e('🔴 1차 호출(조회 단계)에는 추가 금지 — 강제 도구가 풀린다', web('arxiv_search', false, '레포 검색해줘'), false);
+e('명시 요청이 없으면 추가 금지 (불필요한 웹 호출)', web('arxiv_search', true, '두번째 논문 설명해줘'), false);
+e('과거참조는 새 검색 요청이 아니다', web('arxiv_search', true, '아까 검색한 거 정리해줘'), false);
+e('논문 외 intent 는 대상 아님', web('drug_info', true, '검색해줘'), false);
+
+// ── 배선: 호출부가 실제로 이 함수를 쓰는가 ──────────────────────────────────
+// 🔴 DEV_260830 §6.25 의 교훈 — "순수 함수를 새로 빼면 호출부 연결을 같은 커밋에서 검사한다".
+//    판정은 맞는데 아무 일도 안 일어나는 실수를 이 레포에서 두 번 냈다.
+const { readFileSync } = await import('node:fs');
+const genSrc = readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
+const lcSrc = readFileSync(new URL('../server/agent/nodes/langchain-path.ts', import.meta.url), 'utf8');
+e('배선: generator 가 shouldDropImageForSearch 를 호출한다',
+    /shouldDropImageForSearch\s*\(/.test(genSrc), true);
+e('배선: generator 에 옛 인라인 조건이 남아 있지 않다',
+    /state\.intent === 'general' && !_currentTurnHasImage/.test(genSrc), false);
+e('배선: langchain-path 가 shouldAddWebSearchToPaperFollowup 를 호출한다',
+    /shouldAddWebSearchToPaperFollowup\s*\(/.test(lcSrc), true);
+e('배선: langchain-path 가 searchWebTool 을 논문 경로에 연결한다',
+    /paper_search[\s\S]{0,400}searchWebTool/.test(lcSrc), true);
+
+console.log(`\nPart E: ${ePass}/${ePass + eFail}`);
+if (eFail > 0) process.exitCode = 1;
