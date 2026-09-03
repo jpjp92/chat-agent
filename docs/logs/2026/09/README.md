@@ -11,3 +11,7 @@
 | 09-03 | [DEV_260902_SEARCH_ROUTING §10~§11](DEV_260902_SEARCH_ROUTING.md) | [REF_SearchRouting §1-4·§2H](../../../guide/REF_SearchRouting.md) | **arXiv 카드가 무관한 논문으로 채워지던 결함** — ① 모델이 덧붙인 범용어가 AND 교집합을 끌고 갔다(도구 설명에서 차단. 코드로 거르는 수정은 복합 개념을 깨뜨려 **되돌렸다**) ② 불용어 제거가 논문 **제목**을 분해해 `Attention Is All You Need` 가 자기 제목으로 안 찾혔다(구절 우선 폴백). 신규 프로브 `live-arxiv-query.mts` 가 ①의 첫 수정이 회귀임을 잡았다 ③ 🔴 **①의 수정이 Gemini 쪽에만 걸려 있었다** — OpenAI 경로는 `local-tool-registry.ts` 에 `query` 설명의 사본을 갖고 있었다(상수로 합침) ④ 제목 질의가 **틀린 논문을 답으로** 냈다 — `ti:` 우선 조회 + `[N](url)` 번호를 URL 로 교정 |
 
 09-03 은 09-02 로그에 §10~§13 으로 이어 적었다 — 같은 검색 줄기의 **카드 내용** 쪽이라 파일을 자르지 않았다.
+
+| 09-03 | [DEV_260903_SECURITY_REVIEW](DEV_260903_SECURITY_REVIEW.md) | [auth-mvp-schema.sql](../../../guide/db/auth-mvp-schema.sql), [storage-user-prefix-rls.sql](../../../guide/db/storage-user-prefix-rls.sql) | **`dev` 브랜치 218 파일 보안 검토(읽기 전용, 코드 미수정)** — 신규 취약점 0건이고 인증 축은 순개선(닉네임 유사 인증의 IDOR 삭제). 남은 둘은 기존 결함 — ① 비인증 **full-read SSRF**(`proxy-image`·`fetch-url`): 방어가 hostname **문자열** 정규식이라 `2130706433`·`[::ffff:169.254.169.254]`·DNS 로 우회 ② 게스트 한도 우회: `session_id` 를 빼면 카운터 트리거가 안 걸린다 |
+
+09-03 의 보안 검토는 검색 줄기와 **무관한 축**이라 파일을 따로 냈다.
