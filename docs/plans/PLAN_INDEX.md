@@ -1,6 +1,6 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-08-23)
+> 작성일: 2026-06-03 (갱신: 2026-09-04)
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
@@ -121,6 +121,11 @@ Recommended next order:
 | [PLAN_ERROR_HANDLING.md](PLAN_ERROR_HANDLING.md) | Architecture reference and backlog. |
 | [PLAN_WORLDCUP_SPORTS_TOOL_260621.md](PLAN_WORLDCUP_SPORTS_TOOL_260621.md) · [PLAN_WORLDCUP_IMPL_260621.md](PLAN_WORLDCUP_IMPL_260621.md) | **구현 완료 (2026-06-21)**. football-data.org `sports` intent tool (월드컵 순위/대진/득점왕), grounding 우회. 로그 [DEV_260621](../logs/2026/06/DEV_260621.md). 추후: WC 외 리그·전용 카드 UI. |
 | [PLAN_KORDOC_INTEGRATION_260620.md](PLAN_KORDOC_INTEGRATION_260620.md) | **구현 완료 (2026-06-21)**. HWP 4종(`.hwp/.hwpx/.hwp3/.hwpml`) kordoc 파싱(구조 보존 표) — `app/api/parse-document` 라우트(4MB 임계값: 직행 multipart / Storage 경유) + ChatInput 연동 + search-gate(첨부 문서 grounding off). 보안 IDOR 대응(경로검증·remove 제거). 로그 [DEV_260621 §6·§7](../logs/2026/06/DEV_260621.md). 백로그: 고아파일 TTL·앱 전역 인증/유저별 prefix. |
+| [PLAN_MODEL_API_REVIEW_260817.md](PLAN_MODEL_API_REVIEW_260817.md) | **측정 결과의 출처 문서.** `MODEL_CAPS` 실측 프로브 + Gemini 공식 가이드 6종 대조(2026-08-17). 후속 항목은 [TODO §보안 "모델·API 레퍼런스 검토 후속"](../TODO.md)에 열려 있다(Files API 전환 검토·프로브 A·공급자별 initial router). |
+| [PLAN_MODEL_3_7_MIGRATION_260817.md](PLAN_MODEL_3_7_MIGRATION_260817.md) | 기본 모델 3.6 → 3.7 전환 설계. §5-1·§5-2 진행 가능, 기본 전환(§5-3)은 **긴 히스토리 측정 1건 대기**. 🔴 검색 폴백은 2.5 유지(별개 축). 근거는 위 API_REVIEW. |
+| [PLAN_STREAMING_PARTIAL_260623.md](PLAN_STREAMING_PARTIAL_260623.md) | **설계 기획 — 구현 대기 (2026-06-23).** SDK 경로 부분 스트리밍(general 산문 한정). 선행 분석 [PLAN_THINKING_LATENCY_260602](PLAN_THINKING_LATENCY_260602.md). |
+| [PLAN_THEATER_BRANCHES_DATA_260627.md](PLAN_THEATER_BRANCHES_DATA_260627.md) | `data/theater-branches.json`(3사 532지점) 데이터 관리 정비. 영화 도구는 구현 완료이고 이건 **데이터 갱신 절차** 쪽. 관련 [REF_Movie](../guide/REF_Movie.md)·`lib/theaters.ts`. |
+| [PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md](PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md) | 별자리 렌더러 웜 골드 포스터 리스킨 설계. **프로토타입 검증 완료 · 컴포넌트 반영 전.** 별도 사본이 [superpowers/plans/2026-07-08-constellation-poster-redesign.md](../superpowers/plans/2026-07-08-constellation-poster-redesign.md) 에도 있다. |
 
 ---
 

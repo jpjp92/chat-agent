@@ -12,6 +12,11 @@
 
 09-03 은 09-02 로그에 §10~§13 으로 이어 적었다 — 같은 검색 줄기의 **카드 내용** 쪽이라 파일을 자르지 않았다.
 
-| 09-03 | [DEV_260903_SECURITY_REVIEW](DEV_260903_SECURITY_REVIEW.md) | [auth-mvp-schema.sql](../../../guide/db/auth-mvp-schema.sql), [storage-user-prefix-rls.sql](../../../guide/db/storage-user-prefix-rls.sql) | **`dev` 브랜치 218 파일 보안 검토(읽기 전용, 코드 미수정)** — 신규 취약점 0건이고 인증 축은 순개선(닉네임 유사 인증의 IDOR 삭제). 남은 둘은 기존 결함 — ① 비인증 **full-read SSRF**(`proxy-image`·`fetch-url`): 방어가 hostname **문자열** 정규식이라 `2130706433`·`[::ffff:169.254.169.254]`·DNS 로 우회 ② 게스트 한도 우회: `session_id` 를 빼면 카운터 트리거가 안 걸린다 |
+| 09-03 | [DEV_260903_SECURITY_REVIEW](DEV_260903_SECURITY_REVIEW.md) | [auth-mvp-schema.sql](../../../guide/db/auth-mvp-schema.sql), [storage-user-prefix-rls.sql](../../../guide/db/storage-user-prefix-rls.sql) | **`dev` 브랜치 218 파일 보안 검토(읽기 전용, 코드 미수정)** — 신규 취약점 0건이고 인증 축은 순개선(닉네임 유사 인증의 IDOR 삭제). 남은 둘은 기존 결함 — ① 비인증 **SSRF**(`fetch-url`·`proxy-image`): 방어가 hostname **문자열** 정규식이라 `2130706433`·`0x7f000001`·DNS 로 우회 ② 게스트 한도 우회: `session_id` 를 빼면 카운터 트리거가 안 걸린다 |
+| 09-04 | [DEV_260903_SECURITY_REVIEW §3.0·§3.4](DEV_260903_SECURITY_REVIEW.md) | 위와 동일 | ⚖️ **SSRF 절을 두 차례 자체 정정** — **1차**(문서 재검증): ① `proxy-image` 는 full-read 가 **아니다**(content-type 게이트) ② 진짜 full-read 는 `fetch-url:452` ③ 🔴 **"메타데이터 → 크리덴셜" 은 Vercel(Lambda)에서 성립하지 않는다** — 등급의 유일한 근거였는데 환경 확인 없이 플레이북에서 가져왔다 → **High → Medium**. **2차**(TODO 대조 + Node 실측, 아래 감사에서): ④ **10진·16진 IP 우회는 막힌다 — 우회표가 틀렸다** ⑤ 대신 **IPv6 차단 4항목이 죽은 코드** → **"1순위" 철회**(`speech`·`summarize-title` 이 앞선다) |
+| 09-04 | [DEV_260904_DOCS_AUDIT](DEV_260904_DOCS_AUDIT.md) | [TODO §보안](../../../TODO.md), [PLAN_INDEX](../../../plans/PLAN_INDEX.md) | **md 161개 전수 감사** — 링크 0건 깨짐·시크릿 0건으로 기계적 건강도는 좋았다. 🔴 **수확은 문서끼리의 모순**이었다: 09-03 보안 검토의 SSRF 우회표가 **TODO 의 2026-08-29 실측과 정면 충돌**했고 실측이 맞았다. 실측을 다시 돌리다 **IPv6 차단 4항목이 전부 죽은 코드**(대괄호)임을 발견 → **TODO 에 열려 있던 `::ffff:` 추가 계획이 실행해도 안 통한다.** 무인증 라우트도 TODO 는 6개인데 검토는 2개만 봐서 우선순위가 틀렸다(`speech`·`summarize-title` 이 진짜 1순위). 부수: PLAN_INDEX 5건 등재·docs/README 서버경계 행 신설·월 README 04~07 누락 확인 |
 
 09-03 의 보안 검토는 검색 줄기와 **무관한 축**이라 파일을 따로 냈다.
+
+09-04 의 보안 검토 개정은 그 문서의 **자기 정정**이라 새 파일을 만들지 않고 §3 을 개정했다 — 초판 서술을 지우지 않고 §3.0 표에 "초판 / 실제" 로 남겼다.
+09-04 의 문서 감사는 **대상이 다르다**(코드가 아니라 docs 전체)라 파일을 따로 냈다.
