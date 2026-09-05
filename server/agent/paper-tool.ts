@@ -7,7 +7,7 @@ import { buildCardToolOutput } from "./card-tool-output";
  *
  * 국립의과학지식센터(NCMIK) OpenAPI 를 먼저 검토했다가 폐기했다 — `kwd` 가 배선돼 있지 않아
  * 어떤 검색어를 줘도 같은 결과가 오고, `retstart` 가 1 외엔 빈 응답이며, 무엇보다 응답에
- * URL·DOI 가 없어 **인용 링크를 만들 수 없었다**(DEV_260830_EXTERNAL_SOURCES §2).
+ * URL·DOI 가 없어 **인용 링크를 만들 수 없었다**(DEV_260830 §2).
  * PubMed 는 셋 다 준다. CrossRef 는 검색 품질이 떨어져 DOI 보강용으로만 남겨뒀다.
  */
 

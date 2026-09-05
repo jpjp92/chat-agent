@@ -7,14 +7,18 @@
 | 08-01 | [DEV_260801](DEV_260801.md) | — | 배포 검증, 렌더링·날씨·영화 후속 작업 |
 | 08-05 | [DEV_260805](DEV_260805.md) | — | 화면 검증, 수식·다국어 작업 |
 | 08-08 | [DEV_260808](DEV_260808.md) | — | 업로드 미디어와 모델 capability 수정 |
-| 08-15 | [DEV_260815](DEV_260815.md), [배포 점검](DEV_260815_DEPLOY_CHECK.md) | [검색 정책 계획](../../../plans/PLAN_SEARCH_POLICY_260815.md) | 검색 의도분류와 종단 검증 |
+| 08-15 | [DEV_260815](DEV_260815.md) | [배포 점검](DEV_260815_DEPLOY_CHECK.md), [검색 정책 계획](../../../plans/PLAN_SEARCH_POLICY_260815.md) | 검색 의도분류와 종단 검증 |
 | 08-17 | 별도 DEV 파일 없음 | [3.7 모델](../../../plans/PLAN_MODEL_3_7_MIGRATION_260817.md), [모델 API](../../../plans/PLAN_MODEL_API_REVIEW_260817.md), [우선순위](../../../plans/PLAN_PRIORITY_260817.md) | 구현·검증 상세는 [DEV_HISTORY](../../../DEV_HISTORY.md#최근-작업-로그)에 통합 기록 |
 | 08-18 | 별도 DEV 파일 없음 | [테스트 문서](../../../../tests/README.md), [DEV_HISTORY](../../../DEV_HISTORY.md#최근-작업-로그) | `scripts/`에서 `tests/`로 회귀 하니스 이전, 알약/DDG 수정 |
 | 08-22 | 별도 DEV 파일 없음 | [하드닝 계획](../../../plans/PLAN_HARDENING_260822.md) | 서버 경계·인증·쿼터·SSRF 점검 및 URL 장애 분석 시작 |
 | 08-23 | [DEV_260823](DEV_260823.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | URL 공급자 실측, 모델 UI, GPT 멀티턴·로컬 function calling, 약품 공급자 검색, OpenAI 번호 citation UI |
 | 08-24 | [DEV_260824](DEV_260824.md) | [멀티 공급자 라우팅](../../../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) | 카드 후속 결함 3건, 심평원 진료시간 연동, 동물병원 인허가 고지·검색, Gemini 인용 번호화, 자정 직후 날짜 |
-| 08-30<br>~09-02 | [DEV_260830_EXTERNAL_SOURCES](DEV_260830_EXTERNAL_SOURCES.md) | [tests/README](../../../../tests/README.md), [09월 인덱스](../09/README.md) | 외부 의학·검색 소스 조사 — AI Hub 개방데이터 2종은 인용 URL 이 없어 평가셋 한정, NCMIK OpenAPI 는 `kwd` 가 동작하지 않아 폐기, PubMed+CrossRef 채택(`NCBI_KEY` 도입·프로브 신규), 네이버는 `doc`·papago 폐지 확인 후 의도별 화이트리스트 전제. **§6.13 이후는 08-31~09-02 의 후속 작업**(논문 카드 정착·카드 흡입 측정·빈 카드 복구 3층)이라 같은 파일에 이어 적었다 — 하나의 작업 줄기여서 날짜로 자르면 맥락이 끊긴다 |
 | 08-29 | [DEV_260829](DEV_260829.md) | [DEV_260824 §5](DEV_260824.md#5-gemini-grounding-인용-번호화) | 후속 턴 grounding redirect URL 본문 노출 — 히스토리 되먹임 차단, 맨 URL 정리, 스트리밍 sanitize 정합, 무거운 미디어 타임아웃 강등 재시도 |
-| 08-29 | [DEV_260829_DEADCODE](DEV_260829_DEADCODE.md) | [REF_Architecture](../../../guide/REF_Architecture.md) | 레거시·데드코드 전수 점검 — 고아 API 라우트 2개·죽은 export 13개·flash-lite 클라 잔재 제거, `composeInstruction` 문서 드리프트 정정, 모델 번역 문자열 이중 관리 통합(골든 하니스 선행), `Message.image` 제거, 문서 링크 전수 교정 |
+| 08-29 | [DEV_260829](DEV_260829.md) | [데드코드 점검](DEV_260829_DEADCODE.md), [REF_Architecture](../../../guide/REF_Architecture.md) | 레거시·데드코드 전수 점검 — 고아 API 라우트 2개·죽은 export 13개·flash-lite 클라 잔재 제거, `composeInstruction` 문서 드리프트 정정, 모델 번역 문자열 이중 관리 통합(골든 하니스 선행), `Message.image` 제거, 문서 링크 전수 교정 |
+| 08-30<br>~09-02 | [DEV_260830](DEV_260830.md) | [tests/README](../../../../tests/README.md), [09월 인덱스](../09/README.md) | 외부 의학·검색 소스 조사 — AI Hub 개방데이터 2종은 인용 URL 이 없어 평가셋 한정, NCMIK OpenAPI 는 `kwd` 가 동작하지 않아 폐기, PubMed+CrossRef 채택(`NCBI_KEY` 도입·프로브 신규), 네이버는 `doc`·papago 폐지 확인 후 의도별 화이트리스트 전제. **§6.13 이후는 08-31~09-02 의 후속 작업**(논문 카드 정착·카드 흡입 측정·빈 카드 복구 3층)이라 같은 파일에 이어 적었다 — 하나의 작업 줄기여서 날짜로 자르면 맥락이 끊긴다 |
 
 앞으로 의미 있는 코드 변경이 있는 날은 날짜 로그를 만들고, 계획만 작성한 날도 이 월별 인덱스에 표시한다.
+
+날짜 로그의 기본 파일명은 `DEV_YYMMDD.md`다. `DEV_260815_DEPLOY_CHECK.md`와
+`DEV_260829_DEADCODE.md`는 같은 날짜의 기본 로그와 별도로 작성된 배포 검증·데드코드 점검 기록이라
+주제 접미사를 유지하고 위 표의 관련 기록에 연결한다.

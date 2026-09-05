@@ -504,7 +504,7 @@ TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-car
 경고를 찍지만, 애초에 유료 키로 도는 게 맞다.
 
 조사 경위와 폐기한 후보(NCMIK·AI Hub·네이버)는
-[DEV_260830_EXTERNAL_SOURCES](../logs/2026/08/DEV_260830_EXTERNAL_SOURCES.md) 참고.
+[DEV_260830](../logs/2026/08/DEV_260830.md) 참고.
 
 ---
 
@@ -520,4 +520,4 @@ TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-car
 | `ti:` vs `all:` 구절 (2026-09-03) | `ti:` 35건 **원 논문 1위** · `all:` 45건 2위. 구절 6종에서 `ti:`=0 ⇒ `all:`=0 (예외 없음) |
 | 인용 번호 교정 e2e | luna·gemini 양쪽 **"인용 번호가 카드 순번과 맞는다"** 통과 |
 
-경위와 되돌린 수정은 [DEV_260902_SEARCH_ROUTING §10~§12](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md#10-후속--카드가-관련-없는-논문으로-채워지던-결함-09-03) 참고.
+경위와 되돌린 수정은 [DEV_260902 §10~§12](../logs/2026/09/DEV_260902.md#10-후속--카드가-관련-없는-논문으로-채워지던-결함-09-03) 참고.

@@ -96,7 +96,7 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
   ⚖️ **이 차단은 Gemini 전용이다**(2026-09-02 정정). tier 400 은 *"Gemini 는 이미지와 grounding 을 한
   요청에 못 담는다"* 는 API 사실이고, OpenAI Responses 는 `input_image` 와 `web_search` 를 함께 보낸다 —
   그래서 `decideGoogleSearch` 가 `provider` 를 받아 400 을 Gemini 턴에서만 낸다
-  ([REF_SearchRouting §1-1](REF_SearchRouting.md), [DEV_260902 §3.1](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md)).
+  ([REF_SearchRouting §1-1](REF_SearchRouting.md), [DEV_260902 §3.1](../logs/2026/09/DEV_260902.md)).
 - **멀티턴**: PDF는 `extractedText`가 없어 `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]` 복원 대상이 아님. 대신 chat 라우트가 **최근 3턴**의 첨부를 history에 재전송(`fileData`/`image_url`)해 컨텍스트 유지, 그 이전 턴은 `[Attached File: 파일명]` 텍스트 마커로만 남음. → 긴 대화에서 PDF를 다시 참조하려면 재첨부 권장.
 - **저장/표시**: 업로드 경로는 `${auth.uid()}/{timestamp}_{name}`이고 쓰기·열거는 Storage RLS가 격리한다. 다만 버킷은 아직 public이라 `getPublicUrl`을 아는 제3자의 읽기는 가능하며, 비공개 전환과 기존 URL 백필은 Phase 2 백로그다.
 

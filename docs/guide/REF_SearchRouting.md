@@ -1,7 +1,7 @@
 # 검색 라우팅 — 동작과 테스트 질의
 
 > 최종 갱신: 2026-09-03
-> 근거 로그: [DEV_260902_SEARCH_ROUTING](../logs/2026/09/DEV_260902_SEARCH_ROUTING.md) · 설계: [PLAN_SEARCH_POLICY_260815](../plans/PLAN_SEARCH_POLICY_260815.md)
+> 근거 로그: [DEV_260902](../logs/2026/09/DEV_260902.md) · 설계: [PLAN_SEARCH_POLICY_260815](../plans/PLAN_SEARCH_POLICY_260815.md)
 
 "검색이 켜지는가"와 "논문 카드로 갈 것인가"는 서로 다른 판정인데 **증상이 같다** — 사용자는
 둘 다 *"검색해달라고 했는데 안 했다"* 로 겪는다. 그래서 한 문서에서 함께 본다.

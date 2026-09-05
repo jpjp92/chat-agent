@@ -1,6 +1,6 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-09-04)
+> 작성일: 2026-06-03 (갱신: 2026-09-05)
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
@@ -15,10 +15,10 @@
 > dev UI 카드/합성 종단 검증이다. 상세는
 > [PLAN_MULTI_PROVIDER_ROUTING_260823](PLAN_MULTI_PROVIDER_ROUTING_260823.md)을 따른다.
 
-> 📌 **서버 경계(인증·쿼터·SSRF·DTO) 축은 [PLAN_HARDENING_260822](PLAN_HARDENING_260822.md)** —
-> 외부 리뷰(GPT 5.6)를 한 항목씩 코드로 대조한 검증본이다. **무인증 라우트가 8개**로 확인됐고
-> (8/17 점검은 2개, 외부 리뷰는 또 다른 2개를 놓쳤다), 그 §6 작업 순서는 **컷오버와 충돌하는
-> 항목(quota RPC)을 따로 갈라 놨다.** 컷오버 앞에 둘 것은 CI gate·model allowlist 두 개뿐이다.
+> 📌 **서버 경계의 최신 순서는 [PLAN_HARDENING §6](PLAN_HARDENING_260822.md#6-작업-순서)** (2026-09-05).
+> 실제 토큰 검증·기능별 호출 제한 → 게스트 저장 실패 시 생성 중단 → 공통 SSRF 판정·이미지 허용목록 →
+> DNS/연결/리다이렉트 보호·남은 비용 라우트 정책 → 원자적 쿼터 순서다. 테스트·CI는 각 변경에 동반한다.
+> 현재 무인증 라우트는 **6개**, model allowlist는 구현돼 있다. 기존 main 배포·컷오버 조건은 유지한다.
 >
 > 📌 **버그·레거시 축의 우선순위는 [PLAN_PRIORITY_260817](PLAN_PRIORITY_260817.md)** — 실패의 나쁜 정도로
 > 줄 세운 것이다. 아래 표(인증 컷오버 축)와 별도로 읽되, ~~**Storage IDOR-3 는 컷오버 앞에 두기를 권한다**~~

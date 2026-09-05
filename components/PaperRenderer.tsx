@@ -138,7 +138,7 @@ const T: Record<Lang, {
  *
  * `evidence: null` 이면 **아무것도 그리지 않는다.** 실측상 약 35%가 여기 해당하는데,
  * 미분류는 "등급이 낮다"가 아니라 "아직 분류가 안 됐다"는 뜻이라 최하위처럼 보이는 칩을
- * 달면 사실과 반대되는 신호가 된다(DEV_260830_EXTERNAL_SOURCES §3.2). 같은 이유로
+ * 달면 사실과 반대되는 신호가 된다(DEV_260830 §3.2). 같은 이유로
  * 좌측 색 스트라이프도 쓰지 않는다 — 띠로 서열을 그리면 배지 없는 카드가 꼴찌로 읽힌다.
  */
 const EVIDENCE_STYLE: Record<EvidenceLevel, { label: Record<Lang, string>; className: string }> = {
