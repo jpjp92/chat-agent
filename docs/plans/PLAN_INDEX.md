@@ -1,12 +1,14 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-09-05)
+> 작성일: 2026-06-03 (갱신: 2026-09-06)
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
 ---
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
+
+> **2026-09-06 모델 도입:** [Gemini 3.8 계획](PLAN_MODEL_3_8_MIGRATION_260906.md) — 검증 준비·제한된 비교 → 하드닝 1·2 후 선택 옵션 공개 → 기본 승격 별도 판단. 3.7 기본 승격을 선행하지 않는다. 기본은 현재 3.6이며 아래 과거 모델 전환 순서와 충돌하면 이 계획을 따른다.
 
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
 
