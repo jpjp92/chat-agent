@@ -112,6 +112,9 @@
 - [ ] **HWP 파싱 산출물의 죽은 `<img>` 약 40개** — `<img src="image_001.bmp">` 는 HWP 내부 리소스명이라 어디로도 해석되지 않는다. 파서에서 제거하거나 자리표시로 대체 (먼저 화면에서 깨진 아이콘으로 보이는지 확인)
 - [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
 - [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
+  - ✅ **2026-09-13 재확인** — `npm audit` 도 `fixAvailable: false` 다. SheetJS 가 npm 을 떠나 자체 CDN(0.20.x)으로 가서 **레지스트리에 수정판이 존재하지 않는다** → 버전 올리기로는 영원히 안 닫힌다.
+  - ⚖️ **다만 등급이 시사하는 것보다 서비스 위험은 낮다** — 이 앱에서 `xlsx` 는 [ChatInput.tsx:312](../components/ChatInput.tsx#L312) 의 **클라이언트 사이드**에서만 돈다(사용자가 자기 브라우저에서 자기가 고른 파일을 파싱). **서버는 이 라이브러리를 안 쓴다.** Dependabot 의 `Direct`·`High` 표시를 서버 위험으로 읽지 말 것 → [DEV_260913_DEPS §5](logs/2026/09/DEV_260913_DEPS.md)
+- [ ] 🟡 **`@huggingface/transformers` 계열 High 12건** (2026-09-13) — `kordoc` 의 **OCR 용 선택적 의존**이고 이 앱은 OCR 을 안 쓴다. `range=*`·`fixAvailable:false` 라 **버전으로는 안 닫히고 설치에서 빼야(`omit=optional`) 한다.** 그런데 그러면 `next` 의 선택적 `sharp` 도 함께 빠져 **Vercel 빌드 동작이 바뀐다** → 별도 판단 ([DEV_260913_DEPS §4](logs/2026/09/DEV_260913_DEPS.md))
 - [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
 
 ---
