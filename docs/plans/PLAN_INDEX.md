@@ -127,7 +127,7 @@ Recommended next order:
 | [PLAN_MODEL_3_7_MIGRATION_260817.md](PLAN_MODEL_3_7_MIGRATION_260817.md) | 기본 모델 3.6 → 3.7 전환 설계. §5-1·§5-2 진행 가능, 기본 전환(§5-3)은 **긴 히스토리 측정 1건 대기**. 🔴 검색 폴백은 2.5 유지(별개 축). 근거는 위 API_REVIEW. |
 | [PLAN_STREAMING_PARTIAL_260623.md](PLAN_STREAMING_PARTIAL_260623.md) | **설계 기획 — 구현 대기 (2026-06-23).** SDK 경로 부분 스트리밍(general 산문 한정). 선행 분석 [PLAN_THINKING_LATENCY_260602](PLAN_THINKING_LATENCY_260602.md). |
 | [PLAN_THEATER_BRANCHES_DATA_260627.md](PLAN_THEATER_BRANCHES_DATA_260627.md) | `data/theater-branches.json`(3사 532지점) 데이터 관리 정비. 영화 도구는 구현 완료이고 이건 **데이터 갱신 절차** 쪽. 관련 [REF_Movie](../guide/REF_Movie.md)·`lib/theaters.ts`. |
-| [PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md](PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md) | 별자리 렌더러 웜 골드 포스터 리스킨 설계. **프로토타입 검증 완료 · 컴포넌트 반영 전.** 별도 사본이 [superpowers/plans/2026-07-08-constellation-poster-redesign.md](../superpowers/plans/2026-07-08-constellation-poster-redesign.md) 에도 있다. |
+| [PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md](PLAN_CONSTELLATION_POSTER_REDESIGN_260707.md) | 별자리 렌더러 웜 골드 포스터 리스킨 설계. **프로토타입 검증 완료 · 컴포넌트 반영 전.** 별도 사본이 `docs/superpowers/plans/2026-07-08-constellation-poster-redesign.md` 에도 있다. |
 
 ---
 

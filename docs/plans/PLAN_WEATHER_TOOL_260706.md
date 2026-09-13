@@ -4,7 +4,7 @@
 > 상태: **✅ 구현 완료 (2026-07-06, [DEV_260706](../logs/2026/07/DEV_260706.md))** — §5 체크리스트 참고
 > 트리거: reference `news` 프로젝트의 KMA+OpenWeather 하이브리드 날씨 구현 검토
 > 선행 검토·검증: [DEV_260705](../logs/2026/07/DEV_260705.md) (실험 결과·강수 파싱·언어 매핑)
-> 프리뷰: [preview/weather-card-sample.html](../../preview/weather-card-sample.html) (카드 디자인, 라이트/다크 + 4개 언어)
+> 프리뷰: `preview/weather-card-sample.html` (카드 디자인, 라이트/다크 + 4개 언어)
 > 검증 스크립트: `scripts/test-weather-hybrid.ts`
 
 ---
@@ -43,7 +43,7 @@ weather intent (router 분리, search:false)
   → WeatherRenderer 카드 (렌더러는 출처 무관)
 ```
 
-레퍼런스 코어([reference/news/app/api/weather/route.ts](../../reference/news/app/api/weather/route.ts), 768줄)를 이식하되 아래 4가지를 우리 방식으로 개선.
+레퍼런스 코어(`reference/news/app/api/weather/route.ts`, 768줄)를 이식하되 아래 4가지를 우리 방식으로 개선.
 
 ---
 
@@ -61,7 +61,7 @@ weather intent (router 분리, search:false)
 
 - KMA `RN1`(현재 1h 누적)은 지금 안 오면 대부분 0 → 비 예보 있어도 0 표시 오해.
 - **표시 로직** (레퍼런스 `e8fe197` 채택): `현재>0 ? "Xmm 현재" : 예보(daily[0])>0 ? "Xmm 예상" : "0mm"`.
-- **PCP 파싱 강화** — KMA PCP 범위 문자열(`30.0~50.0mm`·`1.0mm 미만`)이 naive `replace`로 `null`화(폭우 때 강수량 소실) → firstNumber 정규식 + `A~Bmm→(A+B)/2`·`미만→/2` ([reference route.ts numericValue](../../reference/news/app/api/weather/route.ts#L318), [DEV_260705 §7-2](../logs/2026/07/DEV_260705.md)).
+- **PCP 파싱 강화** — KMA PCP 범위 문자열(`30.0~50.0mm`·`1.0mm 미만`)이 naive `replace`로 `null`화(폭우 때 강수량 소실) → firstNumber 정규식 + `A~Bmm→(A+B)/2`·`미만→/2` (`reference/news/app/api/weather/route.ts:318` numericValue, [DEV_260705 §7-2](../logs/2026/07/DEV_260705.md)).
 
 ### 3-3. 다국어 (ko/en/es/fr)
 
@@ -82,7 +82,7 @@ weather intent (router 분리, search:false)
 
 ## 4. 카드 디자인 (프리뷰 확정 방향)
 
-[preview/weather-card-sample.html](../../preview/weather-card-sample.html) — 챗 말풍선용 **컴팩트 카드**:
+`preview/weather-card-sample.html` — 챗 말풍선용 **컴팩트 카드**:
 
 - **시그니처**: ① 강수 히어로 블록(현재/예상 배지 색 구분) ② 컨디션 기반 하늘 그라디언트(수직 소멸, 경계 없음)
 - **구성**: 위치+출처 배지 / 대형 온도+상태+체감 / 강수 히어로(예상mm·강수확률) / 스탯 3칩(습도·풍속·구름) / 예보 스트립(grid `1fr` 균등, KMA +3일·OWM 5일) / 푸터(업데이트·출처)
@@ -129,6 +129,6 @@ weather intent (router 분리, search:false)
 
 - 검토·검증 로그: [DEV_260705](../logs/2026/07/DEV_260705.md)
 - 검증 스크립트: `scripts/test-weather-hybrid.ts`
-- 카드 프리뷰: [preview/weather-card-sample.html](../../preview/weather-card-sample.html)
-- 레퍼런스 구현: [reference/news/app/api/weather/route.ts](../../reference/news/app/api/weather/route.ts)
+- 카드 프리뷰: `preview/weather-card-sample.html`
+- 레퍼런스 구현: `reference/news/app/api/weather/route.ts`
 - TODO 항목: [TODO.md §P3 ⓪](../TODO.md)

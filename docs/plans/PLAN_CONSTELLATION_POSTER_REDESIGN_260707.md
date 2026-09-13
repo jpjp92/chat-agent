@@ -3,7 +3,7 @@
 > 별자리 렌더러(`ConstellationRenderer.tsx`)를 **웜 골드 포스터 심미성**으로 리스킨하는 설계 정리.
 > 프로토타입 검증 완료분 기준 문서화 — 실제 컴포넌트 반영 전 단계.
 
-- **프로토타입**: [`reference/constellation-poster-proto.html`](../../reference/constellation-poster-proto.html) (단독 실행 HTML, 브라우저로 열기)
+- **프로토타입**: `reference/constellation-poster-proto.html` (단독 실행 HTML, 브라우저로 열기)
 - **대상 컴포넌트**: [`components/ConstellationRenderer.tsx`](../../components/ConstellationRenderer.tsx)
 - **데이터 소스**: LLM(Gemini)이 질의마다 생성하는 ```json:constellation``` 블록 (`prompt.ts:318`) — 별+연결선이 좌표와 함께 옴
 

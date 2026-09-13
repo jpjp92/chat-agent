@@ -6,6 +6,116 @@
 
 ---
 
+<a id="보안"></a>
+
+## 🔴 P0 — 서버 경계·보안
+
+> **2026-09-13 위치 정정:** 이 절은 `## ⚪ 백로그` 아래 `### 보안` 으로 있었다. 그런데 같은 항목을
+> [docs/README](README.md) 는 🔴 최우선으로, [PLAN_INDEX](plans/PLAN_INDEX.md)·[PLAN_HARDENING §6](plans/PLAN_HARDENING_260822.md#6-작업-순서) 은
+> **1순위 작업**으로 가리킨다 — **제목 계층과 실제 우선순위가 반대였다.** 내용은 그대로 두고 위치만 올렸다.
+
+> **2026-09-05 우선순위 재정렬:** [PLAN_HARDENING §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)이
+> 아래 과거 기록의 작업 순서보다 우선한다. 실제 토큰 검증과 기능별 호출 제한을 함께 적용하고,
+> 게스트 저장 실패 시 생성 중단 → SSRF 공통 판정/이미지 정책 → 안전한 연결/남은 비용 라우트 → 원자적 쿼터로 진행한다.
+> `session_id` 필수화만으로 우회가 막히지 않으며, 대괄호 수정만으로 SSRF 대응이 완료되지 않는다. **아직 미구현.**
+
+> 인증 전환 완료(2026-07-14, [DEV_260714](logs/2026/07/DEV_260714.md)). DB 테이블과 사용자 업로드
+> Storage는 Bearer 토큰 + user-scoped client + RLS로 전환됐다. 공유 캐시와 `drug-cache/` 쓰기만
+> service role을 사용하며, 버킷 공개 읽기는 Phase 2 미완료다.
+
+- [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
+- [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
+- [ ] 🔴 **`LAW_OC` 재발급** (2026-08-18) — 국가법령정보센터 OC 실값이 `DEV_HISTORY.md` 와 `DEV_260609.md` 에 **평문으로** 있었다(2026-06-09 커밋, **레포 공개**). 문서는 마스킹했지만 **git 이력에는 그대로 남는다** → law.go.kr 에서 **재발급받아야 실질 조치**다. 조회 전용 공공 API 라 과금은 없으나 **쿼터를 남이 소진**시킬 수 있다.
+  - **교훈**: 진단 기록에 **값을 적지 말고 판정만 적는다**("정상"·"불일치"). 그때도 값이 있어야 재현되는 게 아니었다
+  - 재발급 후: Vercel Production/Preview 의 `LAW_OC` 교체 → 법률 질의 1건으로 검증
+
+- [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(현재 하니스 10종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
+  - **교훈**: 예외 목록이 길어지면 규칙이 아니라 **배치**가 틀린 것이다. 위치가 곧 정책이 되게 한다
+
+- [x] **알약 식별 결함 5건 수정** (2026-08-18) — 각인 `OG37`(무코스타서방정150mg) 테스트에서 연달아 나왔다. → [DEV_HISTORY](DEV_HISTORY.md)
+  - [x] `similar` 을 각인 기반인 것처럼 표시하던 문구 — **91% 경로의 S등급 결함**(각인 텍스트 보유 8.7%)
+  - [x] 빈 각인이 다음 줄을 삼켜 `식별표시: - Color: 하양` 이 찍히던 파싱 버그(`\s` 가 개행을 먹음)
+  - [x] `DB 등록 각인` 으로 칸 이름 명확화 + 빈 값 `정보 없음` — **"각인 없음"과 "정보 없음"은 다른 주장**이고 우리는 전자를 모른다(23,121행이 텍스트·이미지 둘 다 없음)
+  - [x] 라우터 지름길이 후속 턴을 가로채 같은 답을 반복하던 문제 — `hasImage` → 신규 첨부 기준. **DEV_260808 함정의 네 번째 사례**
+  - [x] 🔴 **웹 검색 전체가 출처 없이 답하고 있었다** — DDG 가 속성 순서를 바꾸고 `uddg=` 를 폐지해 URL 추출이 0건. `server/agent/ddg-parse.ts` 로 분리 + 하니스 11건
+  - [x] 웹 폴백 — 각인을 읽었는데 식약처에 없으면 웹 검색(결정론적 1회, 출처 필수). 종단 실측으로 정답 확인
+  - [ ] ⬜ **`[LangGraph] Pill web fallback gate/search` 계측 로그 유지 여부 판단** — 지금은 남겨뒀다. 이 경로가 조용히 안 도는 걸 한 번 겪었으므로 당분간 유지 권장
+  - [ ] ⬜ **각인 이미지(`mark_code_front_img`) 활용 검토** — dev 에 10건뿐이라 지금은 무의미하지만, 상류가 채우기 시작하면 vision 으로 읽을 여지
+  - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
+  - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
+
+- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+  - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
+    ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
+    남은 6개의 계약은 그대로 미결이다. 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
+    - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
+  - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
+  - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
+  - 🟡 **실질 위험 ② 서비스 도메인 대리 요청** — 우리 IP·도메인으로 임의 사이트에 요청이 나간다. 차단당하면 우리가 막힌다
+  - ✅ **SSRF 는 생각보다 낫다(실측)** — `SSRF_BLOCK`([fetch-url:22](../app/api/fetch-url/route.ts#L22))은 차단 목록인데 localhost·RFC1918·`169.254`(메타데이터)·IPv6 loopback/ULA/link-local 을 덮는다. **숫자 IP 우회도 막힌다** — WHATWG `new URL()` 이 `http://2130706433/` 을 `127.0.0.1` 로 정규화해주기 때문(정규식 덕이 아니라 **파서 덕**이다. 이 의존을 주석에 적어둘 것)
+    ```
+    127.0.0.1 → 400 · 2130706433 → 400 · 169.254.169.254 → 400
+    [::ffff:127.0.0.1] → 502   ← 🟡 차단 목록 통과. fetch 까지 갔다가 실패
+    ```
+    - 🔴 **정정 (2026-09-04, Node 실측)** — 위 실측은 맞지만 **원인 진단이 절반이었다.** `[::ffff:127.0.0.1]` 이 통과하는 건 *"목록에 `::ffff:` 가 없어서"* 가 아니라 **`hostname` 이 대괄호를 달고 오는데 정규식이 `^` 앵커라서**다. 그래서 **IPv6 차단 항목 4개(`::1`·`fc..`·`fd..`·`fe80:`)가 전부 죽은 코드다.**
+      ```
+      new URL("http://[::1]/").hostname → "[::1]"
+      RE.test("::1")   → true    ← 작성자가 의도한 값
+      RE.test("[::1]") → false   ← 실제로 들어오는 값
+
+      [::1] · [fd00::1] · [fc00::1] · [fe80::1] · [::ffff:127.0.0.1]  → 전부 통과
+      ```
+      ⚠️ **따라서 아래 "`::ffff:*` 추가" 는 실행해도 통하지 않는다** — 목록에 무엇을 더해도 대괄호가 남아 있으면 `^` 가 매치를 막는다(실측 확인). 상세: [DEV_260903 §3.1-a](logs/2026/09/DEV_260903.md)
+    - [ ] 🔴 **먼저 대괄호를 벗긴다 (1줄)** — `new URL(t).hostname.replace(/^\[|\]$/g,'')`. 이걸 해야 기존 4항목이 비로소 동작한다
+    - [ ] 그 다음 IPv4-mapped IPv6(`::ffff:*`) 를 `SSRF_BLOCK` 에 추가
+    - [ ] `new URL()` **정규화 의존을 코드 주석에 적기** — 위 ✅ 항목이 지시해둔 것인데 아직 미반영. 파서를 안 거치도록 리팩터링하면 **정규식은 그대로인데 숫자 IP 방어가 사라진다**
+    - [ ] **미검증**: ⓐ리다이렉트 추적(공개 URL → `169.254.169.254`) ⓑ내부 IP 로 해석되는 호스트명. 차단 목록 방식의 구조적 한계라 **해소하려면 응답 IP 검증이 필요**하다
+    - [ ] **회귀 하니스** — 차단돼야 할 것(`[::1]`·`[fd00::1]`·`[::ffff:127.0.0.1]`)과 **이미 차단되는 것**(`2130706433` — 파서 의존이라 조용히 깨질 수 있다)을 함께 고정. 네트워크 미사용이라 `npm test` 편입 가능
+  - [ ] **실제 토큰 검증 + 호출 제한을 함께 적용** — `authedFetch`와 서버 검증을 연결한다. `createRouteClient` 생성만으로는 검증되지 않는다. 익명 토큰 하나로 반복 호출할 수 있어 인증만으로 비용 방어 완료로 보지 않는다. 구체적인 순서·완료 조건은 [PLAN §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)을 따른다.
+
+- [~] **IDOR-3 → 실제로는 "열린 업로드"였다** (2026-08-17 재평가) — 이 항목의 기술이 실제보다 약했다. *"admin 클라이언트 + 형식 검증뿐"* 은 "인증은 되는데 소유권 검증이 없다"로 읽히지만, **세 라우트에 인증 코드가 0건**이었고 클라이언트도 `authedFetch` 가 아닌 평범한 `fetch` 였다. 누구나 공개 버킷에 파일을 쌓을 수 있었다(용량·대역폭 비용 + 이 서비스 도메인에서 서빙).
+  - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `docs/guide/db/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
+  - [ ] **Phase 2** — 버킷 비공개 + 서명 다운로드 URL + `chat_messages.attachment_url` 백필. 🔴 **미뤄진 진짜 이유가 이것이다** — 저장된 값이 `getPublicUrl` 결과라 비공개로 돌리면 **과거 대화 이미지가 전부 400**
+  - [x] 🔴 **적용 순서: SQL 먼저, 배포 나중.** 코드를 먼저 올리면 정책이 없어 업로드가 전부 거부된다 — 이 순서로 실행했고 무중단이었다
+  - [x] 레거시 평면 경로는 **그대로 둔다** — 소유자를 알 수 없어 이관 불가. 정책에 읽기 예외를 뒀고 Phase 2 때 재검토
+  - [x] **`/api/upload` 삭제** — `40ff02e`(2026-03-09) 서명 URL 도입으로 대체됐는데 Next.js 이관이 사용처 확인 없이 옮겨왔다. **5개월간 죽은 채 무인증**이었다
+  - [x] 파일명 정리 `lib/storage-name.ts` — 한글이 대시로 뭉개져 Storage 콘솔에서 식별 불가였던 것(보안 아님, 조사용 가독성). 🟡 순한글 이름은 여전히 `file.hwp`
+  - **실측 (dev, 2026-08-17)**: 정책 12행 ✅ · 신규 키 `uid/` prefix ✅ · 10MB HWP 종단 ✅ · 신규 첨부 이미지 세션 재진입 복원 ✅(2건)
+  - [x] ~~**레거시 평면 경로 첨부가 여전히 보이는가**~~ — 🔴 **질문 자체가 틀렸다**(2026-08-18). 첨부 이미지는 `getPublicUrl` 결과를 `<img src>` 로 그대로 쓰므로 **공개 엔드포인트 직행이고 RLS 를 타지 않는다.** 정책을 롤백하든 말든 결과가 같아 이 테스트는 실패할 수 없었다. RLS 가 걸리는 유일한 곳은 `parse-document` 의 `download()` 인데 거기 정규식이 uid 세그먼트를 필수로 요구해 레거시는 400 으로 먼저 막힌다 → **되돌릴 것 없음.** 상세: [PLAN_PRIORITY §0](plans/PLAN_PRIORITY_260817.md)
+  - [x] **무인증 401 실측** (2026-08-18, dev) — `create-signed-url` 401 · `parse-document` 401 · **위조 Bearer 도 401**(헤더 유무가 아니라 검증이 막는다) · `/api/upload` 404(삭제 확인)
+  - 🔴 **교훈 — 롤백 기준을 적을 땐 그 기준이 걸리는 경로를 먼저 읽는다.** 위 항목을 "유일하게 되돌림이 필요한 것"으로 0순위에 올려뒀는데, 확인에 5분이면 될 것을 안 했다. **틀린 판정 기준은 없는 것보다 나쁘다** — 통과해도 아무것도 보장하지 않으면서 다른 항목을 밀어낸다
+- [ ] **모델·API 레퍼런스 검토 후속** → [PLAN_MODEL_API_REVIEW_260817](plans/PLAN_MODEL_API_REVIEW_260817.md)
+  - [x] `THINKING_MODE` 실측표 + 모델별 thinking config — 3.7은 `minimal` 대신 `low`, GPT 채팅은 reasoning none
+  - [x] `MODEL_CAPS` 3.7, `FLASH_3_7` 레지스트리, i18n, 기본 3.6 유지
+  - [x] `services/geminiService.ts` 기본 모델 리터럴을 공용 기본값과 정렬
+  - [ ] 🔴 **Files API 전환 검토** — 임의 URL 을 `fileData` 로 넘기는 현재 패턴은 **문서 어디에도 없다.** 3.x 의 429 는 결함이 아니라 계약 위반이고, 2.5 만 관대해서 강등이 통했다. Files API 는 무료·영상 지원
+  - [ ] 프로브 A(도구 조합) — 되면 라우터의 존재 이유가 바뀐다. 단 thought signature 보존이 선행
+  - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
+  - [ ] 공급자별 initial router 구현 — Gemini는 2.5 Flash Lite 유지, GPT는 5.6 Luna + strict JSON + reasoning none
+  - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
+- [x] ✅ **🔴 낡은 User-Agent 가 무료 경로를 막고 있었다 — `Chrome/120` → `Chrome/141`** (2026-08-22) — **URL 장애 조사의 진짜 수확.** GeekNews 403 을 "사이트가 우리를 막았다"로 읽었는데, 갈라 보니 **낡은 UA 를 봇 시그니처로 막은 것**이었다. 같은 URL·같은 나머지 헤더로 `Chrome/120 → 403 · 10바이트` / `Chrome/141 → 200 · 43,009바이트 · 13ms`. `Chrome/120` 은 **2023-12 릴리스**라 2년 넘게 묵어 있었다.
+  - **결과**: GeekNews 가 direct fetch 만으로 **169ms · 본문 7,604자 · 유료 스크래퍼 불필요**. browserless 가 4.4초에 가져오던 것과 **글자 수까지 동일**하다 — 즉 **돈 주고 사던 것을 공짜로 얻을 수 있었다.**
+  - **배치도 틀려 있었다**: UA 가 4곳에 하드코딩돼 값이 셋으로 갈려 있었다(`120`×3, `124`×1) → [`server/browser-ua.ts`](../server/browser-ua.ts) 한 곳으로. SSRF 정규식 중복([PLAN_HARDENING §2-A](plans/PLAN_HARDENING_260822.md))과 같은 형태다.
+  - ⚠️ **이 값은 코드가 안 바뀌어도 조용히 썩는다.** 특정 사이트만 403 을 받기 시작하면 **여기를 가장 먼저 의심할 것** — 최신 Chrome UA 로 한 번 더 쳐서 갈리는지 보면 즉시 판별된다.
+  - 🔴 **쿼터 소진에 이것이 얼마나 기여했는지 미측정** — 무료 경로가 실패하면 전부 유료로 떠넘겨졌다. 충전 전에 소모율을 다시 잴 것
+- [x] ✅ **Brunch 리다이렉트 루프 폴백** (2026-08-23) — direct는 `redirect count exceeded`지만 범용 체인이 처리한다. 캐시 우회 `/@ghidesigner/532?codex_doc_probe=260823`: `scrapingbee-static` · 200 · 8.89s · 본문 4,507자. `/@other/999`는 실글이 아니라 OpenAI URL mismatch 회귀용 가짜 주소다.
+- [x] ✅ **ScrapingBee 월 쿼터 소진 복구** (2026-08-23) — 기존 trial 키는 `1,006 / 1,000` credits로 `401 {"message":"Monthly API calls limit reached: 1000"}`를 반환했고 URL 요약 전면 장애의 직접 원인이었다. 키 교체 후 Wikidocs 신규 글에서 `render_js + premium_proxy + KR` **200 · 5.66s · 본문 12,460자 · cost 25**, 로컬 라우트 **200 · 6.10s · 13,085자** 확인. 🔴 `url_cache` 45일 실종이 소모를 키웠으므로 캐시 오류 로깅과 소모율 관측은 계속 유지한다.
+- [x] ✅ **OpenAI URL fallback 기본 OFF로 보류** (2026-08-23) — 과거 검색 색인 Wikidocs는 일부 성공했지만 신규·미색인 글은 GPT-5 mini와 GPT-5.6 Luna 모두 실패했다. `OPENAI_URL_FALLBACK_ENABLED=true`를 명시해야만 ScrapingBee·browserless 전멸 뒤 호출하며 기본값은 OFF. 구현·20/20 하니스는 재평가용으로 보존.
+- [ ] 🟡 **ScraperAPI 재평가** — 2026-08-22 체인에서 제외했다(실측 **500 · 55.8s**, "Protected domains may require premium=true"). 되살리려면 premium 파라미터가 선행이고, 크레딧을 더 먹는다. 표본 1회라 판단은 잠정
+- [x] ✅ **fetch-url 폴백 체인 재구성 — browserless 를 전 호스트에 개방** (2026-08-22) — `cloudflareUnblock()` 이 **`isWikidocsHost` 로 잠겨** 있어 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**이었다(static·render 두 번). 쿼터가 마르자 **정상 작동하는 browserless 를 두고 전 사이트가 502.** 🔴 **DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 네 번째 사례** — 이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만 내용물은 범용 사다리였다. 검증: GeekNews(직접 403) → browserless **200 · 4.4s · 본문 7,604자 · article** 실물 확인
+- [x] ✅ **프로바이더 401/402/429 를 일반 실패와 구분** (2026-08-22) — 쿼터 소진이 `failed { textChars: 0 }` 로만 찍혀 **"사이트가 막혔나"를 먼저 의심하게 만들었다.** `url_cache` 45일 실종과 **같은 형태의 침묵**(폴백이 흘러가서 동작은 멀쩡해 보이는데 원인만 안 보임). 상태코드가 이미 답을 갖고 있었다
+- [x] ✅ **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** (2026-08-18 완료 · `b7f99ea`) — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
+- [x] ✅ **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다" (2026-08-18 완료 · `b7f99ea` · 캐시 히트 1.33s→0.137s 로 양성 검증)
+  - [x] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다
+  - [x] `app/api/fetch-url/route.ts` — `setCached` 의 upsert 반환 `error` 를 읽지 않는다. `getCached` 도 `if (error || !data) return null` 이라 **테이블 없음과 캐시 미스가 구분되지 않는다**
+- [ ] **main `mfds_pills` 재적재** — 수정 전 스크립트로 적재해 약품 ~3,000건이 빠져 있다. ⚠️ `.env.local` 을 프로덕션 값으로 바꾸는 순간이 위험 지점이라 **컷오버와 함께** 할 것
+- [ ] **HWP 파싱 산출물의 죽은 `<img>` 약 40개** — `<img src="image_001.bmp">` 는 HWP 내부 리소스명이라 어디로도 해석되지 않는다. 파서에서 제거하거나 자리표시로 대체 (먼저 화면에서 깨진 아이콘으로 보이는지 확인)
+- [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
+- [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
+- [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
+
+---
+
 ## 🟡 P1 — 기능 개선
 
 ### 0. 멀티 공급자 모델 라우팅 안정화
@@ -235,9 +345,9 @@
 **⓪ 날씨 전용 툴 — KMA + OpenWeather** — ✅ **구현 완료 (2026-07-06, [DEV_260706](logs/2026/07/DEV_260706.md))** · 📋 기획서 [PLAN_WEATHER_TOOL_260706](plans/PLAN_WEATHER_TOOL_260706.md)
 
 > 검토 2026-07-05. **현재 문제**: 전용 툴 없이 "날씨"가 [intentRules.ts:108](../server/agent/intentRules.ts#L108) domain 태깅 → [router.ts:106](../server/agent/nodes/router.ts#L106) `search:true` → **Google Search grounding + LLM 마크다운 표 생성**([prompt.ts:10-35](../server/agent/prompt.ts#L10)). 느림(15s+ grounding 왕복)·부정확(숫자 할루시네이션)·비구조적(카드 아님). 전용 툴로 전환 시 **~1s 결정론적 카드**.
-> **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — [buildWeatherData](../reference/news/app/api/weather/route.ts#L722) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
+> **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — `buildWeatherData`(`reference/news/app/api/weather/route.ts:722`) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
 > 설계: **KMA 우선(한국 정확도) + OpenWeather 보완(해외·geocoding·KMA 폴백)** 하이브리드. 레퍼런스가 KMA까지 다 풀어서 **처음부터 통째 이식 현실적**(단계 분리 불필요).
-> **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 [KMA_CITIES 표](../reference/news/app/api/weather/route.ts#L199)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
+> **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 `KMA_CITIES` 표(`reference/news/app/api/weather/route.ts:199`)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
 > **KMA API Hub 쿼터**: 20,000회/일(00시 KST 리셋)·5GB. 조회당 2종(육상 생략) → ~10,000 KR조회/일로 넉넉. **캐싱이 쿼터 방어선** — 레퍼런스 `revalidate:600`(10분)은 Fluid Compute 인스턴스별이라 불확실 → [url_cache 패턴](#L161)(Supabase TTL) 차용 검토. geocoding(OpenWeather 60call/min)도 캐시로 흡수.
 > **✅ 실험 검증 완료** (2026-07-05, `scripts/test-weather-hybrid.ts`, 실행 `npx tsx scripts/test-weather-hybrid.ts [도시]`): ① **`KMA_API_KEY`가 API Hub authKey 확인**(apihub 정상 응답 — 최대 리스크 해소) ② **`dfsXyConv` 공식이 레퍼런스 격자와 정확히 일치**(서울 60,127·부산 98,76 — 하드코딩표 폐기 확정) ③ 해외(Tokyo) KMA 스킵 정상 ④ 레이턴시 **전체 1초 이내**(geocode ~350ms + OWM ~400ms + KMA 2콜 병렬 ~580ms, 현 grounding 15s+ 대비 압도) ⑤ KMA vs OWM 기온차 0.9~1.9°. **주의**: 수원은 공식 61,120 vs 하드코딩 60,121(1셀 차) — geocode 중심점 vs KMA 대표셀 차이, 무해.
 
@@ -415,108 +525,6 @@
 - [ ] **메시지 편집** — 입력창 프리필은 구현됨(`editingMessageContent`/`editValue`, `ChatInput.tsx:100`); 남은 건 편집 시점 이후 히스토리 truncate 후 재실행
 - [ ] **세션 문서 컨텍스트 영구 저장** — `lastActiveDoc` Supabase 저장
 
-### 보안
-
-> **2026-09-05 우선순위 재정렬:** [PLAN_HARDENING §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)이
-> 아래 과거 기록의 작업 순서보다 우선한다. 실제 토큰 검증과 기능별 호출 제한을 함께 적용하고,
-> 게스트 저장 실패 시 생성 중단 → SSRF 공통 판정/이미지 정책 → 안전한 연결/남은 비용 라우트 → 원자적 쿼터로 진행한다.
-> `session_id` 필수화만으로 우회가 막히지 않으며, 대괄호 수정만으로 SSRF 대응이 완료되지 않는다. **아직 미구현.**
-
-> 인증 전환 완료(2026-07-14, [DEV_260714](logs/2026/07/DEV_260714.md)). DB 테이블과 사용자 업로드
-> Storage는 Bearer 토큰 + user-scoped client + RLS로 전환됐다. 공유 캐시와 `drug-cache/` 쓰기만
-> service role을 사용하며, 버킷 공개 읽기는 Phase 2 미완료다.
-
-- [x] **IDOR-1** `app/api/auth/route.ts` — **라우트 자체를 삭제**. 닉네임 upsert가 Supabase Auth로 대체되며 소멸.
-- [x] **IDOR-2** `app/api/sessions/route.ts` — `user_id` 파라미터 폐기. RLS가 스코프를 강제하므로 라우트가 소유권을 검사할 필요가 없다(`lib/supabase/route.ts` `createRouteClient`).
-- [ ] 🔴 **`LAW_OC` 재발급** (2026-08-18) — 국가법령정보센터 OC 실값이 `DEV_HISTORY.md` 와 `DEV_260609.md` 에 **평문으로** 있었다(2026-06-09 커밋, **레포 공개**). 문서는 마스킹했지만 **git 이력에는 그대로 남는다** → law.go.kr 에서 **재발급받아야 실질 조치**다. 조회 전용 공공 API 라 과금은 없으나 **쿼터를 남이 소진**시킬 수 있다.
-  - **교훈**: 진단 기록에 **값을 적지 말고 판정만 적는다**("정상"·"불일치"). 그때도 값이 있어야 재현되는 게 아니었다
-  - 재발급 후: Vercel Production/Preview 의 `LAW_OC` 교체 → 법률 질의 1건으로 검증
-
-- [x] **`scripts/` 정리 — 예외 26줄을 폴더 분리로 대체** (2026-08-18) — `tests/`(현재 하니스 10종) · `docs/guide/db/`(SQL + 적재 + README) · `scripts/`는 통째로 gitignore. `.gitignore` 96 → 67줄. → [tests/README.md](../tests/README.md) · [db/README.md](guide/db/README.md)
-  - **교훈**: 예외 목록이 길어지면 규칙이 아니라 **배치**가 틀린 것이다. 위치가 곧 정책이 되게 한다
-
-- [x] **알약 식별 결함 5건 수정** (2026-08-18) — 각인 `OG37`(무코스타서방정150mg) 테스트에서 연달아 나왔다. → [DEV_HISTORY](DEV_HISTORY.md)
-  - [x] `similar` 을 각인 기반인 것처럼 표시하던 문구 — **91% 경로의 S등급 결함**(각인 텍스트 보유 8.7%)
-  - [x] 빈 각인이 다음 줄을 삼켜 `식별표시: - Color: 하양` 이 찍히던 파싱 버그(`\s` 가 개행을 먹음)
-  - [x] `DB 등록 각인` 으로 칸 이름 명확화 + 빈 값 `정보 없음` — **"각인 없음"과 "정보 없음"은 다른 주장**이고 우리는 전자를 모른다(23,121행이 텍스트·이미지 둘 다 없음)
-  - [x] 라우터 지름길이 후속 턴을 가로채 같은 답을 반복하던 문제 — `hasImage` → 신규 첨부 기준. **DEV_260808 함정의 네 번째 사례**
-  - [x] 🔴 **웹 검색 전체가 출처 없이 답하고 있었다** — DDG 가 속성 순서를 바꾸고 `uddg=` 를 폐지해 URL 추출이 0건. `server/agent/ddg-parse.ts` 로 분리 + 하니스 11건
-  - [x] 웹 폴백 — 각인을 읽었는데 식약처에 없으면 웹 검색(결정론적 1회, 출처 필수). 종단 실측으로 정답 확인
-  - [ ] ⬜ **`[LangGraph] Pill web fallback gate/search` 계측 로그 유지 여부 판단** — 지금은 남겨뒀다. 이 경로가 조용히 안 도는 걸 한 번 겪었으므로 당분간 유지 권장
-  - [ ] ⬜ **각인 이미지(`mark_code_front_img`) 활용 검토** — dev 에 10건뿐이라 지금은 무의미하지만, 상류가 채우기 시작하면 vision 으로 읽을 여지
-  - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
-  - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
-
-- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
-  - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
-    ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
-    남은 6개의 계약은 그대로 미결이다. 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
-    - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
-  - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
-  - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
-  - 🟡 **실질 위험 ② 서비스 도메인 대리 요청** — 우리 IP·도메인으로 임의 사이트에 요청이 나간다. 차단당하면 우리가 막힌다
-  - ✅ **SSRF 는 생각보다 낫다(실측)** — `SSRF_BLOCK`([fetch-url:18](../app/api/fetch-url/route.ts#L18))은 차단 목록인데 localhost·RFC1918·`169.254`(메타데이터)·IPv6 loopback/ULA/link-local 을 덮는다. **숫자 IP 우회도 막힌다** — WHATWG `new URL()` 이 `http://2130706433/` 을 `127.0.0.1` 로 정규화해주기 때문(정규식 덕이 아니라 **파서 덕**이다. 이 의존을 주석에 적어둘 것)
-    ```
-    127.0.0.1 → 400 · 2130706433 → 400 · 169.254.169.254 → 400
-    [::ffff:127.0.0.1] → 502   ← 🟡 차단 목록 통과. fetch 까지 갔다가 실패
-    ```
-    - 🔴 **정정 (2026-09-04, Node 실측)** — 위 실측은 맞지만 **원인 진단이 절반이었다.** `[::ffff:127.0.0.1]` 이 통과하는 건 *"목록에 `::ffff:` 가 없어서"* 가 아니라 **`hostname` 이 대괄호를 달고 오는데 정규식이 `^` 앵커라서**다. 그래서 **IPv6 차단 항목 4개(`::1`·`fc..`·`fd..`·`fe80:`)가 전부 죽은 코드다.**
-      ```
-      new URL("http://[::1]/").hostname → "[::1]"
-      RE.test("::1")   → true    ← 작성자가 의도한 값
-      RE.test("[::1]") → false   ← 실제로 들어오는 값
-
-      [::1] · [fd00::1] · [fc00::1] · [fe80::1] · [::ffff:127.0.0.1]  → 전부 통과
-      ```
-      ⚠️ **따라서 아래 "`::ffff:*` 추가" 는 실행해도 통하지 않는다** — 목록에 무엇을 더해도 대괄호가 남아 있으면 `^` 가 매치를 막는다(실측 확인). 상세: [DEV_260903 §3.1-a](logs/2026/09/DEV_260903.md)
-    - [ ] 🔴 **먼저 대괄호를 벗긴다 (1줄)** — `new URL(t).hostname.replace(/^\[|\]$/g,'')`. 이걸 해야 기존 4항목이 비로소 동작한다
-    - [ ] 그 다음 IPv4-mapped IPv6(`::ffff:*`) 를 `SSRF_BLOCK` 에 추가
-    - [ ] `new URL()` **정규화 의존을 코드 주석에 적기** — 위 ✅ 항목이 지시해둔 것인데 아직 미반영. 파서를 안 거치도록 리팩터링하면 **정규식은 그대로인데 숫자 IP 방어가 사라진다**
-    - [ ] **미검증**: ⓐ리다이렉트 추적(공개 URL → `169.254.169.254`) ⓑ내부 IP 로 해석되는 호스트명. 차단 목록 방식의 구조적 한계라 **해소하려면 응답 IP 검증이 필요**하다
-    - [ ] **회귀 하니스** — 차단돼야 할 것(`[::1]`·`[fd00::1]`·`[::ffff:127.0.0.1]`)과 **이미 차단되는 것**(`2130706433` — 파서 의존이라 조용히 깨질 수 있다)을 함께 고정. 네트워크 미사용이라 `npm test` 편입 가능
-  - [ ] **실제 토큰 검증 + 호출 제한을 함께 적용** — `authedFetch`와 서버 검증을 연결한다. `createRouteClient` 생성만으로는 검증되지 않는다. 익명 토큰 하나로 반복 호출할 수 있어 인증만으로 비용 방어 완료로 보지 않는다. 구체적인 순서·완료 조건은 [PLAN §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)을 따른다.
-
-- [~] **IDOR-3 → 실제로는 "열린 업로드"였다** (2026-08-17 재평가) — 이 항목의 기술이 실제보다 약했다. *"admin 클라이언트 + 형식 검증뿐"* 은 "인증은 되는데 소유권 검증이 없다"로 읽히지만, **세 라우트에 인증 코드가 0건**이었고 클라이언트도 `authedFetch` 가 아닌 평범한 `fetch` 였다. 누구나 공개 버킷에 파일을 쌓을 수 있었다(용량·대역폭 비용 + 이 서비스 도메인에서 서빙).
-  - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `docs/guide/db/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
-  - [ ] **Phase 2** — 버킷 비공개 + 서명 다운로드 URL + `chat_messages.attachment_url` 백필. 🔴 **미뤄진 진짜 이유가 이것이다** — 저장된 값이 `getPublicUrl` 결과라 비공개로 돌리면 **과거 대화 이미지가 전부 400**
-  - [x] 🔴 **적용 순서: SQL 먼저, 배포 나중.** 코드를 먼저 올리면 정책이 없어 업로드가 전부 거부된다 — 이 순서로 실행했고 무중단이었다
-  - [x] 레거시 평면 경로는 **그대로 둔다** — 소유자를 알 수 없어 이관 불가. 정책에 읽기 예외를 뒀고 Phase 2 때 재검토
-  - [x] **`/api/upload` 삭제** — `40ff02e`(2026-03-09) 서명 URL 도입으로 대체됐는데 Next.js 이관이 사용처 확인 없이 옮겨왔다. **5개월간 죽은 채 무인증**이었다
-  - [x] 파일명 정리 `lib/storage-name.ts` — 한글이 대시로 뭉개져 Storage 콘솔에서 식별 불가였던 것(보안 아님, 조사용 가독성). 🟡 순한글 이름은 여전히 `file.hwp`
-  - **실측 (dev, 2026-08-17)**: 정책 12행 ✅ · 신규 키 `uid/` prefix ✅ · 10MB HWP 종단 ✅ · 신규 첨부 이미지 세션 재진입 복원 ✅(2건)
-  - [x] ~~**레거시 평면 경로 첨부가 여전히 보이는가**~~ — 🔴 **질문 자체가 틀렸다**(2026-08-18). 첨부 이미지는 `getPublicUrl` 결과를 `<img src>` 로 그대로 쓰므로 **공개 엔드포인트 직행이고 RLS 를 타지 않는다.** 정책을 롤백하든 말든 결과가 같아 이 테스트는 실패할 수 없었다. RLS 가 걸리는 유일한 곳은 `parse-document` 의 `download()` 인데 거기 정규식이 uid 세그먼트를 필수로 요구해 레거시는 400 으로 먼저 막힌다 → **되돌릴 것 없음.** 상세: [PLAN_PRIORITY §0](plans/PLAN_PRIORITY_260817.md)
-  - [x] **무인증 401 실측** (2026-08-18, dev) — `create-signed-url` 401 · `parse-document` 401 · **위조 Bearer 도 401**(헤더 유무가 아니라 검증이 막는다) · `/api/upload` 404(삭제 확인)
-  - 🔴 **교훈 — 롤백 기준을 적을 땐 그 기준이 걸리는 경로를 먼저 읽는다.** 위 항목을 "유일하게 되돌림이 필요한 것"으로 0순위에 올려뒀는데, 확인에 5분이면 될 것을 안 했다. **틀린 판정 기준은 없는 것보다 나쁘다** — 통과해도 아무것도 보장하지 않으면서 다른 항목을 밀어낸다
-- [ ] **모델·API 레퍼런스 검토 후속** → [PLAN_MODEL_API_REVIEW_260817](plans/PLAN_MODEL_API_REVIEW_260817.md)
-  - [x] `THINKING_MODE` 실측표 + 모델별 thinking config — 3.7은 `minimal` 대신 `low`, GPT 채팅은 reasoning none
-  - [x] `MODEL_CAPS` 3.7, `FLASH_3_7` 레지스트리, i18n, 기본 3.6 유지
-  - [x] `services/geminiService.ts` 기본 모델 리터럴을 공용 기본값과 정렬
-  - [ ] 🔴 **Files API 전환 검토** — 임의 URL 을 `fileData` 로 넘기는 현재 패턴은 **문서 어디에도 없다.** 3.x 의 429 는 결함이 아니라 계약 위반이고, 2.5 만 관대해서 강등이 통했다. Files API 는 무료·영상 지원
-  - [ ] 프로브 A(도구 조합) — 되면 라우터의 존재 이유가 바뀐다. 단 thought signature 보존이 선행
-  - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
-  - [ ] 공급자별 initial router 구현 — Gemini는 2.5 Flash Lite 유지, GPT는 5.6 Luna + strict JSON + reasoning none
-  - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
-- [x] ✅ **🔴 낡은 User-Agent 가 무료 경로를 막고 있었다 — `Chrome/120` → `Chrome/141`** (2026-08-22) — **URL 장애 조사의 진짜 수확.** GeekNews 403 을 "사이트가 우리를 막았다"로 읽었는데, 갈라 보니 **낡은 UA 를 봇 시그니처로 막은 것**이었다. 같은 URL·같은 나머지 헤더로 `Chrome/120 → 403 · 10바이트` / `Chrome/141 → 200 · 43,009바이트 · 13ms`. `Chrome/120` 은 **2023-12 릴리스**라 2년 넘게 묵어 있었다.
-  - **결과**: GeekNews 가 direct fetch 만으로 **169ms · 본문 7,604자 · 유료 스크래퍼 불필요**. browserless 가 4.4초에 가져오던 것과 **글자 수까지 동일**하다 — 즉 **돈 주고 사던 것을 공짜로 얻을 수 있었다.**
-  - **배치도 틀려 있었다**: UA 가 4곳에 하드코딩돼 값이 셋으로 갈려 있었다(`120`×3, `124`×1) → [`server/browser-ua.ts`](../server/browser-ua.ts) 한 곳으로. SSRF 정규식 중복([PLAN_HARDENING §2-A](plans/PLAN_HARDENING_260822.md))과 같은 형태다.
-  - ⚠️ **이 값은 코드가 안 바뀌어도 조용히 썩는다.** 특정 사이트만 403 을 받기 시작하면 **여기를 가장 먼저 의심할 것** — 최신 Chrome UA 로 한 번 더 쳐서 갈리는지 보면 즉시 판별된다.
-  - 🔴 **쿼터 소진에 이것이 얼마나 기여했는지 미측정** — 무료 경로가 실패하면 전부 유료로 떠넘겨졌다. 충전 전에 소모율을 다시 잴 것
-- [x] ✅ **Brunch 리다이렉트 루프 폴백** (2026-08-23) — direct는 `redirect count exceeded`지만 범용 체인이 처리한다. 캐시 우회 `/@ghidesigner/532?codex_doc_probe=260823`: `scrapingbee-static` · 200 · 8.89s · 본문 4,507자. `/@other/999`는 실글이 아니라 OpenAI URL mismatch 회귀용 가짜 주소다.
-- [x] ✅ **ScrapingBee 월 쿼터 소진 복구** (2026-08-23) — 기존 trial 키는 `1,006 / 1,000` credits로 `401 {"message":"Monthly API calls limit reached: 1000"}`를 반환했고 URL 요약 전면 장애의 직접 원인이었다. 키 교체 후 Wikidocs 신규 글에서 `render_js + premium_proxy + KR` **200 · 5.66s · 본문 12,460자 · cost 25**, 로컬 라우트 **200 · 6.10s · 13,085자** 확인. 🔴 `url_cache` 45일 실종이 소모를 키웠으므로 캐시 오류 로깅과 소모율 관측은 계속 유지한다.
-- [x] ✅ **OpenAI URL fallback 기본 OFF로 보류** (2026-08-23) — 과거 검색 색인 Wikidocs는 일부 성공했지만 신규·미색인 글은 GPT-5 mini와 GPT-5.6 Luna 모두 실패했다. `OPENAI_URL_FALLBACK_ENABLED=true`를 명시해야만 ScrapingBee·browserless 전멸 뒤 호출하며 기본값은 OFF. 구현·20/20 하니스는 재평가용으로 보존.
-- [ ] 🟡 **ScraperAPI 재평가** — 2026-08-22 체인에서 제외했다(실측 **500 · 55.8s**, "Protected domains may require premium=true"). 되살리려면 premium 파라미터가 선행이고, 크레딧을 더 먹는다. 표본 1회라 판단은 잠정
-- [x] ✅ **fetch-url 폴백 체인 재구성 — browserless 를 전 호스트에 개방** (2026-08-22) — `cloudflareUnblock()` 이 **`isWikidocsHost` 로 잠겨** 있어 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**이었다(static·render 두 번). 쿼터가 마르자 **정상 작동하는 browserless 를 두고 전 사이트가 502.** 🔴 **DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 네 번째 사례** — 이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만 내용물은 범용 사다리였다. 검증: GeekNews(직접 403) → browserless **200 · 4.4s · 본문 7,604자 · article** 실물 확인
-- [x] ✅ **프로바이더 401/402/429 를 일반 실패와 구분** (2026-08-22) — 쿼터 소진이 `failed { textChars: 0 }` 로만 찍혀 **"사이트가 막혔나"를 먼저 의심하게 만들었다.** `url_cache` 45일 실종과 **같은 형태의 침묵**(폴백이 흘러가서 동작은 멀쩡해 보이는데 원인만 안 보임). 상태코드가 이미 답을 갖고 있었다
-- [x] ✅ **`sync-drug-image` 가 `supabaseAdmin` 을 명시하게 한다** (2026-08-18 완료 · `b7f99ea`) — `drug-cache/<md5>.jpg` 경로는 8/17 Storage RLS 정책(첫 세그먼트 = `auth.uid()`)상 **거부돼야 하는데**, `server/supabase.ts` 의 `supabase` 가 실제로는 `service_role` 키를 들고 있어 **우연히 살아 있다**. 키가 anon 으로 바뀌면 **조용히 죽는다**(공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다**). 이름(`supabase`)과 권한(admin)이 어긋난 것을 코드에서 명시할 것
-- [x] ✅ **침묵 제거 2건** — 2026-08-17 사고 넷이 전부 "조용해서 오래 걸렸다" (2026-08-18 완료 · `b7f99ea` · 캐시 히트 1.33s→0.137s 로 양성 검증)
-  - [x] `server/mfds-logic.ts` — `const { data }` 로 **`error` 를 버린다.** 테이블이 없어도 예외 없이 `match_type:'none'` 이 되어 스크래핑 폴백으로 내려간다
-  - [x] `app/api/fetch-url/route.ts` — `setCached` 의 upsert 반환 `error` 를 읽지 않는다. `getCached` 도 `if (error || !data) return null` 이라 **테이블 없음과 캐시 미스가 구분되지 않는다**
-- [ ] **main `mfds_pills` 재적재** — 수정 전 스크립트로 적재해 약품 ~3,000건이 빠져 있다. ⚠️ `.env.local` 을 프로덕션 값으로 바꾸는 순간이 위험 지점이라 **컷오버와 함께** 할 것
-- [ ] **HWP 파싱 산출물의 죽은 `<img>` 약 40개** — `<img src="image_001.bmp">` 는 HWP 내부 리소스명이라 어디로도 해석되지 않는다. 파서에서 제거하거나 자리표시로 대체 (먼저 화면에서 깨진 아이콘으로 보이는지 확인)
-- [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
-- [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
-- [ ] CSP 도입 — 번들 최적화(자체 호스팅) 완료 후 연계
-
 ### 아키텍처 리팩토링
 - [ ] **`generator.ts` 경로 분리 (진행 중)** — 1·2·4-A·3-A 완료(1148→685줄, -40%). 남은 3-B(SDK 경로 → `sdk-path.ts`)·4-B(에러 술어 수렴)는 [PLAN_GENERATOR_REFACTOR_260621](plans/PLAN_GENERATOR_REFACTOR_260621.md) 참조 (dev E2E 필수)
 - [ ] **DTO 레이어** — Route Handlers 경계에서 Zod 스키마 기반 요청·응답 DTO 정의
@@ -528,7 +536,7 @@
 
 ### 다크모드 웜 차콜 테마 (검토·보류)
 
-> reference `reference/news`(웜 종이+테라코타/틸 어시 팔레트) UI 이식 검토(2026-07-05). 결론: **다크 배경만** 안전, 라이트/오브 이식은 비추천. 프리뷰: [preview/dark-warm-charcoal.html](../preview/dark-warm-charcoal.html) (현재 `#131314` ↔ 웜 차콜 나란히 비교 + 오브 토글).
+> reference `reference/news`(웜 종이+테라코타/틸 어시 팔레트) UI 이식 검토(2026-07-05). 결론: **다크 배경만** 안전, 라이트/오브 이식은 비추천. 프리뷰: `preview/dark-warm-charcoal.html` (현재 `#131314` ↔ 웜 차콜 나란히 비교 + 오브 토글).
 
 - [ ] `app/layout.tsx:54` — 다크 `bg-[#131314]` → 웜 차콜 그라디언트(`#111316→#1b1a17` + 올리브/러스트 radial) 이동 검토. 명도 거의 동일해 저리스크.
 - [ ] 오브는 **바이올렛 톤 유지**(우리 아이덴티티) — 레퍼런스 어시(올리브/러스트) 오브는 바이올렛 액센트와 탁하게 충돌(프리뷰에서 확인). `globals.css` `.orb` 색만 조정.

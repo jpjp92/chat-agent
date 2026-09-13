@@ -31,14 +31,14 @@
 | # | 원본 주장 | 판정 | 근거 |
 |---|---|---|---|
 | 1 | 비용 API 무인증 | **검증됨(더 나쁨)** | 무인증 **8개** — 원본은 5~6개만 지목 |
-| 2 | Chat `model` 서버 검증 없음 | **검증됨** | [chat/route.ts:143](../../app/api/chat/route.ts#L143) |
+| 2 | Chat `model` 서버 검증 없음 | ⚖️ **해소됨 (2026-09-13 재확인)** — 초판 판정은 "검증됨"이었다 | [chat/route.ts:70](../../app/api/chat/route.ts#L70) 이 `isChatModelId(model) ? model : DEFAULT_CHAT_MODEL` 로 끊는다 → §P0-2 |
 | 3 | Guest quota race | **검증됨** | [chat/route.ts:47-57](../../app/api/chat/route.ts#L47) |
 | 4 | SSRF 부분 방어 | **검증됨 + 정정** | §2-A |
 | 5 | `xlsx 0.18.5` | **검증됨(취약점은 미검증)** | §2-C |
 | 6 | Route DTO 부재 | **검증됨** | `zod` 미설치 |
 | 7 | 외부 문서를 system instruction 에 삽입 | **검증됨** | [generator.ts:82](../../server/agent/nodes/generator.ts#L82) |
 | 8 | 신규 첨부 텍스트가 캡을 안 탐 | **검증됨(정밀)** | [useChatStream.ts:258-274](../../src/hooks/useChatStream.ts#L258) |
-| 9 | request별 `unhandledRejection` | **검증됨** | [chat/route.ts:155](../../app/api/chat/route.ts#L155) |
+| 9 | request별 `unhandledRejection` | **검증됨** | [chat/route.ts:157](../../app/api/chat/route.ts#L157) |
 | 10 | `showtimes` 실패가 200 | **검증됨** | [showtimes/route.ts:166](../../app/api/showtimes/route.ts#L166) |
 | 11 | CI quality gate 없음 | **검증됨** | `.github/workflows/` 에 `auto-pr.yml` 하나 |
 | 12 | 문서·코드 드리프트 | **검증됨** | §2-B |
@@ -149,7 +149,19 @@ withApiGuard(handler, { auth: true, quota: 'scraping', schema: FetchUrlSchema })
   (`chat` / `tts` / `scraping` / `browserless` / `file_parse`)
 - CI 에 §2-B 의 `grep -L` 를 넣어 허용목록 밖의 무인증 라우트가 생기면 실패시킨다
 
-### P0-2. `model` 서버 allowlist
+### P0-2. `model` 서버 allowlist — ⚖️ 해소됨 (2026-09-13 재확인)
+
+> 🔴 **이 절은 더 이상 열린 작업이 아니다.** [chat/route.ts:70](../../app/api/chat/route.ts#L70) 이
+> `const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;` 로 **`server/models.ts` 의 allowlist 를 통과시킨다** —
+> 이 절이 요구한 "`SERVER_MODELS` 를 단일 출처로 서버에서 enum 으로 끊는다"가 그대로 구현돼 있고,
+> 허용목록 밖 ID 는 기본 모델로 떨어지므로 임의 모델 문자열이 공급자로 나가지 않는다.
+> [§6](#6-작업-순서)(2026-09-05)이 한 줄로 정정했으나 **정정당한 이 자리에 표시가 없어**
+> 문서를 위에서 읽으면 여전히 P0 취약점으로 읽혔다 — [09-04 문서 감사 §5](../logs/2026/09/DEV_260904.md) 의
+> C1·C2 와 같은 형태(정정은 했는데 정정당한 자리에 표시를 안 남김)라 여기에 남긴다.
+> 아래 초판 서술은 **지우지 않고** 판정 근거로 남긴다. 남은 것은 취약점이 아니라 정리 작업뿐이다
+> (`src/lib/models.ts` 와의 이원화 — [DEV_260829_DEADCODE §7](../logs/2026/08/DEV_260829_DEADCODE.md) 에서 UI 문자열은 단일화됐다).
+
+**초판 서술 (2026-08-22, 당시 코드 기준):**
 
 [chat/route.ts:65](../../app/api/chat/route.ts#L65) 에서 body 의 `model` 을 그대로 받아
 [:143](../../app/api/chat/route.ts#L143) `model || DEFAULT_CHAT_MODEL` 로 흘린다. **검증이 없다.**
@@ -206,8 +218,8 @@ timeout · 응답 크기 상한.
 
 ### P1-1. `unhandledRejection` 제거
 
-[chat/route.ts:155-159](../../app/api/chat/route.ts#L155) 이 요청마다 `process.once` 를 걸고
-[:310](../../app/api/chat/route.ts#L310) 에서 뗀다. `process` 는 **모든 동시 요청이 공유한다** —
+[chat/route.ts:153-157](../../app/api/chat/route.ts#L153) 이 요청마다 `process.once` 를 걸고
+[:236](../../app/api/chat/route.ts#L236) 에서 뗀다. `process` 는 **모든 동시 요청이 공유한다** —
 요청 B 의 rejection 이 A·C 의 리스너까지 깨우고, A 의 SSE 스트림에 남의 에러가 실릴 수 있다.
 
 각 async 지점에서 local catch 하고, process 레벨 핸들러는 **프로세스당 한 번, 로깅 용도로만** 둔다.

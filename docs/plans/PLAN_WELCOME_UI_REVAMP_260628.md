@@ -2,7 +2,7 @@
 
 > 작성일: 2026-06-28
 > **상태: 구현 완료 (2026-06-28, [DEV_260628](../logs/2026/06/DEV_260628.md)).** 아래 결정표 일부는 구현·검토 중 갱신됨(반응형 배치·웰컴 문구·칩 모바일 숨김·입력창 폭 통일).
-> 프로토타입: [reference/render_ui/test_proposal.html](../../reference/render_ui/test_proposal.html) (현행 앱 클래스 그대로 재현, 데모 토글 포함)
+> 프로토타입: `reference/render_ui/test_proposal.html` (현행 앱 클래스 그대로 재현, 데모 토글 포함)
 > 관련 코드: [App.tsx](../../App.tsx) · [components/Header.tsx](../../components/Header.tsx) · [components/ChatInput.tsx](../../components/ChatInput.tsx) · [components/WelcomeMessage.tsx](../../components/WelcomeMessage.tsx) · [components/SuggestChips.tsx](../../components/SuggestChips.tsx) · [src/lib/models.ts](../../src/lib/models.ts)
 
 ---
