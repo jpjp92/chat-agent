@@ -65,3 +65,6 @@ test-supabase.ts
 test-port.js
 preview/dark-warm-charcoal.html
 preview/weather-card-sample.html
+
+# kordoc 수동 점검용 실제 문서 — 레포에 넣지 않는다
+tests/manual/fixtures/
