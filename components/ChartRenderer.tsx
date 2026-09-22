@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import ApexCharts from 'apexcharts';
 
 interface ChartData {
-    type: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'radar' | 'treemap';
+    type: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'radar' | 'treemap' | 'heatmap';
     title?: string;
     data: {
         categories?: string[];
@@ -78,16 +78,17 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const { type, title, data } = chartData;
 
     // --- 데이터 정규화 (Normalization) ---
-    const { series, categories, isPie, isRadar, isTreemap } = useMemo(() => {
+    const { series, categories, isPie, isRadar, isTreemap, isHeatmap } = useMemo(() => {
         const type = chartData.type;
         const isPieType = type === 'pie' || type === 'donut';
         const isRadarType = type === 'radar';
         const isTreemapType = type === 'treemap';
+        const isHeatmapType = type === 'heatmap';
         let normSeries: any = [];
         let normCategories: string[] = chartData.data?.categories || [];
 
         if (!chartData.data || !chartData.data.series)
-            return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType };
+            return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
 
         if (isPieType) {
             const firstSeries = chartData.data.series[0];
@@ -122,6 +123,30 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     })
                 }];
             }
+        } else if (isHeatmapType) {
+            // ApexCharts heatmap wants one series per ROW, each point {x: column, y: value}.
+            // Accept both shapes we already accept elsewhere: {x,y} objects, or a plain number
+            // array paired positionally with `categories` (the columns).
+            const toCell = (v: any): number | null => {
+                if (v === null || v === undefined || v === '') return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? n : null;
+            };
+            const rows = chartData.data.series.map((s: any, rowIndex: number) => ({
+                name: s.name || `Row ${rowIndex + 1}`,
+                data: (s.data || []).map((d: any, i: number) => (
+                    typeof d === 'object' && d !== null && 'x' in d
+                        ? { x: String(d.x), y: toCell(d.y) }
+                        : { x: normCategories[i] || `${i + 1}`, y: toCell(d) }
+                )),
+            }));
+            // Apex stacks the first series at the BOTTOM. Reverse so the matrix reads top-down
+            // in the same order the model wrote it.
+            normSeries = [...rows].reverse();
+            // Columns drive the horizontal-scroll width below; derive them when not supplied.
+            if (normCategories.length === 0) {
+                normCategories = [...new Set(rows.flatMap(r => r.data.map((c: any) => c.x)))] as string[];
+            }
         } else {
             // Bar/Line/Scatter/Radar/Area
             let rawSeries = chartData.data.series;
@@ -150,21 +175,26 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         }
 
         // 카테고리 안전장치
-        if (!isPieType && !isTreemapType && normCategories.length === 0 && normSeries.length > 0) {
+        if (!isPieType && !isTreemapType && !isHeatmapType && normCategories.length === 0 && normSeries.length > 0) {
             const dataLength = normSeries[0].data?.length || 0;
             if (dataLength > 0) {
                 normCategories = Array.from({ length: dataLength }, (_, i) => `${i + 1}`);
             }
         }
 
-        return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType };
+        return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
     }, [chartData]);
 
     useEffect(() => {
         if (series.length === 0) return;
 
         // 반응형 값 계산
-        const chartHeight    = isMobile ? 200 : isTablet ? 250 : 300;
+        const baseHeight     = isMobile ? 200 : isTablet ? 250 : 300;
+        // Heatmap rows are fixed-height cells: with many rows the default canvas squashes them
+        // until the labels collide, so grow the canvas with the row count instead.
+        const chartHeight    = isHeatmap
+            ? Math.max(baseHeight, series.length * (isMobile ? 32 : 44) + 80)
+            : baseHeight;
         const xFontSize      = isMobile ? '8px': isTablet ? '10px': '11px';
         const xRotate        = isMobile ? -55  : -45;
         const yFontSize      = isMobile ? '9px': isTablet ? '10px': '12px';
@@ -199,10 +229,16 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 mode: isDark ? 'dark' : 'light',
                 palette: 'palette1'
             },
-            colors: CHART_COLORS,
+            // A matrix needs ONE continuous scale, not a different hue per row — otherwise the
+            // colour encodes which row a cell is in rather than how large its value is.
+            colors: isHeatmap ? [CHART_COLORS[0]] : CHART_COLORS,
             series: series,
             xaxis: {
-                categories: categories,
+                // Heatmap columns come from each point's `x`, so pass the EMPTY array rather than
+                // the labels. Never pass undefined here: ApexCharts reads `.categories.length`
+                // in several places without a guard, so an undefined kills the whole render and
+                // leaves an empty chart card behind.
+                categories: isHeatmap ? [] : categories,
                 labels: {
                     style: {
                         colors: isDark ? '#94a3b8' : '#64748b',
@@ -220,7 +256,11 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 show: !isRadar,
                 labels: {
                     style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: yFontSize },
-                    formatter: (value: number) => {
+                    // Heatmap y labels are ROW NAMES, not magnitudes — the 'k' shortening
+                    // would corrupt any row whose name happens to be numeric. Return the label
+                    // untouched instead of passing undefined (see the xaxis note above).
+                    formatter: (value: any) => {
+                        if (isHeatmap) return value;
                         if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
                         return value;
                     }
@@ -243,8 +283,23 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     formatter: (text: string, op: any) =>
                         [text, op.value?.toLocaleString()],
                 }
+                : isHeatmap
+                ? {
+                    enabled: true,
+                    style: {
+                        fontSize: isMobile ? '9px' : '11px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '600',
+                        colors: ['#fff'],
+                    },
+                    formatter: (value: number | null) =>
+                        value === null || value === undefined ? '' : value.toLocaleString(),
+                }
                 : { enabled: false },
             legend: {
+                // A single-hue heatmap legend would list row names next to identical swatches,
+                // which says nothing — the y-axis already names the rows.
+                show: !isHeatmap,
                 position: 'bottom',
                 horizontalAlign: legendAlign,
                 fontSize: legendFontSize,
@@ -252,7 +307,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             },
             stroke: {
                 show: true,
-                width: (isPie || isTreemap) ? 0 : 3,
+                width: (isPie || isTreemap || isHeatmap) ? 0 : 3,
                 curve: 'smooth'
             },
             plotOptions: {
@@ -269,6 +324,14 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 treemap: {
                     distributed: true,
                     enableShades: false
+                },
+                heatmap: {
+                    radius: 4,
+                    // Shade one hue by magnitude so the colour means "how much", and let Apex
+                    // derive the range from the data — the domain is unknown ahead of time.
+                    enableShades: true,
+                    shadeIntensity: 0.6,
+                    useFillColorAsStroke: false,
                 },
                 radar: {
                     size: radarSize,
@@ -301,7 +364,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 chartInstance.current = null;
             }
         };
-    }, [series, categories, isPie, isDark, type, title, isTreemap, isMobile, isTablet]);
+    }, [series, categories, isPie, isDark, type, title, isTreemap, isHeatmap, isMobile, isTablet]);
 
     const handleDownload = async () => {
         if (!chartInstance.current) return;
@@ -324,16 +387,22 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
-                <div className="px-3 py-1.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-white/[0.04]">
+                {/* Side padding tracks the chart area below (p-2 sm:p-4) so the title starts on the
+                    same line as the body at every breakpoint — px-3 sat 4px outside it on desktop
+                    and 4px inside it on mobile, so the mismatch flipped direction by breakpoint. */}
+                <div className="px-2 sm:px-4 py-1.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-white/[0.04]">
                     <div className="flex items-center gap-1.5 min-w-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>
                         <h3 className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate leading-none">
                             {title || t.title}
                         </h3>
                     </div>
+                    {/* -mr-1 cancels the button's own px-1 so the ICON's optical edge lands on the
+                        container padding, matching the dot's gutter on the left. mr-2 put the icon
+                        at 24px while the dot sat at 12px — twice the gutter. */}
                     <button
                         onClick={handleDownload}
-                        className="flex items-center text-slate-400 hover:text-indigo-500 transition-colors px-1 flex-shrink-0 ml-2 mr-2"
+                        className="flex items-center text-slate-400 hover:text-indigo-500 transition-colors px-1 flex-shrink-0 ml-2 -mr-1"
                         title={t.download}
                     >
                         <i className="fa-solid fa-download text-[9px] leading-none"></i>

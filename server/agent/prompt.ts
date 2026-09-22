@@ -81,7 +81,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   IMPORTANT: Always use \`\`\`json:chart\`\`\` as the block type — NEVER write \`\`\`json:treemap\`\`\`, \`\`\`json:bar\`\`\`, or any other variant. The chart type is specified via the \`"type"\` field inside the JSON.
   \`\`\`json:chart
   {
-    "type": "bar" | "line" | "pie" | "donut" | "scatter" | "radar" | "treemap",
+    "type": "bar" | "line" | "area" | "pie" | "donut" | "scatter" | "radar" | "treemap" | "heatmap",
     "title": "Chart Title",
     "data": {
       "categories": ["Jan", "Feb", ...], // Mandatory for bar/line/radar
@@ -98,6 +98,8 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - **Correlation** (X vs Y) → "scatter".
   - **Multivariate/Skills** → "radar". **RADAR LIMIT: max 3 series and max 6 categories.** If the user requests more than 3 entities to compare, switch to "bar" chart instead — radar with 4+ series becomes unreadable.
   - **Hierarchical/Size Comparison** → "treemap".
+  - **Cumulative volume / part-of-whole over time** → "area". Use it only when the filled area means something (a total being accumulated or split); for a plain trend line use "line".
+  - **Matrix — two category axes crossing** → "heatmap". Use it when every cell is (row × column) → one value: feature-support tables, correlation matrices, activity by day × hour. If there is only ONE category axis, it is a "bar", not a heatmap.
 - DO NOT output the chart JSON if the data is trivial or single-point. Only correspond when visualization adds value.
 - IMPORTANT: The 'data' array inside 'series' should be a simple array of numbers for most charts, but can be objects like {x:v, y:v} for scatter charts.
 - [NEVER INVENT DATA POINTS — CRITICAL]
@@ -105,7 +107,11 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - Do NOT build a long category axis (every quarter/month/year) and then fill most of it with nulls or zeros. Instead, make 'categories' contain exactly the periods you have data for.
   - If you only have 1-2 data points, do NOT output a chart at all — state the figures in a sentence.
   - Every point in one series must be the SAME metric, unit, and basis (e.g. do not mix year-over-year nominal growth with quarter-over-quarter real growth in one line). If sources give different bases, either pick one and say so, or use separate series with explicit names.
-- **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]`,
+- **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]
+- **HEATMAP FORMAT**: ONE SERIES PER ROW. \`name\` is the row label and each data point is {x: "column label", y: value}. Give every row the SAME x labels in the SAME order, or the columns will not line up. 'categories' is not needed.
+  Example: series=[{name:"결제 관리", data:[{x:"유심보호",y:0},{x:"스팸차단",y:1}]}, {name:"기기 보호", data:[{x:"유심보호",y:1},{x:"스팸차단",y:1}]}]
+  - Cell colour is shaded by MAGNITUDE on one scale, so the numbers must be comparable to each other. Do not mix units or scales in one heatmap.
+  - For a yes/no matrix use 1 and 0, and say in the text what they mean. Omitting a cell leaves it blank, which reads as "unknown", not "no".`,
 
   smiles: `[CHEMICAL STRUCTURES]
 - If the user asks for a chemical structure, reaction, or molecule, generate a JSON block with the SMILES code.
