@@ -29,7 +29,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 
 ### 1-2. AI Intelligence
 
-- **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage
+- **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage. **3.8 은 측정 후 미채택** — 7개 intent 14 TC × 3모델(252회)과 grounding 30문항 × 3모델(90회)이 전부 만점으로 갈려서 정답률로는 차이가 나지 않았다(2026-09-22, `tests/manual/gemini-3-8/`)
 - **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
 - **Search on/off is decided by declared tiers, not by statement order** — `400` hard constraint > `300` user's explicit request > `200` answer already grounded (URL / attached doc / video) > `100` classifiers > `0` default-on. Nobody overwrites anybody; each gate submits a signal and the highest tier wins (`server/agent/search-policy.ts`). ⚠️ **Tier 400 is Gemini-only**: it encodes *"Gemini cannot put an image and grounding in one request"*, which is not true of OpenAI Responses — so the OpenAI path passes `provider: 'openai'` and the signal is never emitted (2026-09-02; before that, an attached image silently disabled search on the turn right after it — exactly the turn where a user says "now search and check this")
 - **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
@@ -59,7 +59,7 @@ Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF
 | 🧬 Bio-Viz           | `biology`                     | NGL Viewer (3D PDB)                               |
 | 📐 Diagram-Viz       | `physics`                     | Canvas 2D                                         |
 | ✨ Constellation-Viz | `astronomy`                   | HTML5 Canvas + astronomy-engine                   |
-| 📊 Chart-Viz         | `data_viz`                    | ApexCharts                                        |
+| 📊 Chart-Viz         | `data_viz`                    | ApexCharts — bar · line · area · pie · donut · scatter · radar · treemap · heatmap (9종) |
 
 Per-renderer details (schemas, test prompts): [docs/guide/](docs/guide/)
 
@@ -258,7 +258,9 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── test-paper-card / render-paper-card  # 논문 카드 — 소스 계약 + 실제 렌더 HTML
 │   ├── test-stream-dispatch            # SSE 이벤트 루프 — 카드 8종이 각자 나가는가
 │   ├── test-theaters                   # 상영관 지역 매칭 (data/theater-branches.json)
+│   ├── test-doc-links                  # 문서 링크·앵커·행번호 — 추적 md 한정(gitignore 트리 제외)
 │   ├── manual/                         # 외부 공급자·DB 실측 프로브 (npm test 제외)
+│   │   └── gemini-3-8/                 # 3.6·3.7·3.8 정답률 비교 + grounding suite (결정적 채점기 동봉)
 │   └── tsconfig.probe.json + lib/      # `server-only` 모듈을 tsx 로 직접 돌리는 우회
 ├── utils/
 │   ├── astronomyHelper.ts / celestialMath.ts
