@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { assess, scenarios } from './scenarios.mjs';
+const memory = scenarios[0].turns[0];
+assert.equal(assess(memory,'general','보관 코드 **ALPHA_731**과 담당자 민수').expectedValue,true);
+assert.equal(assess(memory,'general','보관 코드 ALPHA_732').expectedValue,false);
+assert.equal(assess(memory,'general','보관 코드 ALPHA731').expectedValue,false);
+const formula = scenarios[2].turns[1];
+assert.equal(assess(formula,'chemistry','$$\\text{C}_2\\text{H}_6\\text{O}$$').expectedValue,true);
+assert.equal(assess(formula,'chemistry','C₂H₆O').expectedValue,true);
+assert.equal(assess(formula,'chemistry','C₂H₄O').expectedValue,false);
+const chart = (v: number[]) => '```json:chart\n'+JSON.stringify({data:{categories:['A','B','C'],series:[{data:v}]}})+'\n```';
+assert.equal(assess(scenarios[1].turns[1],'data_viz',chart([10,25,30])).chartData,true);
+assert.equal(assess(scenarios[1].turns[1],'data_viz',chart([10,20,30])).chartData,false);
+assert.equal(assess(scenarios[1].turns[2],'general',chart([10,25,30])).noBlocks,false);
+assert.equal(assess(scenarios[1].turns[1],'data_viz','```json:chart\n{bad}\n```').validJsonBlocks,false);
+console.log('10 scenario assertions passed (valid variants + wrong values/retained chart/malformed JSON).');

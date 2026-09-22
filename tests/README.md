@@ -26,6 +26,8 @@ npm run verify  # typecheck + test
 
 ## `manual/` — 수동 네트워크 프로브
 
+- [Gemini 모델 프로브](manual/gemini-3-8/README.md): 오프라인 앱 연결 감사, 제한된 SDK/LangChain 호환성 검사, 3.6/3.7/3.8 intent별 정답률 비교. 전부 기본 dry-run이며 `--live`에서만 키를 읽고 호출한다.
+
 `tests/manual/`은 외부 공급자·실사이트 상태를 재현하는 수동 진단 도구다. 환경변수와 네트워크를
 사용할 수 있지만 `npm test`에는 포함하지 않는다. 자동 회귀 하니스의 위 세 조건과 섞지 않으며,
 실행 시 외부 API 크레딧이 소모될 수 있다.
