@@ -22,6 +22,7 @@
  */
 
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,6 +41,24 @@ const walk = (dir: string, out: string[] = []): string[] => {
         else if (e.name.endsWith('.md')) out.push(p);
     }
     return out;
+};
+
+/**
+ * 검사 대상은 **추적되는 md 뿐**이다.
+ *
+ * 디스크를 걷기만 하면 gitignore 된 로컬 전용 트리까지 검사한다 — 위 헤더가 이미
+ * "레포에 없는 로컬 전용 경로"로 지목한 `reference/`(92개)와 `docs/superpowers/`(2개)가 그것이다.
+ * 그 안의 md 는 남의 프로젝트를 벤더링한 것이라 **우리가 고칠 수 없는 링크**로 하니스를 빨갛게 만든다.
+ * 실제로 실패 12건이 전부 거기서 나왔고, 그 트리를 받지 않은 사람에게는 보이지도 않아
+ * **환경마다 결과가 달라졌다**. 추적 파일로 좁히면 262개 → 168개가 되고 판정이 환경과 무관해진다.
+ *
+ * 링크의 **대상** 검사는 그대로 `fs.existsSync` 다. 추적 문서가 `reference/…` 를 가리키면
+ * 여전히 실패해야 하기 때문이다(헤더 판정 규칙 ①).
+ */
+const trackedMarkdown = (): string[] | null => {
+    const r = spawnSync('git', ['-C', ROOT, 'ls-files', '-z', '*.md'], { encoding: 'utf8' });
+    if (r.status !== 0 || !r.stdout) return null;   // git 없음·레포 아님 → 호출부가 걷기로 되돌린다
+    return r.stdout.split('\0').filter(Boolean).map(f => path.join(ROOT, f));
 };
 
 /** 코드블록·인라인 코드 제거 — 링크 문법처럼 보이는 예시를 링크로 세지 않는다. */
@@ -64,7 +83,7 @@ const anchorsOf = (file: string): Set<string> => {
 const lineCount = (f: string) => fs.readFileSync(f, 'utf8').split('\n').length;
 
 console.log('── 문서 링크 전수 검사 ──');
-const files = walk(ROOT);
+const files = trackedMarkdown() ?? walk(ROOT);
 
 for (const file of files) {
     const rel = path.relative(ROOT, file);
