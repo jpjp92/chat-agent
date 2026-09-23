@@ -37,9 +37,22 @@ const { HumanMessage, AIMessage } = await import('@langchain/core/messages');
 
 const model = process.argv[2] || 'gemini-3.7-flash';
 let failures = 0;
-const check = (label: string, ok: boolean, detail = '') => {
+
+/**
+ * 🔴 실패한 턴의 **전문**을 남긴다.
+ *
+ * 처음엔 판정 한 줄과 80자 미리보기만 찍었다. 그래서 `재구성 턴이 PMID 를 지어내지 않는다` 가
+ * 3/6 으로 깨졌을 때 **무엇을 어떻게 썼는지 볼 수 없어 다시 호출해야 했다** — 그런데
+ * 이 실패는 재현이 들쭉날쭉해서(모델·실행마다 다르다) 그 순간의 글을 놓치면 영원히 못 본다.
+ * 통과한 턴은 남기지 않는다(로그가 읽을 수 없게 길어진다).
+ */
+const dumps: { label: string; detail: string; body: string }[] = [];
+const check = (label: string, ok: boolean, detail = '', body = '') => {
     console.log(`  ${ok ? '✅' : '🔴'} ${label}${detail ? ` — ${detail}` : ''}`);
-    if (!ok) failures++;
+    if (!ok) {
+        failures++;
+        if (body) dumps.push({ label, detail, body });
+    }
 };
 
 const graph = compileAgentGraph(getSystemInstruction('Korean'), false, () => {}, 'Korean');
@@ -216,10 +229,32 @@ const t4 = await turn('지금까지 나온 논문들 표로 정리해줘');
 check('표를 만든다 (3문단 규칙이 재구성을 막지 않는다)', /\|.*\|/.test(t4.prose), t4.prose.slice(0, 80));
 check('재구성 턴은 카드를 다시 그리지 않는다', t4.card === null,
     t4.card ? `의도=${t4.intent}, ${(t4.card.papers ?? []).map((p: any) => p.pmid).join(',')}` : '');
-// 표에 적힌 PMID 는 실제로 나온 것이어야 한다 — 재구성 턴이 논문을 지어내면 안 된다
-const known = new Set([...first, ...(t3.card?.papers ?? [])].map((p: any) => p.pmid));
-const invented = [...new Set([...t4.prose.matchAll(/\b(\d{7,8})\b/g)].map(m => m[1]))].filter(id => !known.has(id));
-check('재구성 턴이 PMID 를 지어내지 않는다', invented.length === 0, invented.join(','));
+/**
+ * 표에 적힌 PMID 는 실제로 나온 것이어야 한다 — 재구성 턴이 논문을 지어내면 안 된다.
+ *
+ * 🔴 이 검사는 2026-09-23 까지 **두 가지로 오탐했다.** 6회 실행에서 3회 빨갛게 떴고
+ *    모델 결함으로 읽힐 뻔했는데, 전문을 찍어 보니 둘 다 검사 쪽 문제였다:
+ *
+ *  ① **카드는 버킷이 셋인데 하나만 봤다.** `paper-tool.ts` 의 `partitionPapers` 가
+ *     `papers`(인용 가능) · `retracted`(철회) · `noAbstract`(초록 없음) 로 가르고
+ *     **셋 다 카드에 실려 화면에 나간다.** `papers` 만 `known` 에 넣으면, 모델이
+ *     초록 없는 논문을 "초록 내용 미제공" 이라고 **정확히 표기해** 표에 넣은 것이
+ *     날조로 잡힌다. 실제로 23032554·24468694 가 그렇게 잡혔다.
+ *  ② **DOI 안의 숫자를 PMID 로 셌다.** `10.1080/23744235.2016.1201853` 에서
+ *     `23744235`(8자리)와 `1201853`(7자리)이 그대로 걸렸다. DOI 를 먼저 지운다.
+ *
+ * → 검사기가 프로덕션의 데이터 구조를 **절반만** 알고 있으면, 맞는 답을 틀렸다고 말한다.
+ */
+const cardPmids = (card: any) => [
+    ...(card?.papers ?? []), ...(card?.retracted ?? []), ...(card?.noAbstract ?? []),
+].map((p: any) => p.pmid);
+const known = new Set([...cardPmids(t1.card), ...cardPmids(t3.card)]);
+const proseNoDoi = t4.prose.replace(/10\.\d{4,9}\/[^\s|)\]]+/g, ' ');
+const invented = [...new Set([...proseNoDoi.matchAll(/\b(\d{7,8})\b/g)].map(m => m[1]))].filter(id => !known.has(id));
+check('재구성 턴이 PMID 를 지어내지 않는다', invented.length === 0, invented.join(','), t4.prose);
+// 어디서 왔는지 좁히려면 **카드에 있던 것**도 함께 봐야 한다 — 표가 통째로 지어낸 것인지,
+// 실제 논문 사이에 섞어 넣은 것인지가 처방을 가른다.
+if (invented.length) console.log(`     카드에 있던 PMID: ${[...known].join(',')}`);
 
 // ── 5턴: 가드의 폭발 반경 — 논문 카드가 떠 있어도 다른 도메인은 그대로 가야 한다 ──
 console.log('\n5턴  "오늘 서울 날씨 어때?"  (논문 카드가 떠 있는 상태)');
@@ -255,7 +290,7 @@ if (t7.card?.papers?.length) {
     check('적은 결과에서도 인용 번호가 카드 범위 안이다', over7.length === 0,
         over7.length ? `범위 밖 ${over7.join(',')} — 카드는 ${t7.card.papers.length}건뿐`
                      : `${JSON.stringify(cited7)} / ${t7.card.papers.length}건`);
-    const known7 = new Set([...first, ...(t3.card?.papers ?? []), ...(t6.card?.papers ?? [])].map((p: any) => p.pmid));
+    const known7 = new Set([...cardPmids(t1.card), ...cardPmids(t3.card), ...cardPmids(t6.card)]);
     const reused = t7.card.papers.filter((p: any) => known7.has(p.pmid));
     console.log(`     이전 카드와 겹침 ${reused.length}건`);
 } else {
@@ -264,4 +299,9 @@ if (t7.card?.papers?.length) {
 }
 
 console.log(`\n${failures === 0 ? '✅ 전부 통과' : `🔴 실패 ${failures}건`}`);
+for (const d of dumps) {
+    console.log(`\n──────── 실패 전문: ${d.label}${d.detail ? ` (${d.detail})` : ''} ────────`);
+    console.log(d.body);
+    console.log('──────── 전문 끝 ────────');
+}
 process.exit(failures === 0 ? 0 : 1);

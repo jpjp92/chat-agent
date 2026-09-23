@@ -147,7 +147,28 @@ npm run test:openai-live
 - GPT-5.4 mini 멀티턴: 성공, 약 1.41s
 - GPT-5.6 Luna 멀티턴: 성공, 약 1.52s
 - 자동 회귀 `test-chat-models.mts`: 66개 통과
-- 라이브 `test-openai-chat-models-live.mts`: GPT-5.4 mini/GPT-5.6 Luna 각각 멀티턴 + strict function call 확인(실제 비용, 자동 테스트 제외)
+- 라이브 `test-openai-chat-models-live.mts`: GPT-5.4 mini / GPT-5.6 luna / **GPT-6 luna** 각각 멀티턴 + strict function call 확인(실제 비용, 자동 테스트 제외)
+- 라이브 `manual/openai-6-luna/compare-luna.mts`: **gpt-6-luna 를 gpt-5.6-luna 와 같은 입력으로 나란히** 돌려
+  멀티턴·function·websearch·image 네 축의 결과 **종류**가 같은지 대조한다. capability 값을 모델 카드만 보고
+  적었기 때문에 필요한 검증이다 — 카드는 공급자 문서지 우리 요청 경로(Responses + strict function + hosted search)의 측정이 아니다.
+  `npx tsx tests/manual/openai-6-luna/compare-luna.mts` (OPENAI_API_KEY_TIER1 필요, 축 하나라도 갈리면 exit 1)
+- 라이브 `manual/openai-6-luna/compare-tools.mts`: **로컬 도구 11종 계약**을 두 모델로 나란히 잰다 —
+  도구를 부르는가 · 인자를 제대로 채우는가(`서울 강남구` → `sido=서울`) · fast-pass 는 그대로 통과시키고
+  synthesize 는 데이터를 산문에 반영하는가. **도구 정의는 프로덕션에서 import 하고 `execute` 만 스텁**이다
+  (정의를 복사하면 스키마가 바뀐 뒤에도 초록으로 남고, 진짜로 태우면 외부 API 11개의 그날 상태가 모델 비교에 섞인다).
+  🔴 **셀당 3회 반복이 필수다.** 초판은 1회였고 `arxiv_search` 에서 6-luna 만 실패한 것처럼 보였는데,
+  3회씩 돌리니 **5.6-luna 가 2/3 으로 더 자주 실패**했다 — 모델 차이가 아니라 그 케이스가 흔들리는 것이었다.
+  원인은 픽스처였다: 가짜 arXiv ID 가 **미래 날짜**(2609=2026년 9월)라 모델이 결과를 통째로 버렸다.
+  → **픽스처가 그럴듯하지 않으면 모델이 아니라 픽스처를 재게 된다.**
+  `npx tsx --tsconfig tests/tsconfig.probe.json --env-file=.env.local tests/manual/openai-6-luna/compare-tools.mts [반복수]`
+- 라이브 `manual/openai-6-luna/compare-quality.mts`: **정답률**을 잰다. 앞의 둘은 *계약*을 봤고
+  (계약이 같다고 답이 같지는 않다) 이건 같은 질문·같은 프롬프트에서 **맞히는가**를 본다.
+  🔴 픽스처와 채점기는 `gemini-3-8/tc-intents.mts` 를 **import** 한다 — 복사하면 한쪽을 고친 뒤
+  조용히 어긋나고, 그러면 3.6·3.7·3.8 수치와 **나란히 놓을 수 없게 된다**(자가 달라진다).
+  ⚠️ **천장에 부딪힐 수 있다.** 같은 14문항으로 Gemini 3종을 쟀을 때 252회가 전부 통과해 변별이 0이었다
+  (DEV_260922). 전부 만점이면 "같다"가 아니라 **"이 문항으로는 못 가린다"** 로 읽고 난이도를 올린다.
+  단일 `$` 누출은 합격·불합격이 아니라 **지표로만** 찍는다 — 3.8 측정에서 유일한 변별 축이었다.
+  `npx tsx --tsconfig tests/tsconfig.probe.json --env-file=.env.local tests/manual/openai-6-luna/compare-quality.mts [라운드수]`
 - 자동 회귀 `test-drug-fallback.mts`: 15개 통과
 
 자동 하니스는 `insufficient_quota` 외에도 `credit_balance_exhausted`, 조직/프로젝트 spend limit,

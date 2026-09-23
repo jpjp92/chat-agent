@@ -13,9 +13,10 @@ export const SERVER_MODELS = {
     TTS: "gemini-2.5-flash-preview-tts",
     GPT_5_4_MINI: "gpt-5.4-mini",
     GPT_5_6_LUNA: "gpt-5.6-luna",
+    GPT_6_LUNA: "gpt-6-luna",
 } as const;
 
-export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA;
+export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA | typeof SERVER_MODELS.GPT_6_LUNA;
 
 // 기본 모델 = 3.6 (Phase A 실그래프 검증 통과, DEV_260723 §11). 3.5·2.5 는 옵션으로 유지.
 export const DEFAULT_CHAT_MODEL: ChatModelId = SERVER_MODELS.FLASH_3_6;
@@ -82,4 +83,6 @@ export const isChatModelId = (m: unknown): m is ChatModelId =>
         SERVER_MODELS.FLASH_LITE,
         SERVER_MODELS.GPT_5_4_MINI,
         SERVER_MODELS.GPT_5_6_LUNA,
+        // 선택 UI 에서 legacy 로 내린 모델(5.4 mini)도 여기 남긴다 — 이유는 openai/models.ts 참조.
+        SERVER_MODELS.GPT_6_LUNA,
     ].includes(m as ChatModelId);

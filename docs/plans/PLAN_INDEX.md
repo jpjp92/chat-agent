@@ -1,6 +1,6 @@
 # Plan Index
 
-> 작성일: 2026-06-03 (갱신: 2026-09-22)
+> 작성일: 2026-06-03 (갱신: 2026-09-23)
 > 상태: Living index — active priorities, historical plans, and backlog references  
 > Purpose: separate active work, completed historical plans, and backlog references.
 
@@ -16,6 +16,18 @@
 > 🔴 [3.7 계획 §2](PLAN_MODEL_3_7_MIGRATION_260817.md)가 기록한 **3.6의 grounding 결함(정답률 2/5·검색어 항상 1개)은 둘 다 재현되지 않았다**(30/30, 검색어 평균 1.43·1.47·1.41).
 > 단 3.8이 검색 없이 3건을 맞혀 **문항이 세 모델 중 누구도 시험하지 못했으므로**, "3.6이 나아졌다"가 아니라 "이 문항으로는 못 가린다"로 읽는다.
 > 다음은 **문항 난이도 상향 후 재측정**이다 — grounding 문항의 판정 기준은 *검색을 끄면 틀리는가*다. 3.8 등록·배포는 미실시.
+
+> **2026-09-23 프롬프트 전수 검토:** [PLAN_PROMPT_LAYERING_260923](PLAN_PROMPT_LAYERING_260923.md) — **실행 전**.
+> 계층이 없는 게 아니라 **6층이 이미 있고 3층의 이름이 내용과 다르다.** 4개 언어 × 19개 의도를 실행해서 쟀다.
+> 🔴 **계층화의 근거는 캐시가 아니다(실측으로 뒤집힘)** — 분 단위 시각이 base **앞에** prepend 되는 건 맞지만(`generator.ts:87`),
+> 9/22 코퍼스의 `cachedContentTokenCount` 를 세니 **시각 블록 없이 prefix 를 완전 고정한 프로브에서도 히트 17/252(6.7%)** 였다
+> (기본 모델 3.6 은 84회 중 0회). prefix 를 지켜도 6.7%이므로 근거는 **검사 가능성 + 조건부 주입 절감**으로 옮긴다.
+> 🔴 **base 의 약 35%(7,393자)가 조건부인데 무조건 들어간다** — 영상·소스준수 블록이 *자기 적용 조건을 산문으로* 쓰고 있고,
+> 그 조건은 이미 코드에 불리언(`isYoutubeRequest`·`hasVideoData`·`webContent`)으로 있다. 의도 축이 아니라 **입력 소스 축**(`SOURCE_SECTIONS` — URL 은 첨부가 아니지만 같은 축)이 필요하다.
+> 그 외: 조립기가 **둘**(Gemini `generator.ts` / OpenAI `chat.ts`)이라 `assemble.ts` 는 양쪽을 다 통과해야 한다 ·
+> 턴 규칙 인라인 2,865자가 회귀 검사 밖 · `INTENT_FOCUS_HINTS` 비대(`paper_search` 6,534자 vs `sports` 0자).
+> 순서: Snapshot(**계층별 해시**) → 턴 규칙 추출 → contract test → 경계 정리 → 정책 구조화 → base 2분할 → 첨부 축 → **배치 A/B** → 장문 가독성.
+> 1~3 은 내용·순서 불변(안전 구간), 4 이후는 측정 동반. 가독성 결함 5건은 **9/23 선반영**(§13).
 
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
 

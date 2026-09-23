@@ -53,6 +53,14 @@ const GOLDEN_MODELS: Record<string, { section: string; label: L10n; description:
             es: 'Modelo predeterminado rápido y estable', fr: 'Modèle rapide et stable par défaut',
         },
     },
+    'gpt-6-luna': {
+        section: 'openai',
+        label: { ko: 'GPT-6 luna', en: 'GPT-6 luna', es: 'GPT-6 luna', fr: 'GPT-6 luna' },
+        description: {
+            ko: '최신 OpenAI 모델', en: 'Latest OpenAI model',
+            es: 'El modelo OpenAI más reciente', fr: 'Le dernier modèle OpenAI',
+        },
+    },
     'gpt-5.6-luna': {
         section: 'openai',
         label: { ko: 'GPT-5.6 luna', en: 'GPT-5.6 luna', es: 'GPT-5.6 luna', fr: 'GPT-5.6 luna' },
@@ -62,7 +70,7 @@ const GOLDEN_MODELS: Record<string, { section: string; label: L10n; description:
         },
     },
     'gpt-5.4-mini': {
-        section: 'openai',
+        section: 'legacy',
         label: { ko: 'GPT-5.4 mini', en: 'GPT-5.4 mini', es: 'GPT-5.4 mini', fr: 'GPT-5.4 mini' },
         description: {
             ko: '빠르고 효율적인 OpenAI 모델', en: 'Fast, efficient OpenAI model',

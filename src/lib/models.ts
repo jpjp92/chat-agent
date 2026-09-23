@@ -7,6 +7,7 @@ export const CHAT_MODELS = {
   FLASH: 'gemini-2.5-flash',
   GPT_5_4_MINI: 'gpt-5.4-mini',
   GPT_5_6_LUNA: 'gpt-5.6-luna',
+  GPT_6_LUNA: 'gpt-6-luna',
 } as const;
 
 export type ChatModelId = typeof CHAT_MODELS[keyof typeof CHAT_MODELS];
@@ -74,6 +75,17 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
     },
   },
   {
+    id: CHAT_MODELS.GPT_6_LUNA,
+    section: 'openai',
+    label: 'GPT-6 luna',
+    description: {
+      ko: '최신 OpenAI 모델',
+      en: 'Latest OpenAI model',
+      es: 'El modelo OpenAI más reciente',
+      fr: 'Le dernier modèle OpenAI',
+    },
+  },
+  {
     id: CHAT_MODELS.GPT_5_6_LUNA,
     section: 'openai',
     label: 'GPT-5.6 luna',
@@ -82,17 +94,6 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
       en: 'Balanced OpenAI model',
       es: 'Modelo OpenAI equilibrado',
       fr: 'Modèle OpenAI équilibré',
-    },
-  },
-  {
-    id: CHAT_MODELS.GPT_5_4_MINI,
-    section: 'openai',
-    label: 'GPT-5.4 mini',
-    description: {
-      ko: '빠르고 효율적인 OpenAI 모델',
-      en: 'Fast, efficient OpenAI model',
-      es: 'Modelo OpenAI rápido y eficiente',
-      fr: 'Modèle OpenAI rapide et efficace',
     },
   },
   {
@@ -115,6 +116,21 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
       en: 'Fast & balanced',
       es: 'Rápido y equilibrado',
       fr: 'Rapide et équilibré',
+    },
+  },
+  // 2026-09-23 legacy 강등. `gpt-6-luna` 가 들어오면서 OpenAI 칸을 최신 2종으로 유지한다.
+  // 🔴 목록에서 내렸을 뿐 **계속 동작한다** — `preferred_model` 로컬 스토리지에 이 값을 가진
+  //    세션이 그대로 올라오므로, 서버 허용 목록(`server/models.ts`·`openai/models.ts`)에서는
+  //    빼지 않는다. 빼면 그 사용자는 다음 전송에서 오류를 본다.
+  {
+    id: CHAT_MODELS.GPT_5_4_MINI,
+    section: 'legacy',
+    label: 'GPT-5.4 mini',
+    description: {
+      ko: '빠르고 효율적인 OpenAI 모델',
+      en: 'Fast, efficient OpenAI model',
+      es: 'Modelo OpenAI rápido y eficiente',
+      fr: 'Modèle OpenAI rapide et efficace',
     },
   },
 ];

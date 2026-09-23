@@ -15,7 +15,7 @@ const check = (name: string, condition: boolean, detail = '') => {
     else { fail++; console.log(`❌ ${name}${detail ? `\n     ${detail}` : ''}`); }
 };
 
-const expectedIds = ['gemini-3.7-flash', 'gpt-5.4-mini', 'gpt-5.6-luna'];
+const expectedIds = ['gemini-3.7-flash', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5.4-mini'];
 for (const id of expectedIds) {
     check(`클라이언트 레지스트리  ${id}`, isChatModelId(id));
     check(`선택 목록  ${id}`, CHAT_MODEL_OPTIONS.some(option => option.id === id));
@@ -25,8 +25,16 @@ check('기본 모델은 기존 3.6 유지', CHAT_MODELS.FLASH_3_6 === 'gemini-3.
 check('모델 선택 섹션 순서', CHAT_MODEL_SECTIONS.map(section => section.id).join(',') === 'gemini,openai,legacy');
 check('현재 Gemini 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'gemini').map(option => option.id).join(',') === 'gemini-3.7-flash,gemini-3.6-flash');
 // luna를 먼저 노출한다 — 카드 멀티턴 실측에서 5.4 mini보다 일관되게 정확했다(2026-08-23).
-check('OpenAI 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'openai').map(option => option.id).join(',') === 'gpt-5.6-luna,gpt-5.4-mini');
-check('이전 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'legacy').map(option => option.id).join(',') === 'gemini-3.5-flash,gemini-2.5-flash');
+// 2026-09-23: gpt-6-luna 추가, gpt-5.4-mini 는 legacy 로 내렸다.
+check('OpenAI 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'openai').map(option => option.id).join(',') === 'gpt-6-luna,gpt-5.6-luna');
+check('이전 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'legacy').map(option => option.id).join(',') === 'gemini-3.5-flash,gemini-2.5-flash,gpt-5.4-mini');
+// legacy 로 내려도 **선택은 계속 동작해야 한다** — 이미 그 모델을 쓰던 세션이 있다.
+check('legacy 로 내린 모델도 서버가 받는다', isChatModelId('gpt-5.4-mini'));
+check('legacy 로 내린 모델도 OpenAI 경로로 간다', isOpenAIChatModel('gpt-5.4-mini'));
+check('gpt-6-luna 가 OpenAI 채팅 모델로 인식된다', isOpenAIChatModel('gpt-6-luna'));
+// 모델 카드: Chat Completions 의 function calling 은 reasoning_effort=none 에서만 된다.
+check('gpt-6-luna chatReasoningEffort=none', openAIModelCapabilities('gpt-6-luna').chatReasoningEffort === 'none');
+check('gpt-6-luna 이미지 입력 지원', openAIModelCapabilities('gpt-6-luna').imageInput === true);
 
 const serverModelsSource = fs.readFileSync(new URL('../server/models.ts', import.meta.url), 'utf8');
 for (const id of expectedIds) {

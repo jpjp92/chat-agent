@@ -18,7 +18,10 @@ if (!process.env.OPENAI_API_KEY_TIER1) {
     process.exit(1);
 }
 
-const models = ['gpt-5.4-mini', 'gpt-5.6-luna'] as const;
+// gpt-5.4-mini 는 선택 UI 에서 legacy 로 내렸지만(2026-09-23) **계속 동작해야 하므로**
+// 스모크에는 남긴다 — 이미 그 모델을 고른 세션이 그대로 올라온다.
+// 축별 대조(검색·이미지 포함)는 `openai-6-luna/compare-luna.mts` 가 따로 한다.
+const models = ['gpt-5.4-mini', 'gpt-5.6-luna', 'gpt-6-luna'] as const;
 let failed = false;
 
 for (const model of models) {
