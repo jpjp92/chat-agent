@@ -26,7 +26,11 @@
 > 그 조건은 이미 코드에 불리언(`isYoutubeRequest`·`hasVideoData`·`webContent`)으로 있다. 의도 축이 아니라 **입력 소스 축**(`SOURCE_SECTIONS` — URL 은 첨부가 아니지만 같은 축)이 필요하다.
 > 그 외: 조립기가 **둘**(Gemini `generator.ts` / OpenAI `chat.ts`)이라 `assemble.ts` 는 양쪽을 다 통과해야 한다 ·
 > 턴 규칙 인라인 2,865자가 회귀 검사 밖 · `INTENT_FOCUS_HINTS` 비대(`paper_search` 6,534자 vs `sports` 0자).
-> 순서: Snapshot(**계층별 해시**) → 턴 규칙 추출 → contract test → 경계 정리 → 정책 구조화 → base 2분할 → 첨부 축 → **배치 A/B** → 장문 가독성.
+> 🔴 **2026-09-24 점검: 0단계가 실행 불가능이었다** — `finalInstruction` 이 generator 클로저의 지역 변수라
+> 스냅샷을 뜰 수 없는데 이후 단계의 `before === after` 가 전부 거기 매달려 있었다(순환). 게다가 조립 도중
+> **심평원 API 를 친다**(`generator.ts:151`) — 떼어내면 골든 테스트가 외부 API 에 의존한다.
+> → **이음매 만들기(사실/규칙 분리)가 0단계**가 되고, 그 단계만은 바이트 동일로 증명할 수 없어 행위 수준으로 검증한다.
+> 순서: 이음매 → Snapshot(**계층별 해시**) → 턴 규칙 추출 → contract test → 경계 정리 → 정책 구조화 → base 2분할 → 첨부 축 → **배치 A/B** → 장문 가독성.
 > 1~3 은 내용·순서 불변(안전 구간), 4 이후는 측정 동반. 가독성 결함 5건은 **9/23 선반영**(§13).
 
 아래 Active Priorities 표는 **영역별 목록**이고, 이건 **시간 순서**다. 둘이 어긋나면 이쪽이 최신이다.
