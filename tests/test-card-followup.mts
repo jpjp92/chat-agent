@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import { buildEmptyCardRules, buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, decideLawInteraction, decideLocationCardFollowup, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup, needsLiveStatusSearch } from '../server/agent/card-followup.js';
 import { resolveAreaCodesFromAddress } from '../server/agent/hospital-tool.js';
 import { assertSafeFastPassOutput, buildCardToolOutput, cardHasResults, sanitizeActiveCards, sanitizeCardContexts } from '../server/agent/card-tool-output.js';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import { assemblePrompt, type AssemblyState } from '../server/agent/prompt-assembly.js';
+import { getSystemInstruction } from '../server/agent/prompt.js';
 
 let passed = 0;
 const check = (name: string, actual: unknown, expected: unknown) => {
@@ -128,8 +131,37 @@ check('French 사실 블록 라벨 적용', frenchFacts.includes('Ouvertes maint
 check('빈 목록 폴백도 응답 언어 사용', frenchFacts.includes('aucune'), true);
 
 const generatorSource = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
-check('카드 후속 규칙이 내부 필드명 노출을 금지', generatorSource.includes('JSON 키 이름(is_open_now, hours_today 등)을 답변에 그대로 쓰지'), true);
-check('카드 후속 규칙이 긍정·부정 시작을 고정', generatorSource.includes("사실을 확인해 주면서 '아니요'로 시작하지 마세요"), true);
+
+/**
+ * 🔴 2026-09-24: 조립이 `prompt-assembly.ts` 로 빠지면서 **문구가 `generator.ts` 를 떠났고,
+ *    여기 있던 소스 grep 8건이 한꺼번에 빨개졌다.** 이 파일 맨 위가 경고하는 바로 그 취약점이다 —
+ *    소스 grep 은 문구가 이사하면 깨지고, 반대로 **문구가 바뀌어도 조용히 통과**한다.
+ *
+ * → grep 경로를 새 파일로 옮기지 않고 **조립 결과를 직접 본다.** 문구가 어느 파일에 있든,
+ *   조건 분기가 어떻게 바뀌든, **사용자에게 나가는 글**을 검사한다. 이게 실물이다.
+ */
+const cardTurnPrompt = (needsSearch: boolean): string => {
+    const state = {
+        intent: 'general', messages: [new HumanMessage('지금 진료해?')],
+        webContent: '', contextInfo: '', needsSearch,
+        cardFollowup: 'vet', cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
+        paperFollowup: false, reformatTurn: false,
+        movieFollowup: false, movieSearchTurn: false, movieContext: '', weatherFollowup: false,
+    } as AssemblyState;
+    return assemblePrompt({
+        base: getSystemInstruction('Korean'), state, langName: 'Korean',
+        latestUserText: '나루동물병원 지금 진료해?',
+        now: new Date('2026-09-24T10:00:00+09:00'), tz: 'Asia/Seoul',
+        currentDateStr: '2026년 9월 24일 목요일 오전 10:00 KST',
+        cardEntity: { namedEntity: '나루동물병원', namedAddress: '서울특별시 광진구 아차산로 537-17' },
+        hospitalStatus: null,
+    });
+};
+const searchTurn = cardTurnPrompt(true);
+const plainTurn = cardTurnPrompt(false);
+
+check('카드 후속 규칙이 내부 필드명 노출을 금지', plainTurn.includes('JSON 키 이름(is_open_now, hours_today 등)을 답변에 그대로 쓰지'), true);
+check('카드 후속 규칙이 긍정·부정 시작을 고정', plainTurn.includes("사실을 확인해 주면서 '아니요'로 시작하지 마세요"), true);
 
 for (const file of ['pharmacy-tool.ts', 'hospital-tool.ts', 'vet-tool.ts', 'law-tool.ts', 'movie-tool.ts', 'weather-tool.ts']) {
   const source = fs.readFileSync(new URL(`../server/agent/${file}`, import.meta.url), 'utf8');
@@ -160,10 +192,8 @@ check('검색 게이트가 미등록 플래그를 반영',
     generatorSource.includes('needsSearch: state.needsSearch || hospitalHoursUnavailable,'), true);
 // 실측(2026-08-24): `광진24시필동물병원 진료시간` 답변이 출처 없이 "24시간 운영"이라고 단정했다.
 // 상호에 '24시'가 있다는 건 근거가 아니다 — 검색으로 확인된 것만 말하도록 못 박는다.
-check('진료시간은 검색으로 확인된 것만 말하도록 고정',
-    generatorSource.includes('검색으로 확인된 것만** 말하세요'), true);
-check('상호의 24시 표기를 근거로 삼지 못하게 명시',
-    generatorSource.includes('상호명에 24시라는 표기가 있다는 것은 근거가 아닙니다'), true);
+check('진료시간은 검색으로 확인된 것만 말하도록 고정', searchTurn.includes('검색으로 확인된 것만** 말하세요'), true);
+check('상호의 24시 표기를 근거로 삼지 못하게 명시', searchTurn.includes('상호명에 24시라는 표기가 있다는 것은 근거가 아닙니다'), true);
 // 실측(2026-08-24): `나루동물병원 진료시간`에 상호만으로 검색해 **종로의 동명 병원** 시간을 가져왔다.
 // 검색어 구성은 모델에 달려 있어 믿을 수 없으므로, 서버가 대상을 값으로 주고 결과 검증을 건다.
 const target = buildSearchTargetBlock('나루동물병원', '서울특별시 광진구 아차산로 537-17 (광장동)');
@@ -172,12 +202,11 @@ check('결과 주소가 다르면 버리도록 지시', target.includes('그 결
 check('주소가 없으면 대상 블록 생략', buildSearchTargetBlock('이름만', ''), '');
 check('검색 대상 블록도 응답 언어를 따름',
     buildSearchTargetBlock('Naru', '123 Main St', 'English').includes('Search target'), true);
-check('generator가 검색 턴에만 대상 블록 주입',
-    generatorSource.includes('buildSearchTargetBlock(namedEntity'), true);
-check('규칙이 대상 블록 준수를 요구',
-    generatorSource.includes('결과 주소가 다르면 동명의 다른 기관이므로 버리세요'), true);
-check('검색 없는 턴은 인허가 상태 오독을 금지', generatorSource.includes('인허가 상태(영업·정상)를 영업 중으로 해석하지 말고'), true);
-check('검색 허용 턴은 전화 확인을 강제', generatorSource.includes('방문 전 전화 확인이 필요하다는 점을 반드시 함께 밝히세요'), true);
+// 소스가 아니라 **결과**로 본다 — 검색 턴에만 대상 블록이 실제로 실리는가.
+check('검색 턴에만 대상 블록 주입', searchTurn.includes('서울특별시 광진구 아차산로 537-17') && !plainTurn.includes('서울특별시 광진구 아차산로 537-17'), true);
+check('규칙이 대상 블록 준수를 요구', searchTurn.includes('결과 주소가 다르면 동명의 다른 기관이므로 버리세요'), true);
+check('검색 없는 턴은 인허가 상태 오독을 금지', plainTurn.includes('인허가 상태(영업·정상)를 영업 중으로 해석하지 말고'), true);
+check('검색 허용 턴은 전화 확인을 강제', searchTurn.includes('방문 전 전화 확인이 필요하다는 점을 반드시 함께 밝히세요'), true);
 const routerSource = fs.readFileSync(new URL('../server/agent/nodes/router.ts', import.meta.url), 'utf8');
 check('카드 후속 검색은 needsLiveStatusSearch가 결정', routerSource.includes('needsSearch = needsLiveStatusSearch(cardFollowup, textContent, cardFollowupNames);'), true);
 
@@ -219,7 +248,12 @@ check('병원 사실 블록도 응답 언어를 따름', buildHospitalHoursFacts
 const hoursSource = fs.readFileSync(new URL('../server/agent/hospital-hours.ts', import.meta.url), 'utf8');
 check('ykiho를 카드 JSON에 싣지 않음', hoursSource.includes('ykiho(암호화된 요양기호)를 카드 JSON에 싣지 않는다'), true);
 check('병원 세부정보는 2.8 엔드포인트', hoursSource.includes('MadmDtlInfoService2.8/getDtlInfo2.8'), true);
-check('generator가 지목된 병원만 조회', generatorSource.includes('needsHospitalHoursLookup(kind, latestUserText)'), true);
+// 조회 게이트는 **배선**이라 소스로 본다(문구가 아니다). 2026-09-24 조립 분리로 표현이
+// `kind` → `state.cardFollowup` 로 바뀌었고, 지목된 상호가 있을 때만 실제 호출이 나간다.
+check('generator가 지목된 턴에만 조회 게이트를 연다',
+    generatorSource.includes('needsHospitalHoursLookup(state.cardFollowup, latestUserText)'), true);
+check('generator가 지목된 상호가 있을 때만 심평원을 친다',
+    generatorSource.includes('cardEntity.namedEntity && areaCodes'), true);
 
 // 실측(2026-08-24): 심평원 백엔드가 느려지며 200 + 빈 본문을 돌려줬는데 errMsg가 없어
 // "광진구에 해당하는 병원 정보를 찾을 수 없습니다"로 표시됐다. 장애를 부재로 보고하면 안 된다.
@@ -227,6 +261,16 @@ for (const [file, label] of [['hospital-tool.ts', '병원'], ['pharmacy-tool.ts'
   const source = fs.readFileSync(new URL(`../server/agent/${file}`, import.meta.url), 'utf8');
   check(`${label} 빈 본문을 0건이 아닌 조회 실패로 처리`, source.includes("includes('<totalCount>')"), true);
   check(`${label} 조회 실패는 재시도 안내로 표시`, source.includes('불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'), true);
+}
+
+// 🔴 2026-09-24(6단계): 위 루프는 병원·약국만 봤는데 **동물병원·법령도 같은 모양**이다 —
+//    실패도 0건도 똑같이 `count: 0, [], notice` 로 나가고, **둘을 가르는 건 notice 문구뿐**이다.
+//    문구가 같아지면 장애가 "그런 건 없습니다"로 사용자에게 간다(2026-08-24 광진구 사건이 그것).
+//    타입이 아니라 한국어 문장이 구분자이므로, 검사가 없으면 리팩터링에서 조용히 합쳐진다.
+for (const [file, label] of [['vet-tool.ts', '동물병원'], ['law-tool.ts', '법령']] as const) {
+  const source = fs.readFileSync(new URL(`../server/agent/${file}`, import.meta.url), 'utf8');
+  check(`${label} 조회 실패는 재시도 안내로 표시`, source.includes('불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'), true);
+  check(`${label} 0건 안내는 실패 안내와 다른 문구다`, source.includes('찾을 수 없습니다'), true);
 }
 
 // 실측(2026-08-24): 심평원 B551182만 5회 중 2회 무응답(25s)·성공도 10.2~10.8초.
@@ -282,10 +326,28 @@ check('빈 본문도 재시도 대상', hospitalSource.includes("empty body, ret
 const routerSrcMovie = fs.readFileSync(new URL('../server/agent/nodes/router.ts', import.meta.url), 'utf8');
 const generatorSrcMovie = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
 check('검색 턴 플래그를 라우터가 내보낸다', /movieSearchTurn: forceSearch/.test(routerSrcMovie), true);
-check('검색 턴에도 화면 상영작을 주입한다',
-    /state\.movieFollowup \|\| state\.movieSearchTurn/.test(generatorSrcMovie), true);
+// 여기도 소스 grep 대신 **조립 결과**로 본다(2026-09-24). 조건식이 어떻게 쓰이든
+// "검색 턴에도 상영표가 모델에게 실제로 전달되는가"가 지켜야 할 것이다.
+const movieTurn = (flags: { movieFollowup: boolean; movieSearchTurn: boolean }): string => assemblePrompt({
+    base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '오디세이 줄거리 검색해줘',
+    now: new Date('2026-09-24T10:00:00+09:00'), tz: 'Asia/Seoul',
+    currentDateStr: '2026년 9월 24일 목요일 오전 10:00 KST',
+    cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null,
+    state: {
+        intent: 'general', messages: [new HumanMessage('오디세이 줄거리 검색해줘')],
+        webContent: '', contextInfo: '', needsSearch: true,
+        cardFollowup: '', cardContexts: {}, paperFollowup: false, reformatTurn: false,
+        movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
+        weatherFollowup: false, ...flags,
+    } as AssemblyState,
+});
+const searchOnly = movieTurn({ movieFollowup: false, movieSearchTurn: true });
+check('검색 턴에도 화면 상영작을 주입한다', searchOnly.includes('오디세이 / CGV 강남'), true);
 check('화면에 있는 제목을 부정하지 말라고 명시한다',
-    generatorSrcMovie.includes('화면에 표시된 제목은 실재하는 상영작'), true);
+    searchOnly.includes('화면에 표시된 제목은 실재하는 상영작'), true);
+check('상영표가 없는 턴에는 주입하지 않는다',
+    movieTurn({ movieFollowup: false, movieSearchTurn: false }).includes('오디세이 / CGV 강남'), false);
+void generatorSrcMovie;
 
 const dispatchSource = fs.readFileSync(new URL('../server/agent/stream-dispatch.ts', import.meta.url), 'utf8');
 check('law_qa는 중간 법률 카드를 SSE로 노출하지 않음', dispatchSource.includes("event.name === 'lawTool' && st.detectedIntent === 'law_qa'"), true);
@@ -393,9 +455,27 @@ console.log('\n§G 빈 카드 턴에 무엇을 말할지 준다 — fast-pass �
     check('extraInstructions 가 실제로 instructions 에 합쳐진다',
         /requestState\.extraInstructions[\s\S]{0,120}options\.instructions/.test(oaiSrc), true);
 
-    const genSrc = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
-    check('🔴 generator 가 빈 카드일 때만 규칙을 넣는다',
-        /!cardHasResults\(lastToolText\)[\s\S]{0,120}buildEmptyCardRules\(\)/.test(genSrc), true);
-    check('마지막 tool 메시지를 본다 (tools → generator 두 번째 통과)',
-        /_getType\?\.\(\) === 'tool'/.test(genSrc), true);
+    // 2026-09-24: 조립이 prompt-assembly.ts 로 빠졌다. 소스 정규식 대신 **결과**로 본다 —
+    // 빈 카드 turn 에만 규칙이 실리는가, 그리고 결과가 있는 카드에는 안 실리는가.
+    const toolTurn = (toolOutput: string): string => {
+        const toolMsg: any = new AIMessage(toolOutput);
+        toolMsg._getType = () => 'tool';
+        return assemblePrompt({
+            base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '약국 찾아줘',
+            now: new Date('2026-09-24T10:00:00+09:00'), tz: 'Asia/Seoul',
+            currentDateStr: '2026년 9월 24일 목요일 오전 10:00 KST',
+            cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null,
+            state: {
+                intent: 'pharmacy_search', messages: [new HumanMessage('약국 찾아줘'), toolMsg],
+                webContent: '', contextInfo: '', needsSearch: false,
+                cardFollowup: '', cardContexts: {}, paperFollowup: false, reformatTurn: false,
+                movieFollowup: false, movieSearchTurn: false, movieContext: '', weatherFollowup: false,
+            } as AssemblyState,
+        });
+    };
+    const emptyMarker = buildEmptyCardRules().slice(0, 40);
+    check('🔴 빈 카드 턴에만 규칙이 실린다',
+        toolTurn('```json:pharmacy\n{"count":0,"pharmacies":[]}\n```').includes(emptyMarker), true);
+    check('결과가 있는 카드에는 실리지 않는다',
+        toolTurn('```json:pharmacy\n{"count":2,"pharmacies":[{"name":"가"},{"name":"나"}]}\n```').includes(emptyMarker), false);
 }

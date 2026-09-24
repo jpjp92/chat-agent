@@ -3,18 +3,16 @@ import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
-import { getIntentFocusHint, getRendererSections } from "../prompt";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from "./generation-config";
 import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
-import { cardHasResults } from "../card-tool-output";
-import { buildCardFollowupFacts, buildEmptyCardRules, buildHospitalHoursFacts, buildPaperFollowupRules, buildSearchTargetBlock, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup } from "../card-followup";
+import { needsHospitalHoursLookup } from "../card-followup";
+import { assemblePrompt, resolveCardEntity } from "../prompt-assembly";
 import { fetchHospitalOpenStatus } from "../hospital-hours";
 import { resolveAreaCodesFromAddress } from "../hospital-tool";
 import { runLangChainPath } from "./langchain-path";
-import { buildDateLadder } from "../weather-followup";
 import { applyGeminiCitations } from "../gemini-citations";
 import { generateOpenAIChat } from "../../openai/chat";
 import { isOpenAIChatModel } from "../../openai/models";
@@ -72,8 +70,6 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             return lastHuman ? extractTextContent(lastHuman.content) : '';
         })();
 
-        let finalInstruction = systemInstructionBase;
-
         // Inject Current Date/Time to prevent hallucination
         const now = new Date();
         const tz = state.timeZone || 'Asia/Seoul';
@@ -81,129 +77,33 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
             year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
             hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'short'
         }).format(now);
-        // 🔴 주입만으로는 부족했다. 실측(2026-08-24 00:20 KST): `오늘 나온 AI 뉴스`에 검색 결과
-        //    기사 게시일(8/23)을 그대로 "오늘"이라고 답했다. 자정 직후에는 검색 결과 대부분이
-        //    전날 자료라 모델이 그쪽을 오늘로 삼는다 — 이 값이 유일한 근거임을 못 박는다.
-        finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n`
-            + `- This is the ONLY source for today's date. Never infer it from search results, article publication dates, or your training data.\n`
-            + `- Just after midnight most search results are from the previous day. That does NOT change today's date — it is still the value above.\n`
-            + `- If the user asks for "today" and the newest material you found is from an earlier date, give that material but say in one short sentence which date it is from and that little has been published yet today. Do not silently present an earlier date's material as today's.\n\n`
-            + finalInstruction;
 
-        // Inject Dynamic Contexts
-        if (state.webContent) {
-            finalInstruction += `\n\n[PROVIDED_SOURCE_TEXT]\n${state.webContent}`;
-        }
-        if (state.contextInfo) {
-            finalInstruction += `\n\n${state.contextInfo}`;
-        }
-        // 영화 후속 질문(라우터가 movieFollowup으로 판정한 턴만): 화면 상영표 요약을 컨텍스트로 주입.
-        // 데이터에 답이 없으면 솔직히 말하고 검색/지점조회를 안내(json:movie 카드는 재생성하지 말 것).
-        // 🔴 검색 턴(movieSearchTurn)도 포함해야 한다. 예전엔 movieFollowup 만 봐서, "줄거리
-        //    검색해줘" 턴에 화면 상영작이 모델에게 전달되지 않았다 — 오디세이가 CGV 강남에
-        //    걸려 있는데 "'오디세이'라는 제목의 영화는 찾기 어렵지만" 하며 **마션 줄거리**를
-        //    답했다(실측 2026-08-31). 모델의 학습 시점 이후 개봉작이면 그냥 없는 영화가 된다.
-        if ((state.movieFollowup || state.movieSearchTurn) && state.movieContext) {
-            finalInstruction += `\n\n${state.movieContext}\n\n[영화 상영표 후속 질문 처리 규칙]\n- 위 "현재 화면에 표시된 영화 상영시간표" 데이터를 근거로 사용자의 후속 질문(비교·필터·"~만 상영"·가장 빠른/늦은 회차 등)에 간결히 답하세요.\n- 데이터에 없는 정보(줄거리·평점·예매율·관객수·장르·다른 지역/지점 등)는 절대 지어내지 마세요. 대신 "상영표에는 그 정보가 없어요"라고 밝힌 뒤, 반드시 마지막에 "웹에서 검색해 드릴까요?"라고 사용자에게 물어보세요. (사용자가 동의하면 다음 턴에 자동으로 웹 검색이 수행됩니다.)\n- json:movie 카드 블록을 다시 생성하지 마세요(이미 화면에 있음). 텍스트로만 답하세요.`;
-        }
-        if (state.movieSearchTurn && state.movieContext) {
-            // 🔴 검색 결과보다 화면이 우선이다. 상영표는 극장사에서 방금 받아온 값이라
-            //    "그 영화가 실재하고 지금 상영 중" 이라는 사실의 근거로는 웹 검색보다 강하다.
-            finalInstruction += `\n\n[화면 상영작에 대한 웹 검색 규칙]\n- 화면에 표시된 제목은 실재하는 상영작입니다. 극장 상영표에서 방금 조회한 값이므로, 검색 결과가 부실하더라도 "그런 영화를 찾을 수 없다"고 말하거나 **다른 영화로 바꿔 답하지 마세요**.\n- 사용자가 물은 그 제목에 대해서만 답하세요. 정보를 못 찾았으면 못 찾았다고 그대로 밝히세요(비슷한 다른 작품의 줄거리로 대체하는 것은 명백한 오답입니다).\n- 최신 개봉작이라 사전 지식에 없을 수 있습니다. 화면 상영표가 그 영화의 존재를 증명합니다.`;
-        }
-
-        // 날씨 후속 대화(라우터가 weatherFollowup으로 판정한 턴): 카드는 이미 화면에 있고 그 수치가
-        // 히스토리의 json:weather 블록에 그대로 들어 있다. 카드/5일 표를 다시 그리지 말고 그 데이터로
-        // 대화하도록 지시한다. (표 규칙 [WEATHER FORMATTING]은 이제 weather 의도에만 주입되므로
-        //  이 턴엔 애초에 없지만, 히스토리의 이전 카드/표를 따라 그리는 관성은 남아 명시적으로 막는다.)
-        if (state.weatherFollowup) {
-            // 날짜 대응을 **모델에게 계산시키지 않는다.** 실측(2026-08-17): `내일 서울 비와?`에
-            // 카드의 히어로 블록(= 오늘 강수 `19mm·60%`)을 그대로 집어 "내일 60%"라고 답했고,
-            // 같은 답변에서 18일을 "모레"라고 불렀다(하루씩 밀림). 프롬프트에 CURRENT_SYSTEM_TIME이
-            // 있어도 daily[].date와의 대응은 별개의 계산이라 틀린다 → 대응표를 서버가 만들어 준다.
-            finalInstruction += `\n\n[날짜 대응표 — 이번 턴, 이 값이 정답입니다]\n${buildDateLadder(now, tz)}\n- \`json:weather\`의 \`daily[].date\`(YYYY-MM-DD)를 **위 표와 대조해서** 해당 날짜의 값을 쓰세요. 직접 날짜를 계산하지 마세요.\n- 🔴 \`current\`와 강수 히어로 블록은 **오늘** 값입니다. 내일·모레를 물으면 절대 쓰지 말고 \`daily\`에서 그 날짜를 찾으세요.\n- 요청받은 날짜가 \`daily\` 범위 밖이면 예보가 거기까지 없다고 밝히세요.`;
-            finalInstruction += `\n\n[날씨 후속 대화 처리 규칙]\n- 화면에는 이미 날씨 카드가 표시되어 있고, 대화 기록의 \`json:weather\` 블록에 그 수치(현재 기온·체감·습도·5일 예보)가 들어 있습니다. 그 데이터를 근거로 사용자의 후속 질문(가장 더운 요일, 우산·빨래·외출 판단, 습도 해석, 옷차림 등)에 대화하듯 간결히 답하세요.\n- \`json:weather\` 블록을 다시 생성하지 마세요(이미 화면에 있음).\n- 5일 예보 표를 다시 그리지 마세요. 필요한 수치만 문장 안에서 인용하세요.\n- 데이터에 없는 정보(미세먼지·자외선·과거 기록·다른 지역 등)는 지어내지 말고 없다고 밝히세요.\n- 사용자가 다른 주제로 넘어가면 날씨 이야기를 계속 끌고 가지 말고 그 주제로 자연스럽게 이어가세요.`;
-        }
-
-        // 병원 세부정보가 미등록이라 서버 계산이 실패한 턴. 이 경우에만 검색으로 내려간다 —
-        // 실측(2026-08-24, 광진구 표본 30): 세부정보 등록률이 전체 30%, 의원은 3/21뿐이다.
-        // 있는 정답(심평원)을 두고 추정하지 않되, 없을 때 침묵하지도 않기 위한 폴백이다.
+        // 🔴 **사실 수집은 여기, 규칙 조립은 prompt-assembly.ts** (PLAN_PROMPT_LAYERING §7-6).
+        //    심평원 조회가 조립 한복판에 `await` 로 박혀 있어서 조립을 떼어낼 수가 없었다 —
+        //    떼면 조립 함수가 네트워크를 타고 골든 테스트가 외부 API 에 좌우된다.
+        //    기관 지목은 **한 번만** 구해 조회와 조립에 함께 넘긴다(두 경로가 다른 기관을 보면 안 된다).
+        const followupCardContext = state.cardFollowup ? state.cardContexts?.[state.cardFollowup] : undefined;
+        const cardEntity = followupCardContext
+            ? resolveCardEntity(followupCardContext, latestUserText)
+            : { namedEntity: undefined, namedAddress: '' };
+        let hospitalStatus: Awaited<ReturnType<typeof fetchHospitalOpenStatus>> | null = null;
+        // 🔴 이건 규칙이 아니라 **사실**이라 호출부에 남는다 — 아래 검색 게이트 두 곳이 읽는다.
+        //    (조립부도 같은 값을 내부에서 판정한다. 조건이 같으므로 두 값은 항상 일치한다 —
+        //     `needsHospitalHoursLookup` 이 참인데 조회 결과가 없으면 참.)
         let hospitalHoursUnavailable = false;
-
-        if (state.cardFollowup && state.cardContexts?.[state.cardFollowup]) {
-            const kind = state.cardFollowup;
-            const cardContext = state.cardContexts[kind]!;
-            let cardFacts = buildCardFollowupFacts(kind, cardContext, langName);
-
-            // 사용자가 카드의 어느 기관을 지목했는가. 병원 진료시간 조회와 검색 대상 고정에
-            // 같은 값을 쓴다 — 두 경로가 다른 기관을 보면 안 된다.
-            const namedEntity = extractCardEntityNames(cardContext)
-                .find(name => latestUserText.replace(/\s+/g, '').includes(name.replace(/\s+/g, '')));
-            const namedAddress = namedEntity ? findCardEntityAddress(cardContext, namedEntity) : '';
-
-            // 병원 "지금 진료하나": 카드(병원기본목록)에는 진료시간이 없다. 심평원 세부정보로
-            // 지목된 1건만 조회해 약국과 동일하게 서버가 상태를 확정한다. 실패하면 사실 블록을
-            // 붙이지 않고 아래 기본 규칙("자료에 없음 + 전화 확인")이 그대로 적용된다.
-            if (needsHospitalHoursLookup(kind, latestUserText)) {
-                const named = namedEntity;
-                const address = namedAddress;
-                const areaCodes = address ? resolveAreaCodesFromAddress(address) : undefined;
-                const status = named && areaCodes ? await fetchHospitalOpenStatus(named, areaCodes, now) : null;
-                if (status) {
-                    cardFacts = `${cardFacts ? `${cardFacts}\n\n` : ''}${buildHospitalHoursFacts(status, langName)}`;
-                } else {
-                    // 상호를 못 집었거나(이름 없이 물음) 세부정보가 미등록인 경우 모두 여기로 온다.
-                    hospitalHoursUnavailable = true;
-                }
-            }
-            // 라우터가 이 턴에만 검색을 열어 준 경우(동물병원 진료 여부). 카드에 그 사실이 없으므로
-            // "추측 금지"를 유지하면 답이 막히고, 그냥 풀면 인허가 상태를 영업중으로 단정한다.
-            // 검색 근거로 답하되 확정이 아님과 전화 확인을 함께 말하도록 규칙을 갈아끼운다.
-            const liveStatusSearch = state.needsSearch === true || hospitalHoursUnavailable;
-            // 검색으로 내려가는 턴에는 대상 기관을 값으로 못 박는다. 실측(2026-08-24): 상호만으로
-            // 검색해 종로의 동명 동물병원 시간을 가져왔다. 검색어 구성보다 결과 검증이 확실하다.
-            const searchTarget = liveStatusSearch
-                ? buildSearchTargetBlock(namedEntity ?? '', namedAddress, langName)
-                : '';
-            if (searchTarget) cardFacts = `${cardFacts ? `${cardFacts}\n\n` : ''}${searchTarget}`;
-            finalInstruction += `\n\n[DISPLAYED_CARD_SOURCE: ${kind}]\n${cardContext}${cardFacts ? `\n\n${cardFacts}` : ''}\n\n[표시된 카드 후속 대화 규칙]\n- 위 카드 데이터만 근거로 현재 질문에 자연스러운 텍스트로 답하세요. 카드 JSON을 다시 출력하거나 새 카드를 만들지 마세요.\n${liveStatusSearch ? '- 공식 자료에 이 기관의 진료시간이 없습니다. 이번 턴에 한해 웹 검색 결과를 근거로 답할 수 있습니다.\n- 🔴 진료시간·영업시간은 **검색으로 확인된 것만** 말하세요. 검색 결과에 없으면 기억이나 추측으로 채우지 말고 확인되지 않는다고 말하세요. 상호명에 24시라는 표기가 있다는 것은 근거가 아닙니다.\n- 검색으로 찾았더라도 확정된 정보가 아니라는 점과 방문 전 전화 확인이 필요하다는 점을 반드시 함께 밝히세요.\n- 위 [검색 대상] 블록이 있으면 그 상호와 주소의 기관만 답하세요. 결과 주소가 다르면 동명의 다른 기관이므로 버리세요.\n- 검색 결과로 새 카드를 만들지 말고 문장으로 답하세요.\\n- 카드의 인허가 상태(영업·정상)는 폐업하지 않았다는 뜻일 뿐 지금 진료 중이라는 근거가 아닙니다. 이것만 보고 영업 중이라고 말하지 마세요.' : '- 카드에 없는 거리, 진료과, 영업 여부, 법적 효과나 수치를 추측하지 마세요. 필요한 정보가 없으면 카드에는 없다고 짧게 밝히세요.\\n- 병원·동물병원 카드에는 현재 진료 여부가 없습니다. 인허가 상태(영업·정상)를 영업 중으로 해석하지 말고, 확인하려면 전화가 필요하다고 밝히세요.'}\n- 약국 카드의 현재 영업 여부는 위 [약국 영업 상태] 블록을 최우선으로 따르세요. 카드에 적힌 영업시간만 보고 현재 영업 중이라고 판단하거나 그 블록과 모순되는 답을 하지 마세요.\n- 🔴 위 블록들은 내부 참고 자료입니다. 대괄호 제목, 항목 이름, JSON 키 이름(is_open_now, hours_today 등)을 답변에 그대로 쓰지 말고 자연스러운 한국어로 바꿔 말하세요.\n- 사용자의 추측이 카드 사실과 맞으면 긍정으로, 어긋나면 부정으로 답을 시작하세요. 사실을 확인해 주면서 '아니요'로 시작하지 마세요.\n- 사용자 위치 좌표와 거리 데이터가 없으면 도로명 일치 결과를 '가장 가까운 순서'라고 표현하지 마세요. 정확한 거리 비교에는 상세 위치가 필요하다고 짧게 밝히세요.\n- 사용자가 선택·확인·감사를 표현했다면 같은 목록을 반복하지 말고 한두 문장으로 응답하세요.\n- 법률 카드라면 조문 문언과 시행일을 구분해 설명하고, 개별 사건에 대한 확정적 법률 판단처럼 말하지 마세요.`;
+        if (state.cardFollowup && followupCardContext && needsHospitalHoursLookup(state.cardFollowup, latestUserText)) {
+            const areaCodes = cardEntity.namedAddress ? resolveAreaCodesFromAddress(cardEntity.namedAddress) : undefined;
+            hospitalStatus = cardEntity.namedEntity && areaCodes
+                ? await fetchHospitalOpenStatus(cardEntity.namedEntity, areaCodes, now)
+                : null;
+            // 상호를 못 집었거나(이름 없이 물음) 세부정보가 미등록인 경우 모두 여기로 온다.
+            if (!hospitalStatus) hospitalHoursUnavailable = true;
         }
 
-        // 조회가 빈손으로 끝난 두 번째 통과(tools → generator). fast-pass 는 `cardHasResults` 가
-        // 껐고(langchain-path), 여기서는 **무엇을 말할지**를 준다 — 지시가 없으면 모델이 카드
-        // 안내문만 되풀이한다. 판정·문구는 순수 함수로 빼 하니스가 실물을 검사한다.
-        const lastToolMsg = [...state.messages].reverse().find(m => m._getType?.() === 'tool');
-        const lastToolText = typeof lastToolMsg?.content === 'string' ? lastToolMsg.content : '';
-        if (lastToolText.includes('```json:') && !cardHasResults(lastToolText)) {
-            finalInstruction += `\n\n${buildEmptyCardRules()}`;
-        }
-
-        // 화면 논문 카드를 두고 묻는 턴 — 카드가 유일한 근거다. 규칙 본문은 card-followup.ts 에
-        // 있다(하니스가 임포트해서 문구 자체를 검사한다. 소스 grep 은 문구가 바뀌면 조용히 통과한다).
-        if (state.paperFollowup) {
-            finalInstruction += `\n\n${buildPaperFollowupRules()}`;
-        }
-
-        // 재구성 요청 턴(라우터 follow_up="refine"): "표로 정리해줘"·"요약해줘"·"비교해줘".
-        // 이런 턴은 툴도 검색도 없이 도는 경우가 많아 모델이 추가한 내용을 검증할 장치가 없다.
-        // 정적 프롬프트의 [REFORMAT REQUESTS] 규칙만으로는 안 먹혔다 — 직전 턴이 **빈 응답**이었는데
-        // 제품 4개짜리 표를 만들어낸 사례가 있다(DEV_260815_DEPLOY_CHECK). 해당 턴에만 강하게 못 박는다.
-        if (state.reformatTurn) {
-            finalInstruction += `\n\n[재구성 요청 처리 규칙 — 이번 턴]\n- 이 턴은 직전 답변을 **다른 형식으로 다시 보여달라**는 요청입니다. 형식만 바꾸고 내용은 그대로 보존하세요.\n- 직전 답변에 없던 항목·제품명·브랜드·제조사·수치·날짜를 **추가하지 마세요.** 표의 행 수가 직전 답변의 항목 수보다 많아지면 잘못된 것입니다.\n- 칸을 채울 정보가 없으면 비워두거나 열을 빼세요. 기억으로 채우지 마세요.\n- **직전 답변이 비어 있거나 실패했다면 재구성할 대상이 없다고 말하세요.** 없는 원본을 상상해서 만들지 마세요.\n- 사용자가 명시적으로 "더 추가해서"·"다른 것도"라고 요청한 경우에만 예외입니다.`;
-        }
-
-        // 이번 턴 의도에 필요한 렌더러 스펙만 주입한다(base에는 더 이상 없음 — prompt.ts INTENT_RENDERERS).
-        // 순서: base → 렌더러 스펙 → 의도 힌트. base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다.
-        const rendererSections = getRendererSections(state.intent, langName);
-        if (rendererSections) {
-            finalInstruction += `\n\n${rendererSections}`;
-        }
-
-        // Inject intent-specific focus hint to guide renderer selection
-        const intentHint = getIntentFocusHint(state.intent);
-        if (intentHint) {
-            finalInstruction += `\n\n${intentHint}`;
-        }
+        const finalInstruction = assemblePrompt({
+            base: systemInstructionBase, state, langName, latestUserText,
+            now, tz, currentDateStr, cardEntity, hospitalStatus,
+        });
 
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)

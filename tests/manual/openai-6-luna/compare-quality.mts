@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import { HumanMessage } from '@langchain/core/messages';
 import { generateOpenAIChat } from '../../../server/openai/chat.js';
-import { getSystemInstruction, getRendererSections, getIntentFocusHint } from '../../../server/agent/prompt.js';
+import { getSystemInstruction, getRendererSections, getIntentPolicy } from '../../../server/agent/prompt.js';
 import { openAIModelCapabilities } from '../../../server/openai/models.js';
 import { tcs, score } from '../gemini-3-8/tc-intents.mjs';
 
@@ -47,7 +47,7 @@ const cases = tcs.map(tc => ({
     tc,
     // 프로덕션과 같은 조립 — base + 의도별 렌더러 스펙 + 의도 정책.
     instructions: [getSystemInstruction('Korean'), getRendererSections(tc.intent, 'Korean'),
-        getIntentFocusHint(tc.intent)].filter(Boolean).join('\n\n'),
+        getIntentPolicy(tc.intent)].filter(Boolean).join('\n\n'),
 }));
 
 const maxCalls = cases.length * MODELS.length * ROUNDS;

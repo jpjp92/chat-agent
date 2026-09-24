@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { config as loadEnv } from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, type Content } from '@google/genai';
-import { getSystemInstruction, getRendererSections, getIntentFocusHint } from '../../../server/agent/prompt';
+import { getSystemInstruction, getRendererSections, getIntentPolicy } from '../../../server/agent/prompt';
 import { resolveThinkingConfig } from '../../../server/agent/nodes/generation-config';
 import { score, passed, tcs } from './tc-intents.mjs';
 
@@ -43,7 +43,7 @@ const thinkingFor = (model: string, condition: string, intent: string) =>
 const cases = tcs.map(tc => {
     const contents: Content[] = [{ role: 'user', parts: [{ text: tc.q }] }];
     const systemInstruction = [getSystemInstruction('Korean'), getRendererSections(tc.intent, 'Korean'),
-        getIntentFocusHint(tc.intent)].filter(Boolean).join('\n\n');
+        getIntentPolicy(tc.intent)].filter(Boolean).join('\n\n');
     const input = JSON.stringify({ contents, systemInstruction });
     if (input.length > 100_000) throw new Error(`Input too large: ${tc.id}`);
     return { tc, contents, systemInstruction, inputHash: createHash('sha256').update(input).digest('hex') };

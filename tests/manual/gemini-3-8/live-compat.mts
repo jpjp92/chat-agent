@@ -5,7 +5,7 @@ import { config as loadEnv } from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, Type, FunctionCallingConfigMode, type GenerateContentConfig, type Content } from '@google/genai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage } from '@langchain/core/messages';
-import { getSystemInstruction, getRendererSections, getIntentFocusHint } from '../../../server/agent/prompt';
+import { getSystemInstruction, getRendererSections, getIntentPolicy } from '../../../server/agent/prompt';
 import { resolveThinkingConfig } from '../../../server/agent/nodes/generation-config';
 
 const args = process.argv.slice(2);
@@ -54,7 +54,7 @@ if (suite === 'extended') {
         config: { thinkingConfig: { thinkingBudget: 0 } }, check: t => t.trim() === '42' });
     cases.push({ id: 'app-chart-prompt', contents: prompt('막대 그래프로 A=10, B=20, C=30을 그려줘. 시리즈는 하나만.'),
         config: { systemInstruction: [getSystemInstruction('Korean'), getRendererSections('data_viz', 'Korean'),
-            getIntentFocusHint('data_viz')].filter(Boolean).join('\n\n') }, check: t => {
+            getIntentPolicy('data_viz')].filter(Boolean).join('\n\n') }, check: t => {
             try { const chart = JSON.parse(t.match(/```json:chart\s*([\s\S]*?)```/)?.[1] ?? '');
                 return chart.type === 'bar' && JSON.stringify(chart.data?.categories) === '["A","B","C"]' &&
                     chart.data?.series?.length === 1 && JSON.stringify(chart.data.series[0].data) === '[10,20,30]';

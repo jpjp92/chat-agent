@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-09-13
+> 최종 갱신: 2026-09-24
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -14,11 +14,12 @@
 | URL Fetch | Wikidocs는 ScrapingBee render/premium/KR 우선, 일반 URL은 direct 우선. browserless는 후순위, OpenAI URL fallback은 기본 OFF | [2026-08-23 실측](logs/2026/08/DEV_260823.md) |
 | 오류 노출 | 공급자 status/code/message는 서버 로그에만 기록하고 UI에는 지역화된 정제 문구만 표시 | [오류 분류 계약](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#4-오류-분류-계약) |
 | 검색 grounding | tier 로 판정(400 물리제약 > 300 사용자 명시 > 200 근거제공 > 100 분류기). **400 은 Gemini 전용** — OpenAI 는 이미지와 web_search 를 함께 보낼 수 있어 신호를 내지 않는다 | [2026-09-02 로그](logs/2026/09/DEV_260902.md), [검색 정책 계획](plans/PLAN_SEARCH_POLICY_260815.md) |
-| 자동 검증 | `npm test` 회귀 하니스 18종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 자동 검증 | `npm test` 회귀 하니스 19종, 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
 | 서버 경계 | 🔴 **무인증 라우트 6개** 미결(`fetch-url`·`proxy-image`·`showtimes`·`speech`·`summarize-title`·`sync-drug-image`). 그중 `speech`·`summarize-title` 은 **인증 없이 Gemini 키 풀을 쓰는 LLM 엔드포인트**라 최우선 | [TODO §보안](TODO.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md), [보안 검토 §3.4](logs/2026/09/DEV_260903.md) |
 
 ## 최근 문서
 
+- **2026-09-24** — [프롬프트 계층 분리](logs/2026/09/DEV_260924.md) — 0~7단계 완료. **프롬프트 문구 변경 0건**(바이트 동일 증명). 부수로 **소스 grep 하니스 49건**과 블록이 사라져도 통과하던 순서 검사를 고쳤다. 8·9단계는 응답이 바뀔 수 있어 미착수
 - **2026-09-13** — [의존성 보안 업데이트](logs/2026/09/DEV_260913_DEPS.md) — `next` 16.3.5 · `kordoc` 4.13.1. **Critical 0 달성**(24→20건). 남은 High 12건은 전부 안 쓰는 OCR 선택적 의존. **dev 미배포**
 - **2026-09-13** — [문서 정리](logs/2026/09/DEV_260913.md) — 🔴 활성 하드닝 계획의 **P0-2 가 이미 해소된 취약점**이었다(model allowlist). 깨진 링크 13건 정리 · TODO §보안을 백로그 → **P0** 로 승격 · 앵커/행번호 검사기 `tests/test-doc-links.mts` 신설
 - **2026-09-06** — [Gemini 3.8 도입 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) — 검증 설계·비용 상한·선택 옵션과 기본 승격 분리. **모델 호출·코드 변경 없음**

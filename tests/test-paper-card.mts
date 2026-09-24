@@ -10,6 +10,9 @@
  *   §3 이해상충 플래그를 되살리지 않는다 — 규칙 판정이 실제 41건에서 20% 넘게 틀렸다.
  */
 import fs from 'node:fs';
+import { HumanMessage } from '@langchain/core/messages';
+import { assemblePrompt, type AssemblyState } from '../server/agent/prompt-assembly';
+import { getSystemInstruction, getIntentPolicy } from '../server/agent/prompt';
 import { toEvidence, isRetracted, parseAbstracts, broadenQuery, relevanceTerms, pickHeadTerm, splitOffTopic, partitionPapers, filterOffTopicAside } from '../server/agent/paper-tool';
 import { decidePaperCardFollowup, buildPaperFollowupRules } from '../server/agent/card-followup';
 import { parseArxivFeed, unescapeXml, buildArxivSearchQuery, buildArxivQueryPlan } from '../server/agent/arxiv-tool';
@@ -22,6 +25,25 @@ const check = (label: string, ok: boolean, detail = '') => {
     if (!ok) failures++;
 };
 const read = (p: string) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
+
+/**
+ * 🔴 2026-09-24: 아래 검사들은 `prompt.ts` 를 **소스 텍스트로 읽고** 있었다. 정책 문구를
+ * `intent-policy-paper.ts` 로 옮기자 **문구는 한 글자도 안 바뀌었는데 35건이 빨개졌다** —
+ * 소스 grep 의 전형적 오작동이다(텍스트가 움직이면 거짓으로 깨지고, 조용히 바뀌면 통과한다).
+ * 이제 **export 된 정책 문자열**을 본다. 파일을 어디로 옮기든 따라가고, 문구가 바뀌면 깨진다.
+ */
+const POLICY = { paper: getIntentPolicy('paper_search'), arxiv: getIntentPolicy('arxiv_search') };
+const POLICY_TEXT = `${POLICY.paper}\n\n${POLICY.arxiv}`;
+
+/**
+ * 🔴 `a.indexOf(x) < a.indexOf(y)` 는 **x 가 아예 없을 때도 통과한다**(-1 이 제일 작다).
+ *    순서를 지키려던 검사가 "블록이 통째로 사라짐"을 놓친다 — 실제로 2026-09-24 변조 시험에서
+ *    `[RETRACTED PAPERS]` 를 지웠더니 순서 검사만 조용히 초록이었다. 존재를 먼저 요구한다.
+ */
+const comesBefore = (text: string, first: string, second: string) => {
+    const i = text.indexOf(first), j = text.indexOf(second);
+    return i >= 0 && j >= 0 && i < j;
+};
 
 console.log('\n§1 근거 등급 판정 — pubtype 만 본다');
 {
@@ -138,7 +160,7 @@ console.log('\n§2b 검색어 붕괴 방어 — PubMed 는 용어를 AND 로 묶
     check('0건일 때만 넓혀 재시도한다', /if \(!ids\.length\)[\s\S]{0,140}broadenQuery\(query\)/.test(src));
     check('넓힌 검색어가 원본과 같으면 재시도하지 않는다 (무한 반복 방지)', /broader !== query\.trim\(\)/.test(src));
     check('프롬프트도 검색어를 짧게 쓰라고 지시한다',
-        /Keep the query to 2-4 core concepts/.test(read('../server/agent/prompt.ts')));
+        /Keep the query to 2-4 core concepts/.test(POLICY_TEXT));
 }
 
 console.log('\n§3 이해상충은 뽑지 않는다 (되살아나면 실패)');
@@ -197,7 +219,7 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
 {
     const src = read('../components/PaperRenderer.tsx');
     const tool = read('../server/agent/paper-tool.ts');
-    const prompt = read('../server/agent/prompt.ts');
+    const prompt = POLICY_TEXT;
 
     // 철회는 추가 호출 없이 pubtype 에서 나온다
     check('도구가 pubtype 으로 철회를 판정한다', /isRetracted\(r\.pubtype \?\? \[\]\)/.test(tool));
@@ -240,9 +262,9 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
         /!papers\.length && !retracted\.length && !noAbstract\.length/.test(src));
     check('프롬프트가 철회 논문 인용을 금지한다',
         /\[RETRACTED PAPERS\]/.test(prompt)
-        && /Never describe a finding from the \\`retracted\\` list/.test(prompt));
+        && /Never describe a finding from the `retracted` list/.test(prompt));
     check('철회 규칙이 PROSE RULES 목록보다 앞에 온다',
-        prompt.indexOf('[RETRACTED PAPERS]') < prompt.indexOf('[PROSE RULES — CRITICAL]'));
+        comesBefore(prompt, '[RETRACTED PAPERS]', '[PROSE RULES — CRITICAL]'));
 
     // 🔴 조회 실패를 0건으로 말하지 않는다 (심평원에서 이미 고쳤던 병)
     check('렌더러가 error 를 실제로 읽는다', /const failed = Boolean\(data\?\.error\)/.test(src));
@@ -265,9 +287,9 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
     check('초록 없음 안내는 PubMed 카드에서만 뜬다', /: source === 'pubmed' \? \(/.test(src));
     // 🔴 목록 속 한 줄로는 모델이 흘려 읽는다(철회에서 실측) — 전용 블록이어야 한다
     check('프롬프트에 summaryKind 전용 블록이 있다',
-        /\[WHAT \\`summary\\` IS — READ \\`summaryKind\\` BEFORE QUOTING IT\]/.test(prompt));
+        /\[WHAT `summary` IS — READ `summaryKind` BEFORE QUOTING IT\]/.test(prompt));
     check('블록이 PROSE RULES 목록보다 앞에 온다',
-        prompt.indexOf('READ \\`summaryKind\\` BEFORE QUOTING') < prompt.indexOf('[PROSE RULES — CRITICAL]'));
+        comesBefore(prompt, 'READ `summaryKind` BEFORE QUOTING', '[PROSE RULES — CRITICAL]'));
     check('프롬프트가 발췌를 결론이라 쓰지 말라고 한다',
         /"excerpt"[\s\S]{0,200}never "concluded"/.test(prompt));
     // 🔴 전용 블록으로도 3회 중 3회 실패했다 — 도구가 목록에서 빼야 끊긴다
@@ -283,7 +305,7 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
     check('초록없음 칸은 빨강을 쓰지 않는다 (철회의 색이 묻으면 안 된다)',
         /noAbstract\.length > 0 && \([\s\S]{0,400}border-slate-200\/80 bg-slate-50/.test(src));
     check('프롬프트가 초록 없는 논문이 papers 에 없다고 밝힌다',
-        /Papers with no abstract at all are NOT in \\`papers\\`/.test(prompt)
+        /Papers with no abstract at all are NOT in `papers`/.test(prompt)
         && /Never state what they found or concluded/.test(prompt));
     check('4개 언어 모두 초록없음 칸 안내가 있다',
         ['초록이 등록돼 있지 않아', 'PubMed holds no abstract for these',
@@ -545,10 +567,8 @@ console.log('\n§4f 산문 모양 — 문장 수가 아니라 문단 구조를 �
     // 문장 수만 주면("3-5 sentences") 모델은 한 덩어리로 쓴다. ChatMessage 의 `p` 렌더러는
     // 이미 mb-4 를 주고 있으므로, 빈 줄만 들어오면 간격은 저절로 벌어진다 — CSS 가 아니라
     // 프롬프트가 모양을 주지 않은 게 원인이었다.
-    const prompt = read('../server/agent/prompt.ts');
-    for (const intent of ['RESEARCH PAPERS', 'ARXIV PAPERS']) {
-        const hint = prompt.slice(prompt.indexOf(`[INTENT FOCUS: ${intent}]`));
-        const body = hint.slice(0, hint.indexOf('`,'));
+    const prompt = POLICY_TEXT;
+    for (const [intent, body] of [['RESEARCH PAPERS', POLICY.paper], ['ARXIV PAPERS', POLICY.arxiv]] as const) {
         check(`${intent}: 3문단을 요구한다`, /THREE paragraphs separated by a BLANK LINE/.test(body));
         // 홋개행은 ReactMarkdown 이 문단으로 끊지 않는다 — 이 구분을 명시해야 한다
         check(`${intent}: 빈 줄이 구분자임을 밝힌다`, /a single newline is not/.test(body));
@@ -725,13 +745,29 @@ console.log('\n§4j 카드 대화 턴의 근거 고정 — 판정만으로는 �
     check('state 에 paperFollowup 이 있다', /paperFollowup:\s*Annotation/.test(stateSrc));
     check('🔴 라우터가 paperFollowup 을 반환한다', /return \{[^}]*paperFollowup/.test(routerSrc),
         '지역 변수로만 쓰이면 generator 는 이 턴이 카드 대화인 줄 모른다');
-    check('generator 가 그 값을 보고 규칙을 넣는다',
-        /state\.paperFollowup/.test(genSrc) && /buildPaperFollowupRules\(/.test(genSrc));
+    // 🔴 2026-09-24: 조립이 prompt-assembly.ts 로 빠졌다. 소스 정규식 대신 **결과**로 본다 —
+    //    `paperFollowup` 인 턴에만 규칙이 실제로 실리는가.
+    const paperTurn = (paperFollowup: boolean): string => assemblePrompt({
+        base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '세 번째 논문 설명해줘',
+        now: new Date('2026-09-24T10:00:00+09:00'), tz: 'Asia/Seoul',
+        currentDateStr: '2026년 9월 24일 목요일 오전 10:00 KST',
+        cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null,
+        state: {
+            intent: 'paper_search', messages: [new HumanMessage('세 번째 논문 설명해줘')],
+            webContent: '', contextInfo: '', needsSearch: false,
+            cardFollowup: '', cardContexts: {}, paperFollowup, reformatTurn: false,
+            movieFollowup: false, movieSearchTurn: false, movieContext: '', weatherFollowup: false,
+        } as AssemblyState,
+    });
+    const paperMarker = buildPaperFollowupRules().slice(0, 40);
+    check('generator 가 그 값을 보고 규칙을 넣는다', paperTurn(true).includes(paperMarker));
+    check('카드 대화가 아닌 턴에는 넣지 않는다', !paperTurn(false).includes(paperMarker));
+    void genSrc;
 }
 
 console.log('\n§4i 인용 번호는 이번 턴 카드만 가리킨다');
 {
-    const prompt = read('../server/agent/prompt.ts');
+    const prompt = POLICY_TEXT;
     // 🔴 실측: 새 카드가 1건뿐인 턴에 모델이 "이전 검색 결과에서 … [5] 입니다" 로 답했다.
     //   [5] 는 지난 턴 카드의 번호다 — 화면의 카드에는 그 번호가 없다.
     check('이번 턴 카드만 가리킨다는 지시가 양쪽 의도에 있다',
@@ -871,8 +907,9 @@ console.log('\n§5 배선 — 카드가 실제로 화면까지 가는가');
     check('의도 paper_search 가 등록돼 있다', /intent: 'paper_search'/.test(read('../server/agent/local-tool-registry.ts')));
     check('라우터가 paper_search 를 유효 의도로 받는다', /"paper_search"/.test(read('../server/agent/nodes/router.ts')));
 
-    const prompt = read('../server/agent/prompt.ts');
-    check('프롬프트에 paper_search 힌트가 있다', /paper_search: `\[INTENT FOCUS: RESEARCH PAPERS\]/.test(prompt));
+    const prompt = POLICY_TEXT;
+    check('paper_search 정책이 RESEARCH PAPERS 헤더로 시작한다',
+        POLICY.paper.startsWith('[INTENT FOCUS: RESEARCH PAPERS]'));
     // 모델이 식별자를 고쳐 쓰면 잘못된 DOI 가 사용자에게 간다 — 지시가 사라지면 실패시킨다
     check('식별자 변조 금지 지시가 있다', /Never edit, guess, or invent an identifier/.test(prompt));
     check('null 등급을 추정하지 말라는 지시가 있다', /do NOT infer a level from the title/i.test(prompt));

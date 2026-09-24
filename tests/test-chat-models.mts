@@ -7,6 +7,9 @@ import { buildOpenAIChatRequest, generateOpenAIChat, normalizeOpenAIWebCitations
 import { isOpenAIChatModel, openAIModelCapabilities } from '../server/openai/models.js';
 import { classifyChatError, OPENAI_QUOTA_ERROR_CODES } from '../server/chat-error-policy.js';
 import { buildSearchProviderInstruction } from '../server/agent/search-provider.js';
+import { getSystemInstruction } from '../server/agent/prompt.js';
+import { assemblePrompt, type AssemblyState } from '../server/agent/prompt-assembly.js';
+import { getSystemInstruction } from '../server/agent/prompt.js';
 
 let pass = 0;
 let fail = 0;
@@ -51,16 +54,21 @@ const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import
 //   ⚖️ 구조 전체를 강요하지 않는다 — 알약 판독·표 추출 같은 다른 이미지 질문이 망가진다.
 //      규칙은 **헤딩을 쓸 때의 서식**에만 건다.
 {
-    const ps = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
-    check('한 줄 요약 서식 규칙이 한 곳에 정의돼 있다', ps.includes('[ONE-LINE SUMMARY FORMAT]'));
+    // 🔴 2026-09-24(7단계): 여기도 `prompt.ts` 를 **소스로 읽고** 있었다. base 를
+    //    prompt-integrity/prompt-response 로 가르자 문구는 그대로인데 3건이 깨졌다.
+    //    이제 **조립된 base** 를 본다 — 블록이 어느 파일에 있든 따라가고, 문구가 바뀌면 깨진다.
+    //    예시 검사는 소스의 `${lbl.summary}` 가 아니라 **실제로 찍히는 라벨**을 본다.
+    const ps = getSystemInstruction('Korean');
+    const LBL = '한 줄 요약';
+    check('한 줄 요약 서식 규칙이 한 곳에 정의돼 있다', ps.split('[ONE-LINE SUMMARY FORMAT]').length === 2);
     check('블록쿼트를 명시한다', /\[ONE-LINE SUMMARY FORMAT\][\s\S]{0,600}blockquote/.test(ps));
     check('이미지·문서 분석에도 적용된다고 명시한다',
         /\[ONE-LINE SUMMARY FORMAT\][\s\S]{0,600}image/i.test(ps));
     // URL·영상 예시가 블록쿼트를 유지하는가 (예시가 규칙과 어긋나면 모델은 예시를 따른다)
-    const urlBlock = ps.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? '';
-    check('URL 예시가 블록쿼트를 쓴다', /\*\*\$\{lbl\.summary\}\*\*\s*\n\s*>/.test(urlBlock));
-    const videoBlock = ps.match(/Direct Video Analysis[\s\S]{0,600}/)?.[0] ?? '';
-    check('영상 예시가 블록쿼트를 쓴다', /\*\*\$\{lbl\.summary\}\*\*\s*\n\s*>/.test(videoBlock));
+    const exampleKeepsQuote = (block: string) =>
+        new RegExp(`\\*\\*${LBL}\\*\\*\\s*\\n\\s*>`).test(block);
+    check('URL 예시가 블록쿼트를 쓴다', exampleKeepsQuote(ps.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? ''));
+    check('영상 예시가 블록쿼트를 쓴다', exampleKeepsQuote(ps.match(/Direct Video Analysis[\s\S]{0,600}/)?.[0] ?? ''));
 }
 const generatorSource = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
 check('채팅 route가 Gemini 키를 모든 공급자에 선행 강제하지 않음',
@@ -344,14 +352,30 @@ const clamped = applyGeminiCitations('짧은 문장', {
 check('범위 밖 오프셋은 문장 끝으로 클램프', clamped.text === '짧은 문장[1](https://example.com/a)');
 
 // 실측 2026-08-24 00:20 KST: `오늘 나온 AI 뉴스`에 검색 결과 게시일(8/23)을 오늘로 답했다.
+// 🔴 2026-09-24: 시각 블록 문구가 `prompt-assembly.ts` 로 이사했다. grep 경로를 옮기는 대신
+//    **조립 결과**를 본다 — 문구가 어느 파일에 있든 사용자에게 나가는지가 지켜야 할 것이다.
+const timeBlockPrompt = assemblePrompt({
+    base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '오늘 나온 AI 뉴스',
+    now: new Date('2026-09-24T00:20:00+09:00'), tz: 'Asia/Seoul',
+    currentDateStr: '2026년 9월 24일 목요일 오전 12:20 KST',
+    cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null,
+    state: {
+        intent: 'general', messages: [new HumanMessage('오늘 나온 AI 뉴스')],
+        webContent: '', contextInfo: '', needsSearch: true,
+        cardFollowup: '', cardContexts: {}, paperFollowup: false, reformatTurn: false,
+        movieFollowup: false, movieSearchTurn: false, movieContext: '', weatherFollowup: false,
+    } as AssemblyState,
+});
+check('시각 블록이 프롬프트 맨 앞에 온다', timeBlockPrompt.startsWith('[CURRENT_SYSTEM_TIME'));
+check('주입된 시각이 실제로 실린다', timeBlockPrompt.includes('2026년 9월 24일 목요일 오전 12:20 KST'));
 check('오늘 날짜는 주입된 시스템 시각만 근거로 삼도록 고정',
-    generatorSource.includes("This is the ONLY source for today's date"));
+    timeBlockPrompt.includes("This is the ONLY source for today's date"));
 check('자정 직후 검색 결과가 날짜를 뒤집지 못하게 명시',
-    generatorSource.includes('Just after midnight most search results are from the previous day'));
+    timeBlockPrompt.includes('Just after midnight most search results are from the previous day'));
 // 새벽에 "오늘 뉴스"를 물으면 전날 기사가 나오는 건 정상이다. 날짜를 틀리게 말하지 않게 된 뒤에도
 // 왜 전날 자료인지 설명이 없으면 사용자에겐 여전히 이상해 보인다.
 check('전날 자료를 낼 때 날짜와 이유를 밝히도록 지시',
-    generatorSource.includes('say in one short sentence which date it is from'));
+    timeBlockPrompt.includes('say in one short sentence which date it is from'));
 check('generator가 grounding 인용 변환을 사용', generatorSource.includes('applyGeminiCitations('));
 check('generator에 가짜번호 선삭제가 남아 있지 않음', !generatorSource.includes("*\\]/g, '')"));
 

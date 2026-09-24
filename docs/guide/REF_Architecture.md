@@ -247,7 +247,31 @@ arXiv 는 `ARXIV_QUERY_DESCRIPTION` 상수로 합쳤지만 **나머지 도구는
 
 ### 의도별 렌더러 스펙 주입
 
-`server/agent/prompt.ts` 는 시스템 인스트럭션을 **base + 의도별 조각**으로 조립한다. 조립은 한 함수가 아니라 **두 지점에 나뉘어** 있다 — base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langName)` 으로 만들어 그래프 상태에 싣고, 렌더러 스펙(`getRendererSections`)과 의도 힌트(`getIntentFocusHint`)는 의도가 확정된 뒤 [generator.ts](../../server/agent/nodes/generator.ts) 가 붙인다. 순서는 **base → 렌더러 스펙 → 의도 힌트** 로 동일하다(base 선두 고정 = 암묵 캐싱 프리픽스 유지).
+시스템 인스트럭션은 **base + 턴 규칙 + 렌더러 스펙 + 의도 정책**으로 조립된다.
+base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langName)` 으로 만들어 그래프 상태에 싣고,
+나머지는 의도가 확정된 뒤 [prompt-assembly.ts](../../server/agent/prompt-assembly.ts) 의 `assemblePrompt()` 가 붙인다.
+
+🔴 **실제 순서는 `base -> 렌더러 -> 의도` 가 아니다.** 턴 규칙이 렌더러·의도보다 **먼저** 들어간다:
+
+```
+[CURRENT_SYSTEM_TIME]  ->  base  ->  제공 본문/문맥  ->  턴 규칙(영화·날씨·카드·논문·재구성)
+                       ->  렌더러 스펙  ->  의도 정책
+```
+
+2026-09-23 이전 이 문서는 턴 규칙을 아예 빠뜨리고 순서를 `base -> 렌더러 -> 의도` 로 적었다.
+설계 의도(정적 먼저)와 실제가 반대였고, 그 사실이 [계층화 계획 §5](../plans/PLAN_PROMPT_LAYERING_260923.md) 에서 드러났다.
+
+조각의 소재지(2026-09-24 분리 이후):
+
+| 계층 | 파일 |
+|---|---|
+| 무결성(출처·날조·누설) | [prompt-integrity.ts](../../server/agent/prompt-integrity.ts) |
+| 응답 형태(길이·서식·코드·언어) | [prompt-response.ts](../../server/agent/prompt-response.ts) |
+| 턴 규칙 | `card-followup.ts` · `movie-followup.ts` · `weather-followup.ts` · `reformat-rules.ts` |
+| 렌더러 스펙 · 의도 정책 | [prompt.ts](../../server/agent/prompt.ts) (`INTENT_RENDERERS` · `INTENT_POLICIES`), 논문 2종은 [intent-policy-paper.ts](../../server/agent/intent-policy-paper.ts) |
+| **순서 선언** | base 는 `getSystemInstruction`, 전체는 `assemblePrompt` — **이 둘뿐이다** |
+
+조립 결과는 `tests/test-prompt-assembly.mts` 가 **의도 19개 × 턴 6종 × 언어 4개** 골든으로 고정한다.
 
 - 예전엔 렌더러 스펙 전부가 base 에 상주해 모든 턴에 주입됐다. **비용 문제가 아니라 문맥 오염 문제**였다 — base 의 `[WEATHER FORMATTING]`("날씨 정보엔 ALWAYS 5일 표")이 날씨와 무관한 `general` 턴까지 오염시켜 후속 대화에서 표가 재출력됐다(DEV_260731 §3-3). 암묵 캐싱 할인(78~98%)이 있어 길이 자체는 문제가 아니었다.
 - `INTENT_RENDERERS` 가 의도 → 조각 목록을 결정한다. 예: `physics` → `diagram` + `chart`, `astronomy` → `constellation`, 약국·병원·법령 → **없음**(fast-pass 라 모델이 렌더러 블록을 쓸 일이 없다).

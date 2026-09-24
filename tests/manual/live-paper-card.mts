@@ -204,7 +204,7 @@ if (empty) {
 const markers = (prose.match(/\[\d+\]/g) ?? []).length;
 check('산문에 인용 번호가 남아 있다', markers > 0, `${markers}개`);
 
-// 산문이 한 덩어리면 읽히지 않는다 — INTENT_FOCUS_HINTS 가 요구하는 3문단(빈 줄 2개) 검사.
+// 산문이 한 덩어리면 읽히지 않는다 — INTENT_POLICIES 가 요구하는 3문단(빈 줄 2개) 검사.
 // 빈 줄이 문단 구분이다: 홑개행은 ReactMarkdown 이 문단으로 끊지 않아 화면에선 여전히 한 덩어리다.
 const paragraphs = prose.split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
 check('산문이 문단으로 끊겨 있다', paragraphs.length >= 3, `${paragraphs.length}문단`);

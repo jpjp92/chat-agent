@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { config as loadEnv } from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, type Content } from '@google/genai';
-import { getSystemInstruction, getRendererSections, getIntentFocusHint } from '../../../server/agent/prompt';
+import { getSystemInstruction, getRendererSections, getIntentPolicy } from '../../../server/agent/prompt';
 import { stripCitationLinksForHistory } from '../../../server/agent/history';
 import { scenarios, assess, type Turn } from './scenarios.mjs';
 const args=process.argv.slice(2);
@@ -40,7 +40,7 @@ for(const scenario of scenarios){
         }
         contents.push({role:'user',parts:[{text:turn.q}]});
         const intent=turn.intents[0];
-        const systemInstruction=[getSystemInstruction('Korean'),getRendererSections(intent,'Korean'),getIntentFocusHint(intent)].filter(Boolean).join('\n\n');
+        const systemInstruction=[getSystemInstruction('Korean'),getRendererSections(intent,'Korean'),getIntentPolicy(intent)].filter(Boolean).join('\n\n');
         const input=JSON.stringify({contents,systemInstruction});
         if(input.length>100000)throw new Error('Input too large');
         cases.push({id:`${scenario.id}/${index+1}`,turn,contents,systemInstruction,inputHash:createHash('sha256').update(input).digest('hex')});
