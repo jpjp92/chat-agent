@@ -56,7 +56,7 @@ components/
   GeneratedImageRenderer.tsx   # 결과 + 재생성(medium) 버튼
   ImageGenChip.tsx             # router 감지 시 확인 칩
 server/agent/nodes/router.ts   # image_gen 의도 감지 추가 (생성 안 함)
-server/agent/intentRules.ts    # image_gen rule 트리거 추가
+server/agent/intent-rules.ts    # image_gen rule 트리거 추가
 ```
 
 추출 매핑 (테스트 스크립트 → 서버 모듈):

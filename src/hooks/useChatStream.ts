@@ -4,7 +4,7 @@ import { ChatSession, Language, Message, MessageAttachment, Role } from '../../t
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
 import { writeSessionsCache } from './useChatSessions';
-import { getMovieContextText } from '../../lib/movieContext';
+import { getMovieContextText } from '../../lib/movie-context';
 
 // 로딩/에러 상태 문자열 — 이 훅이 유일한 소비처이므로 App.tsx prop 배관 대신 여기서 직접 보유.
 // (이전: App.tsx가 statusMessages subset 객체를 만들어 prop으로 전달 → 중복 타입/배관)

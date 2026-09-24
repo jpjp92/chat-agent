@@ -11,7 +11,7 @@
 
 ## 문제
 
-[`classifyIntentByRules`](../../server/agent/intentRules.ts)의 `FALLBACK_RULES`가 일상어를 전문 intent로 잡는다.
+[`classifyIntentByRules`](../../server/agent/intent-rules.ts)의 `FALLBACK_RULES`가 일상어를 전문 intent로 잡는다.
 측정 결과 **오탐 27건**:
 
 ```

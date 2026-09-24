@@ -19,7 +19,7 @@
 //    복사본 하니스는 프로덕션이 바뀌어도 초록으로 남아 거짓 안심을 준다
 //    (PLAN_SEARCH_POLICY_260815 §4 C5).
 
-import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, resolvePaperArtifactIntent } from '../server/agent/intentRules.js';
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, resolvePaperArtifactIntent } from '../server/agent/intent-rules.js';
 import type { IntentType } from '../server/agent/state.js';
 
 type Case = {

@@ -17,7 +17,7 @@
 import {
     classifySearchNeed,
     detectExplicitSearchRequest,
-} from '../server/agent/intentRules.js';
+} from '../server/agent/intent-rules.js';
 import { collectTextSearchSignals } from '../server/agent/search-signals.js';
 import { decideSearch } from '../server/agent/search-policy.js';
 

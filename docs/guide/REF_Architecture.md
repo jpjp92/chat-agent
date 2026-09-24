@@ -1,9 +1,51 @@
 # REF: Architecture
 
-> 작성일: 2026-06-26 · 최종 수정: 2026-08-23
+> 작성일: 2026-06-26 · 최종 수정: 2026-09-24
 > 관련: [README §2](../../README.md#2-architecture) · [REF_App2_Agent](REF_App2_Agent.md)(에이전트 설계 근거)
 
 상세 다이어그램과 런타임 정책을 모아둔 레퍼런스. README는 개요 다이어그램만 유지하고 상세는 여기에 기록한다.
+
+---
+
+## 코드 컨벤션
+
+> 2026-09-24 에 **새로 만든 규칙이 아니라, 레포가 이미 따르고 있던 것을 적은 것**이다.
+> 파일명 176개를 분류해 보니 케밥 139 · Pascal 28 · camel 9 였고, Pascal 28개는 예외가 하나도 없었다.
+> 규칙이 코드에만 암묵적으로 있으면 새 파일마다 다시 판단하게 되고, 그때 갈린다.
+
+### 파일명
+
+| 대상 | 형태 | 예 |
+|---|---|---|
+| React 컴포넌트 | `PascalCase.tsx` | `ChatMessage.tsx` · `PaperRenderer.tsx` |
+| React 훅 | `useXxx.ts` | `useChatStream.ts` |
+| **그 외 전부** | `kebab-case.ts` | `card-followup.ts` · `prompt-assembly.ts` |
+
+🔴 `utils/`(3개) · `services/`(1개) 는 디렉터리 전체가 camelCase 다. **디렉터리 안에서는 일관**하므로
+건드리지 않는다 — 케밥으로 바꿔도 레포 전체 일관성은 안 생기고, 그건 이름 정리가 아니라 구조 개편이다.
+그 파일을 어차피 수정하게 될 때 함께 옮긴다.
+
+2026-09-24 에 **한 디렉터리 안에서 섞인 2건만** 고쳤다:
+`server/agent/intentRules.ts` -> `intent-rules.ts`(33개 중 혼자 camel),
+`lib/movieContext.ts` -> `movie-context.ts`. 원인은 시기가 아니라 **한 커밋**이었다 —
+`2240f21`(2026-05-26)이 `intentRules.ts` 와 `drug-info-tool.ts` 를 같이 넣었다.
+
+### 프롬프트 조각 export
+
+| 의존 | 형태 | 예 |
+|---|---|---|
+| 인자 없음 (고정 문자열) | `UPPER_SNAKE` 상수 | `NEVER_FABRICATE_SOURCES` · `RESPONSE_SHAPE` |
+| 언어·문맥 의존 | `buildXxx(...)` 함수 | `buildSourceAdherence(lbl)` · `buildDisplayedCardRules(args)` |
+
+조각 파일은 **import 0개인 리프**로 유지한다(`prompt-integrity` · `prompt-response` ·
+`intent-policy-paper` · `movie-followup` 모두 현재 import 없음). 하니스가 시크릿·네트워크 없이
+문구를 직접 검사할 수 있어야 하고([tests/README](../../tests/README.md) ①②③), 그게 안 되면
+하니스가 문구를 **흉내 내기 시작한다**.
+
+### 순서는 조각이 아니라 조립부가 선언한다
+
+조각이 스스로 위치를 주장하면 조립 지점이 둘로 갈린다. 순서를 아는 곳은
+`getSystemInstruction`(base 내부)과 `assemblePrompt`(전체) **둘뿐**이다.
 
 ---
 
@@ -229,7 +271,7 @@ arXiv 는 `ARXIV_QUERY_DESCRIPTION` 상수로 합쳤지만 **나머지 도구는
 
 **Router:**
 - LLM: 현재 `gemini-2.5-flash`(`ROUTER_MODEL`), `thinkingBudget:0` 명시. ⚖️ **flash-lite 에서 올렸다**(2026-09-02) — `강아지 사료 추천해줘` 류의 오분류가 79% → 100% 로 개선되고 지연은 783 → 1,214ms 늘었다. GPT가 선택돼도 이 선행 의존성이 남아 있으며 공급자별 router 분리는 [멀티 공급자 라우팅 계획](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)의 P0이다
-- 규칙 기반 폴백: `server/agent/intentRules.ts` (KO/EN/ES/FR 키워드)
+- 규칙 기반 폴백: `server/agent/intent-rules.ts` (KO/EN/ES/FR 키워드)
   - **폴백은 확신할 때만 잡는다 — 재현율보다 정밀도가 우선.** 놓친 것은 `general`이 받아주지만(검색 붙고 산문으로 답함), 잘못 잡은 것은 받아줄 곳이 없다(렌더러 스펙 주입 + 검색 OFF). 한국어는 공백 없이 결합해 `\b`가 안 먹으므로 **단독 명사는 대개 문맥 동반을 요구해야 한다** — `힘`·`속도`·`날씨`·`병원`·`달`이 전부 이 이유로 좁혀졌다(PLAN_INTENT_RULES_PRECISION_260816).
   - `FALLBACK_RULES` **배열 순서 = 우선순위**(first-match-wins). 특히 `vet_search`가 `hospital_search`보다 **앞이어야 한다** — `동물병원`의 `병원`이 먼저 걸리면 수의 경로가 죽는다. `data_viz`는 맨 끝(`차트`·`그래프`는 모든 분야와 결합).
   - 검증: `npx tsx tests/test-intent-rules.mts` — 양방향(잡아야 할 것 / 잡으면 안 될 것) 채점. **정규식을 복사하지 않고 프로덕션을 import한다.**

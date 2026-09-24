@@ -41,11 +41,11 @@ OpenAI 모델(`gpt-5.4-mini`·`gpt-5.6-luna`)까지 확장된 뒤 `services/gemi
 | " | `getPillWarnFallback` | TODO.md 에 다국어화 항목으로만 남음 |
 | [server/agent/nodes/generator.ts](../../../../server/agent/nodes/generator.ts) | `YOUTUBE_CALL_TIMEOUT_MS` | 스스로 `@deprecated`, 참조가 **주석에만** 있었다 |
 | [server/agent/weather-followup.ts](../../../../server/agent/weather-followup.ts) | `mentionsCityWeather` | 스스로 `@deprecated`, 호출자 0 |
-| [server/agent/intentRules.ts](../../../../server/agent/intentRules.ts) | `isPastReference` | 계획서에만 등장 (`PAST_REF_PATTERN` 은 살아 있어 유지) |
+| [server/agent/intent-rules.ts](../../../../server/agent/intent-rules.ts) | `isPastReference` | 계획서에만 등장 (`PAST_REF_PATTERN` 은 살아 있어 유지) |
 | [server/agent/lang.ts](../../../../server/agent/lang.ts) | `DEFAULT_LANG_CODE` | 정의만 |
 | [server/agent/local-tool-registry.ts](../../../../server/agent/local-tool-registry.ts) | `LOCAL_FUNCTION_TOOL_INTENTS` | 정의만 |
 | [server/models.ts](../../../../server/models.ts) | `ServerModelId` | 타입 정의만 (`ChatModelId` 이 실제 계약) |
-| [lib/movieContext.ts](../../../../lib/movieContext.ts) | `hasMovieContext`, `clearMovieContext` | 정의만 |
+| [lib/movie-context.ts](../../../../lib/movie-context.ts) | `hasMovieContext`, `clearMovieContext` | 정의만 |
 | [lib/theaters.ts](../../../../lib/theaters.ts) | `findDefaultBranch` | `defaultsForRegion` 이 대체 (§3) |
 | [utils/celestialMath.ts](../../../../utils/celestialMath.ts) | `sphericalToCartesian` | `ConstellationRenderer` 는 다른 5개만 import |
 

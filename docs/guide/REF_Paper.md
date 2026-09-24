@@ -196,7 +196,7 @@ self-attention` 으로 조회해 원 논문 없는 카드를 냈다. **논문 �
    `isNonBiomedicalPaperTopic()` 블록리스트가 21분야 중 차단 대상 10종을 전부 놓친 것과
    같은 구조다(비의생명 분야의 공간은 무한하다). 규칙으로 바꾼 뒤 **프롬프트에 이름이 없는
    14분야에서 42/42** 정확했다 — `live-paper-routing.mts --unseen` 이 이 경계를 지킨다.
-   키워드 가드와 `intentRules.ts` 규칙 폴백은 라우터 LLM 이 429 로 죽었을 때의 2차 방어다
+   키워드 가드와 `intent-rules.ts` 규칙 폴백은 라우터 LLM 이 429 로 죽었을 때의 2차 방어다
    (⚠️ 키워드 가드는 `paper_search` 에만 건다 — 그게 잡는 CS·공학 어휘가 arXiv 에서는 정답이다).
 
    🔴 **`arxiv_search` 는 모델이 고르는 의도가 아니다.** 프롬프트 의도 목록에 넣었다가 뺐다 —

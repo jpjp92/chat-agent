@@ -17,7 +17,7 @@ import { toEvidence, isRetracted, parseAbstracts, broadenQuery, relevanceTerms, 
 import { decidePaperCardFollowup, buildPaperFollowupRules } from '../server/agent/card-followup';
 import { parseArxivFeed, unescapeXml, buildArxivSearchQuery, buildArxivQueryPlan } from '../server/agent/arxiv-tool';
 import { pendingCardBlocks, pinCardToProse, dropMarkersOutsideRange, repairPaperMarkerLinks, sanitizeActiveCards } from '../server/agent/card-tool-output';
-import { classifyIntentByRules, isNonBiomedicalPaperTopic } from '../server/agent/intentRules';
+import { classifyIntentByRules, isNonBiomedicalPaperTopic } from '../server/agent/intent-rules';
 
 let failures = 0;
 const check = (label: string, ok: boolean, detail = '') => {
@@ -948,7 +948,7 @@ console.log('\n§5 배선 — 카드가 실제로 화면까지 가는가');
     check('arxiv_search 는 모델이 고르지 않는다 — paper_source 에서 파생된다',
         !/- "arxiv_search"/.test(router));
     check('라우터 LLM 실패 시 규칙 폴백이 있다',
-        /intent: "paper_search"/.test(read('../server/agent/intentRules.ts')));
+        /intent: "paper_search"/.test(read('../server/agent/intent-rules.ts')));
 }
 
 console.log(`\n${failures === 0 ? '✅ 전부 통과' : `🔴 실패 ${failures}건`}`);

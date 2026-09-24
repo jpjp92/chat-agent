@@ -98,7 +98,7 @@ export const decideSearch = (signals: SearchSignal[]): SearchDecisionResult
 
 | 현재 | 정규식 | 문제 |
 |---|---|---|
-| [intentRules.ts:117](../../server/agent/intentRules.ts#L117) `explicit` 태그 | `검색해\|검색 해\|찾아봐\|찾아 줘\|알아봐\|출처\|근거\|cite\|search` | `찾아서`·`찾아줘`·`찾아보자`·`조사`를 놓침 |
+| [intent-rules.ts:117](../../server/agent/intent-rules.ts#L117) `explicit` 태그 | `검색해\|검색 해\|찾아봐\|찾아 줘\|알아봐\|출처\|근거\|cite\|search` | `찾아서`·`찾아줘`·`찾아보자`·`조사`를 놓침 |
 | [search-gate.ts:120](../../server/agent/nodes/search-gate.ts#L120) `explicitSearchRequested` | `검색\|찾아\|조사\|출처\|근거\|최신\|최근\|실시간\|뉴스\|…` | 훨씬 넓음 — 두 정의가 불일치 |
 
 통합 정규식은 **넓은 쪽 기준**으로 하되, `최신/최근/실시간/뉴스`는 명시 요청이 아니라 **시의성 신호**이므로 `temporal`/`domain` 태그로 분리한다. 명시 요청과 시의성은 다른 개념이고, tier도 다르다(300 vs 100).
@@ -207,7 +207,7 @@ prev="오늘 AI 뉴스 알려줘" → classifySearchNeed=on   → prevSearched=t
 단일턴: 20/22 → ❌ MISMATCH — 프로토타입과 불일치
 ```
 
-**이건 프로덕션 버그가 아니다.** [intentRules.ts:101-103](../../server/agent/intentRules.ts#L101-L103)이 `설명해/원리/개념`을 강한 OFF에서 **의도적으로 제외**했다(DEV_260624 §5 A안 — `"gpt 5.5 설명해줘"` 같은 최근 엔티티 설명은 검증 검색이 필요하므로 gray로 위임). 프로덕션이 옳고, **테스트 기대값이 낡았다.**
+**이건 프로덕션 버그가 아니다.** [intent-rules.ts:101-103](../../server/agent/intent-rules.ts#L101-L103)이 `설명해/원리/개념`을 강한 OFF에서 **의도적으로 제외**했다(DEV_260624 §5 A안 — `"gpt 5.5 설명해줘"` 같은 최근 엔티티 설명은 검증 검색이 필요하므로 gray로 위임). 프로덕션이 옳고, **테스트 기대값이 낡았다.**
 
 문제는 **왜 아무도 몰랐나**다:
 

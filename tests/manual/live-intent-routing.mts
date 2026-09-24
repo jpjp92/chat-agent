@@ -31,7 +31,7 @@ if (process.env.TIER1 === '1') {
 
 const { routerNode } = await import('../../server/agent/nodes/router.js');
 const { ROUTER_MODEL } = await import('../../server/models.js');
-const { classifyIntentByRules } = await import('../../server/agent/intentRules.js');
+const { classifyIntentByRules } = await import('../../server/agent/intent-rules.js');
 const { HumanMessage } = await import('@langchain/core/messages');
 
 const RUNS = Number(process.argv[2] ?? 3);

@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CHAINS, flatBranches, branchUrl, type ChainKey, type Branch } from '../lib/theaters';
-import { setChainShowtimes } from '../lib/movieContext';
+import { setChainShowtimes } from '../lib/movie-context';
 
 /**
  * 영화 상영시간표 카드 — CGV·롯데시네마·메가박스.

@@ -1,4 +1,4 @@
-import { classifySearchNeed, isFollowupReference } from "../intentRules";
+import { classifySearchNeed, isFollowupReference } from "../intent-rules";
 import { TIER, decideSearch, formatSearchTrace, type SearchSignal } from "../search-policy";
 import { collectTextSearchSignals, wantsExternalVerification } from "../search-signals";
 

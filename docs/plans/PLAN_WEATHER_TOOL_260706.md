@@ -21,7 +21,7 @@
 ## 1. 현재 구조 (왜 느리고 부정확한가)
 
 "오늘 날씨 어때?" 흐름:
-1. [intentRules.ts:108](../../server/agent/intentRules.ts#L108) `domain` 태깅 → [router.ts:106](../../server/agent/nodes/router.ts#L106) `search:true`
+1. [intent-rules.ts:108](../../server/agent/intent-rules.ts#L108) `domain` 태깅 → [router.ts:106](../../server/agent/nodes/router.ts#L106) `search:true`
 2. **Google Search grounding**(SDK 경로)
 3. [prompt.ts:10-35](../../server/agent/prompt.ts#L10) 지시대로 LLM이 마크다운 이모지 표 **직접 생성**
 

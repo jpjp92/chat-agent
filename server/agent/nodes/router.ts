@@ -4,7 +4,7 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL } from "../../models";
-import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intentRules";
+import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intent-rules";
 import { decideWeatherFollowup } from "../weather-followup";
 import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 

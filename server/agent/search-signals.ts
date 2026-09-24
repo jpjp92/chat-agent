@@ -15,7 +15,7 @@ import {
     classifySearchNeed,
     shouldSuppressSearchForFollowup,
     detectExplicitSearchRequest,
-} from "./intentRules";
+} from "./intent-rules";
 import { TIER, type SearchSignal } from "./search-policy";
 
 /**

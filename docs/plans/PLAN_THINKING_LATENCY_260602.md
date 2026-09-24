@@ -13,7 +13,7 @@
 
 ### 코드 경로 (날씨 질의 기준)
 
-1. `날씨` 키워드 → [intentRules.ts:98](../../server/agent/intentRules.ts#L98) 강한 ON 패턴 → `needsSearch=true` 확정 (무조건 검색 경로).
+1. `날씨` 키워드 → [intent-rules.ts:98](../../server/agent/intent-rules.ts#L98) 강한 ON 패턴 → `needsSearch=true` 확정 (무조건 검색 경로).
 2. 3.5 Flash는 **무료티어에서 Google Search grounding 불가** → [generator.ts:406](../../server/agent/nodes/generator.ts#L406) **two-track** 분기.
 3. 결과적으로 **순차 LLM 3회**:
    | 단계 | 모델 | 역할 |

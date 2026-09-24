@@ -214,9 +214,9 @@ IF intent == general AND 직전 턴에 검색 발생(※ 9-B: 직전 human 메�
 ### 변경
 - `server/agent/state.ts`: `needsSearch` 필드 추가 (reducer `(x,y)=>y??x` 필수 — boolean이라 `||` 금지, false 보존. 9-B 참조)
 - `server/agent/nodes/router.ts`: LLM 프롬프트에 `needs_search` 추가, rule fast-path/fallback에 search 휴리스틱 추가, `needsSearch` 반환
-- `server/agent/intentRules.ts`: OFF/ON 신호 키워드셋 + `classifySearchNeed()` 헬퍼 추가
+- `server/agent/intent-rules.ts`: OFF/ON 신호 키워드셋 + `classifySearchNeed()` 헬퍼 추가
 - `server/agent/nodes/generator.ts`: `general`의 `useGoogleSearch`를 `state.needsSearch`로 대체 (게이트 7번) + 검색결과 멀티턴 가드(게이트 6번, 6-3 참조) 추가 — 기존 `historyHasUrl`/`hasVideoSummary` 가드 옆에 동일 패턴으로 삽입
-- `server/agent/intentRules.ts`: (위 OFF/ON 키워드셋과 함께) follow-up 가공형 참조어셋(`요약·정리·비교·방금·위에서·그거·그건·앞서`) + **과거참조(past-ref) 패턴** + 헬퍼 추가 — 멀티턴 가드용. 프로토타입·테스트: `scripts/test-search-rules.mjs`
+- `server/agent/intent-rules.ts`: (위 OFF/ON 키워드셋과 함께) follow-up 가공형 참조어셋(`요약·정리·비교·방금·위에서·그거·그건·앞서`) + **과거참조(past-ref) 패턴** + 헬퍼 추가 — 멀티턴 가드용. 프로토타입·테스트: `scripts/test-search-rules.mjs`
 
 ### 비변경 (절대 건드리지 않음)
 - 13종 intent 분류 로직 자체
@@ -248,7 +248,7 @@ IF intent == general AND 직전 턴에 검색 발생(※ 9-B: 직전 human 메�
    - 효과: 실측 오답("테슬라 CEO", "파이썬 vs 자바 인기") 2건 모두 rule ON으로 교정 — **룰 테스트로 검증됨(2/2, OFF→ON false positive 0건, "가장 빠른 알고리즘" 등 미오인). `scripts/test-search-rules.mjs`, 6-3 검증 참조.**
 3. **최신성 누락 가능성**: 검색 키워드 없지만 최신 정보가 필요한 질문이 모델 컷오프로 답할 수 있음 → ON 신호 키워드셋을 넓게(2번) + default on(1번)으로 이중 완화.
 4. **medical_qa 유지 확인**: 현재 강제 on. 출처 근거 중요 → 유지 권장. (변경 시 별도 합의)
-5. **키워드셋 다국어**: OFF/ON 신호를 ko/en/es/fr 모두 커버해야 함 (기존 intentRules 패턴과 동일 수준). — **lite 다국어 스폿체크 검증됨(en/es/fr 14/14, `scripts/test-search-routing-multilingual.mjs`)**: 한국어 few-shot만으로 다국어 needs_search 일반화 확인. 단 rule fallback 키워드는 별도로 다국어 보강 필요.
+5. **키워드셋 다국어**: OFF/ON 신호를 ko/en/es/fr 모두 커버해야 함 (기존 intent-rules 패턴과 동일 수준). — **lite 다국어 스폿체크 검증됨(en/es/fr 14/14, `scripts/test-search-routing-multilingual.mjs`)**: 한국어 few-shot만으로 다국어 needs_search 일반화 확인. 단 rule fallback 키워드는 별도로 다국어 보강 필요.
 6. **프롬프트 few-shot 유지**: 실측에 사용한 5개 few-shot(코드·날씨·개념·가격·번역)이 OFF/ON 100% 달성에 기여 → 구현 프롬프트에 동일하게 포함. 회색지대 예시(근황·비교) 1~2개 추가 시 GRAY 정확도 추가 개선 기대.
 7. **멀티턴 over-trigger (참조어 충돌) — 신규 발견**: router/rule은 마지막 메시지만 보므로, 직전 턴에서 검색해 온 내용을 가리키는 follow-up("**최근** 검색한 내용 비교 요약", "방금 거 정리")의 참조어가 ON 키워드("최근/최신")와 충돌 → 불필요한 재검색.
    - 본질: 데이터는 이미 히스토리에 있어 재검색 불필요(off가 정답)인데 rule이 ON으로 오인.
@@ -306,7 +306,7 @@ IF intent == general AND 직전 턴에 검색 발생(※ 9-B: 직전 human 메�
 
 ## 10. 구현 순서 (완료 ✅)
 
-1. ✅ `intentRules.ts` — OFF/ON 신호 키워드셋 + follow-up 참조어셋 + `classifySearchNeed()` 추가 → `scripts/verify-intentrules-search.mts`로 검증(단일턴 22/22, FP 0, 가드 4/4)
+1. ✅ `intent-rules.ts` — OFF/ON 신호 키워드셋 + follow-up 참조어셋 + `classifySearchNeed()` 추가 → `scripts/verify-intentrules-search.mts`로 검증(단일턴 22/22, FP 0, 가드 4/4)
 2. ✅ `state.ts` — `needsSearch` 필드 추가 (reducer `(x,y)=>y??x`, default `()=>true`) → `tsc --noEmit` 통과
 3. ✅ `router.ts` — LLM 프롬프트에 `needs_search` 필드 추가, general에 한해 rule(강한 on/off) → gray는 LLM 판정 → 누락 시 default-on 순으로 `needsSearch` 반환 → `tsc` 0 errors
 4. ✅ `generator.ts` — `intent==='general' && useGoogleSearch===true`("순수 general")에만 `useGoogleSearch=state.needsSearch`(게이트7) + 멀티턴 가드 `shouldSuppressSearchForFollowup`(게이트6, prevSearched=직전 human ON 근사) 적용. image/url/video/renderer/medical 기존 분기 전부 보존 → `tsc` 0 errors

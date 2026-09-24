@@ -49,7 +49,7 @@
 
 ### 2-1. 왜 판정 로직을 새로 안 만들어도 되나
 
-칩 문구를 `"검색해서 확인해줘"` 계열로 두면 [`detectExplicitSearchRequest`](../../server/agent/intentRules.ts)에 걸려
+칩 문구를 `"검색해서 확인해줘"` 계열로 두면 [`detectExplicitSearchRequest`](../../server/agent/intent-rules.ts)에 걸려
 **tier 300(USER_EXPLICIT)** 이 된다. 라우터 LLM이 뭐라 하든, 멀티턴 가드가 뭐라 하든 검색이 켜진다.
 Step 2~4에서 만들고 16/16·23/23으로 검증한 경로를 그대로 쓴다.
 

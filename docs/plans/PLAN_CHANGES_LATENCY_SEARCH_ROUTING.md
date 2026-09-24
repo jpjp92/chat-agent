@@ -13,7 +13,7 @@
 
 ## 파일별 변경
 
-### 1. `server/agent/intentRules.ts` (추가)
+### 1. `server/agent/intent-rules.ts` (추가)
 - `type SearchDecision = "on" | "off" | "gray"`
 - `SEARCH_OFF_PATTERNS` (코드·번역·창작·계산·개념설명), `SEARCH_ON_PATTERNS` (temporal·domain·explicit·person·ranking·finance)
 - `FOLLOWUP_REF_PATTERN`, `PAST_REF_PATTERN`
@@ -46,7 +46,7 @@ needsSearch: Annotation<boolean>({
 |---|---|---|
 | `scripts/test-search-rules.mjs` | 룰 프로토타입(LLM-free) | 단일턴 22/22, FP 0, 가드 4/4 |
 | `scripts/test-search-routing-multilingual.mjs` | lite 다국어(en/es/fr) | 14/14 |
-| `scripts/verify-intentrules-search.mts` | 프로덕션 `intentRules.ts` export ↔ 프로토타입 일치 | ~~22/22~~ → ⚠️ **현재 20/22 `❌ MISMATCH`** (아래) |
+| `scripts/verify-intentrules-search.mts` | 프로덕션 `intent-rules.ts` export ↔ 프로토타입 일치 | ~~22/22~~ → ⚠️ **현재 20/22 `❌ MISMATCH`** (아래) |
 | `scripts/verify-search-integration.mts` | router+generator 합성 결정 시뮬레이션 | **15/15** |
 
 - 타입: `npx tsc --noEmit` → **0 errors** (state/router/generator 전체).
@@ -60,7 +60,7 @@ needsSearch: Annotation<boolean>({
 > ❌ exp=off got=gray | TCP 핸드셰이크가 어떻게 작동하는지 설명해줘
 > ```
 >
-> **프로덕션 버그가 아니다.** `intentRules.ts`가 `설명해/원리/개념`을 강한 OFF에서 의도적으로 제외했고
+> **프로덕션 버그가 아니다.** `intent-rules.ts`가 `설명해/원리/개념`을 강한 OFF에서 의도적으로 제외했고
 > (DEV_260624 §5 A안 — `"gpt 5.5 설명해줘"` 같은 최근 엔티티 설명은 검증 검색이 필요), **테스트 기대값이 낡았다.**
 >
 > 문제는 **왜 몰랐는가**다. `test-search-rules.mjs`는 정규식을 프로덕션에서 import하지 않고

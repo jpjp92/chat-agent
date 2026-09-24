@@ -347,7 +347,7 @@
 
 **⓪ 날씨 전용 툴 — KMA + OpenWeather** — ✅ **구현 완료 (2026-07-06, [DEV_260706](logs/2026/07/DEV_260706.md))** · 📋 기획서 [PLAN_WEATHER_TOOL_260706](plans/PLAN_WEATHER_TOOL_260706.md)
 
-> 검토 2026-07-05. **현재 문제**: 전용 툴 없이 "날씨"가 [intentRules.ts:108](../server/agent/intentRules.ts#L108) domain 태깅 → [router.ts:106](../server/agent/nodes/router.ts#L106) `search:true` → **Google Search grounding + LLM 마크다운 표 생성**([prompt.ts:10-35](../server/agent/prompt.ts#L10)). 느림(15s+ grounding 왕복)·부정확(숫자 할루시네이션)·비구조적(카드 아님). 전용 툴로 전환 시 **~1s 결정론적 카드**.
+> 검토 2026-07-05. **현재 문제**: 전용 툴 없이 "날씨"가 [intent-rules.ts:108](../server/agent/intent-rules.ts#L108) domain 태깅 → [router.ts:106](../server/agent/nodes/router.ts#L106) `search:true` → **Google Search grounding + LLM 마크다운 표 생성**([prompt.ts:10-35](../server/agent/prompt.ts#L10)). 느림(15s+ grounding 왕복)·부정확(숫자 할루시네이션)·비구조적(카드 아님). 전용 툴로 전환 시 **~1s 결정론적 카드**.
 > **레퍼런스에 KMA+OpenWeather 하이브리드 완성** (2026-07-05 git pull, 커밋 `f1f2867`·`d462167`). `reference/news/app/api/weather/route.ts`(768줄) — `buildWeatherData`(`reference/news/app/api/weather/route.ts:722`) 디스패처(한국 도시&KMA키 → KMA, 실패 try/catch → OpenWeather 폴백), **통합 `WeatherData` 타입**(`source:'KMA'|'OpenWeather'`, 렌더러는 출처 무관). KMA 3종 병렬: `getUltraSrtNcst`(초단기실황 T1H·REH·WSD·RN1·PTY) + `getVilageFcst`(단기예보 TMP·POP·PCP·SKY·TMN·TMX) + `getLandFcst`(육상예보 `wf` 텍스트). base_time 슬롯팅·KST(+9h)·PTY/SKY 라벨맵·`numericValue`("강수없음"→0)·KMA→OpenWeather 아이콘코드 변환 포함. 엔드포인트 = **API Hub `apihub.kma.go.kr` + `authKey`**(구 data.go.kr serviceKey 아님).
 > 설계: **KMA 우선(한국 정확도) + OpenWeather 보완(해외·geocoding·KMA 폴백)** 하이브리드. 레퍼런스가 KMA까지 다 풀어서 **처음부터 통째 이식 현실적**(단계 분리 불필요).
 > **격자좌표는 하드코딩 대신 공식으로** — 레퍼런스는 24개 도시 `nx/ny`를 `KMA_CITIES` 표(`reference/news/app/api/weather/route.ts:199`)에 박았으나(24개 도시 제약), **`dfsXyConv(lat,lon)` LCC 공식(~30줄, 오프라인)** 채택 시 표 폐기 + 전국 커버. 파이프라인: 도시명 → OpenWeather geocoding(이미 있음, lat/lon) → `dfsXyConv` → nx/ny → KMA. **단 `shortRegId`(육상예보)·`stnId`는 공식 없음(코드표 파일만)** → **육상예보(`getLandFcst`) 생략 권장**(카드 본체 무관, notes는 규칙기반 `weatherNotes`로 충분 + KMA 호출 3→2종 33%↓).
@@ -357,7 +357,7 @@
 - [x] `server/lib/weather/index.ts` — `buildWeatherData` 코어(툴에서 분리, 렌더러와 타입 공유). geocoding 1회 → `dfsXyConv` 격자(하드코딩 X, 전국) → KMA 2콜(육상 생략)/OWM 폴백. `numericValue` 범위·미만 파싱(전주 실측 40.5mm 검증). 출력 **언어 중립**(condition/note 코드)
 - [x] `server/agent/weather-tool.ts` — `cities[]` 멀티 도시 병렬 → 도시별 `json:weather` 블록
 - [x] `components/WeatherRenderer.tsx` — 프리뷰 카드 이식. 강수 "현재 우선 + 예보 fallback"(state=now/expected/none). KMA 가변 예보일·결측 조건부. 에러카드. 모바일 380 / 웹 540 + 가운데 정렬. 예보 스트립 모바일 반응형 축소·최고/최저 한줄·셀 호버(오늘/타요일 차별). **팔레트=웜 앰버(레퍼런스 정렬)**: 웜 차콜/크림 표면 + 앰버/테라코타 액센트(DEV_260706 §6-2). 위치 아이콘 `fa-location-dot`
-- [x] `router.ts` + `intentRules.ts` — `weather` intent 분리(grounding 우회) + **멀티턴 후속 가드**(직전 assistant의 json:weather로 카드표시 판정 → 코멘트/해석은 general+카드데이터로 답·`needsSearch=false` / 새 조회는 weather 재조회, 스팟 10/10) + **폴백 규칙·구제**(라우터 LLM 실패 시 `classifyIntentByRules`가 weather 분류, 카드 있을 땐 구제 억제로 코멘트 승격 방지, 스팟 14/14) + **계절/현상 강등**(장마·폭염·미세먼지·태풍 등은 카드 범위 밖 → general+search, 2겹 가드 스팟 8/8)
+- [x] `router.ts` + `intent-rules.ts` — `weather` intent 분리(grounding 우회) + **멀티턴 후속 가드**(직전 assistant의 json:weather로 카드표시 판정 → 코멘트/해석은 general+카드데이터로 답·`needsSearch=false` / 새 조회는 weather 재조회, 스팟 10/10) + **폴백 규칙·구제**(라우터 LLM 실패 시 `classifyIntentByRules`가 weather 분류, 카드 있을 땐 구제 억제로 코멘트 승격 방지, 스팟 14/14) + **계절/현상 강등**(장마·폭염·미세먼지·태풍 등은 카드 범위 밖 → general+search, 2겹 가드 스팟 8/8)
 - [x] `prompt.ts` — `weather` focus hint(툴 강제 호출·표 금지). WEATHER_FORMATTING은 general 폴백 존치
 - [x] `state.ts`·`generator.ts`·`langchain-path.ts`·`graph.ts`·`ChatMessage.tsx`·`app/api/chat/route.ts` 배선 (LANGCHAIN/FAST_PASS 인텐트, on_tool_end 멀티블록 스트리밍)
 - [x] 다국어(ko/en/es/fr) — UI 라벨·상태·강수문구 딕셔너리 + 요일 `Intl` + 로컬 tz 시각. **렌더러 클라이언트 처리**(OWM lang 불필요)
@@ -400,7 +400,7 @@
 - [ ] `components/SchoolRenderer.tsx`
 - [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
-> **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movieContext.ts`). 상세: DEV_260610~613.
+> **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movie-context.ts`). 상세: DEV_260610~613.
 
 > **⑤ 스포츠(월드컵) — 구현 완료** (`lib/sports/football-data.ts`, `server/agent/worldcup-tool.ts`, `sports` intent). football-data.org 연동으로 WC 순위/대진/득점왕, grounding 우회. 상세: DEV_260621. 제약: 무료 티어 과거시즌 미지원·rate limit 분당 6회.
 

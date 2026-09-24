@@ -270,7 +270,7 @@ weatherCardShown 일 때:
 
 ## 7-5. 영화 경로 확장 (2026-08-01)
 
-같은 3분기 원칙을 영화 상영표 카드에 적용했다. 카드 전달 경로가 날씨와 다르다 — 상영표는 히스토리에 없고, `MovieRenderer`가 `/api/showtimes`로 가져온 걸 클라의 `lib/movieContext`가 모아 다음 요청에 `movieContext`로 동봉한다. 따라서 **`state.movieContext`의 존재 자체가 "카드 표시 중" 신호**이고, 라우터 프롬프트의 `NOTE:` 힌트도 여기서 만든다.
+같은 3분기 원칙을 영화 상영표 카드에 적용했다. 카드 전달 경로가 날씨와 다르다 — 상영표는 히스토리에 없고, `MovieRenderer`가 `/api/showtimes`로 가져온 걸 클라의 `lib/movie-context`가 모아 다음 요청에 `movieContext`로 동봉한다. 따라서 **`state.movieContext`의 존재 자체가 "카드 표시 중" 신호**이고, 라우터 프롬프트의 `NOTE:` 힌트도 여기서 만든다.
 
 ### 7-5-1. 규칙 신호를 강/약으로 쪼갬
 

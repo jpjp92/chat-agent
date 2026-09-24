@@ -46,7 +46,7 @@
 | 층 | 무엇 | 어디 |
 |---|---|---|
 | ① 프롬프트 | *"받고 싶은 게 문헌인가 산출물인가"* 부정 앵커 | [router.ts](../../server/agent/nodes/router.ts) |
-| ② 규칙 | `resolvePaperArtifactIntent` — 산출물 어휘 O + 논문 어휘 X → `general` | [intentRules.ts](../../server/agent/intentRules.ts) |
+| ② 규칙 | `resolvePaperArtifactIntent` — 산출물 어휘 O + 논문 어휘 X → `general` | [intent-rules.ts](../../server/agent/intent-rules.ts) |
 | ③ 종합단계 웹검색 | 논문 카드 + 명시 검색 요청이면 조회 **후** 웹을 붙인다 | OpenAI: `withExplicitSearchFollowup` · Gemini: `shouldAddWebSearchToPaperFollowup` |
 
 ⚠️ ③ 은 **조회가 끝난 뒤에만** 붙는다. 1차 호출에 도구를 둘 주면 `forceDomainTool`

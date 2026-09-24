@@ -31,7 +31,7 @@
 | `lib/sports/football-data.ts` (생성) | football-data.org fetch + 멀티그룹 파싱 + 인메모리 캐시 + 마크다운 포맷. 순수(서버onlyX, `fetch`+`process.env`만). |
 | `server/agent/worldcup-tool.ts` (생성) | LangChain `tool` — resource 인자로 데이터 계층 호출, `[WORLDCUP_DATA]` + 지시문 반환. |
 | `server/agent/state.ts` (수정) | `IntentType`에 `"sports"` 추가. |
-| `server/agent/intentRules.ts` (수정) | `FALLBACK_RULES`에 sports 키워드 규칙 추가(휴리스틱 폴백). |
+| `server/agent/intent-rules.ts` (수정) | `FALLBACK_RULES`에 sports 키워드 규칙 추가(휴리스틱 폴백). |
 | `server/agent/nodes/router.ts` (수정) | LLM 프롬프트 intent 목록 + `validIntents` + 과거시즌→general 가드. |
 | `server/agent/nodes/generator.ts` (수정) | `LANGCHAIN_INTENTS`에 `"sports"` 추가. |
 | `server/agent/graph.ts` (수정) | `worldCupTool` import + ToolNode 배열 추가. |
@@ -292,7 +292,7 @@ git commit -m "feat(sports): sports intent 배선 (IntentType·ToolNode·LANGCHA
 
 **Files:**
 - Modify: `server/agent/nodes/router.ts:96`, `:116`, `:180` 부근
-- Modify: `server/agent/intentRules.ts:12-16` 부근
+- Modify: `server/agent/intent-rules.ts:12-16` 부근
 
 **Interfaces:**
 - Consumes: `"sports"` IntentType (Task 3)
@@ -329,7 +329,7 @@ git commit -m "feat(sports): sports intent 배선 (IntentType·ToolNode·LANGCHA
 
 - [ ] **Step 4: 휴리스틱 폴백 규칙 추가**
 
-`server/agent/intentRules.ts` — `FALLBACK_RULES` 배열 첫 항목(movie_search) 앞에 추가:
+`server/agent/intent-rules.ts` — `FALLBACK_RULES` 배열 첫 항목(movie_search) 앞에 추가:
 
 ```ts
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
@@ -349,7 +349,7 @@ Expected: 에러 0 (PASS)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/agent/nodes/router.ts server/agent/intentRules.ts
+git add server/agent/nodes/router.ts server/agent/intent-rules.ts
 git commit -m "feat(sports): 라우터 sports 의도 감지 + 과거대회 general 분기"
 ```
 
@@ -414,4 +414,4 @@ git add -A && git commit -m "test(sports): E2E 검증 완료"
 
 - **Spec 커버리지**: §2 범위(WC/3기능)→Task1·2, 렌더 마크다운→Task1 포맷+기존 ChatMessage, §3 아키텍처(intent+tool)→Task3·4, §4.1 캐시 TTL→Task1, §4.2 지시문(팀명/미확정)→Task2, §4.3 라우팅+과거분기→Task4, §5 에러(stale 폴백/미확정)→Task1, §6 테스트→각 Task 검증단계+Task5. 누락 없음.
 - **Placeholder**: 없음 (모든 step에 실제 코드/명령).
-- **타입 일관성**: `getStandings/getScorers/getMatches`(Task1) ↔ worldcup-tool import(Task2) 시그니처 일치. `"sports"` IntentType(Task3) ↔ router validIntents/intentRules(Task4) 일치.
+- **타입 일관성**: `getStandings/getScorers/getMatches`(Task1) ↔ worldcup-tool import(Task2) 시그니처 일치. `"sports"` IntentType(Task3) ↔ router validIntents/intent-rules(Task4) 일치.
