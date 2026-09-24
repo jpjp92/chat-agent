@@ -79,6 +79,10 @@ npm run verify  # typecheck + test
   `NCBI_KEY` 없이도 돌지만 §4 에서 429 가 난다
 - `npx tsx tests/manual/check-legacy-image-field.mts`: `chat_messages` 실제 컬럼과 첨부 저장 형태를 조회해 `Message.image` 하위호환 필드 제거 가능 여부 판단 (Supabase 자격증명 필요)
 - `npx tsx tests/manual/check-real-broken-citation.mts`: 생 URL 이 노출됐던 실제 DB 답변에 정리 규칙을 적용해 마커 보존/노출 0 확인 (Supabase 자격증명 필요)
+- `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-layer-conflict.mts --live [--rounds 7]`:
+  **`fetch` 를 eutils 에만 가로채** PubMed 장애/0건을 만들고 **실제 그래프**를 돌린다. 장애를
+  "근거 없음" 판정으로 바꿔 말하는지 + 조회가 비었을 때 사용자에게 줄 게 남는지 측정
+  (Gemini 키 소모, 라운드당 2회). `--rounds` 기본 7 — 단발 판정을 막는다
 - `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
   그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
