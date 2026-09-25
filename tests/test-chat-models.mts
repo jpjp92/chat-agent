@@ -68,7 +68,12 @@ const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import
     const exampleKeepsQuote = (block: string) =>
         new RegExp(`\\*\\*${LBL}\\*\\*\\s*\\n\\s*>`).test(block);
     check('URL 예시가 블록쿼트를 쓴다', exampleKeepsQuote(ps.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? ''));
-    check('영상 예시가 블록쿼트를 쓴다', exampleKeepsQuote(ps.match(/Direct Video Analysis[\s\S]{0,600}/)?.[0] ?? ''));
+    // 🔴 영상 예시는 **영상 턴 base** 에만 있다 — 8단계(2026-09-25)에서 조건부가 됐다.
+    //    `ps`(영상 아님)로 보면 블록이 없어 깨진다. 없는 것을 통과로 세지 않으려고
+    //    `?? ''` 를 남겨 둔다 — 블록이 사라지면 빈 문자열이 정규식에 걸려 빨갛게 된다.
+    const psVideo = getSystemInstruction('Korean', { videoTurn: true });
+    check('영상 예시가 블록쿼트를 쓴다', exampleKeepsQuote(psVideo.match(/Direct Video Analysis[\s\S]{0,600}/)?.[0] ?? ''));
+    check('영상 아닌 턴 base 에는 영상 지시가 없다', !ps.includes('[VIDEO ANALYSIS DIRECTIVE]'));
 }
 const generatorSource = fs.readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');
 check('채팅 route가 Gemini 키를 모든 공급자에 선행 강제하지 않음',

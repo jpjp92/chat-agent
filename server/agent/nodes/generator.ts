@@ -10,6 +10,7 @@ import { decideGoogleSearch } from "./search-gate";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { needsHospitalHoursLookup } from "../card-followup";
 import { assemblePrompt, resolveCardEntity } from "../prompt-assembly";
+import { hasVideoPart } from "../video-turn";
 import { fetchHospitalOpenStatus } from "../hospital-hours";
 import { resolveAreaCodesFromAddress } from "../hospital-tool";
 import { runLangChainPath } from "./langchain-path";
@@ -113,9 +114,9 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
 
         // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube
         // 폴백 블록이 함께 참조하므로 SDK 루프 밖으로 hoist.
-        const hasVideoData = state.messages.some((m: any) =>
-            Array.isArray(m.content) && m.content.some((p: any) => p.fileData)
-        );
+        // 🔴 판정은 `video-turn.ts` 한 곳에만 둔다 — `route.ts` 도 같은 값을 써서 영상
+        //    프롬프트 블록을 켠다. 인라인으로 두 벌이면 한쪽만 고쳐진다.
+        const hasVideoData = hasVideoPart(state.messages);
         // 영상을 실제 읽는 YouTube 턴 — 예산형 단일 데드라인(YOUTUBE_CALL_TIMEOUT_MS) 대상.
         const isYtVideoTurn = isYoutubeRequest && hasVideoData;
 

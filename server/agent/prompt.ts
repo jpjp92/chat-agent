@@ -1,6 +1,7 @@
 import { type LangName, DEFAULT_LANG_NAME, pickByLang } from './lang';
 import { NEVER_FABRICATE_SOURCES, buildSourceAdherence, GROUNDING_AND_CITATIONS, NO_INTERNAL_LEAKS } from "./prompt-integrity";
 import { RESPONSE_SHAPE, FORMATTING_AND_QUALITY, CODE_GENERATION_STANDARDS, RESPONSE_COMPLETENESS, buildLanguageEnforcement } from "./prompt-response";
+import { buildVideoAnalysisRules } from './prompt-video';
 
 const URL_SUMMARY_LABELS: Record<LangName, { summary: string; content: string; points: string }> = {
   Korean:  { summary: '한 줄 요약',          content: '주요 내용',           points: '핵심 포인트' },
@@ -312,13 +313,23 @@ export const RENDERER_SECTIONS: Record<string, string> = {
  *    응답 형태([prompt-response.ts](./prompt-response.ts)). 조각은 저기 있고 **순서는 여기 있다.**
  *    조각이 스스로 순서를 주장하면 조립부가 둘로 갈린다 — §4 가 지적한 문제가 그것이다.
  *
- * 🔴 가운데 두 블록(`REFORMAT` · `VIDEO ANALYSIS`)은 **일부러 여기 남겼다.** 무결성도 응답 형태도
- *    아니라 **조건부**다(재구성 턴만 / 영상 턴만). 8단계에서 소스 축으로 옮긴다 — 지금 억지로
- *    둘 중 하나에 넣으면 그 단계에서 다시 꺼내야 한다. 남은 자리가 곧 다음 작업 목록이다.
+ * 🔴 2026-09-25(8단계): `VIDEO ANALYSIS DIRECTIVE` 2,997자를 **조건부로** 바꿨다
+ *    ([prompt-video.ts](./prompt-video.ts)). 영상 턴에만 실린다 — 블록 첫 줄이 스스로
+ *    *"APPLIES ONLY WHEN ... YouTube URL ... video MIME type"* 이라고 적고 있었고, 그 조건은
+ *    이미 코드에 불리언으로 있었다. **자리는 그대로다** — 뒤로 옮기면 위치가 변수로 끼어든다(§7-1).
+ *    그래서 `videoTurn: true` 면 **이전과 바이트가 완전히 같다**(4개 언어 골든이 증명).
+ *
+ * 🔴 `REFORMAT REQUESTS` 는 **아직 무조건이다.** 옮기려 했으나 `reformatTurn` 의 정의가
+ *    (`llmFollowUp === 'refine' && !cardFollowup && !isMovieFollowup && !weatherFollowup`)
+ *    이 블록의 적용 범위보다 **좁다** — 카드 후속 턴의 "표로 정리해줘"는 `reformatTurn=false` 라
+ *    게이트로 쓰면 **카드와 표가 만나는 바로 그 턴에서** 날조 금지 규칙이 사라진다(§10-9).
  *
  * ⚠️ 순서를 바꾸면 응답이 바뀐다(§7-1, 9단계 A/B 대상). 골든이 4개 언어로 잡고 있다.
  */
-export const getSystemInstruction = (langName: LangName = DEFAULT_LANG_NAME) => {
+export const getSystemInstruction = (
+  langName: LangName = DEFAULT_LANG_NAME,
+  { videoTurn = false }: { videoTurn?: boolean } = {},
+) => {
   const lbl = pickByLang(URL_SUMMARY_LABELS, langName);
   return [
     `CRITICAL: YOUR ENTIRE RESPONSE MUST BE IN ${langName.toUpperCase()} ONLY.
@@ -327,7 +338,7 @@ NEVER switch languages. THIS IS YOUR TOP PRIORITY.`,
     NEVER_FABRICATE_SOURCES,
     buildSourceAdherence(lbl),
     GROUNDING_AND_CITATIONS,
-    // ── 여기부터 두 블록은 조건부 — 8단계 이동 대상 ──────────────────────────
+    // ── 아래 REFORMAT 은 아직 무조건 — 8단계 잔여분(§10-9) ───────────────────
     `[REFORMAT REQUESTS — DO NOT ADD NEW FACTS]
 When the user asks you to RESTATE your previous answer in another shape — "표로 정리해줘", "요약해줘", "비교해줘", "간단히", "정리해줘", "make a table", "summarize that", "compare these" — you are reformatting, not researching.
 - Do NOT introduce any item, product name, brand, manufacturer, number, date, or claim that was not already in the answer you are reformatting. Change the FORM, preserve the CONTENT.
@@ -335,39 +346,7 @@ When the user asks you to RESTATE your previous answer in another shape — "표
 - If the user would clearly benefit from more entries, say that finding more requires another lookup. Do not supply them from memory.
 - EXCEPTION: this does not apply when the user explicitly asks to expand ("더 추가해서", "다른 것도", "더 찾아서", "add more", "what else"). Then it is a new request, not a reformat.
 Why this matters: these turns usually run without any tool or search, so nothing verifies what you add. A plausible-sounding name that belongs to a different product category is worse than a shorter table.`,
-    `[VIDEO ANALYSIS DIRECTIVE]
-THIS DIRECTIVE APPLIES ONLY WHEN: (1) the user's message contains an explicit YouTube URL, OR (2) the request parts contain a 'fileData' with a video MIME type (e.g., video/mp4).
-NEVER apply this directive to general knowledge responses, scientific explanations, biology/chemistry/astronomy visualizations, or any response where no actual video URL or video file was provided.
-When the above conditions are met, you MUST adhere to the following logic:
-1. When analyzing a direct video file (via 'fileUri' or 'fileData'), provide a comprehensive "Visual & Auditory Summary".
-2. When the user asks to summarize a YouTube video:
-   - **Tone & Style**: Use a professional, expert tone. Use clear headings, bold text for emphasis, and structured lists. Aim for the "Gemini Web" premium feel.
-   - **Structure**:
-     a) **Introduction**: State the video title and channel. Briefly summarize the overall objective of the video.
-     b) **Major Sections**: Divide the content into 3-4 logically numbered/headquartered sections (e.g., "1. Single Agent Pattern").
-     c) **Detailed Bullets**: For each section, use bullet points to explain **Concepts**, **Pros**, **Cons**, or **Key Takeaways**.
-     d) **Conclusion/Summary**: Briefly wrap up the video's significance or mention "Next Steps/Future Outlook" if discussed.
-   - **Clickable Timestamps (MANDATORY — YouTube responses only)**:
-     - For every heading and significant point, you MUST include a clickable timestamp link.
-     - **Format**: \`[[MM:SS](BASE_URL&t=SECONDS)]\`
-     - **Calculation**: Convert the timestamp from the \`[TRANSCRIPT]\` (e.g., [01:30]) into seconds (e.g., 90) for the \`&t=\` parameter.
-     - **Base URL**: Use the EXACT original YouTube URL provided in the context. NEVER fabricate or construct YouTube search URLs (youtube.com/results?...). If no real YouTube URL is available, omit timestamps entirely.
-   - **Video Analysis Fallback (NO TRANSCRIPT)**:
-     - If \`[TRANSCRIPT]\` is missing but you have \`fileData\` (Direct Video Analysis):
-       - You are **watching the video directly**. Do NOT say you are guessing from metadata. Describe what you actually see and hear.
-       - Use the SAME structure as the [URL_CONTENT] summary above — EXACTLY. Start DIRECTLY with the **${lbl.summary}** heading; do NOT write any intro sentence before it (no "이 영상은 …를 보여줍니다" preamble).
-         **${lbl.summary}**
-         > (영상 전체를 1문장으로)
-
-         **${lbl.content}**
-         (영상의 흐름·등장 요소·행동·표정·배경·들리는 오디오를 2~4개 불릿 또는 짧은 헤딩으로 설명. 장면이 바뀌는 지점에만 불릿 맨 앞에 \`[MM:SS]\` 표기 — 문장 중간 금지·같은 값 반복 금지, 30초 이하 짧은 클립은 타임스탬프 생략)
-
-         **${lbl.points}**
-         - (영상의 핵심 특징 2~4개를 간결하게)
-     - If BOTH \`[TRANSCRIPT]\` and \`fileData\` are missing:
-       - Summarize using Title/Description but **explicitly but politely** state: "현재 자막 데이터를 직접 추출할 수 없어 영상의 메타데이터와 검색 결과를 바탕으로 요약을 구성했습니다. 실제 영상의 세부 흐름과는 약간의 차이가 있을 수 있습니다."
-       - Still aim for a structured format, but without specific timestamps.`,
-    // ────────────────────────────────────────────────────────────────────────
+    ...(videoTurn ? [buildVideoAnalysisRules(lbl)] : []),
     NO_INTERNAL_LEAKS,
     RESPONSE_SHAPE,
     FORMATTING_AND_QUALITY,

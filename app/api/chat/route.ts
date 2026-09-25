@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
 import { GUEST_MESSAGE_LIMIT, GUEST_LIMIT_ERROR } from '../../../lib/limits';
 import { getSystemInstruction } from '../../../server/agent/prompt';
+import { hasVideoPart } from '../../../server/agent/video-turn';
 import { toLangName, pickByLang, type LangName } from '../../../server/agent/lang';
 import { compileAgentGraph } from '../../../server/agent/graph';
 import { DEFAULT_CHAT_MODEL, isChatModelId } from '../../../server/models';
@@ -82,7 +83,6 @@ export async function POST(req: NextRequest) {
 
       // 언어 표현 매핑은 server/agent/lang.ts 한 곳에서만 한다.
       const langName = toLangName(language);
-      const systemInstruction = getSystemInstruction(langName);
       const supportedMimeTypes = ['image/', 'video/', 'audio/', 'application/pdf'];
 
       // 히스토리 → LangChain 메시지 (역할 표기·미디어 창 규칙은 server/agent/history.ts)
@@ -128,6 +128,13 @@ export async function POST(req: NextRequest) {
       }
       if (humanMessageParts.length === 0) humanMessageParts.push({ type: 'text', text: prompt });
       contents.push(new HumanMessage({ content: humanMessageParts }));
+
+      // 🔴 base 를 여기서 만든다 — 위가 아니라. 영상 분석 지시(2,997자)가 **조건부**가 되면서
+      //    `isYoutubeRequest` 와 `contents`(영상 fileData 포함)가 정해진 뒤여야 한다.
+      //    영상 턴이면 이전과 바이트가 완전히 같고, 아닌 턴에서는 그 블록만 빠진다
+      //    (PLAN §7-2 / 8단계, prompt-video.ts 의 주석에 근거를 적었다).
+      const videoTurn = isYoutubeRequest || hasVideoPart(contents);
+      const systemInstruction = getSystemInstruction(langName, { videoTurn });
 
       if (session_id) {
         const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;

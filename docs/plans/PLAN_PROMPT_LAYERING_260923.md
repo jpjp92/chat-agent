@@ -358,7 +358,7 @@ export const createGeneratorNode = (systemInstructionBase, …) => {
 | 5 | `INTENT_FOCUS_HINTS` → `INTENT_POLICIES`, 대형 의도는 독립 파일 ✅ **2026-09-24 완료** | 중 | 이름과 내용 일치 → **§10-6** |
 | 6 | `paper_search` 정책 분리 — **줄 단위** 전역/전용 판별 ✅ **2026-09-24 판정 완료(이동 없음)** | 중 | 전역 후보는 다른 의도 적용 가능성을 먼저 검증 → **§10-7** |
 | 7 | base → `integrity.ts` / `response.ts` 분리 ✅ **2026-09-24 완료** | 중 | **4개 언어 전부 바이트 동일** → **§10-8** |
-| 8 | 조건부 블록을 소스 축으로 이동 (§7-2) — **줄 단위 분해** | 중~높음 | 블록 통째 이동 금지. 전역 줄은 남기고 조건부 줄만 옮긴다 · 영상·URL 턴 회귀 측정 동반 |
+| 8 | 조건부 블록을 소스 축으로 이동 (§7-2) — **줄 단위 분해** 🟡 **2026-09-25 영상만 완료, REFORMAT·SOURCE 잔여** | 중~높음 | 블록 통째 이동 금지. 전역 줄은 남기고 조건부 줄만 옮긴다 · 영상·URL 턴 회귀 측정 동반 → **§10-9** |
 | 9 | 시각 블록 위치 + Runtime/Turn 배치 A/B (§7-1) | **높음** | 프롬프트 위치가 응답을 바꾼다 — 별도 실험 |
 | 10 | 장문 코퍼스 기반 가독성 평가 | 낮음 | §11 |
 
@@ -635,6 +635,72 @@ base 21,208자를 둘로 갈랐다 — [prompt-integrity.ts](../../server/agent/
 
 **0~4 는 내용·순서를 바꾸지 않고 구조만 바꾼다.** 여기까지가 안전 구간이다.
 5 이후부터는 응답이 바뀔 수 있으므로 측정을 동반한다.
+
+### 10-9. 8단계 1차 (2026-09-25) — 영상 지시만 조건부로, **자리는 그대로**
+
+`VIDEO ANALYSIS DIRECTIVE` 2,997자를 [prompt-video.ts](../../server/agent/prompt-video.ts) 로 빼고
+`getSystemInstruction(langName, { videoTurn })` 로 켠다. 판정은
+[video-turn.ts](../../server/agent/video-turn.ts) 의 `hasVideoPart()` 한 곳 + `isYoutubeRequest`.
+
+**왜 이 블록이 1순위였나**: 블록 **첫 줄이 스스로 조건을 산문으로 적고 있다** —
+*"THIS DIRECTIVE APPLIES ONLY WHEN: (1) ... YouTube URL, OR (2) ... video MIME type"*.
+그 조건은 이미 코드에 불리언으로 있었다. 둘째 줄이 *"NEVER apply this directive to general
+knowledge responses, scientific explanations, biology/chemistry/astronomy visualizations"* 인 것이
+비용의 증거다 — **안 쓰일 자리를 막는 데 다시 자수를 쓴다.**
+
+#### 🔴 자리를 옮기지 않은 것이 이 단계의 핵심 결정이다
+
+턴 층(뒤)으로 보내면 **위치가 변수로 끼어든다**(§7-1). 위치는 9단계의 A/B 대상이므로,
+제거와 이동을 한 번에 하면 원인을 가를 수 없다. 같은 슬롯에서 조건부로 켜니:
+
+| | 결과 |
+|---|---|
+| **영상 턴** | **4개 언어 전부 바이트 동일** — 21,208 / 21,272 / 21,280 / 21,294 (8단계 전 값 그대로) |
+| 영상 아닌 턴 | base −2,951자(한국어, **14%**) · 의도 19개 + 턴 6개 골든 **전부 −2,951 균일** |
+
+균일한 감소폭이 *"그 블록만 빠졌다"* 의 증거다. **영상 턴은 바이트가 같으므로 회귀 측정이
+필요 없다** — 수용 기준의 "영상 턴 회귀 측정"을 측정 대신 **증명**으로 갈음했다.
+
+잃은 것이 없는지도 확인했다: 3단 구조를 지배하는 전역 규칙 `[ONE-LINE SUMMARY FORMAT]` 은
+`buildSourceAdherence` 에 남아 있고 거기 *"applies to EVERY analysis path alike — a URL, a video,
+an image, an attached document"* 라고 못 박혀 있다. 영상 블록의 같은 구조는 **재진술**이었다.
+
+#### 검사 — 자수 골든은 이동을 못 잡는다
+
+`base/{lang} 차이는 영상 블록 하나뿐이다 (자리 포함)` 를 넣었다. 블록을 다른 슬롯으로 옮겨
+돌연변이 검증하니 **자수 골든 4건은 초록으로 남고 이 검사만 빨갛게** 됐다 — 이동은 길이를
+바꾸지 않으니 당연하다. [DEV_260925 §3-2](../logs/2026/09/DEV_260925.md) 의
+*"자수는 내용의 대리지표가 아니다"* 가 여기서 또 나왔다.
+
+곁다리: `test-chat-models.mts` 의 *"영상 예시가 블록쿼트를 쓴다"* 가 빨갛게 됐다 — 결함이 아니라
+검사가 base 를 영상 없이 보고 있었다. 영상 턴 base 를 보게 고치고, *"영상 아닌 턴에는 영상
+지시가 없다"* 를 추가했다. `?? ''` 폴백은 **남겼다** — 블록이 사라지면 빈 문자열이 정규식에
+걸려 빨갛게 되므로, 없는 것을 통과로 세지 않는다.
+
+#### 🔴 남은 두 블록 — REFORMAT 은 옮기면 결함이 된다
+
+| 블록 | 자수 | 상태 |
+|---|---:|---|
+| `VIDEO ANALYSIS DIRECTIVE` | 2,997 | ✅ 조건부 |
+| `REFORMAT REQUESTS` | 1,119 | 🔴 **보류 — 아래** |
+| `CORE DIRECTIVE: SOURCE ADHERENCE` 의 조건부 줄 | 3,323 / 5,453 | 미착수 — 줄이 섞여 있어 줄 단위 분해가 필요하다 |
+
+`REFORMAT` 의 게이트로 쓸 `state.reformatTurn` 의 정의는
+[router.ts](../../server/agent/nodes/router.ts) 에서
+
+```ts
+const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
+```
+
+즉 **카드·영화·날씨 후속을 배제한다.** 그런데 base 의 블록은 그런 제한이 없다. 카드 후속 턴의
+*"표로 정리해줘"* 는 `reformatTurn === false` 이므로, 이걸 게이트로 쓰면 **카드와 표가 만나는
+바로 그 턴에서** 날조 금지 규칙이 사라진다. §7-3 이 적어 둔 대로 그 중복은 **실측으로 필요성이
+증명된 중복**이고(빈 응답인데 제품 4개짜리 표를 만든 사례), `llmFollowUp` 은 라우터 LLM 판정이라
+정밀도도 미지다.
+
+→ **조건이 코드에 있다는 것만으로 옮겨도 된다는 뜻이 아니다.** 코드의 조건이 블록의 적용 범위보다
+좁으면, 조건부화는 **좁아진 만큼을 들어내는** 일이다. 옮기려면 `reformatTurn` 을 넓히거나
+별도 판정을 두어야 하고, 그건 이 단계가 아니라 라우터 작업이다.
 
 ### 10-4. PR 분할
 

@@ -178,26 +178,29 @@ console.log('\n── 골든 해시 ──');
 //    `paper_search` 를 줄 단위로 가르거나 base 를 2분할할 때 **고정되지 않은 14개 의도가
 //    조용히 달라진다** — 그게 바로 그 단계들이 건드리는 전역 블록이다.
 //    넓히면서 기존 5개 값은 한 글자도 바뀌지 않았다(= 넓힘 자체는 무해).
+// 🔴 2026-09-25(8단계): 전부 **-2,951자**(한국어) — 영상 분석 지시가 조건부가 되어 빠졌다.
+//    감소폭이 19개 의도·6개 턴에서 **전부 동일**한 것이 "그 블록만 빠졌다"의 증거다.
+//    영상 턴 base 는 바이트 동일하다(아래 BASE_GOLDEN).
 const GOLDEN: Record<string, { len: number; sha: string }> = {
-    drug_id:         { len: 28545, sha: '8be539e187e1bf7c' },
-    drug_info:       { len: 29604, sha: '787e99ac5fac9f09' },
-    medical_qa:      { len: 32469, sha: 'aaf359e69a1fe045' },
-    biology:         { len: 23455, sha: '5c5277b18c24a645' },
-    chemistry:       { len: 25873, sha: '26a75127eb7d4bb1' },
-    physics:         { len: 28236, sha: '209ec3352abf4e48' },
-    astronomy:       { len: 24230, sha: 'fe887f4aa5fb9623' },
-    data_viz:        { len: 25561, sha: '08cea0b72a8ed1f5' },
-    pharmacy_search: { len: 22450, sha: 'd63e5b9f2e047d27' },
-    hospital_search: { len: 22144, sha: 'a4a7cf86a9ab0ad7' },
-    vet_search:      { len: 22155, sha: 'a1c1de7a5565cfc2' },
-    law_search:      { len: 22852, sha: 'bdf549f1a3fcdf46' },
-    law_qa:          { len: 22608, sha: '36d7d5860bf7405d' },
-    movie_search:    { len: 22340, sha: 'da36027b57ea81c3' },
-    sports:          { len: 25307, sha: '19be0ed1e2887f82' },
-    weather:         { len: 23159, sha: '04c21be30012ecf9' },
-    paper_search:    { len: 28355, sha: 'e950bc5a7f73c365' },
-    arxiv_search:    { len: 25997, sha: '36fbf81403237bb6' },
-    general:         { len: 25640, sha: '1d9e0175597739a7' },
+    drug_id:         { len: 25594, sha: '627f226ff25d848e' },
+    drug_info:       { len: 26653, sha: 'c444fca69d643ca1' },
+    medical_qa:      { len: 29518, sha: 'bd195c2676bc7e08' },
+    biology:         { len: 20504, sha: 'd75237821d77e5c8' },
+    chemistry:       { len: 22922, sha: 'e7d836291579fb8c' },
+    physics:         { len: 25285, sha: '8b7d28f79513b4dc' },
+    astronomy:       { len: 21279, sha: '3898723bd883b639' },
+    data_viz:        { len: 22610, sha: '586ac5f657318e6b' },
+    pharmacy_search: { len: 19499, sha: '7150fd24e9a151b2' },
+    hospital_search: { len: 19193, sha: '3a92accd07f5f32d' },
+    vet_search:      { len: 19204, sha: '89dfce4e0a089fb2' },
+    law_search:      { len: 19901, sha: 'c8e196539fa369d6' },
+    law_qa:          { len: 19657, sha: '788e8b0276c1e81c' },
+    movie_search:    { len: 19389, sha: '678a8d75fb01035a' },
+    sports:          { len: 22356, sha: 'ed5dde2a7db4f3b6' },
+    weather:         { len: 20208, sha: '38e73e02ae9a38d1' },
+    paper_search:    { len: 25404, sha: 'a758d8b857c0cb3e' },
+    arxiv_search:    { len: 23046, sha: '94523b536dcdc302' },
+    general:         { len: 22689, sha: '6dc867d9f29284bb' },
 };
 // 의도가 늘었는데 골든을 안 박으면 하니스는 조용히 초록이다 — 개수 자체를 건다.
 check('골든이 모든 의도를 덮는다', Object.keys(GOLDEN).length === ALL_INTENTS.length,
@@ -212,26 +215,26 @@ for (const [intent, want] of Object.entries(GOLDEN)) {
 // 🔴 **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
 //    규칙이 얹힌 상태의 해시를 함께 박아야 "규칙을 파일로 옮겼을 뿐"이 검사된다(§10 Step 2).
 const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: string }> = {
-    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 25971, sha: '88a12fe7f9e99bd4' },
-    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 23874, sha: '8ba507f3e704a8aa' },
-    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 29045, sha: '148e7031e8779bec' },
+    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 23020, sha: '44eabd215ba8cf74' },
+    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 20923, sha: '3e45a33804fbc98a' },
+    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 26094, sha: '88781175e6988274' },
     cardFollowup: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet',
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 26454, sha: '0d0a0027e755ca59',
+        }, len: 23503, sha: 'dc83e50ae8154524',
     },
     cardSearchTurn: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet', needsSearch: true,
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 26715, sha: '07101655cd9d8f33',
+        }, len: 23764, sha: '53bd71b23c515aca',
     },
     movieSearch: {
         state: {
             ...emptyState('general'), movieSearchTurn: true,
             movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
-        }, len: 26277, sha: '9951b680616e8fb6',
+        }, len: 23326, sha: 'bdd73ecbfa5a18c8',
     },
 };
 for (const [name, want] of Object.entries(TURN_GOLDEN)) {
@@ -242,12 +245,38 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
 }
 
 // 언어별 base 골든 — 한국어만 보면 나머지 셋이 조용히 깨진다.
-const BASE_GOLDEN: Record<string, number> = {
-    Korean: 21208, English: 21272, Spanish: 21280, French: 21294,
+//
+// 🔴 8단계(2026-09-25)부터 base 는 **두 모드**다. `video` 쪽 숫자는 **8단계 이전 값 그대로**이며
+//    한 자도 바꾸지 않았다 — 영상 분석 지시를 조건부로 바꾼 것이 영상 턴을 건드리지 않았다는
+//    증거다. 이 4개 숫자가 바뀌면 영상 턴의 응답이 바뀐 것이므로, 갱신 전에 이유를 확인한다.
+const BASE_GOLDEN: Record<string, { video: number; plain: number }> = {
+    Korean:  { video: 21208, plain: 18257 },
+    English: { video: 21272, plain: 18291 },
+    Spanish: { video: 21280, plain: 18295 },
+    French:  { video: 21294, plain: 18300 },
 };
-for (const [lang, len] of Object.entries(BASE_GOLDEN)) {
-    check(`골든  base/${lang}`, getSystemInstruction(lang as LangName).length === len,
-        `기대 ${len}자 / 실제 ${getSystemInstruction(lang as LangName).length}자`);
+for (const [lang, want] of Object.entries(BASE_GOLDEN)) {
+    const video = getSystemInstruction(lang as LangName, { videoTurn: true });
+    const plain = getSystemInstruction(lang as LangName);
+    check(`골든  base/${lang} 영상턴 — 8단계 전과 바이트 동일`, video.length === want.video,
+        `기대 ${want.video}자 / 실제 ${video.length}자`);
+    check(`골든  base/${lang} 영상아님`, plain.length === want.plain,
+        `기대 ${want.plain}자 / 실제 ${plain.length}자`);
+
+    // 🔴 가장 중요한 검사 — **두 모드의 차이가 그 블록 하나뿐인가.**
+    //    자수만 보면 "어딘가 2,951자가 빠졌다"까지만 안다. 아래는 빠진 것이 정확히
+    //    `[VIDEO ANALYSIS DIRECTIVE]` 이고, 그 자리가 `[GROUNDING & CITATIONS]` 와
+    //    `[NO INTERNAL LEAKS]` 사이임을 못 박는다 — **위치까지** 검사한다(9단계가 위치 A/B다).
+    const carved = video.replace(/\n\n\[VIDEO ANALYSIS DIRECTIVE\][\s\S]*?(?=\n\n\[NO INTERNAL LEAKS\])/, '');
+    check(`base/${lang} 차이는 영상 블록 하나뿐이다 (자리 포함)`, carved === plain,
+        carved === video ? '정규식이 블록을 못 찾았다 — 블록이 옮겨졌거나 이름이 바뀌었다'
+            : `깎아낸 결과가 영상없음 base 와 다르다 (${carved.length} vs ${plain.length})`);
+
+    check(`base/${lang} 영상아님엔 영상 블록이 없다`, !plain.includes('[VIDEO ANALYSIS DIRECTIVE]'));
+    // 🔴 영상 블록을 빼도 **전역 규칙은 잃지 않는다.** 3단 구조를 지배하는 규칙은
+    //    `buildSourceAdherence` 에 있고("applies to EVERY analysis path alike"), 영상 블록의
+    //    같은 구조는 재진술이었다. 이게 깨지면 조건부화가 전역 규칙을 함께 들어낸 것이다.
+    check(`base/${lang} 영상아님도 한 줄 요약 서식 규칙을 갖는다`, plain.includes('[ONE-LINE SUMMARY FORMAT]'));
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} 통과 ${pass} · 실패 ${fail}`);

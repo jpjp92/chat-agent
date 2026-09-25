@@ -38,7 +38,8 @@
 | 언어·문맥 의존 | `buildXxx(...)` 함수 | `buildSourceAdherence(lbl)` · `buildDisplayedCardRules(args)` |
 
 조각 파일은 **import 0개인 리프**로 유지한다(`prompt-integrity` · `prompt-response` ·
-`intent-policy-paper` · `movie-followup` 모두 현재 import 없음). 하니스가 시크릿·네트워크 없이
+`intent-policy-paper` · `movie-followup` 모두 현재 import 없음. `prompt-video` 는
+`import type` 하나뿐 — 타입은 컴파일에서 지워지므로 리프다). 하니스가 시크릿·네트워크 없이
 문구를 직접 검사할 수 있어야 하고([tests/README](../../tests/README.md) ①②③), 그게 안 되면
 하니스가 문구를 **흉내 내기 시작한다**.
 
@@ -309,9 +310,20 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 |---|---|
 | 무결성(출처·날조·누설) | [prompt-integrity.ts](../../server/agent/prompt-integrity.ts) |
 | 응답 형태(길이·서식·코드·언어) | [prompt-response.ts](../../server/agent/prompt-response.ts) |
+| **조건부**(영상 턴만) | [prompt-video.ts](../../server/agent/prompt-video.ts) — 판정은 [video-turn.ts](../../server/agent/video-turn.ts) `hasVideoPart()` + `isYoutubeRequest` |
 | 턴 규칙 | `card-followup.ts` · `movie-followup.ts` · `weather-followup.ts` · `reformat-rules.ts` |
 | 렌더러 스펙 · 의도 정책 | [prompt.ts](../../server/agent/prompt.ts) (`INTENT_RENDERERS` · `INTENT_POLICIES`), 논문 2종은 [intent-policy-paper.ts](../../server/agent/intent-policy-paper.ts) |
 | **순서 선언** | base 는 `getSystemInstruction`, 전체는 `assemblePrompt` — **이 둘뿐이다** |
+
+🔴 **조건부 조각은 자리를 옮기지 않는다.** 영상 지시는 `getSystemInstruction` 의 **같은 슬롯**에서
+켜지고 꺼진다 — 뒤(턴 층)로 보내면 위치가 바뀌어 응답이 바뀐다. 그래서 영상 턴은 조건부화
+전후로 **4개 언어 바이트가 동일하다**. 프롬프트에서 **제거와 이동은 다른 변경**이고, 한 번에
+하면 원인을 가를 수 없다(PLAN_PROMPT_LAYERING §10-9).
+
+⚠️ **코드에 불리언이 있다는 것만으로 조건부화해도 된다는 뜻은 아니다.** 그 불리언의 범위가
+블록의 적용 범위보다 좁으면, 조건부화는 좁아진 만큼을 **들어내는** 일이다. `[REFORMAT REQUESTS]`
+가 그래서 무조건으로 남아 있다 — `reformatTurn` 이 카드·영화·날씨 후속을 배제하는데 블록은
+그렇지 않아, 게이트로 쓰면 카드 후속의 "표로 정리해줘"에서 날조 금지 규칙이 사라진다.
 
 조립 결과는 `tests/test-prompt-assembly.mts` 가 **의도 19개 × 턴 6종 × 언어 4개** 골든으로 고정한다.
 
