@@ -808,5 +808,6 @@ const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollow
 
 - **REFORMAT** — `reformatTurn` 이 적용 범위보다 좁아 게이트로 쓰면 결함이 된다(§10-9).
 - **영상 전용 줄 통합**(`[VIDEO ANALYSIS STRATEGY]` → `prompt-video.ts`) — 자리가 바뀌므로 9단계 이후.
-- **본문 턴 골든** — `webContent` 가 있는 턴 골든이 하나도 없다. 16개 base 골든이 막고 있지만
-  조립까지 통과한 골든을 따로 둬야 한다.
+- ~~**본문 턴 골든**~~ ✅ 완료 — `urlSummary`(본문만) · `youtubeVideo`(본문+영상 동시) 2개를
+  조립까지 통과시켜 찍었다. 후자는 `full` base 가 나가는 유일한 골든이다.
+  M4 는 10개로 확대 적중하고, **M5**(호출부가 게이트를 빼먹는 결함)도 이름으로 잡힌다.

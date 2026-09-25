@@ -257,12 +257,58 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
             movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
         }, len: 20478, sha: '4dd6dfc2d5510a00',
     },
+
+    // 🔴 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
+    //    `webContent: ''`** 였다 — 즉 `sourceTurn=true` 로 조립된 프롬프트를 **조립까지
+    //    통과해서 sha 로 보는 골든이 하나도 없었다.** 그 구멍 때문에 줄 하나를 옮긴
+    //    M4 돌연변이가 114개를 전부 통과했다(DEV_260925 §11-3).
+    //    base 골든 16개가 base 는 막지만, 조립은 base 뒤에 `[PROVIDED_SOURCE_TEXT]` 를
+    //    붙이는 쪽이라 **별도로 찍어야** 한다.
+    urlSummary: {
+        state: { ...emptyState('general'), webContent: '[URL_CONTENT]\n기사 본문 예시입니다.' },
+        len: 22274, sha: '009f68b5ad8f3537',
+    },
+    // 두 게이트가 **동시에** 켜지는 유일한 골든 — `full` base 가 실제로 나가는 경로다.
+    youtubeVideo: {
+        state: {
+            ...emptyState('general'),
+            webContent: 'URL: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n[TRANSCRIPT]\n[00:01] 시작합니다.',
+            messages: [new HumanMessage({ content: [
+                { type: 'text', text: '이 영상 요약해줘' },
+                { fileData: { fileUri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', mimeType: 'video/mp4' } },
+            ] })],
+        }, len: 25741, sha: '5e0e95cbf23ea57c',
+    },
 };
 for (const [name, want] of Object.entries(TURN_GOLDEN)) {
     const out = build(want.state);
     if (!want.sha) { console.log(`   (미고정) ${name.padEnd(16)} ${String(out.length).padStart(6)}자  ${sha(out)}`); continue; }
     check(`골든  turn/${name}`, out.length === want.len && sha(out) === want.sha,
         `기대 ${want.len}자/${want.sha}\n     실제 ${out.length}자/${sha(out)}`);
+}
+
+// 🔴 sha 만 있으면 "무엇이 빠졌는지" 를 못 읽는다. 게이트가 조립까지 제대로 전달됐는지
+//    이름으로 확인한다 — 아래가 빨개지면 위 sha 골든의 원인이 바로 읽힌다.
+{
+    const urlOut = build(TURN_GOLDEN.urlSummary.state);
+    const ytOut = build(TURN_GOLDEN.youtubeVideo.state);
+    const plainOut = build(emptyState('general'));
+
+    check('본문 턴: 조립이 [PROVIDED_SOURCE_TEXT] 를 붙인다', urlOut.includes('[PROVIDED_SOURCE_TEXT]'));
+    check('본문 턴: base 에 URL 3단 조항이 실린다',
+        urlOut.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"'));
+    check('본문 턴: 영상이 아니면 영상 지시는 안 실린다', !urlOut.includes('[VIDEO ANALYSIS DIRECTIVE]'));
+
+    check('영상+본문 턴: 두 게이트가 동시에 켜진다',
+        ytOut.includes('[VIDEO ANALYSIS DIRECTIVE]') && ytOut.includes('VIDEO ANALYSIS STRATEGY')
+        && ytOut.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"'));
+
+    check('평문 턴: 본문 조항도 영상 지시도 없다',
+        !plainOut.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"')
+        && !plainOut.includes('[VIDEO ANALYSIS DIRECTIVE]'));
+    // 🔴 그래도 전역 규칙은 남는다 — 조건부화가 과했는지 조립 수준에서도 본다.
+    check('평문 턴도 전역 규칙은 갖는다',
+        plainOut.includes('[ONE-LINE SUMMARY FORMAT]') && plainOut.includes('[TOOL AVAILABILITY]'));
 }
 
 // 언어별 base 골든 — 한국어만 보면 나머지 셋이 조용히 깨진다.
