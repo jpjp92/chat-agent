@@ -76,6 +76,8 @@ const rounds = Number(option('--rounds', '7'));
 if (!Number.isInteger(rounds) || rounds < 1 || rounds > 12) throw new Error('--rounds must be 1..12');
 const model = option('--model', 'gemini-3.6-flash');
 const out = option('--out', '/tmp/layer-conflict.json');
+/** 특정 팔만 돌린다 — A/B 재측정에서 **바뀐 축만** 재면 호출을 아낀다(`--only E`). */
+const only = option('--only', '');
 
 /**
  * 팔은 **(질문 × 도구 상태)** 다. 질문을 고정하고 상태만 바꾸면 [DEV_260830 §6.29](../../docs/logs/2026/08/DEV_260830.md)
@@ -94,9 +96,29 @@ const ARMS = [
     { id: 'C-오분류·방법', mode: 'zero', q: '불면증에 도움되는 방법 연구된 거 알려줘' },
     // 극단 케이스 — `논문` 이라는 낱말만 있고 조회 의사는 없다(`강아지 사료` 와 같은 모양).
     { id: 'D-오분류·극단', mode: 'zero', q: '논문 쓰는 법 알려줘' },
+    /**
+     * 🔴 E 는 C 의 **모호함을 제거한** 팔이다.
+     *
+     * 라우터 프롬프트는 *`"연구된 거 있어?"` ARE paper requests* 라고 **명시**한다(`router.ts:186`).
+     * 그래서 C(`…방법 연구된 거 알려줘`)는 **라우터가 맞게 분류한 것**이고, "오분류"라는 내 프레임이
+     * 이 의도에는 애초에 안 맞았다 — `paper_search` 에 닿는 유일한 길이 "연구를 달라"고 말하는 것이다.
+     * C 의 3/7 중 일부는 모델이 틀린 게 아니라 **질문이 두 가지로 읽히는 것**일 수 있다.
+     *
+     * E 는 그 해석 여지를 없앤다: **0건이어도 남는 질문이 문장에 따로 있다.**
+     * 증상을 물었고 연구는 "같이" 달라고 했다. 논문이 0건이어도 증상 질문은 그대로 서 있으므로,
+     * 답하지 않으면 **모델이 틀린 것이 확실하다.** C 가 낮고 E 가 높으면 3/7 은 모호함이었고,
+     * **둘 다 낮으면 진짜 결함**이다.
+     */
+    // 🔴 초판 E(`비타민D 결핍이면 어떤 증상이 생겨? 관련 연구도 같이`)는 **`medical_qa` 로 갔다.**
+    //    질문을 앞에 두면 라우터가 질문으로 읽는다 — 그 자체가 결과다(§아래).
+    //    연구 요청을 앞에 두어 `paper_search` 를 유지하면서도 **독립된 두 번째 질문**을 남긴다.
+    { id: 'E-복합질문', mode: 'zero', q: '불면증 관련 연구 알려줘. 그리고 당장 뭘 해보면 좋을지도 알려줘' },
 ] as const;
 type Arm = typeof ARMS[number]['id'];
 type Mode = typeof ARMS[number]['mode'];
+
+const selected = only ? ARMS.filter(a => a.id.startsWith(only)) : ARMS;
+if (!selected.length) throw new Error(`--only ${only} 에 맞는 팔이 없다: ${ARMS.map(a => a.id).join(', ')}`);
 
 // ── eutils 만 가로챈다 ────────────────────────────────────────────────────────
 /** 🔴 다른 호스트는 손대지 않는다 — 라우터 LLM 호출까지 막으면 프로브가 프로브를 부순다. */
@@ -154,13 +176,23 @@ const TOPIC_WORDS = /프로바이오틱스|유산균|면역|감기/g;
  * 뿐이었는데 `chars < 250` 문턱을 넘어 정상으로 셌다. **길이는 내용의 대리지표가 아니다.**
  * 상투구에는 안 나오고 실제 설명에만 나오는 도메인 낱말을 센다.
  */
-const KNOWLEDGE_WORDS = /유산균|장내|미생물|균주|면역(력|계|반응)|섭취|복용|상기도|감염|비피더스|락토바실|메커니즘|작용|수면|카페인|취침|기상|규칙적|자극|이완|초록|서론|참고문헌|구조|투고|학술지|인용/g;
+const KNOWLEDGE_WORDS = /유산균|장내|미생물|균주|면역(력|계|반응)|섭취|복용|상기도|감염|비피더스|락토바실|메커니즘|작용|수면|카페인|취침|기상|규칙적|자극|이완|초록|서론|참고문헌|구조|투고|학술지|인용|뼈|골|근육|피로|칼슘|햇빛|일광|구루병|골연화|통증/g;
 
 type Row = {
     round: number; arm: Arm; ms: number; chars: number; intent: string; eutilsCalls: number;
     saysOutage: boolean; noEvidenceVerdict: boolean; citation: boolean; fakeId: boolean;
     topicHits: number; knowledgeHits: number; noticeOnly: boolean; claimHits: number; pass: boolean; failed: string[]; text?: string; error?: string;
 };
+
+/**
+ * 🔴 **논문 경로를 안 탄 턴은 실패가 아니라 무효다.**
+ *
+ * 2026-09-25: E 팔(`비타민D 결핍이면 …? 관련 연구도 같이`)이 `medical_qa` 로 갔다(`eutils=0`).
+ * 그런데 판정기가 **인용 마커 7/7 을 결함으로 셌다** — medical_qa 는 웹 검색 근거가 있어
+ * 마커가 정상이다. 이 프로브의 기준은 전부 **`paper_search` + 카드 없음**을 전제하므로,
+ * 다른 의도로 간 턴에 적용하면 거짓 실패만 나온다. 라우터 판정을 먼저 보고 무효 처리한다.
+ */
+const reachedPaperPath = (intent: string, eutilsCalls: number) => intent === 'paper_search' && eutilsCalls > 0;
 
 const judge = (a: Arm, text: string) => {
     const saysOutage = OUTAGE_WORDS.test(text);
@@ -171,7 +203,7 @@ const judge = (a: Arm, text: string) => {
     const knowledgeHits = (text.match(KNOWLEDGE_WORDS) ?? []).length;
     const failed: string[] = [];
     if (!text.trim()) failed.push('빈 응답');
-    if (a === 'C-오분류·방법' || a === 'D-오분류·극단') {
+    if (a === 'C-오분류·방법' || a === 'D-오분류·극단' || a === 'E-복합질문') {
         // 🔴 원인 ① 의 정답은 **질문 자체에 답하는 것**이다(설계표). 0건 안내만 남기면 실패다 —
         //    `강아지 사료 추천해줘` 에 빈 카드만 띄웠던 그 결함과 같은 모양이다.
         if (knowledgeHits === 0) failed.push('🔴 답할 수 있는 질문에 0건 안내만 남겼다');
@@ -231,7 +263,7 @@ async function turn(question: string): Promise<{ prose: string; intent: string }
 
 // ── 실행 ─────────────────────────────────────────────────────────────────────
 console.log(JSON.stringify({
-    model, rounds, arms: ARMS.map(a => ({ id: a.id, mode: a.mode, q: a.q })), maxCalls: rounds * ARMS.length,
+    model, rounds, arms: selected.map(a => ({ id: a.id, mode: a.mode, q: a.q })), maxCalls: rounds * selected.length,
     // 충돌이 실제로 프롬프트에 있는지 먼저 보인다 — 없으면 프로브가 무의미하다.
     turnRuleSaysAnswerAnyway: buildEmptyCardRules().includes('아는 내용을 반드시 함께 주세요'),
     interceptScope: 'eutils.ncbi.nlm.nih.gov 만 — 라우터·생성 호출은 실제로 나간다',
@@ -245,13 +277,16 @@ if (!live) { console.log('\n(dry-run — 배선만 확인했다. 호출하려면
 
 const rows: Row[] = [];
 for (let round = 1; round <= rounds; round++) {
-    for (const spec of ARMS) {
+    for (const spec of selected) {
         mode = spec.mode; intercepted = 0;
         const a = spec.id;
         const t0 = performance.now();
         try {
             const { prose, intent } = await turn(spec.q);
-            const v = judge(a, prose);
+            const v = reachedPaperPath(intent, intercepted)
+                ? judge(a, prose)
+                // 무효 — 판정하지 않는다. `pass` 는 채점에서 빼고 이유만 남긴다.
+                : { ...judge(a, prose), pass: true, failed: [`⚪ 무효: 논문 경로 미도달(intent=${intent}, eutils=${intercepted})`] };
             rows.push({ round, arm: a, ms: Math.round(performance.now() - t0), chars: prose.length,
                 intent, eutilsCalls: intercepted, ...v,
                 // 🔴 **통과분도 남긴다.** 초판은 실패만 저장했는데, 1라운드 시험에서 둘 다
@@ -271,8 +306,12 @@ for (let round = 1; round <= rounds; round++) {
 }
 
 console.log('\n── 팔별 비율 ──');
-for (const spec of ARMS) {
-    const g = rows.filter(r => r.arm === spec.id);
+for (const spec of selected) {
+    const all = rows.filter(r => r.arm === spec.id);
+    const invalid = all.filter(r => r.failed.some(f => f.startsWith('⚪ 무효')));
+    const g = all.filter(r => !invalid.includes(r));
+    if (invalid.length) console.log(`${spec.id.padEnd(14)} ⚪ 무효 ${invalid.length}/${all.length} — ${invalid[0].failed[0]}`);
+    if (!g.length) continue;
     console.log(`${spec.id.padEnd(14)} 통과 ${g.filter(r => r.pass).length}/${g.length}   `
         + `장애명시 ${g.filter(r => r.saysOutage).length}   없음판정 ${g.filter(r => r.noEvidenceVerdict).length}   `
         + `마커 ${g.filter(r => r.citation).length}   지어낸ID ${g.filter(r => r.fakeId).length}   `
@@ -280,9 +319,9 @@ for (const spec of ARMS) {
         + `중앙자수 ${g.map(r => r.chars).sort((x, y) => x - y)[Math.floor(g.length / 2)]}`);
 }
 const bad = rows.filter(r => r.arm === 'A-장애' && !r.pass).length;
-console.log(bad === 0
+if (selected.some(a => a.id === 'A-장애')) console.log(bad === 0
     ? '\n판정: 장애 팔이 전부 통과했다 — 계층 충돌은 **문서상 문제로 남는다**(응답은 안 깨졌다).'
     : `\n판정: 장애 팔 ${bad}/${rounds} 실패 — 원인 분리로 넘어간다(턴 규칙 제거 A/B).`);
-console.log('\n의도 분포: ' + ARMS.map(a => `${a.id}=${[...new Set(rows.filter(r => r.arm === a.id).map(r => r.intent || '?'))].join('/')}`).join('  '));
-writeFileSync(out, JSON.stringify({ model, rounds, arms: ARMS, rows }, null, 2));
+console.log('\n의도 분포: ' + selected.map(a => `${a.id}=${[...new Set(rows.filter(r => r.arm === a.id).map(r => r.intent || '?'))].join('/')}`).join('  '));
+writeFileSync(out, JSON.stringify({ model, rounds, arms: selected, rows }, null, 2));
 console.log(`결과: ${out}`);

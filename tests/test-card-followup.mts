@@ -6,11 +6,16 @@ import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { assemblePrompt, type AssemblyState } from '../server/agent/prompt-assembly.js';
 import { getSystemInstruction } from '../server/agent/prompt.js';
 
-let passed = 0;
+let pass = 0;
+let fail = 0;
+/**
+ * 🔴 초판은 첫 실패에 `throw` 했다 — 149개 검사 중 1번이 깨지면 **나머지 148개 결과를 못 본다.**
+ * 실패 하나를 고치고 다시 돌려야 다음 실패가 보이므로, n개가 깨진 날엔 n번 왕복하게 된다.
+ * 다른 하니스(`test-chat-models` 등)와 같은 모양으로 맞췄다 — 전부 돌리고 끝에 집계한다.
+ */
 const check = (name: string, actual: unknown, expected: unknown) => {
-  if (actual !== expected) throw new Error(`${name}: got=${String(actual)} expected=${String(expected)}`);
-  passed++;
-  console.log(`✅ ${name}`);
+  if (actual === expected) { pass++; console.log(`✅ ${name}`); }
+  else { fail++; console.log(`❌ ${name}\n     got=${String(actual)} expected=${String(expected)}`); }
 };
 
 check('약국 영업시간 질문은 카드 후속', decideLocationCardFollowup({ text: '한사랑약국 몇 시까지 해?', currentIntentMatches: true }), 'refine');
@@ -358,8 +363,6 @@ const langchainSource = fs.readFileSync(new URL('../server/agent/nodes/langchain
 check('Gemini 로컬 카드 도구 호출 강제', langchainSource.includes('tool_choice: allTools[0].name'), true);
 check('약국 빈 결과를 웹 검색으로 넘기지 않음', langchainSource.includes('allTools = [pharmacyTool, searchWebTool]'), false);
 
-console.log(`\n총 ${passed}개 카드 후속·출력 안전성 검증 통과.`);
-
 
 console.log('\n§F fast-pass 는 결과가 있을 때만 — 빈 카드는 답을 삼킨다');
 {
@@ -479,3 +482,6 @@ console.log('\n§G 빈 카드 턴에 무엇을 말할지 준다 — fast-pass �
     check('결과가 있는 카드에는 실리지 않는다',
         toolTurn('```json:pharmacy\n{"count":2,"pharmacies":[{"name":"가"},{"name":"나"}]}\n```').includes(emptyMarker), false);
 }
+
+console.log(`\n통과 ${pass} · 실패 ${fail}`);
+if (fail > 0) process.exit(1);
