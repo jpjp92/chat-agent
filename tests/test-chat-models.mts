@@ -67,7 +67,15 @@ const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import
     // URL·영상 예시가 블록쿼트를 유지하는가 (예시가 규칙과 어긋나면 모델은 예시를 따른다)
     const exampleKeepsQuote = (block: string) =>
         new RegExp(`\\*\\*${LBL}\\*\\*\\s*\\n\\s*>`).test(block);
-    check('URL 예시가 블록쿼트를 쓴다', exampleKeepsQuote(ps.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? ''));
+    // 🔴 URL 3단 예시는 **본문 턴 base** 에만 있다 — 8단계 2차(2026-09-25)에서 조건부가 됐다.
+    //    조건은 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 것과 같은 `!!state.webContent` 다.
+    //    `?? ''` 를 남겨 둔다 — 블록이 사라지면 빈 문자열이 정규식에 걸려 빨갛게 된다.
+    const psSource = getSystemInstruction('Korean', { sourceTurn: true });
+    check('URL 예시가 블록쿼트를 쓴다', exampleKeepsQuote(psSource.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? ''));
+    check('본문 없는 턴 base 에는 URL 3단 조항이 없다',
+        !ps.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"'));
+    // 🔴 그래도 **전역 규칙은 남는다** — 한 줄 요약 서식은 "EVERY analysis path" 라고
+    //    스스로 못 박은 규칙이라 본문이 없어도 실린다. 위 `ps` 검사 3건이 그걸 본다.
     // 🔴 영상 예시는 **영상 턴 base** 에만 있다 — 8단계(2026-09-25)에서 조건부가 됐다.
     //    `ps`(영상 아님)로 보면 블록이 없어 깨진다. 없는 것을 통과로 세지 않으려고
     //    `?? ''` 를 남겨 둔다 — 블록이 사라지면 빈 문자열이 정규식에 걸려 빨갛게 된다.

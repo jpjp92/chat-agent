@@ -328,7 +328,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
  */
 export const getSystemInstruction = (
   langName: LangName = DEFAULT_LANG_NAME,
-  { videoTurn = false }: { videoTurn?: boolean } = {},
+  { videoTurn = false, sourceTurn = false }: { videoTurn?: boolean; sourceTurn?: boolean } = {},
 ) => {
   const lbl = pickByLang(URL_SUMMARY_LABELS, langName);
   return [
@@ -336,7 +336,7 @@ export const getSystemInstruction = (
 IF THE USER SPEAKS ANOTHER LANGUAGE (LIKE KOREAN), YOU MUST STILL RESPOND IN ${langName.toUpperCase()}.
 NEVER switch languages. THIS IS YOUR TOP PRIORITY.`,
     NEVER_FABRICATE_SOURCES,
-    buildSourceAdherence(lbl),
+    buildSourceAdherence(lbl, { sourceTurn, videoTurn }),
     GROUNDING_AND_CITATIONS,
     // ── 아래 REFORMAT 은 아직 무조건 — 8단계 잔여분(§10-9) ───────────────────
     `[REFORMAT REQUESTS — DO NOT ADD NEW FACTS]

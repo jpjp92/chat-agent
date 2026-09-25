@@ -134,7 +134,12 @@ export async function POST(req: NextRequest) {
       //    영상 턴이면 이전과 바이트가 완전히 같고, 아닌 턴에서는 그 블록만 빠진다
       //    (PLAN §7-2 / 8단계, prompt-video.ts 의 주석에 근거를 적었다).
       const videoTurn = isYoutubeRequest || hasVideoPart(contents);
-      const systemInstruction = getSystemInstruction(langName, { videoTurn });
+      // 🔴 `sourceTurn` 은 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 조건과 **같은 값**이어야 한다.
+      //    그래서 `enrichedWebContent` 를 여기서 만들고 initialState 에도 이 값을 그대로 넘긴다 —
+      //    각자 구하면 프롬프트엔 본문 규칙이 실리는데 본문은 안 붙는 턴이 생긴다.
+      const videoUrl = isYoutubeRequest ? `https://www.youtube.com/watch?v=${ytMatch![1]}` : '';
+      const enrichedWebContent = isYoutubeRequest ? `URL: ${videoUrl}\n${webContent || ''}` : (webContent || '');
+      const systemInstruction = getSystemInstruction(langName, { videoTurn, sourceTurn: !!enrichedWebContent });
 
       if (session_id) {
         const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;
@@ -144,8 +149,6 @@ export async function POST(req: NextRequest) {
         }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', error); });
       }
 
-      const videoUrl = isYoutubeRequest ? `https://www.youtube.com/watch?v=${ytMatch![1]}` : '';
-      const enrichedWebContent = isYoutubeRequest ? `URL: ${videoUrl}\n${webContent || ''}` : (webContent || '');
       const initialState = {
         messages: contents, webContent: enrichedWebContent, attachments: processedAttachments,
         contextInfo: '', pillData: null, sessionId: session_id || '',

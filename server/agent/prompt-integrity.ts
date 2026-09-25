@@ -28,20 +28,54 @@ You are the AI model selected by the user. Follow the application rules below re
 
 `;
 
-/** 제공된 본문(URL·첨부)이 있을 때의 준수 규칙. **조건부다** — §7-2/8단계의 이동 대상. */
-export const buildSourceAdherence = (lbl: SummaryLabels) => `[CORE DIRECTIVE: SOURCE ADHERENCE]
-- If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL or ATTACHED DOCUMENT the user is asking about.
-- **[VIDEO ANALYSIS STRATEGY]**: When analyzing long videos (over 10 minutes) without a transcript:
+/**
+ * 제공된 본문(URL·첨부·영상)이 있을 때의 준수 규칙 — **줄 단위 조건부**.
+ *
+ * 🔴 2026-09-25(8단계 2차): 5,486자 중 **조건부 3,000여 자를 줄 단위로 갈랐다.**
+ *    블록을 통째로 옮기지 않은 이유는 전역과 조건부가 **한 줄씩 교차**해 있기 때문이다 —
+ *    `[ONE-LINE SUMMARY FORMAT]`(22~24행)은 전역인데 바로 위 URL 3단 템플릿(13~21행)은
+ *    조건부이고, 그 아래 `[ANTI-HALLUCINATION]`·`[TOOL AVAILABILITY]`도 전역이다.
+ *    통째 이동은 전역 규칙을 조건부로 만들거나 그 반대가 된다(PLAN §7-2 가 경고한 것).
+ *
+ * 조건은 **코드에 이미 있다**:
+ *  - `sourceTurn` = `!!state.webContent` — 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 바로 그 조건
+ *    ([prompt-assembly.ts](./prompt-assembly.ts)). webContent 는 **어떤 노드도 쓰지 않고**
+ *    route 의 initialState 에서만 정해지므로 턴 내내 고정이다 — base 를 route 에서 만들어도 안전하다.
+ *  - `videoTurn` = `isYoutubeRequest || hasVideoPart(...)` — [video-turn.ts](./video-turn.ts)
+ *
+ * 🔴 **자리를 옮기지 않았다.** 각 줄은 원래 순서 그대로 있고 꺼질 때만 빠진다.
+ *    그래서 `sourceTurn && videoTurn` 이면 **이전과 바이트가 완전히 같다**(골든이 증명).
+ *
+ * ⚠️ 보수적으로 **전역에 남긴 두 줄**:
+ *    - 26행 `NEVER mention internal context tag names` — 태그는 본문이 있을 때만 생기므로
+ *      조건부로 볼 수도 있지만, **누설 방지는 무결성 규칙**이다. 370자를 아끼려고
+ *      누설 위험을 사는 거래는 하지 않는다.
+ *    - 29행 `If PROVIDED_SOURCE_TEXT is missing ... use the hosted search` — 본문이
+ *      **없을 때** 무엇을 하라는 규칙이다. 조건부로 만들면 정확히 필요한 턴에서 사라진다.
+ *
+ * ⚠️ 영상 전용 줄(3~6행 `[VIDEO ANALYSIS STRATEGY]`)은 `prompt-video.ts` 로 **합치지 않았다** —
+ *    합치면 자리가 뒤로 밀려 위치가 변수로 끼어든다. 두 파일에 흩어진 채 두는 것이
+ *    지금은 옳다(9단계 위치 A/B 이후에 재검토).
+ */
+const when = (on: boolean, text: string) => (on ? [text] : []);
+
+export const buildSourceAdherence = (
+  lbl: SummaryLabels,
+  { sourceTurn = true, videoTurn = true }: { sourceTurn?: boolean; videoTurn?: boolean } = {},
+) => [
+    `[CORE DIRECTIVE: SOURCE ADHERENCE]`,
+    ...when(sourceTurn, `- If "PROVIDED_SOURCE_TEXT" is provided, it contains the actual content of the URL or ATTACHED DOCUMENT the user is asking about.`),
+    ...when(videoTurn, `- **[VIDEO ANALYSIS STRATEGY]**: When analyzing long videos (over 10 minutes) without a transcript:
     1.  Perform a **"Fast Scan"** by focusing intensely on the **Beginning**, **Middle**, and **Final** parts of the video.
     2.  Prioritize identifying core themes, major plot shifts, and conclusions quickly.
-    3.  If the user asks for a specific detail, search the entire video, but for general summaries, use the Fast Scan approach to provide rapid insights.
-- You MUST prioritize information from the source text (Transcript, PDF content, etc.) over pre-trained knowledge or general search results for that specific source.
-- If PROVIDED_SOURCE_TEXT contains "[YOUTUBE_VIDEO_INFO]", it is a YouTube video. You are provided with Title, Channel, and Description. **IMPORTANT**: For shorter videos, you also have direct visual/auditory access via a multimodal 'fileUri' in the request parts. If a 'fileUri' part is present, you can "watch" and "listen" to the video directly. If it is NOT present, it means the video is too long or rich enough in metadata for a fast summary—in this case, use the provided Title and Description as your primary source. NEVER say "I cannot analyze video content"; always use the best available information to assist the user.
-- If PROVIDED_SOURCE_TEXT contains "[PAPER INFO]", it's an Arxiv paper. Use the Title, Authors, and Abstract provided.
-- If PROVIDED_SOURCE_TEXT contains "[EXTRACTED_DOCUMENT_CONTENT]", it's the text from a user-uploaded file (Word, TXT, etc.).
-- If PROVIDED_SOURCE_TEXT contains "[VIDEO_ANALYSIS_SUMMARY]", it is a detailed textual description of a previously uploaded video. Use it to maintain continuity.
-- If PROVIDED_SOURCE_TEXT contains "[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT]", it is a document previously uploaded in the current session. Use it as background context for follow-up questions.
-- If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]", it is the FULL TEXT of a web page the user wants analyzed. You MUST use this as your SOLE primary source. DO NOT rely on hosted web search or training knowledge for this article's content. Structure your response EXACTLY as follows:
+    3.  If the user asks for a specific detail, search the entire video, but for general summaries, use the Fast Scan approach to provide rapid insights.`),
+    ...when(sourceTurn, `- You MUST prioritize information from the source text (Transcript, PDF content, etc.) over pre-trained knowledge or general search results for that specific source.`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[YOUTUBE_VIDEO_INFO]", it is a YouTube video. You are provided with Title, Channel, and Description. **IMPORTANT**: For shorter videos, you also have direct visual/auditory access via a multimodal 'fileUri' in the request parts. If a 'fileUri' part is present, you can "watch" and "listen" to the video directly. If it is NOT present, it means the video is too long or rich enough in metadata for a fast summary—in this case, use the provided Title and Description as your primary source. NEVER say "I cannot analyze video content"; always use the best available information to assist the user.`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[PAPER INFO]", it's an Arxiv paper. Use the Title, Authors, and Abstract provided.`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[EXTRACTED_DOCUMENT_CONTENT]", it's the text from a user-uploaded file (Word, TXT, etc.).`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[VIDEO_ANALYSIS_SUMMARY]", it is a detailed textual description of a previously uploaded video. Use it to maintain continuity.`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT]", it is a document previously uploaded in the current session. Use it as background context for follow-up questions.`),
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]", it is the FULL TEXT of a web page the user wants analyzed. You MUST use this as your SOLE primary source. DO NOT rely on hosted web search or training knowledge for this article's content. Structure your response EXACTLY as follows:
   **${lbl.summary}**
   > (핵심 메시지를 1문장으로)
 
@@ -49,19 +83,19 @@ export const buildSourceAdherence = (lbl: SummaryLabels) => `[CORE DIRECTIVE: SO
   (본문의 주요 섹션을 2~4개 헤딩으로 나누어 각 섹션마다 불릿 포인트로 설명. 수치·인용·사실은 굵게 표시)
 
   **${lbl.points}**
-  - (이 글에서 가장 중요한 takeaway 3~5개를 간결하게)
-- **[ONE-LINE SUMMARY FORMAT]** — wherever you write the **${lbl.summary}** heading, the line under it MUST be a Markdown blockquote (a line starting with \`> \`) containing exactly ONE sentence. No bullet, no plain paragraph, no bold-only line.
+  - (이 글에서 가장 중요한 takeaway 3~5개를 간결하게)`),
+    `- **[ONE-LINE SUMMARY FORMAT]** — wherever you write the **${lbl.summary}** heading, the line under it MUST be a Markdown blockquote (a line starting with \`> \`) containing exactly ONE sentence. No bullet, no plain paragraph, no bold-only line.
   This applies to EVERY analysis path alike — a URL, a video, an **image**, an attached document, or a pasted text. The same heading must always look the same to the user; today an image analysis renders a plain paragraph while a URL summary renders a quote, and that difference is a bug.
-  This rule governs ONLY the formatting of that heading when you choose to use it. It does NOT force the three-part structure onto every request: a pill identification, a table extraction, or a short factual question about an image should answer directly without these headings.
-- If PROVIDED_SOURCE_TEXT contains "[CSV DATA CONVERTED TO MARKDOWN TABLE]" or "[XLSX DATA CONVERTED TO MARKDOWN TABLE]", it is a spreadsheet file precisely converted into a Markdown table. You MUST treat this as a structured dataset where row-column relationships are critical for accuracy.
-- NEVER mention internal context tag names ([URL_CONTENT], [PAPER INFO], [EXTRACTED_DOCUMENT_CONTENT], [VIDEO_ANALYSIS_SUMMARY], [PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT], PROVIDED_SOURCE_TEXT, etc.) in your response. These are internal markers only. Start your answer directly with the content.
-- Do NOT use source-reference phrases ("제시해주신 내용 중", "말씀하신 내용을 바탕으로", "제시된 정보를 바탕으로", "제시된 내용을 바탕으로", "제공된 정보를 바탕으로", "위의 내용을 바탕으로", "앞서 언급하신", "Based on the provided information", "Based on the above", "Based on the sources", "Según la información proporcionada", "D'après les informations fournies", etc.) as boilerplate openers or formulaic transitions — these add no information and read as mechanical filler. Such phrases are only acceptable when they carry genuine meaning mid-sentence. Start directly with the answer content.
-- If the user asks for a summary or has questions about the source, use PROVIDED_SOURCE_TEXT as the primary basis.
-- If PROVIDED_SOURCE_TEXT is missing, very short, or you need more data (EXCEPT for YouTube), use the hosted search capability named in [ACTIVE_WEB_SEARCH] when enabled.
-- [ANTI-HALLUCINATION DIRECTIVE]: NEVER guess or rely on your internal training data for facts, real-time data (weather, stocks, sports scores), current events, or latest news. When [ACTIVE_WEB_SEARCH] says enabled=true, you MUST use that declared capability for these inquiries — likewise for anything described with words like "최신", "latest", "current", "recent", "now", "오늘", "today".
-- [TOOL AVAILABILITY]: Search availability and its exact runtime name are declared in [ACTIVE_WEB_SEARCH]. If it says enabled=false, you MUST NOT emit or simulate a search/tool call. In that case answer from your own knowledge, following the disclosure rule above: silent by default, and only for live-data questions a single closing sentence noting the figures are not real-time.
+  This rule governs ONLY the formatting of that heading when you choose to use it. It does NOT force the three-part structure onto every request: a pill identification, a table extraction, or a short factual question about an image should answer directly without these headings.`,
+    ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[CSV DATA CONVERTED TO MARKDOWN TABLE]" or "[XLSX DATA CONVERTED TO MARKDOWN TABLE]", it is a spreadsheet file precisely converted into a Markdown table. You MUST treat this as a structured dataset where row-column relationships are critical for accuracy.`),
+    `- NEVER mention internal context tag names ([URL_CONTENT], [PAPER INFO], [EXTRACTED_DOCUMENT_CONTENT], [VIDEO_ANALYSIS_SUMMARY], [PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT], PROVIDED_SOURCE_TEXT, etc.) in your response. These are internal markers only. Start your answer directly with the content.`,
+    `- Do NOT use source-reference phrases ("제시해주신 내용 중", "말씀하신 내용을 바탕으로", "제시된 정보를 바탕으로", "제시된 내용을 바탕으로", "제공된 정보를 바탕으로", "위의 내용을 바탕으로", "앞서 언급하신", "Based on the provided information", "Based on the above", "Based on the sources", "Según la información proporcionada", "D'après les informations fournies", etc.) as boilerplate openers or formulaic transitions — these add no information and read as mechanical filler. Such phrases are only acceptable when they carry genuine meaning mid-sentence. Start directly with the answer content.`,
+    ...when(sourceTurn, `- If the user asks for a summary or has questions about the source, use PROVIDED_SOURCE_TEXT as the primary basis.`),
+    `- If PROVIDED_SOURCE_TEXT is missing, very short, or you need more data (EXCEPT for YouTube), use the hosted search capability named in [ACTIVE_WEB_SEARCH] when enabled.`,
+    `- [ANTI-HALLUCINATION DIRECTIVE]: NEVER guess or rely on your internal training data for facts, real-time data (weather, stocks, sports scores), current events, or latest news. When [ACTIVE_WEB_SEARCH] says enabled=true, you MUST use that declared capability for these inquiries — likewise for anything described with words like "최신", "latest", "current", "recent", "now", "오늘", "today".`,
+    `- [TOOL AVAILABILITY]: Search availability and its exact runtime name are declared in [ACTIVE_WEB_SEARCH]. If it says enabled=false, you MUST NOT emit or simulate a search/tool call. In that case answer from your own knowledge, following the disclosure rule above: silent by default, and only for live-data questions a single closing sentence noting the figures are not real-time.`,
+].join('\n') + '\n\n';
 
-`;
 
 /** 실제 검색 결과가 있을 때만 인용을 단다. */
 export const GROUNDING_AND_CITATIONS = `[GROUNDING & CITATIONS]
