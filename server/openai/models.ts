@@ -45,7 +45,7 @@ export const OPENAI_MODEL_CAPS: Record<string, OpenAIModelCapabilities> = {
         imageInput: true,
     },
     // 2026-09-23 추가. 아래 값은 **모델 카드 기재 사항**이고 아직 실호출로 재지 않았다
-    // (`tests/manual/test-openai-chat-models-live.mts` 가 그걸 하는 하니스다).
+    // (`tests/manual/live-openai-chat-models.mts` 가 그걸 하는 하니스다).
     //   · reasoning.effort: none·low·medium(기본)·high·xhigh·max — `minimal` 은 없다
     //   · 🔴 chatReasoningEffort 를 'none' 으로 두는 건 취향이 아니다. 카드가
     //     "Chat Completions supports function calling only with reasoning_effort set to none"

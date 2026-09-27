@@ -101,6 +101,11 @@ npm run verify  # typecheck + test
   **`fetch` 를 eutils 에만 가로채** PubMed 장애/0건을 만들고 **실제 그래프**를 돌린다. 장애를
   "근거 없음" 판정으로 바꿔 말하는지 + 조회가 비었을 때 사용자에게 줄 게 남는지 측정
   (Gemini 키 소모, 라운드당 2회). `--rounds` 기본 7 — 단발 판정을 막는다
+- `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-time-block-position.mts --live [--rounds 7] [--only a|c] [--provider gemini|openai]`:
+  9단계 Q1 — 시각 블록을 base **앞**(현재)과 맨 **끝**에 두고 진짜 그래프로 비교(PLAN §10-11 사전 등록).
+  a 팔은 프로세스 시계를 **내일 00:20 KST** 로 옮겨 "가장 새 검색 자료 = 주장된 오늘의 전날"을
+  만든다 — 2026-08-24 결함과 같은 구조. 모델 고정: `gemini-2.5-flash`(티어 무관 같은 경로) ·
+  `gpt-5.6-luna`(실호출 검증된 캡). Gemini·OpenAI **유료 키 둘 다** 소모, 기본 56턴(~112 모델 호출)
 - `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
   그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
@@ -171,7 +176,7 @@ npm run test:openai-live
 - GPT-5.4 mini 멀티턴: 성공, 약 1.41s
 - GPT-5.6 Luna 멀티턴: 성공, 약 1.52s
 - 자동 회귀 `test-chat-models.mts`: 66개 통과
-- 라이브 `test-openai-chat-models-live.mts`: GPT-5.4 mini / GPT-5.6 luna / **GPT-6 luna** 각각 멀티턴 + strict function call 확인(실제 비용, 자동 테스트 제외)
+- 라이브 `live-openai-chat-models.mts`: GPT-5.4 mini / GPT-5.6 luna / **GPT-6 luna** 각각 멀티턴 + strict function call 확인(실제 비용, 자동 테스트 제외)
 - 라이브 `manual/openai-6-luna/compare-luna.mts`: **gpt-6-luna 를 gpt-5.6-luna 와 같은 입력으로 나란히** 돌려
   멀티턴·function·websearch·image 네 축의 결과 **종류**가 같은지 대조한다. capability 값을 모델 카드만 보고
   적었기 때문에 필요한 검증이다 — 카드는 공급자 문서지 우리 요청 경로(Responses + strict function + hosted search)의 측정이 아니다.

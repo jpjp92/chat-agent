@@ -189,6 +189,31 @@ check('의도 정책이 마지막에 온다',
     plain.lastIndexOf(getIntentPolicy('general')) + getIntentPolicy('general').length === plain.length);
 check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('general')) === plain);
 
+// ── 9단계 A/B 손잡이 `timeBlockAt` (PLAN §10-11) ─────────────────────────────
+// 🔴 판정 전까지만 있는 실험 스캐폴딩이다. 프로덕션은 넘기지 않으므로 항상 'start'.
+{
+    const withAt = (at: 'start' | 'end', st = emptyState('general')) => assemblePrompt({
+        base: baseFor(st, 'Korean'), state: st, langName: 'Korean',
+        latestUserText: '테스트 질문', now: NOW, tz: TZ, currentDateStr: DATE_STR,
+        cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null, timeBlockAt: at,
+    });
+    const start = withAt('start'), end = withAt('end');
+    // 기본값이 곧 프로덕션이다 — 명시한 'start' 와 생략이 한 글자라도 다르면 프로덕션이 바뀐 것
+    check('timeBlockAt 생략 = start (프로덕션 무변화)', start === plain);
+    check('end: 시각 블록이 맨 앞에 없다', !end.startsWith('[CURRENT_SYSTEM_TIME'));
+    check('end: 시각 블록이 의도 정책 뒤, 맨 끝에 온다',
+        end.lastIndexOf('[CURRENT_SYSTEM_TIME') > end.lastIndexOf(getIntentPolicy('general'))
+        && end.trimEnd().endsWith("Do not silently present an earlier date's material as today's."));
+    // 🔴 가장 중요한 검사 — **옮기기만 했는가.** 줄 다중집합이 같아야 한다.
+    //    자수만 보면 문구가 바뀐 것을 못 잡는다(§10-1·§11-3 에서 두 번 당했다).
+    const bag = (t: string) => t.split('\n').filter(l => l.trim()).sort().join('\n');
+    check('end: 줄을 더하거나 빼지 않고 자리만 옮겼다', bag(start) === bag(end));
+    check('end: 시각 블록은 한 번만 실린다', end.split('[CURRENT_SYSTEM_TIME').length === 2);
+    // 본문 턴에서도 같은가 — 가장 효과가 클 자리(검색 결과가 끼는 턴)
+    const src = { ...emptyState('general'), webContent: '[URL_CONTENT]\n본문' };
+    check('end(본문 턴): 옮기기만 했다', bag(withAt('start', src)) === bag(withAt('end', src)));
+}
+
 // ── ⑤ 골든 해시 — **찍기만 하면 골든이 아니다** ─────────────────────────────
 // 🔴 초안은 해시를 출력만 했다. 그러면 프롬프트가 바뀌어도 **하니스는 초록이다** —
 //    레포 규칙 그대로다: "통과하는 테스트는 공짜다. 실패할 수 있는 테스트만 값이 있다."

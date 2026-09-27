@@ -58,6 +58,17 @@ export type AssemblePromptInput = {
     cardEntity: CardEntity;
     /** 심평원 진료시간 조회 결과. 호출부가 미리 조회한다. 미시도·실패·미등록 모두 `null`. */
     hospitalStatus: Awaited<ReturnType<typeof fetchHospitalOpenStatus>> | null;
+    /**
+     * 시각 블록을 어디에 둘 것인가 — **9단계 A/B 전용 실험 손잡이**(PLAN §10-11).
+     *
+     * 🔴 `'start'`(기본)는 **현재 프로덕션 동작이고 바이트가 동일하다** — 골든이 그걸 증명한다.
+     *    프로덕션(`route.ts` → `compileAgentGraph`)은 이 값을 넘기지 않으므로 항상 `'start'` 다.
+     *    `'end'` 는 `tests/manual/probe-time-block-position.mts` 만 쓴다.
+     *
+     * ⚠️ **판정이 끝나면 지울 손잡이다.** 둘 중 하나로 정해지면 이 옵션과 골든의 `end` 변형을
+     *    함께 제거한다 — 실험 스캐폴딩을 프로덕션에 영구히 남기지 않는다.
+     */
+    timeBlockAt?: 'start' | 'end';
 };
 
 export type CardEntity = { namedEntity: string | undefined; namedAddress: string };
@@ -75,18 +86,20 @@ export const resolveCardEntity = (cardContext: string, latestUserText: string): 
 };
 
 export const assemblePrompt = (input: AssemblePromptInput): string => {
-    const { base, state, langName, latestUserText, now, tz, currentDateStr, cardEntity, hospitalStatus } = input;
+    const { base, state, langName, latestUserText, now, tz, currentDateStr, cardEntity, hospitalStatus, timeBlockAt = 'start' } = input;
 
     let finalInstruction = base;
 
     // 🔴 주입만으로는 부족했다. 실측(2026-08-24 00:20 KST): `오늘 나온 AI 뉴스`에 검색 결과
     //    기사 게시일(8/23)을 그대로 "오늘"이라고 답했다. 자정 직후에는 검색 결과 대부분이
     //    전날 자료라 모델이 그쪽을 오늘로 삼는다 — 이 값이 유일한 근거임을 못 박는다.
-    finalInstruction = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n`
+    const timeBlock = `[CURRENT_SYSTEM_TIME (Timezone: ${tz}): ${currentDateStr}]\n`
         + `- This is the ONLY source for today's date. Never infer it from search results, article publication dates, or your training data.\n`
         + `- Just after midnight most search results are from the previous day. That does NOT change today's date — it is still the value above.\n`
-        + `- If the user asks for "today" and the newest material you found is from an earlier date, give that material but say in one short sentence which date it is from and that little has been published yet today. Do not silently present an earlier date's material as today's.\n\n`
-        + finalInstruction;
+        + `- If the user asks for "today" and the newest material you found is from an earlier date, give that material but say in one short sentence which date it is from and that little has been published yet today. Do not silently present an earlier date's material as today's.\n`;
+    // 🔴 `'start'` 는 예전 코드와 **글자 하나까지 같다** — 예전엔 블록 끝이 `\n\n` 이었고 여기서는
+    //    블록이 `\n` 으로 끝나고 이어붙일 때 `\n` 을 하나 더 넣는다. 골든이 이걸 지킨다.
+    if (timeBlockAt === 'start') finalInstruction = `${timeBlock}\n${finalInstruction}`;
 
     // Inject Dynamic Contexts
     if (state.webContent) {
@@ -188,7 +201,17 @@ export const assemblePrompt = (input: AssemblePromptInput): string => {
     }
 
     // 이번 턴 의도에 필요한 렌더러 스펙만 주입한다(base에는 더 이상 없음 — prompt.ts INTENT_RENDERERS).
-    // 순서: base → 렌더러 스펙 → 의도 힌트. base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다.
+    //
+    // 순서: base → 렌더러 스펙 → 의도 정책. **일반 → 전용** 이다(뒤가 앞을 좁힌다).
+    //
+    // 🔴 예전 주석은 이유를 *"base가 앞에 고정돼야 암묵 캐싱 프리픽스가 유지된다"* 로 적었다.
+    //    **그 이유는 두 번 틀렸다**(PLAN_PROMPT_LAYERING §7-1, 2026-09-22 코퍼스 252회 전수):
+    //      ① base 는 애초에 맨 앞이 아니다 — 위에서 **시각 블록을 prepend** 하고 그 문자열은
+    //         `currentDateStr` 의 **분 단위**를 담는다. 분이 바뀌면 prefix 재사용이 끊긴다.
+    //      ② prefix 를 완전히 고정한 프로브에서도 캐시 히트는 **17/252 = 6.7%** 였고,
+    //         **기본 모델(3.6)은 84회 중 0회**였다. 기대 효과 자체가 낮다.
+    //    → 순서를 바꿀 이유는 아니지만, **캐시를 근거로 삼지 않는다.** 순서가 응답을 바꾸는지는
+    //      9단계 A/B 로 따로 재며, 그때까지 이 순서는 **측정된 기준선**으로서 유지한다.
     const rendererSections = getRendererSections(state.intent, langName);
     if (rendererSections) {
         finalInstruction += `\n\n${rendererSections}`;
@@ -199,5 +222,9 @@ export const assemblePrompt = (input: AssemblePromptInput): string => {
     if (intentHint) {
         finalInstruction += `\n\n${intentHint}`;
     }
+
+    // 9단계 A/B 의 대안 배치 — 사용자 턴에 가장 가까운 자리. 프로브만 쓴다.
+    if (timeBlockAt === 'end') finalInstruction += `\n\n${timeBlock}`;
+
     return finalInstruction;
 };

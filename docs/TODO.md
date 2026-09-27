@@ -404,6 +404,22 @@ PubMed 장애 턴(`error` + `count: 0`)을 조립해 보니 한 프롬프트에 
 
 ([측정 로그](logs/2026/09/DEV_260925.md), [가설의 출처 §10-7](plans/PLAN_PROMPT_LAYERING_260923.md))
 
+### 5-a. 🔴 자정 직후 "오늘 뉴스"가 **지금도** 전날 기사를 오늘로 낸다 (2026-09-28 발견)
+
+9단계 위치 A/B([DEV_260928 §4](logs/2026/09/DEV_260928.md))의 **기준선**에서 드러났다. 위치와 무관한 결함이다.
+
+- 재현: 시계를 내일 00:20 KST 로 옮기고 `오늘 나온 AI 뉴스 알려줘` — Gemini 2.5 grounding 경로
+- 현재 위치(base 앞) 결과: 엄격 기준 **1/7**, 느슨한 기준 4/7. **2/7 은 오늘을 검색 기사 날짜(9/27)로 단정**
+- 🔴 프로덕션 경로다 — 기본 3.6 도 검색 턴은 `SEARCH_FALLBACK_MODEL`(2.5)로 강등된다
+- OpenAI(`gpt-5.6-luna`)는 같은 조건에서 **7/7** — 같은 문구로도 되는 모델이 있다
+
+[prompt-assembly.ts](../server/agent/prompt-assembly.ts) 주석의 *"주입만으로는 부족했다"* 가 2026-08-24 의 보강(세 줄 규칙)
+**이후에도** 부족하다.
+
+- [ ] 원인 가설부터 — 문구(예시 없이 규칙만 있다)인가, Gemini grounding 이 시스템 지시보다 검색 결과를 우선하는가
+- [ ] 수정 후보는 **위치를 건드리지 않는다**(Q1 결론). 문구 A/B 는 [프로브](../tests/manual/probe-time-block-position.mts) a 팔이 그대로 형틀이다
+- [ ] 이 후속이 정해지면 실험 손잡이 `timeBlockAt` 을 지운다(사전 등록 약속 — 지금은 형틀로 쓰려고 남겨 뒀다)
+
 ## 🟢 P2 — 성능
 
 현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-06-02 재측정, 4/4과 동일)

@@ -51,7 +51,12 @@ export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 90_000;
  * For general intents, uses @google/genai SDK directly to capture groundingMetadata which
  * is lost by @langchain/google-genai's response parsing.
  */
-export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void, langName: LangName = DEFAULT_LANG_NAME) => {
+export const createGeneratorNode = (
+    systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void,
+    langName: LangName = DEFAULT_LANG_NAME,
+    /** 9단계 A/B 전용 손잡이 — 프로덕션은 넘기지 않으므로 항상 기본값(현재 동작). */
+    experiment: { timeBlockAt?: 'start' | 'end' } = {},
+) => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');
         console.log('[LangGraph] Selected provider model | intent:', state.intent, '| model:', state.model);
@@ -102,6 +107,7 @@ export const createGeneratorNode = (systemInstructionBase: string, isYoutubeRequ
         }
 
         const finalInstruction = assemblePrompt({
+            timeBlockAt: experiment.timeBlockAt,
             base: systemInstructionBase, state, langName, latestUserText,
             now, tz, currentDateStr, cardEntity, hospitalStatus,
         });
