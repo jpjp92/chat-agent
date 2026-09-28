@@ -50,6 +50,30 @@ npm run verify  # typecheck + test
 사용할 수 있지만 `npm test`에는 포함하지 않는다. 자동 회귀 하니스의 위 세 조건과 섞지 않으며,
 실행 시 외부 API 크레딧이 소모될 수 있다.
 
+### 🔴 `TIER1=1` — 기본으로 붙이되, 함정 둘을 알고 붙인다
+
+프로덕션 Gemini 는 **무료 키 12개 로테이션**(`API_KEY`~`API_KEY12`)이고, `TIER1=1` 은 그것을
+**전부 지우고 `API_KEY_TIER1` 유료 키 단독**으로 바꾼다. OpenAI 는 애초에 `OPENAI_API_KEY_TIER1`
+하나뿐이다. 프롬프트·응답 품질 측정은 **유료 키로 돌리는 게 기본**이다 — 무료 키가 일일 쿼터로
+마르면 라우터가 규칙 폴백으로 떨어져 측정이 조용히 오염된다(전부 `general` 이 된 사례가 있다).
+
+**함정 ① 티어가 모델 경로를 바꾼다.** [models.ts](../server/models.ts) 의 `freeTierSearch` 는
+*과금 사실*이다 — 3.x 는 무료티어에서 Google Search grounding 이 **429** 라
+`needsSearchFallback` 으로 **2.5 로 강등**된다. 유료 키로 돌리면 그 강등이 안 걸려
+**프로덕션과 다른 경로를 재게 된다.**
+→ **검색이 끼는 측정은 `gemini-2.5-flash` 로 핀한다.** `freeTierSearch`·`groundingReliable` 이
+둘 다 true 인 유일한 모델이라 **무료·유료 어느 키로도 같은 경로**를 탄다. 기본 모델 3.6 도
+검색 턴이면 결국 2.5 로 오므로 이게 프로덕션 경로이기도 하다.
+(3.6 을 유료 키로 직접 그라운딩시키면 **TIER1 실측 정답률 2/5** 인 경로가 열린다 — 모델 품질
+잡음이 측정하려던 효과를 덮는다.)
+
+**함정 ② 키 로테이션을 안 탄다.** 유료 키 **하나**로 돌므로 429 처리·블랙리스트·키 순환은
+전혀 실행되지 않는다. **쿼터·429·로테이션을 재는 측정에 `TIER1=1` 을 붙이면 안 된다.**
+
+⚠️ 모델 캡이 **실호출로 검증됐는지**도 본다. `gpt-6-luna` 의 캡은 아직 **모델 카드 기재값뿐**이라
+(`live-openai-chat-models.mts` 가 그걸 재는 하니스다) A/B 팔로 쓰면 모델 불확실성이 섞인다 —
+검증된 `gpt-5.6-luna` 를 쓴다.
+
 - `npm run audit:wikidocs-puppeteer -- <URL>`: Browserless Puppeteer와 Cheerio 결과 비교
 - `npm run audit:url-openai -- <URL>`: `OPENAI_API_KEY_TIER1`로 장애 표본의 웹 검색과 정확한 URL 출처 확인
 - `npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/live-paper-card.mts [모델] [질의]`: 그래프를 실제로 돌려
