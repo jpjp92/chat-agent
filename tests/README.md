@@ -140,6 +140,15 @@ npm run verify  # typecheck + test
   - `--report` 는 저장본만 읽는다(재호출 0). 판정은 길이가 아니라 **상한 대비 여유**로 한다.
   - dev 는 별도 프로젝트라 `-p chat-agent-dev` 가 기본값이다(로컬 링크는 `chat-agent`).
   - 수집본은 `tests/manual/data/` 로 가며 **gitignore 돼 있다** — 사용자 질문·검색어가 섞인다.
+- `npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-q2-exposure.mts`:
+  9단계 Q2 의 **노출 범위**를 센다 — 런타임 컨텍스트 × 턴 규칙 15조합 중 몇이 실제로 **공존**하는지.
+  오프라인·**API 키 0**(조립기만 돌린다). 결과 7/15 이 계획의 *"카드 후속만 해당"* 주장을 정정했다
+  (그중 카드+턴규칙은 2건뿐). 🔴 표지가 base 에 이미 있으면 **선행 검증이 exit 1 로 막는다** —
+  문자열 표지를 쓰다 15/15 전부 거짓 양성이 났던 자리다(DEV_260928 §10)
+- `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-grounding-date.mts --live`:
+  **그라운딩이 주입 날짜를 덮어쓰는가** — §5-a 의 기각 가설을 재확인한다. 답: 덮어쓰지 않는다
+  (검색 ON/OFF 6회 모두 주입값, `src=10` 포함). ⚠️ 첫 시도는 ON 팔에서 `src=0` 이 나와 **무효**였다
+  (순수 날짜 질문은 검색을 안 붙인다) — 질문을 바꿔 검색을 실제로 붙인 뒤에야 조건이 성립한다
 - `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
   그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
@@ -178,7 +187,7 @@ npm run verify  # typecheck + test
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
 | `test-paper-card.mts` | 논문 카드 — 근거 등급 판정(추정 금지)·초록 결론 추출과 꼬리 보일러플레이트 제거·철회 판정(정반대 값 구분)·검색어 붕괴 방어·인용할 수 없는 논문의 분리·**멀티턴 후속 판정**(재조회 vs 카드 대화)·**카드 범위 밖 인용 마커 제거**(스트림 배선 포함)·프롬프트 계약·배선. **소스를 정규식으로** 본다 |
-| `test-stream-dispatch.mts` | **SSE 이벤트 루프** — 가짜 이벤트를 넣고 나온 프레임을 본다. 카드 8종이 각자 나가는가, **else-if 체인에서 앞 분기가 뒤를 삼키지 않는가**, law_qa 억제, sports 게이트, generator 밖 토큰 차단, 청크 경계 인용, 출처 중복 제거. 모델도 네트워크도 없다 | §9 는 **빈 카드 선전송 금지** — 카드를 먼저 보내면 `fullAiResponse` 가 채워져 생성기의 산문이 통째로 폐기된다(§6.30)
+| `test-stream-dispatch.mts` | **SSE 이벤트 루프** — 가짜 이벤트를 넣고 나온 프레임을 본다. 카드 8종이 각자 나가는가, **else-if 체인에서 앞 분기가 뒤를 삼키지 않는가**, law_qa 억제, sports 게이트, generator 밖 토큰 차단, 청크 경계 인용, 출처 중복 제거. 모델도 네트워크도 없다 | §9 는 **빈 카드 선전송 금지** — 카드를 먼저 보내면 `fullAiResponse` 가 채워져 생성기의 산문이 통째로 폐기된다(§6.30). §10 은 **오늘 날짜 사후 검증**([today-guard.ts](../server/agent/today-guard.ts), DEV_260928 §14) — 오검출 방어 6건이 핵심이다(정상 답변에 정정이 달라붙으면 안 된다). 🔴 날짜를 리터럴로 쓰지 않고 오늘에서 **상대**로 만든다 — 고정 날짜는 그날 하루만 맞고 이후엔 조용히 초록으로 남는다
 | `test-theaters.mts` | **상영관 지역 매칭** — `"성남"` 이 CGV **울산성남**(울산 남구)을 물어온 게 계기다. 다른 도시 지점 배제 4건, 같은 도시 안 비접두 매칭 유지(동수원·북포항), 별칭, 시·도 단위 질의 차단. 데이터는 `data/theater-branches.json` 이라 네트워크 없다 |
 | `test-prompt-assembly.mts` | **프롬프트 조립 골든** — 최종 인스트럭션의 길이·해시를 의도 5종 × base 4개 언어로 고정한다. 계층 재배치가 "구조만 바꿨다"를 증명할 자다([PLAN_PROMPT_LAYERING](../docs/plans/PLAN_PROMPT_LAYERING_260923.md)). 🔴 2026-09-24 이전엔 **만들 수 없었다** — 조립 결과가 generator 클로저 지역 변수라 오프라인 관측이 불가능했다(§7-6). 턴 조건(카드·재구성·날씨 후속)이 실제로 얹히는지도 함께 본다. 시각은 고정값이라 해시가 흔들리지 않는다. **턴 빌더 6종의 문구도 직접 검사**한다(인라인 리터럴이던 시절엔 소스 grep 밖에 없었다) |
 | `render-paper-card.mts` | 논문 카드 — **실제로 렌더한 HTML** 을 본다. 철회/초록없음 칸이 정말 그려지는가, 두 칸이 섞이지 않는가, 4개 언어 문구, 빈손 분기, 옛 카드 하위호환. 위 하니스와 겹치지 않는다(정규식은 "코드가 파일에 있다" 까지만 말한다) |

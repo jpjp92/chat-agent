@@ -106,7 +106,7 @@ flowchart TB
 
 | Path | Intents | Model |
 |------|---------|-------|
-| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색, 로컬 도구 8종 | 선택한 GPT 모델 유지 |
+| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색, 로컬 도구 **11종**(`local-tool-registry.ts` 의 `tools` 실제 개수 — 같은 문서 §Model Policy 와 맞춰 둔다) | 선택한 GPT 모델 유지 |
 | Gemini SDK | `general`, `medical_qa`, `astronomy`, `biology`, `chemistry`, `physics`, `data_viz` | 선택한 Gemini 모델; capability/search 정책에 따라 2.5 사용 |
 | LangChain | `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`, `weather` | `gemini-2.5-flash` (fast-pass intents: thinking off) |
 | Vision (pill pre-process) | `drug_id` + image | `gemini-2.5-flash`, thinking off |
@@ -349,7 +349,7 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 그렇지 않아, 게이트로 쓰면 카드 후속의 "표로 정리해줘"에서 날조 금지 규칙이 사라진다.
 
 조립 결과는 `tests/test-prompt-assembly.mts` 가 **의도 19개 × 턴 8종 × base 4조합 × 언어 4개**
-골든으로 고정한다(2026-09-28 현재 검사 133개). 턴 골든에 `urlSummary`·`youtubeVideo` 가 있는 이유는
+골든으로 고정한다(2026-09-28 현재 검사 152개). 턴 골든에 `urlSummary`·`youtubeVideo` 가 있는 이유는
 그전까지 **모든 턴 골든이 `webContent: ''`** 여서 본문 조항이 실린 프롬프트를 sha 로 보는 검사가
 하나도 없었기 때문이다 — 줄 하나를 옮긴 돌연변이가 그 구멍으로 전부 통과했다(DEV_260925 §11-3).
 
@@ -358,6 +358,20 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 (OpenAI·평문 턴은 무변화) → **현 위치 유지**로 판정했다([DEV_260928](../logs/2026/09/DEV_260928.md)).
 `assemblePrompt` 의 `timeBlockAt` 옵션은 **그 실험 전용**이고 프로덕션(`route.ts`)은 넘기지 않는다 —
 항상 `'start'` 이며 골든이 바이트 동일을 지킨다.
+
+🔴 **그런데 현 위치에서도 결함은 산다**(엄격 기준 1/7). 같은 날 문구 후보를 두 개 더 태웠고 **둘 다
+기각**됐다 — 끝에 한 줄 재진술(`both`)은 F1 을 5/14→1/14 로 줄였지만 F2 를 0→3/14 로 **옮겨** 순효과
+p=1.000, 날짜 렌더 `iso24` 는 n=14 에서 p=0.678 로 **판정 불가**였다. 그리고 §13-3 실측이 원인을
+좁혔다: 날짜를 **직접 물으면** 검색이 붙어도(`src=10`) 주입값을 정확히 쓴다. **시각 블록은 먹고 있다** —
+실패는 기사 날짜를 읽다가 "오늘" 을 재추론할 때만 난다. 금지 규칙(`Never infer it from search results,
+article publication dates`)은 **이미 블록 2번째 줄에 있다.**
+
+→ 그래서 프롬프트를 더 밀지 않고 **출력 쪽에 방어를 하나 세웠다**:
+[today-guard.ts](../../server/agent/today-guard.ts) 가 완성된 답변에서 틀린 `오늘 N월 M일` 단정을
+찾아 **정정 한 줄을 덧붙인다**(치환하지 않는다 — 기사 날짜로는 맞는 값이라 바꿔치우면 거짓이 늘어난다).
+배선은 [stream-dispatch.ts](../../server/agent/stream-dispatch.ts) 의 `on_chain_end generator` **한 곳** —
+Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이고, LangChain 은 토큰을 이미 흘린
+뒤이므로 **덧붙이기만 가능하다**. 모델 호출 0회·지연 0. 발생을 줄이지는 않는다(DEV_260928 §14).
 
 - 예전엔 렌더러 스펙 전부가 base 에 상주해 모든 턴에 주입됐다. **비용 문제가 아니라 문맥 오염 문제**였다 — base 의 `[WEATHER FORMATTING]`("날씨 정보엔 ALWAYS 5일 표")이 날씨와 무관한 `general` 턴까지 오염시켜 후속 대화에서 표가 재출력됐다(DEV_260731 §3-3). 암묵 캐싱 할인(78~98%)이 있어 길이 자체는 문제가 아니었다.
 - `INTENT_RENDERERS` 가 의도 → 조각 목록을 결정한다. 예: `physics` → `diagram` + `chart`, `astronomy` → `constellation`, 약국·병원·법령 → **없음**(fast-pass 라 모델이 렌더러 블록을 쓸 일이 없다).
@@ -424,7 +438,8 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 | 용도 | 모델 |
 |------|------|
 | 기본 채팅 | `gemini-3.6-flash` |
-| 선택 가능 모델 | Gemini 3.7 / 3.6 / 3.5 / 2.5 Flash, GPT-5.4 mini, GPT-5.6 Luna |
+| 선택 가능 모델 | **현행** — Gemini 3.7 / 3.6 / 3.5 / 2.5 Flash, **GPT-6 luna** / GPT-5.6 luna. **legacy** — GPT-5.4 mini(2026-09-23 강등). ⚠️ legacy 는 **목록에서만 내렸고 계속 동작한다** — `preferred_model` 에 그 값을 가진 세션이 올라오므로 서버 허용 목록에서는 빼지 않는다(빼면 그 사용자가 오류를 본다) |
+| `gpt-6-luna` 주의 | 🔴 caps 가 **모델 카드 기재값이고 실호출로 재지 않았다**. `chatReasoningEffort: 'none'` 은 취향이 아니다 — 카드가 *"function calling only with reasoning_effort set to none"* 이라 못 박았고, 올리면 **도구 호출이 조용히 사라진다**. 실측 하니스는 `tests/manual/live-openai-chat-models.mts` |
 | GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
 | GPT + YouTube 원본·업로드 영상/오디오·fileData | `gemini-2.5-flash` capability fallback. 텍스트 자막이면 GPT 유지 |
 | Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
@@ -436,17 +451,49 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 
 **정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 11종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
+### 🔴 타임아웃 예산 — **60 을 베껴 오지 말 것**
+
+| 층 | 값 | 근거 |
+|---|---|---|
+| `/api/chat` `maxDuration` | **300s** | Hobby(무료)도 fluid 기본·최대 300s. **60 은 우리가 건 값이었다** |
+| Gemini SDK 호출 1회 | 25s | 행 감지 UX 가드. *캡 회피가 아니다* — 근거가 바뀐 값이다 |
+| Gemini 무거운 미디어 1회 | 90s | 실측 최대 54.9s(6.5MB PDF)의 1.6배. 강등 재시도까지 90×2=180 < 300 |
+| OpenAI Responses **호출당** | 120s | 실측 정상 6~20s(상한의 17%). 아직 추정값 — TODO §5-e |
+| `/api/fetch-url` | 120s | 🔴 그런데 클라이언트가 **65s** 에 끊는다 — 래더 합이 이미 초과(TODO §5-d) |
+
+**이 정정이 세 번 필요했다.** `maxDuration 60→300` 은 2026-08-09 에 밝혀졌는데, **2주 뒤** 새로 만든
+OpenAI 경로가 `60_000` 을 그대로 물려받았고(2026-09-28 에야 사용자 신고로 발견), 같은 시기 heavy
+미디어 분기 하나도 옛 근거("또 시도하면 60s 초과")로 남아 재시도 가능한 실패를 버리고 있었다.
+
+→ ⚖️ **정정은 값이 아니라 전제에 대고 해야 한다.** 리터럴 하나를 고쳐도, 폐기된 전제가 문서에
+없으면 다음에 만드는 경로가 그 값을 다시 베껴 온다. [DEV_260808 §9](../logs/2026/08/DEV_260808.md) ·
+[DEV_260928 §11](../logs/2026/09/DEV_260928.md)
+
+⚠️ 상한은 **호출당**이어야 한다. OpenAI 경로는 `AbortController` 를 함수 바깥에 한 번 만들어
+initial·followup 이 같은 signal 을 공유했다 — 즉 상한이 "턴 전체 예산" 이었고 **카드 턴은 둘이
+나눠 썼다**. 두 원인(호출이 느림 / 예산을 나눠 씀)이 **똑같은 `AbortError`** 를 내므로 예외로는
+구분되지 않는다. `test-chat-models.mts` 가 followup 이 온전한 상한을 새로 받는지 회귀로 잡는다.
+
 ---
 
 ## Streaming & Source Handling
 
-`app/api/chat/route.ts`가 LangGraph 스트림 이벤트를 소비해 SSE로 클라이언트에 전달.
+[stream-dispatch.ts](../../server/agent/stream-dispatch.ts) 가 LangGraph 스트림 이벤트를 소비해 SSE 프레임으로 바꾼다.
+`route.ts` 는 그 순수 함수를 부를 뿐이다.
+
+🔴 **이 루프가 route.ts 안에 인라인이던 시절엔 import 가 불가능**해서 하니스 3종이 각자 루프를
+재구현했고, 재구현본에는 **else-if 분기 순서가 없어서** 실제 결함을 재현하지 못했다 — 이름 필터
+없는 `on_tool_end` 분기 하나가 뒤의 카드 분기 6종을 통째로 삼킨 채 배포됐다(DEV_260830 §6.14).
+지금은 `test-stream-dispatch.mts` 가 **실물을 태운다**.
 
 - SDK 응답: `sendEvent`로 텍스트 직접 전달
 - LangChain `on_chat_model_stream` 청크: Vision 노드 청크(내부 JSON 추출 데이터) 필터링 후 전달
 - URL fetch 실패: 지역화된 접근 제한 안내로 short-circuit; 대체 검색 결과 요약 금지
 - 툴 소스 URL: `[WEB_SOURCE_URLS]` 파싱 → 소스 칩으로 emit
 - Fast-pass 렌더러: `json:pharmacy` / `json:hospital` / `json:vet` / `json:law` / `json:movie` / `json:weather` 블록을 추가 LLM 합성 없이 직접 스트림
+- 오늘 날짜 사후 검증: `on_chain_end generator` 에서 [today-guard.ts](../../server/agent/today-guard.ts) 가
+  틀린 `오늘 N월 M일` 단정에 정정을 덧붙인다. **세 경로(SDK·OpenAI·LangChain)가 모두 지나는 유일한
+  지점**이고, LangChain 은 토큰을 이미 흘린 뒤라 **치환이 아니라 덧붙이기만 가능**하다
 - 스트리밍 완료 후 assistant 컨텐츠 Supabase 저장
 - `utils/streamingMarkdown.ts` — `gateStreamingTables()`: 스트리밍 중 미완성 표 영역 숨김 (완성 시 통째 출현, 깜빡임 방지)
 

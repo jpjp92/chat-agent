@@ -29,7 +29,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 
 ### 1-2. AI Intelligence
 
-- **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus GPT-5.4 mini / GPT-5.6 Luna. The grouped provider picker is persisted in `preferred_model` local storage. **3.8 은 측정 후 미채택** — 7개 intent 14 TC × 3모델(252회)과 grounding 30문항 × 3모델(90회)이 전부 만점으로 갈려서 정답률로는 차이가 나지 않았다(2026-09-22, `tests/manual/gemini-3-8/`)
+- **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus **GPT-6 luna** / GPT-5.6 luna (GPT-5.4 mini demoted to `legacy` on 2026-09-23 — hidden from the picker but still accepted, since sessions carry it in `preferred_model`). The grouped provider picker is persisted in `preferred_model` local storage. **3.8 은 측정 후 미채택** — 7개 intent 14 TC × 3모델(252회)과 grounding 30문항 × 3모델(90회)이 전부 만점으로 갈려서 정답률로는 차이가 나지 않았다(2026-09-22, `tests/manual/gemini-3-8/`)
 - **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
 - **Search on/off is decided by declared tiers, not by statement order** — `400` hard constraint > `300` user's explicit request > `200` answer already grounded (URL / attached doc / video) > `100` classifiers > `0` default-on. Nobody overwrites anybody; each gate submits a signal and the highest tier wins (`server/agent/search-policy.ts`). ⚠️ **Tier 400 is Gemini-only**: it encodes *"Gemini cannot put an image and grounding in one request"*, which is not true of OpenAI Responses — so the OpenAI path passes `provider: 'openai'` and the signal is never emitted (2026-09-02; before that, an attached image silently disabled search on the turn right after it — exactly the turn where a user says "now search and check this")
 - **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
@@ -183,7 +183,7 @@ Per-intent tool binding and routing details: [docs/guide/REF_Architecture.md](do
 | Markdown      | react-markdown + remark-gfm / remark-math (`$$` only) / remark-cjk-friendly / rehype-katex |
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
 | Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
-| AI            | Gemini 3.7/3.6/3.5/2.5 Flash, GPT-5.4 mini / GPT-5.6 Luna, Google GenAI SDK, OpenAI Responses API, LangChain |
+| AI            | Gemini 3.7/3.6/3.5/2.5 Flash, GPT-6 luna / GPT-5.6 luna (GPT-5.4 mini legacy), Google GenAI SDK, OpenAI Responses API, LangChain |
 | Database      | Supabase (PostgreSQL + Storage)                                           |
 
 Per-model usage policy: [docs/guide/REF_Architecture.md#model-policy](docs/guide/REF_Architecture.md)  
@@ -226,6 +226,8 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── search-signals.ts           # 텍스트 → 검색 신호 (순수 — 하니스가 import)
 │       ├── local-tool-registry.ts      # OpenAI strict function calling 도구 11종
 │       ├── stream-dispatch.ts          # SSE 이벤트 루프 (route.ts 가 아니라 여기 — 하니스가 실물을 태운다)
+│       ├── prompt-assembly.ts          # 최종 인스트럭션 조립 (순수 — 골든 해시로 고정)
+│       ├── today-guard.ts              # 출력 사후 검증 — 틀린 "오늘" 단정에 정정을 덧붙인다
 │       ├── card-followup.ts / card-tool-output.ts / gemini-citations.ts
 │       ├── tools.ts                    # identify_pill, search_web (DDG)
 │       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts / hospital-hours.ts
@@ -249,14 +251,15 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
 │   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
-├── tests/                              # 🔴 회귀 하니스 18종 (`npm test`). tests/README.md
+├── tests/                              # 🔴 회귀 하니스 19종 (`npm test`). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-card-followup / test-storage-name / test-pill-messages
 │   ├── test-ddg-parse / test-thinking-config / test-openai-url-fetch
 │   ├── test-chat-models / test-drug-fallback / test-gemini-citations
 │   ├── test-model-labels               # 모델 선택 UI 문자열 골든 대조
 │   ├── test-paper-card / render-paper-card  # 논문 카드 — 소스 계약 + 실제 렌더 HTML
-│   ├── test-stream-dispatch            # SSE 이벤트 루프 — 카드 8종이 각자 나가는가
+│   ├── test-stream-dispatch            # SSE 이벤트 루프 — 카드 8종이 각자 나가는가 + 오늘 날짜 사후 검증
+│   ├── test-prompt-assembly            # 프롬프트 조립 골든 — 계층 재배치가 문구를 안 바꿨음을 증명
 │   ├── test-theaters                   # 상영관 지역 매칭 (data/theater-branches.json)
 │   ├── test-doc-links                  # 문서 링크·앵커·행번호 — 추적 md 한정(gitignore 트리 제외)
 │   ├── manual/                         # 외부 공급자·DB 실측 프로브 (npm test 제외)
@@ -338,12 +341,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 18종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 19종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 18종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 19종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,
