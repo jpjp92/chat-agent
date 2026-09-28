@@ -10,13 +10,13 @@
  *
  * 사용법
  *   1) 수집 (사용자가 직접 — 대화형이라 에이전트가 못 돈다)
- *        npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-openai-latency.mts --tail
+ *        npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-openai-latency.mts --tail --deployment dpl_…
  *      켜 둔 채 웹에서 luna 로 검색형·조사형 질문을 7회 이상 던진다. Ctrl-C 로 종료.
  *
  *   2) 분석 (재호출 0 — 저장본만 읽는다)
  *        npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-openai-latency.mts --report
  *
- * 옵션: --project <name> (기본 chat-agent-dev) · --out <path> · --in <path>
+ * 옵션: --deployment <dpl_…> (--tail 필수) · --project <name> (기본 chat-agent-dev) · --out/--in <path>
  */
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
@@ -92,20 +92,64 @@ if (has('--report')) {
     mkdirSync(dirname(out), { recursive: true });
     console.log(`▶ ${project} 라이브 테일 → ${out}`);
     console.log('  켜 둔 채 웹에서 luna 로 검색형·조사형 질문을 7회 이상 던져라. 끝나면 Ctrl-C.\n');
-    const child = spawn('vercel', ['logs', '-p', project, '--no-branch', '--follow'], { stdio: ['ignore', 'pipe', 'inherit'] });
-    child.stdout.on('data', chunk => {
-        const text = String(chunk);
-        appendFileSync(out, text);
-        for (const line of text.split('\n')) if (LINE.test(line)) console.log('  ' + line.trim());
-    });
+    // 🔴 `--follow` 는 **배포를 특정해야** 한다(`--no-branch` 와 같이 못 쓴다). 배포를 고정하는 편이
+    //    측정에도 맞다 — 고정하지 않으면 구버전 트래픽이 섞여 상한이 다른 줄이 한 파일에 들어온다.
+    const deployment = option('--deployment', '');
+    if (!deployment) {
+        console.error('🔴 --deployment <dpl_…> 가 필요하다. 현재 프로덕션 배포는:');
+        console.error(`     vercel inspect $(vercel list ${project} --prod | awk 'NR==5{print $3}') | grep "  id"`);
+        process.exit(1);
+    }
+    /**
+     * 🔴 **재연결이 필요하다.** 질문 사이 유휴 구간에서 스트림이 `ETIMEDOUT` 으로 죽는다
+     *    (2026-09-28 실측: 트래픽 없이 ~5분). 수집은 30분 단위로 도는데 한 번 끊기면
+     *    그 뒤 질문이 통째로 유실되고, **파일만 보면 "그 시간대엔 안 썼나 보다" 와 구분이 안 된다.**
+     *    → 끊기면 다시 붙고, 끊긴 사실을 파일에도 남긴다.
+     */
+    let stopped = false;
+    let generation = 0;
+    let captured = 0;
+    let searchHits = 0;
+
+    const connect = () => {
+        const gen = ++generation;
+        const child = spawn('vercel', ['logs', deployment, '-p', project, '--follow'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        child.stdout.on('data', chunk => {
+            const text = String(chunk);
+            appendFileSync(out, text);
+            for (const line of text.split('\n')) {
+                const m = line.match(LINE);
+                if (!m) continue;
+                if (m[3] === 'true') searchHits++;
+                captured++;
+                // 🔴 진행을 보여준다. 지난 회차는 **다 끝난 뒤에** 파일이 빈 걸 알았다 —
+                //    그게 가장 비싼 실패였다. 목표(검색 ON 7건) 대비로 찍는다.
+                console.log(`  ${line.trim()}   ← 누적 ${captured}건(검색 ON ${searchHits}/7)`);
+                if (searchHits === 7) console.log('  ✅ 검색 ON 7건 달성. 더 모아도 되고, Ctrl-C 로 끝내도 된다.');
+            }
+        });
+        child.stderr.on('data', chunk => process.stderr.write(chunk));
+        child.on('exit', () => {
+            if (stopped || gen !== generation) return;
+            appendFileSync(out, `\n# --- 스트림 끊김, 재연결 ${new Date().toISOString()} ---\n`);
+            console.log('  ↻ 스트림이 끊겨 재연결한다(유휴 타임아웃). 계속 질문해도 된다.');
+            setTimeout(connect, 2000);
+        });
+        return child;
+    };
+
+    let child = connect();
     const finish = () => {
+        stopped = true;
+        try { child.kill('SIGINT'); } catch {}
         const rows = existsSync(out) ? parse(readFileSync(out, 'utf8')) : [];
         console.log(`\n저장 완료: ${out} · [OpenAI] 줄 ${rows.length}건`);
         console.log('분석:  npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-openai-latency.mts --report');
         process.exit(0);
     };
-    process.on('SIGINT', () => { child.kill('SIGINT'); finish(); });
-    child.on('exit', finish);
+    process.on('SIGINT', finish);
 } else {
     console.log(readFileSync(new URL(import.meta.url), 'utf8').split('*/')[0]);
 }
