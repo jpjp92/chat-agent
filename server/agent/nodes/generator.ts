@@ -79,6 +79,9 @@ export const createGeneratorNode = (
         // Inject Current Date/Time to prevent hallucination
         const now = new Date();
         const tz = state.timeZone || 'Asia/Seoul';
+        // 🔴 `dateFormat` 실험 손잡이는 **판정 후 제거했다**(PLAN §10-13 사전 등록 약속).
+        //    `iso24`(24시간제 + ISO 병기)는 n=14 에서 p=0.678 — 판정 불가로 기각(DEV_260928 §13).
+        //    재시도하려면 손잡이를 다시 만들지 말고, **원인이 문구가 아니라는 §13-4 를 먼저 읽어라.**
         const currentDateStr = new Intl.DateTimeFormat('ko-KR', {
             year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
             hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'short'

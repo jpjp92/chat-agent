@@ -110,8 +110,19 @@ const PROVIDERS = [
     { id: 'gemini', model: 'gemini-2.5-flash' },
     { id: 'openai', model: 'gpt-5.6-luna' },
 ] as const;
+/**
+ * 팔 = **조작 1개**. Q1 은 위치만 건드렸지만 §5-a 2차는 **날짜 렌더**를 건드린다.
+ * 위치는 Q1 에서 이미 결론(현 위치 유지)이 났으므로 `iso24` 는 위치를 `start` 로 고정한다 —
+ * **한 실험에 두 변수를 넣지 않는다**(PLAN §10-11).
+ */
 type Pos = 'start' | 'end' | 'both';
-const POSITIONS = (option('--positions', 'start,both').split(',') as Pos[]);
+const VARIANT: Record<Pos, { timeBlockAt: 'start' | 'end' | 'both' }> = {
+    start: { timeBlockAt: 'start' },                          // 기준선 = 프로덕션
+    end:   { timeBlockAt: 'end' },                            // Q1 에서 기각됨
+    both:  { timeBlockAt: 'both' },                           // §5-a 1차, 기각됨
+};
+const POSITIONS = (option('--variants', option('--positions', 'start,both')).split(',') as Pos[]);
+for (const v of POSITIONS) if (!VARIANT[v]) { console.error(`알 수 없는 팔: ${v} (${Object.keys(VARIANT).join('|')})`); process.exit(1); }
 
 const selArms = only ? ARMS.filter(a => a.id === only) : ARMS;
 const selProv = onlyProvider ? PROVIDERS.filter(p => p.id === onlyProvider) : PROVIDERS;
@@ -176,7 +187,7 @@ const judge = (arm: ArmId, text: string, searched: boolean): Verdict => {
 
 // ── 한 턴 — route.ts 와 같은 이벤트 소비 ────────────────────────────────────
 async function turn(q: string, model: string, pos: Pos) {
-    const graph = compileAgentGraph(getSystemInstruction('Korean'), false, () => {}, 'Korean', { timeBlockAt: pos });
+    const graph = compileAgentGraph(getSystemInstruction('Korean'), false, () => {}, 'Korean', VARIANT[pos]);
     let delivered = '', intent = '', sources = 0, finalText = '';
     const events = await graph.streamEvents({
         messages: [new HumanMessage({ content: [{ type: 'text', text: q }] })],
