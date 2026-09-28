@@ -392,5 +392,133 @@ check('전날 자료를 낼 때 날짜와 이유를 밝히도록 지시',
 check('generator가 grounding 인용 변환을 사용', generatorSource.includes('applyGeminiCitations('));
 check('generator에 가짜번호 선삭제가 남아 있지 않음', !generatorSource.includes("*\\]/g, '')"));
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 타임아웃 예산 — 2026-09-28. 이 구간은 **커버리지가 0이었다**. 그래서 상한이 턴 전체
+// 예산으로 공유되던 구조가 그대로 살아남았고, 프로덕션에서 61.6s 절단으로 드러났다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 절대 스스로 끝나지 않고 오직 abort 로만 끝나는 fetch — 타이머만 관측한다. */
+const hangingFetch = (onCall?: (n: number) => void) => {
+    let calls = 0;
+    return (async (_input: any, init?: any) => {
+        const n = ++calls;
+        onCall?.(n);
+        return await new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+                const err: any = new Error('aborted');
+                err.name = 'AbortError';
+                reject(err);
+            });
+        });
+    }) as unknown as typeof fetch;
+};
+
+const baseTimeoutOpts = {
+    model: 'gpt-5.6-luna',
+    messages: [new HumanMessage('안녕')],
+    instructions: 'x',
+    useWebSearch: false,
+    maxOutputTokens: 1024,
+    apiKey: 'test-key',
+};
+
+// 1) 상한을 넘기면 504/timeout 으로 분류된다 — 화면 문구가 여기서 갈린다.
+{
+    const started = Date.now();
+    let caught: any = null;
+    try {
+        await generateOpenAIChat({ ...baseTimeoutOpts, timeoutMs: 120, fetchImpl: hangingFetch() });
+    } catch (error) { caught = error; }
+    const elapsed = Date.now() - started;
+    check('상한 초과는 OpenAIChatError 로 끝난다', caught instanceof OpenAIChatError, String(caught?.message));
+    check('상한 초과는 status 504', caught?.status === 504, `status=${caught?.status}`);
+    check('상한 초과는 code=timeout', caught?.code === 'timeout', `code=${caught?.code}`);
+    check('타임아웃이 상한 근처에서 발화한다', elapsed >= 100 && elapsed < 2000, `${elapsed}ms`);
+    // 🔴 이 줄이 캡처의 빨간 토스트다. 504 → unavailable 매핑이 끊기면 문구가 바뀐다.
+    check('504 는 unavailable 로 분류된다(=서버가 일시적으로 불안정합니다)',
+        classifyChatError(caught) === 'unavailable', classifyChatError(caught));
+}
+
+// 2) 🔴 핵심 회귀: 상한은 **호출당** 이어야 한다, 턴 전체 예산이 아니라.
+//    initial 이 상한의 대부분을 쓰고 끝나도 followup 은 **온전한 상한**을 새로 받아야 한다.
+//    예전 구조(컨트롤러 1개 공유)에서는 followup 이 남은 잔액만 받아 즉시 잘렸다.
+{
+    const PER_CALL = 300;
+    const callStarts: number[] = [];
+    const turnStarted = Date.now();
+    let caught: any = null;
+    const fetchImpl = (async (_input: any, init?: any) => {
+        callStarts.push(Date.now());
+        if (callStarts.length === 1) {
+            // initial: 상한의 2/3 를 쓰고 정상 응답한다. function_call 을 내보내 followup 을 유발.
+            await new Promise(r => setTimeout(r, Math.round(PER_CALL * 2 / 3)));
+            return new Response(JSON.stringify({
+                output: [{ type: 'function_call', name: 'probe_tool', call_id: 'c1', arguments: '{}' }],
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        // followup: 끝나지 않는다 → 여기서 잘린 시각으로 followup 의 예산을 잰다.
+        return await new Promise<Response>((_res, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+                const err: any = new Error('aborted');
+                err.name = 'AbortError';
+                reject(err);
+            });
+        });
+    }) as unknown as typeof fetch;
+
+    try {
+        await generateOpenAIChat({
+            ...baseTimeoutOpts,
+            timeoutMs: PER_CALL,
+            fetchImpl,
+            functionTool: {
+                name: 'probe_tool',
+                resultMode: 'synthesize',
+                execute: async () => '조회 결과 있음',
+            } as any,
+        });
+    } catch (error) { caught = error; }
+
+    check('카드 턴은 두 번 호출한다(initial→followup)', callStarts.length === 2, `calls=${callStarts.length}`);
+    const followupBudget = Date.now() - (callStarts[1] ?? turnStarted);
+    // 공유 컨트롤러였다면 followup 에 남는 예산은 PER_CALL/3 ≈ 100ms 뿐이다.
+    check('followup 이 온전한 상한을 새로 받는다(예산 공유 금지)',
+        followupBudget >= PER_CALL * 0.8,
+        `followup 예산 ${followupBudget}ms < 상한 ${PER_CALL}ms — 컨트롤러를 공유하고 있다`);
+    check('followup 타임아웃도 504', caught?.status === 504, `status=${caught?.status}`);
+}
+
+// 3) 기본 상한은 300s 예산 안에 들어야 한다(route.ts maxDuration). 재시도가 없는 단발 경로라
+//    한 번만 쓰지만, 카드 턴은 initial+followup 두 번이므로 2배가 예산 안이어야 한다.
+{
+    const src = fs.readFileSync(new URL('../server/openai/chat.ts', import.meta.url), 'utf8');
+    const m = src.match(/const OPENAI_CHAT_TIMEOUT_MS = ([\d_]+);/);
+    const ms = Number(String(m?.[1] ?? '').replace(/_/g, ''));
+    check('OPENAI_CHAT_TIMEOUT_MS 를 읽을 수 있다', Number.isFinite(ms) && ms > 0, String(m?.[1]));
+    // 🔴 60s 는 폐기된 전제다(e9435fa 8/9 에 maxDuration 60→300 으로 정정됨).
+    check('상한이 폐기된 60s 전제로 되돌아가지 않았다', ms > 60_000, `${ms}ms`);
+    check('카드 턴 최악(2회)이 maxDuration 300s 안에 든다', ms * 2 <= 300_000, `${ms}×2 = ${ms * 2}ms`);
+}
+
+// 4) url-fetch 는 **다른 라우트·다른 예산**이다 — chat 과 같은 숫자로 맞추면 안 된다.
+//    /api/fetch-url 의 실질 천장은 maxDuration(120s) 이 아니라 **클라이언트 65s**
+//    (services/geminiService.ts) 이고, 사다리는 순차다. 사다리 전체 예산 초과는
+//    이번 변경과 별개의 선행 결함이라 TODO §5-d 로 분리했다 — 여기서는
+//    **chat 의 상한을 url-fetch 에 복사하지 않았는지**만 지킨다.
+{
+    const ufSrc = fs.readFileSync(new URL('../server/openai/url-fetch.ts', import.meta.url), 'utf8');
+    const chatSrc = fs.readFileSync(new URL('../server/openai/chat.ts', import.meta.url), 'utf8');
+    const num = (re: RegExp, text: string) => Number(String(text.match(re)?.[1] ?? '').replace(/_/g, ''));
+    const openaiFetch = num(/OPENAI_URL_FETCH_TIMEOUT_MS = ([\d_]+)/, ufSrc);
+    const chatTimeout = num(/const OPENAI_CHAT_TIMEOUT_MS = ([\d_]+);/, chatSrc);
+    check('url-fetch 상한을 읽을 수 있다', Number.isFinite(openaiFetch) && openaiFetch > 0, String(openaiFetch));
+    // 🔴 두 값은 서로 다른 예산에서 나온다. 같아지면 한쪽 근거가 복사된 것이다.
+    check('url-fetch 상한이 chat 상한과 독립이다', openaiFetch !== chatTimeout,
+        `둘 다 ${openaiFetch}ms — chat 근거를 복사했을 가능성`);
+    // 클라이언트가 65s 에 끊으므로 폴백 하나가 그보다 오래 버티는 건 의미가 없다.
+    check('url-fetch 단일 폴백이 클라이언트 65s 를 넘지 않는다', openaiFetch < 65_000, `${openaiFetch}ms`);
+}
+
 console.log(`\n통과 ${pass} · 실패 ${fail}`);
 if (fail > 0) process.exit(1);

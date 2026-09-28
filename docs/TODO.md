@@ -465,6 +465,46 @@ simulate a search/tool call"* 이라고 못 박는데, **LangChain 경로는 바
       남기는 쪽이 더 좁다
 - [ ] 어느 쪽이든 이름을 사실대로 고친다 — 지금 이름은 코드가 하는 일과 다르다
 
+### 5-d. 🔴 `/api/fetch-url` 폴백 사다리가 클라이언트 예산을 넘는다 (2026-09-28 발견)
+
+`luna` 타임아웃(§5-e)을 조사하다 옆에서 나왔다. **다른 결함이다** — 60s 전제와 무관하다.
+
+[fetch-url/route.ts](../app/api/fetch-url/route.ts) 의 `renderFallback()` 은 **순차** 사다리인데,
+각 단계 상한의 합이 실질 천장을 넘는다:
+
+| 단계 | 상한 |
+|---|---|
+| ScrapingBee static | 15s |
+| ScrapingBee render | 40s |
+| browserless | 30s |
+| **소계(현재 live)** | **85s** |
+| OpenAI 폴백(기본 OFF) | +45s |
+| **소계(폴백 ON)** | **130s** |
+
+- `export const maxDuration = 120` — 폴백을 켜면 **라우트 예산도 넘는다**
+- 🔴 그런데 실질 천장은 120s 가 아니라 **클라이언트 65s** 다
+  ([geminiService.ts:152](../services/geminiService.ts#L152) 의 `controller.abort()`)
+- 즉 **폴백을 켜지 않은 지금도 85s > 65s** 로, 사다리 뒷단은 원리상 도달해도 완주 못 한다
+
+route.ts 주석이 이미 *"남은 문제(별도 작업) … 최대 95s 인데 클라이언트 타임아웃은 65s"* 로
+적어 뒀다. 기록만 되고 닫히지 않은 채였다.
+
+- **`OPENAI_URL_FETCH_TIMEOUT_MS = 45000` 자체는 결함이 아니다.** 사다리 예산에서 나온 값이지
+  60s 전제의 복사가 아니다 — `chat.ts` 와 같은 숫자로 맞추면 오히려 근거가 섞인다
+  (`test-chat-models.mts` 가 두 값의 독립을 고정해 뒀다)
+- [ ] 진짜 레버를 먼저 정한다 — 클라이언트 65s 를 올릴지, 사다리를 줄일지
+- [ ] 사다리 **전체 deadline** 을 두고 남은 예산을 각 단계에 배분하는 쪽이 상한 나열보다 정확하다
+- [ ] 정한 뒤 `test-chat-models.mts` 의 사다리 합 검사를 되살린다 (지금은 단일 폴백만 검사)
+
+### 5-e. ✅ luna 웹 검색이 60s 에 잘려 "서버가 일시적으로 불안정합니다" (2026-09-28 해결)
+
+[DEV_260928.md](logs/2026/09/DEV_260928.md) 참조. `OPENAI_CHAT_TIMEOUT_MS` 60→120, 타이머를
+호출당으로 분리, 소요시간 로그 추가.
+
+- [ ] **120 은 아직 추정이다.** elapsed 로그가 쌓이면 실측으로 재조정한다 (근거: 일반 검색 ~15s,
+      조사형 1건이 60s 초과 — 꼬리가 어디서 끝나는지 모른다)
+
+
 ## 🟢 P2 — 성능
 
 현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-06-02 재측정, 4/4과 동일)

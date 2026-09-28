@@ -5,7 +5,28 @@ import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../age
 import { buildEmptyCardRules } from '../agent/card-followup';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const OPENAI_CHAT_TIMEOUT_MS = 60_000;
+/**
+ * OpenAI Responses 호출 **1회당** 상한.
+ *
+ * 🔴 60_000 → 120_000 (2026-09-28). 60s 는 근거 없이 들어온 값이다 — 도입(9056a2a, 8/23)
+ *    **2주 전에** 이미 `maxDuration 60→300` (e9435fa, 8/9) 으로 "60s 는 플랫폼 한계가 아니라
+ *    우리가 건 값" 이 밝혀져 있었는데, 새로 만든 이 경로가 폐기된 전제를 그대로 물려받았다.
+ *    Gemini 쪽은 같은 정정을 받아 57→90 으로 갔다(generator.ts HEAVY_MEDIA_CALL_TIMEOUT_MS).
+ *
+ * 실측(2026-09-28): luna + hosted web_search 일반 검색 턴은 ~14~15s. 그런데 조사형 질문
+ *    ("실제로 이런 문제들 있는지 조사해줘")은 60s 를 넘겼다 — web_search 가 검색→읽기→재검색을
+ *    여러 바퀴 돌기 때문이다. 프로덕션 실측 61.6s / Status 200 (무료티어에서 60s 초과 실행이
+ *    이미 성공한다는 증거이기도 하다). 끊은 것은 버셀이 아니라 이 타이머였고, 사용자에겐
+ *    504 → 'unavailable' → "서버가 일시적으로 불안정합니다" 로만 보였다.
+ *
+ * 왜 Gemini 와 같은 90 이 아닌가: 90 은 **재시도 예산**에서 나온 값이다(90×2=180 < 300).
+ *    이 경로에는 키 로테이션도 모델 강등도 폴백도 없다 — generator.ts 는 단발 `return await`
+ *    이라 300s 예산을 혼자 쓴다. 꼬리가 60 을 넘은 것만 알고 어디서 끝나는지는 모르므로,
+ *    60 에서 겨우 1.5배인 90 은 같은 절단을 되풀이할 위험이 있다(57 이 겪은 구조).
+ *
+ * ⚠️ 이 값도 여전히 추정이다. 아래 elapsed 로그가 쌓이면 **실측으로** 다시 정한다.
+ */
+const OPENAI_CHAT_TIMEOUT_MS = 120_000;
 
 type JsonObject = Record<string, any>;
 
@@ -266,19 +287,36 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
     const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY_TIER1;
     if (!apiKey) throw new OpenAIChatError('OPENAI_API_KEY_TIER1 is not configured', { status: 401, code: 'key_missing' });
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? OPENAI_CHAT_TIMEOUT_MS);
+    const timeoutMs = options.timeoutMs ?? OPENAI_CHAT_TIMEOUT_MS;
     try {
-        const request = async (body: JsonObject) => {
-            const response = await (options.fetchImpl ?? fetch)(OPENAI_RESPONSES_URL, {
-                method: 'POST',
-                signal: controller.signal,
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(body),
-            });
+        /**
+         * 🔴 타이머는 **호출마다 새로 건다.** 예전엔 `AbortController` 를 함수 바깥에서 한 번만
+         *    만들어 initial·followup 이 같은 signal 을 공유했다 — 즉 상한이 "호출당" 이 아니라
+         *    "턴 전체 예산" 이었고, 카드 턴은 둘이 나눠 썼다. 그러면 initial 이 느릴수록
+         *    followup 이 받는 잔액이 줄어 **먼저 끝난 호출이 뒤 호출을 굶기는** 구조가 된다.
+         *    상한만 올리고 이걸 두면 같은 절단이 followup 에서 계속 난다.
+         */
+        const request = async (body: JsonObject, phase: string) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            const started = Date.now();
+            let response: Response;
+            try {
+                response = await (options.fetchImpl ?? fetch)(OPENAI_RESPONSES_URL, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+            } finally {
+                clearTimeout(timer);
+                // 🔴 소요시간을 남긴다. 60→120 을 정할 때 붙잡을 실측이 **두 건뿐**이었다
+                //    (~15s 일반 검색, 60s 초과 1건). 관측점이 없으면 다음에도 추측한다.
+                console.log(`[OpenAI] ${phase} ${Date.now() - started}ms · websearch=${options.useWebSearch} · 상한 ${timeoutMs}ms`);
+            }
             const json = await response.json().catch(() => ({})) as JsonObject;
             if (!response.ok) {
                 const detail = json?.error ?? {};
@@ -298,7 +336,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
         let json = await request(buildOpenAIChatRequest(options, {
             input,
             functionPhase: 'initial',
-        }));
+        }), 'initial');
 
         let pinnedCardOutput = '';
         /** 이번 턴의 로컬 조회가 빈손이었나 — followup 요청에 규칙을 얹을지 정한다. */
@@ -389,7 +427,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                     functionPhase: 'followup',
                     extraInstructions: emptyCardTurn ? buildEmptyCardRules() : undefined,
                     followupWebSearch: options.functionTool.followupWebSearch,
-                }));
+                }), 'followup');
             }
         }
 
@@ -410,7 +448,5 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
         if (error instanceof OpenAIChatError) throw error;
         if (error?.name === 'AbortError') throw new OpenAIChatError('OpenAI request timed out', { status: 504, code: 'timeout' });
         throw new OpenAIChatError(error?.message || 'OpenAI network request failed', { code: 'network_error' });
-    } finally {
-        clearTimeout(timer);
     }
 }
