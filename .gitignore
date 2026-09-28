@@ -68,3 +68,7 @@ preview/weather-card-sample.html
 
 # kordoc 수동 점검용 실제 문서 — 레포에 넣지 않는다
 tests/manual/fixtures/
+
+# 프로브 수집본 — 🔴 커밋 금지. vercel 런타임 로그에는 사용자 질문·검색어가 섞인다
+# (`[OpenAI] local tool "…" ← {…}` 가 모델이 만든 검색어를 그대로 찍는다).
+tests/manual/data/

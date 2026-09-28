@@ -130,6 +130,16 @@ npm run verify  # typecheck + test
   a 팔은 프로세스 시계를 **내일 00:20 KST** 로 옮겨 "가장 새 검색 자료 = 주장된 오늘의 전날"을
   만든다 — 2026-08-24 결함과 같은 구조. 모델 고정: `gemini-2.5-flash`(티어 무관 같은 경로) ·
   `gpt-5.6-luna`(실호출 검증된 캡). Gemini·OpenAI **유료 키 둘 다** 소모, 기본 56턴(~112 모델 호출)
+- `npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-openai-latency.mts --tail` → 이어서 `--report`:
+  luna(OpenAI Responses) **호출 지연 분포**. `OPENAI_CHAT_TIMEOUT_MS` 120 은 아직 추정이라
+  실측으로 다시 정하기 위한 것(DEV_260928 §11, TODO §5-e). **API 키를 안 쓴다** — 프로덕션
+  `vercel logs --follow` 를 받아 적는다.
+  - 🔴 **`--tail` 은 사용자가 직접 돌린다.** 켜 둔 채 웹에서 luna 로 질문해야 줄이 생긴다.
+  - 🔴 **"며칠 뒤 로그 긁기" 는 안 된다.** 무료티어는 런타임 로그 보존이 짧아 `vercel logs --json`
+    레코드가 `"logs":[]` 로 온다 — 요청 줄만 남고 console 본문이 사라진다(2026-09-28 실측).
+  - `--report` 는 저장본만 읽는다(재호출 0). 판정은 길이가 아니라 **상한 대비 여유**로 한다.
+  - dev 는 별도 프로젝트라 `-p chat-agent-dev` 가 기본값이다(로컬 링크는 `chat-agent`).
+  - 수집본은 `tests/manual/data/` 로 가며 **gitignore 돼 있다** — 사용자 질문·검색어가 섞인다.
 - `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
   그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
