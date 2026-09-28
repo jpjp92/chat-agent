@@ -1,4 +1,5 @@
 import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
+import { checkTodayClaim } from './today-guard';
 
 /**
  * `graph.streamEvents` 이벤트 → SSE 프레임.
@@ -55,7 +56,16 @@ export interface StreamDispatch {
     state: DispatchState;
 }
 
-export function createStreamDispatch(sendEvent: (data: any) => void): StreamDispatch {
+/**
+ * 🔴 `timeZone` 은 **사용자 tz** 다. 서버 로컬(Vercel = UTC) 로 오늘을 계산하면 KST 09:00
+ *   이전에 하루가 어긋나 — 자정 직후 결함을 잡으려는 가드가 자정 직후에 스스로 틀린다.
+ *   기본값은 generator·route 와 같은 `Asia/Seoul` 로 맞춘다.
+ */
+export function createStreamDispatch(
+    sendEvent: (data: any) => void,
+    options: { timeZone?: string } = {},
+): StreamDispatch {
+    const timeZone = options.timeZone || 'Asia/Seoul';
     const st: DispatchState = {
         fullAiResponse: '',
         allSources: [],
@@ -177,6 +187,26 @@ export function createStreamDispatch(sendEvent: (data: any) => void): StreamDisp
                 const block = '\n\n' + missing.join('\n\n') + '\n';
                 st.fullAiResponse += block; sendEvent({ text: block });
             }
+        }
+        /**
+         * 출력 사후 검증 — 틀린 "오늘" 단정에 정정 한 줄을 덧붙인다(§5-a 구조 후보 ①).
+         *
+         * 🔴 **여기가 세 경로가 모두 지나는 유일한 자리다.** SDK·OpenAI 는 위에서 완성본을
+         *   보냈고, LangChain 은 `on_chat_model_stream` 으로 토큰을 이미 흘렸다 — 어느 쪽이든
+         *   이 시점의 `st.fullAiResponse` 가 **사용자가 실제로 본 본문**이다. generator 안에
+         *   세 번 넣는 대신 한 번만 넣는다.
+         *
+         * 카드 덧붙이기 **뒤**에 둔다 — 정정은 마지막 줄이어야 읽힌다.
+         *
+         * ⚠️ `lcCitationBuffer` 보류분은 LangGraph 종료(아래 분기)에서 flush 되므로, 인용
+         *   마커가 청크 경계에 걸린 턴에서는 정정 뒤에 `[1](url)` 조각이 한 번 더 붙을 수 있다.
+         *   보류분은 마커 조각뿐이라 본문 의미에는 영향이 없다.
+         */
+        const todayCheck = checkTodayClaim(st.fullAiResponse, new Date(), timeZone);
+        if (todayCheck.note) {
+            console.warn('[today-guard] 오늘을 틀리게 단정:', todayCheck.wrong.join(', '), '| tz:', timeZone, '| intent:', st.detectedIntent);
+            st.fullAiResponse += todayCheck.note;
+            sendEvent({ text: todayCheck.note });
         }
         const gm = modelMsg?.response_metadata?.groundingMetadata || modelMsg?.additional_kwargs?.groundingMetadata;
         if (gm?.groundingChunks) {

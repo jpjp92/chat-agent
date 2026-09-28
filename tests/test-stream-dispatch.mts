@@ -10,6 +10,7 @@
  * 여기서는 진짜 `createStreamDispatch` 를 태운다. 모델도 네트워크도 없다.
  */
 import { createStreamDispatch } from '../server/agent/stream-dispatch';
+import { checkTodayClaim, todayInZone } from '../server/agent/today-guard';
 
 let passed = 0, failed = 0;
 const check = (name: string, ok: boolean, detail?: string) => {
@@ -18,9 +19,9 @@ const check = (name: string, ok: boolean, detail?: string) => {
 };
 
 /** 디스패치 하나를 만들고 이벤트를 순서대로 먹인 뒤, 나온 프레임과 최종 상태를 돌려준다. */
-const run = (events: any[]) => {
+const run = (events: any[], options: { timeZone?: string } = {}) => {
     const frames: any[] = [];
-    const d = createStreamDispatch(f => frames.push(f));
+    const d = createStreamDispatch(f => frames.push(f), options);
     for (const e of events) d.handle(e);
     return { frames, state: d.state, text: frames.filter(f => f.text).map(f => f.text).join('') };
 };
@@ -193,6 +194,90 @@ console.log('\n§9 빈 카드는 선전송하지 않는다 — 그러면 생성�
     ]);
     check('약국 0건도 산문이 도달한다',
         p.text.includes('울릉도에는 등록된 약국이 없습니다'));
+}
+
+console.log('\n§10 출력 사후 검증 — 틀린 "오늘" 단정에 정정을 덧붙인다 (§5-a 구조 후보 ①)');
+{
+    /**
+     * 🔴 날짜를 **리터럴로 쓰지 않는다.** 가드는 실행 시각의 오늘을 보므로, 고정 날짜를 박으면
+     *   테스트가 그날 하루만 맞고 이후엔 조용히 반대 결과를 내며 초록으로 남는다.
+     *   오늘을 tz 기준으로 구해 **상대 날짜**를 만든다.
+     */
+    const T = todayInZone(new Date(), 'Asia/Seoul');
+    const rel = (days: number) => {
+        const d = new Date(Date.UTC(T.y, T.m - 1, T.d + days));
+        return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() };
+    };
+    const ko = (x: { m: number; d: number }) => `${x.m}월 ${x.d}일`;
+    const yesterday = rel(-1);
+    const noted = (t: string) => checkTodayClaim(t, new Date(), 'Asia/Seoul').note;
+
+    // ── 판정기 단위 ──────────────────────────────────────────────────────────
+    check('맞는 오늘은 건드리지 않는다', noted(`오늘은 ${ko(T)}입니다.`) === '');
+    check('틀린 오늘을 잡는다', noted(`오늘은 ${ko(yesterday)}입니다.`).includes(ko(T)),
+        noted(`오늘은 ${ko(yesterday)}입니다.`) || '(정정 없음)');
+    check('괄호·별표 표기도 잡는다',
+        noted(`오늘(${yesterday.y}년 ${ko(yesterday)}) 발표된 소식입니다.`) !== '');
+    // 🔴 오검출 방어 — 이 네 건이 깨지면 정상 답변에 정정이 달라붙는다
+    check('"오늘 나온 <날짜> 기사" 는 날짜 단정이 아니다',
+        noted(`오늘 나온 기사 중 ${ko(yesterday)} 자료를 보면`) === '');
+    check('"오늘 기준 <날짜> 출시" 도 아니다',
+        noted(`오늘 기준 ${yesterday.y}년 ${ko(yesterday)} 출시된 제품입니다.`) === '');
+    check('부정문은 맞게 말한 것이다',
+        noted(`오늘은 ${ko(yesterday)}이 아니라 ${ko(T)}입니다.`) === '');
+    // 🔴 픽스처를 **정규식이 실제로 물 수 있는 모양**으로 써야 한다. 처음엔 `{"오늘": "9월 27일"}`
+    //    으로 썼는데, `오늘` 뒤가 `": "` 라 울타리 제거를 빼도 애초에 안 걸린다 — 통과의 이유가
+    //    가드가 아니라 우연이었다(돌연변이 시험에서 잡혔다).
+    check('카드 블록 안의 날짜는 모델의 단정이 아니다',
+        noted('```json:weather\n{"note":"오늘은 ' + ko(yesterday) + ' 기준"}\n```') === '');
+    check('연도만 틀려도 잡는다', noted(`오늘은 2020년 ${ko(T)}입니다.`) !== '');
+
+    // ── tz — 이 가드가 자정 직후에 스스로 틀리지 않는지 ───────────────────────
+    // 2026-09-28T23:00Z = KST 9/29 08:00. 서버 로컬(UTC)로 계산하면 하루 어긋난다.
+    const instant = new Date('2026-09-28T23:00:00Z');
+    check('tz 기준으로 오늘을 계산한다 (KST)',
+        JSON.stringify(todayInZone(instant, 'Asia/Seoul')) === JSON.stringify({ y: 2026, m: 9, d: 29 }),
+        JSON.stringify(todayInZone(instant, 'Asia/Seoul')));
+    check('같은 순간이 UTC 에서는 전날이다',
+        todayInZone(instant, 'UTC').d === 28, String(todayInZone(instant, 'UTC').d));
+
+    // ── 디스패치 통합 — 세 경로가 모두 이 자리를 지난다 ───────────────────────
+    const wrongText = `${ko(yesterday)} 기사에 따르면, 오늘은 ${ko(yesterday)}입니다.`;
+    // ① SDK·OpenAI: 완성본을 최종 메시지로 한 번에 보내는 경로
+    const oneShot = run([
+        routerEvent('general'),
+        { event: 'on_chain_end', name: 'generator', data: { output: { provider: 'openai', messages: [{ content: wrongText }] } } },
+    ], { timeZone: 'Asia/Seoul' });
+    check('완성본 경로에 정정이 붙는다', oneShot.text.includes(`오늘은 ${T.y}년 ${ko(T)}입니다`), oneShot.text);
+    check('원문은 그대로 남는다 (치환하지 않는다)', oneShot.text.includes(wrongText));
+    check('상태에도 반영된다', oneShot.state.fullAiResponse.includes(`${T.m}월 ${T.d}일입니다`));
+
+    // ② LangChain: 토큰을 이미 흘려보낸 경로 — 고쳐 쓸 수 없으니 덧붙이기만 가능하다
+    const streamed = run([
+        routerEvent('general'),
+        token(wrongText),
+        { event: 'on_chain_end', name: 'generator', data: { output: { messages: [{ content: wrongText }] } } },
+    ], { timeZone: 'Asia/Seoul' });
+    check('스트리밍 경로에도 정정이 붙는다', streamed.text.includes(`${T.m}월 ${T.d}일입니다`), streamed.text);
+    check('본문이 두 번 찍히지 않는다 (§7b 계약 유지)',
+        streamed.text.split('기사에 따르면').length - 1 === 1, streamed.text);
+
+    // ③ 정정은 마지막이어야 읽힌다 — 카드 덧붙이기보다 뒤
+    const withCard = run([
+        routerEvent('weather'),
+        token(wrongText),
+        { event: 'on_chain_end', name: 'generator', data: { output: { messages: [{ content: `${wrongText}\n\n${block('weather')}` }] } } },
+    ], { timeZone: 'Asia/Seoul' });
+    check('정정은 카드 뒤에 온다',
+        withCard.text.lastIndexOf('json:weather') < withCard.text.indexOf(`${T.m}월 ${T.d}일입니다`),
+        withCard.text.slice(-120));
+
+    // 정상 답변에는 아무 일도 없어야 한다 — 가드의 비용은 0 이어야 한다
+    const clean = run([
+        routerEvent('general'),
+        { event: 'on_chain_end', name: 'generator', data: { output: { provider: 'openai', messages: [{ content: '광합성은 엽록체에서 일어납니다.' }] } } },
+    ], { timeZone: 'Asia/Seoul' });
+    check('정상 답변은 손대지 않는다', clean.text === '광합성은 엽록체에서 일어납니다.', clean.text);
 }
 
 console.log(`\n${failed ? `🔴 ${failed}건 실패` : '✅ 전부 통과'} (통과 ${passed})`);

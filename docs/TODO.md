@@ -431,8 +431,12 @@ PubMed 장애 턴(`error` + `count: 0`)을 조립해 보니 한 프롬프트에 
 🔴 **문구 후보는 소진됐다.** 남은 것은 구조다 — §13-4:
 - "검색 결과 날짜를 오늘로 삼지 마라" 는 **이미 시각 블록 2번째 줄에 있다**
   (`Never infer it from search results, article publication dates`). 무시당하는 중이다
-- [ ] 후보 ①: **출력 사후 검증** — 모델이 쓴 `오늘 N월 M일` 이 주입값과 다르면 잡는다.
-      판정기는 이미 있다(`probe-time-block-position.mts` 의 `wrongToday`)
+- [x] 후보 ①: **출력 사후 검증 — 구현 완료**(2026-09-28, §14). [today-guard.ts](../server/agent/today-guard.ts)
+      + [stream-dispatch.ts](../server/agent/stream-dispatch.ts) `on_chain_end generator`.
+      **치환하지 않고 정정 한 줄을 덧붙인다** — 치환은 날짜 꼬리표 오류를 기사 날짜 거짓으로
+      바꾼다(§14-1). 모델 호출 0회·지연 0. 프로덕션 발생률은 아직 **미측정**(경고 로그로 수집)
+- [ ] 후보 ①-b: 로그 `[today-guard]` 가 프로덕션에서 실제로 몇 번 찍히는지 확인.
+      **재개 트리거**: 정정 문구를 사용자가 보고했거나, 로그에 `[today-guard]` 가 찍히면
 - [ ] 후보 ②: 자정 직후 구간에만 다른 처리(검색 결과 날짜 재정렬 / "오늘 자료 없음" 서버 판정)
 - [ ] 후보 ③: **받아들인다** — Gemini 2.5 한계. OpenAI 는 같은 조건에서 7/7.
       다만 2.5 는 검색 턴의 강제 폴백(`SEARCH_FALLBACK_MODEL`)이라 노출이 크다

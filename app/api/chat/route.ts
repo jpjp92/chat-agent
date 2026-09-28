@@ -188,7 +188,8 @@ export async function POST(req: NextRequest) {
 
         // 🔴 콜백도 디스패치가 만든다. 여기서 따로 만들면 `fullAiResponse` 가 둘로 갈려
         //   이미 나간 본문을 최종 메시지로 **다시** 보낸다(실측: 답변이 화면에 두 번 찍혔다).
-        const dispatch = createStreamDispatch(sendEvent);
+        // tz 는 오늘 날짜 사후 검증(today-guard)의 기준 — initialState 와 **같은 값**을 넘긴다.
+        const dispatch = createStreamDispatch(sendEvent, { timeZone: timeZone || 'Asia/Seoul' });
         const st = dispatch.state;
         const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
         const streamEvents = await graph.streamEvents(initialState, { version: 'v2' });
