@@ -26,7 +26,7 @@ export const compileAgentGraph = (
     systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void,
     langName: LangName = DEFAULT_LANG_NAME,
     /** 9단계 A/B 전용 — 프로덕션(`route.ts`)은 넘기지 않는다. 판정 후 제거(PLAN §10-11). */
-    experiment: { timeBlockAt?: 'start' | 'end' } = {},
+    experiment: { timeBlockAt?: 'start' | 'end' | 'both' } = {},
 ) => {
 
     // langName: 렌더러 스펙(의도별 주입) 중 [WEATHER FORMATTING]이 언어별이라 generator까지 전달한다.

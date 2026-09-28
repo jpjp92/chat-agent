@@ -55,7 +55,7 @@ export const createGeneratorNode = (
     systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void,
     langName: LangName = DEFAULT_LANG_NAME,
     /** 9단계 A/B 전용 손잡이 — 프로덕션은 넘기지 않으므로 항상 기본값(현재 동작). */
-    experiment: { timeBlockAt?: 'start' | 'end' } = {},
+    experiment: { timeBlockAt?: 'start' | 'end' | 'both' } = {},
 ) => {
     return async (state: AgentStateType) => {
         console.log('[LangGraph] Entering Generator Node');

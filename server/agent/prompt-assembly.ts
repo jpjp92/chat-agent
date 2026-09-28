@@ -68,7 +68,7 @@ export type AssemblePromptInput = {
      * ⚠️ **판정이 끝나면 지울 손잡이다.** 둘 중 하나로 정해지면 이 옵션과 골든의 `end` 변형을
      *    함께 제거한다 — 실험 스캐폴딩을 프로덕션에 영구히 남기지 않는다.
      */
-    timeBlockAt?: 'start' | 'end';
+    timeBlockAt?: 'start' | 'end' | 'both';
 };
 
 export type CardEntity = { namedEntity: string | undefined; namedAddress: string };
@@ -99,7 +99,7 @@ export const assemblePrompt = (input: AssemblePromptInput): string => {
         + `- If the user asks for "today" and the newest material you found is from an earlier date, give that material but say in one short sentence which date it is from and that little has been published yet today. Do not silently present an earlier date's material as today's.\n`;
     // 🔴 `'start'` 는 예전 코드와 **글자 하나까지 같다** — 예전엔 블록 끝이 `\n\n` 이었고 여기서는
     //    블록이 `\n` 으로 끝나고 이어붙일 때 `\n` 을 하나 더 넣는다. 골든이 이걸 지킨다.
-    if (timeBlockAt === 'start') finalInstruction = `${timeBlock}\n${finalInstruction}`;
+    if (timeBlockAt !== 'end') finalInstruction = `${timeBlock}\n${finalInstruction}`;
 
     // Inject Dynamic Contexts
     if (state.webContent) {
@@ -223,8 +223,17 @@ export const assemblePrompt = (input: AssemblePromptInput): string => {
         finalInstruction += `\n\n${intentHint}`;
     }
 
-    // 9단계 A/B 의 대안 배치 — 사용자 턴에 가장 가까운 자리. 프로브만 쓴다.
+    // 9단계 A/B 의 대안 배치 — 프로브만 쓴다.
+    //   'end'  : 통째로 맨 끝 (Q1 에서 **기각**됐다 — §10-12. 재현용으로 남긴다)
+    //   'both' : 앞은 그대로 두고 **한 줄만** 맨 끝에 다시 놓는다(Q1 이 안 재본 칸).
+    //            F1(날짜 치환)만 위치에 민감했으므로(2/7 → 6/7) 주목도만 올리고 규칙은 더하지 않는다 —
+    //            아래 문장은 위 블록 1·3번째 줄의 **재진술**이고 새 지시가 아니다.
     if (timeBlockAt === 'end') finalInstruction += `\n\n${timeBlock}`;
+    if (timeBlockAt === 'both') {
+        finalInstruction += `\n\n[TODAY — RESTATED] Today is ${currentDateStr}, and that value above is the ONLY source for it.`
+            + ` Never take today's date from a search result or an article's publication date.`
+            + ` If the newest material you found is from an earlier date, give it but say which date it is from.`;
+    }
 
     return finalInstruction;
 };

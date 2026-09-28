@@ -110,7 +110,8 @@ const PROVIDERS = [
     { id: 'gemini', model: 'gemini-2.5-flash' },
     { id: 'openai', model: 'gpt-5.6-luna' },
 ] as const;
-type Pos = 'start' | 'end';
+type Pos = 'start' | 'end' | 'both';
+const POSITIONS = (option('--positions', 'start,both').split(',') as Pos[]);
 
 const selArms = only ? ARMS.filter(a => a.id === only) : ARMS;
 const selProv = onlyProvider ? PROVIDERS.filter(p => p.id === onlyProvider) : PROVIDERS;
@@ -217,20 +218,40 @@ if (rescore) {
 }
 
 const fmt = (x: { y: number; m: number; d: number }) => `${x.y}-${String(x.m).padStart(2, '0')}-${String(x.d).padStart(2, '0')}`;
-const plan = selProv.length * selArms.length * 2 * rounds;
+const plan = selProv.length * selArms.length * POSITIONS.length * rounds;
 console.log(JSON.stringify({
     rounds, arms: selArms.map(a => a.id), providers: selProv.map(p => p.model),
     realToday: fmt(realToday), claimedToday: `${fmt(claimed)} 00:20 KST (a 팔만)`,
-    turns: plan, modelCallsApprox: plan * 2,
+    positions: POSITIONS, turns: plan, modelCallsApprox: plan * 2,
 }, null, 2));
 if (!live) { console.log('\n--live 없이 계획만 출력했다.'); process.exit(0); }
 
 type Row = { round: number; provider: string; arm: ArmId; pos: Pos; ms: number; intent: string; sources: number; chars: number; text: string } & Verdict;
+/**
+ * 🔴 **이어서 하기.** `out` 파일이 있으면 거기 담긴 턴을 그대로 살리고 **없는 조합만** 돌린다.
+ * 2026-09-28 에 IDE 가 죽으면서 56턴 실행이 **한 턴도 못 남기고** 통째로 날아갔다.
+ * 프로브는 매 턴 저장하지만, 중단되면 다시 1라운드부터 도는 게 문제였다 — 유료 호출을 두 번 낸다.
+ * 이제 라운드를 나눠(`--rounds 2` → `4` → `7`) 같은 `out` 에 쌓을 수 있다.
+ * ⚠️ 저장본의 날짜가 오늘과 다르면 **이어 붙이지 않는다** — "주장된 오늘" 이 달라져 판정이 섞인다.
+ */
 const rows: Row[] = [];
+if (existsSync(out)) {
+    const prev = JSON.parse(readFileSync(out, 'utf8'));
+    const sameDay = prev?.realToday?.d === realToday.d && prev?.realToday?.m === realToday.m;
+    if (!sameDay) {
+        console.error(`[프로브] ${out} 은 다른 날(${prev?.realToday?.m}/${prev?.realToday?.d}) 측정이다 — 다른 --out 을 쓰거나 지워라`);
+        process.exit(1);
+    }
+    rows.push(...(prev.rows ?? []));
+    console.log(`[프로브] 이어서 — 기존 ${rows.length}턴 유지`);
+}
+const done = new Set(rows.map(r => `${r.round}|${r.provider}|${r.arm}|${r.pos}`));
+
 for (let round = 1; round <= rounds; round++) {
     // 라운드마다 먼저 도는 위치를 바꾼다 — 순서·시간대 변동이 위치 효과로 둔갑하지 않게
-    const order: Pos[] = round % 2 ? ['start', 'end'] : ['end', 'start'];
+    const order: Pos[] = round % 2 ? [...POSITIONS] : [...POSITIONS].reverse();
     for (const p of selProv) for (const a of selArms) for (const pos of order) {
+        if (done.has(`${round}|${p.id}|${a.id}|${pos}`)) continue;
         useClaimedClock(a.claimedClock);
         const t0 = performance.now();
         let r: Row;
@@ -252,14 +273,25 @@ for (let round = 1; round <= rounds; round++) {
 console.log('\n── 요약 (⚪ 무효는 분모에서 뺀다) ──');
 for (const p of selProv) for (const a of selArms) {
     const cell = (pos: Pos) => {
-        const rs = rows.filter(r => r.provider === p.id && r.arm === a.id && r.pos === pos);
+        const rs = rows.filter(r => r.round <= rounds && r.provider === p.id && r.arm === a.id && r.pos === pos);
         const valid = rs.filter(r => !r.invalid);
         return { pass: valid.filter(r => r.pass).length, n: valid.length, inv: rs.length - valid.length };
     };
-    const s = cell('start'), e = cell('end');
+    const [p0, p1] = POSITIONS;
+    const s = cell(p0), e = cell(p1);
     // 사전 등록 기준: end 가 start 보다 낮으면 기각, 같거나 높을 때만 통과
     const verdict = s.n === 0 || e.n === 0 ? '판정 불가(유효 표본 없음)'
-        : e.pass / e.n < s.pass / s.n ? '🔴 end 기각 — 현재보다 낮다' : '✅ end 가 현재 이상';
-    console.log(`${p.id.padEnd(6)} ${a.id}  start ${s.pass}/${s.n}${s.inv ? ` (⚪${s.inv})` : ''}   end ${e.pass}/${e.n}${e.inv ? ` (⚪${e.inv})` : ''}   → ${verdict}`);
+        : e.pass / e.n < s.pass / s.n ? `🔴 ${p1} 기각 — ${p0} 보다 낮다` : `✅ ${p1} 가 ${p0} 이상`;
+    console.log(`${p.id.padEnd(6)} ${a.id}  ${p0} ${s.pass}/${s.n}${s.inv ? ` (⚪${s.inv})` : ''}   ${p1} ${e.pass}/${e.n}${e.inv ? ` (⚪${e.inv})` : ''}   → ${verdict}`);
+}
+// 🔴 실패를 방식으로 갈라 본다 — Q1 에서 F1(날짜 치환)만 위치에 민감했다(2/7→6/7).
+//    합계만 보면 어느 방식이 줄었는지 못 읽는다.
+console.log('\n── 실패 방식 분해 ──');
+for (const p of selProv) for (const a of selArms) for (const pos of POSITIONS) {
+    const rs = rows.filter(r => r.round <= rounds && r.provider === p.id && r.arm === a.id && r.pos === pos && !r.invalid);
+    if (!rs.length) continue;
+    const f1 = rs.filter(r => r.notes.some(n => n.includes('틀리게 단정'))).length;
+    const f2 = rs.filter(r => r.notes.some(n => n.includes('고지 없이'))).length;
+    console.log(`${p.id.padEnd(6)} ${a.id} ${pos.padEnd(5)} n=${rs.length}  F1 날짜치환 ${f1}  F2 무고지 ${f2}`);
 }
 console.log(`\n결과 저장: ${out}`);

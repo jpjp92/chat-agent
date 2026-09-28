@@ -416,9 +416,39 @@ PubMed 장애 턴(`error` + `count: 0`)을 조립해 보니 한 프롬프트에 
 [prompt-assembly.ts](../server/agent/prompt-assembly.ts) 주석의 *"주입만으로는 부족했다"* 가 2026-08-24 의 보강(세 줄 규칙)
 **이후에도** 부족하다.
 
-- [ ] 원인 가설부터 — 문구(예시 없이 규칙만 있다)인가, Gemini grounding 이 시스템 지시보다 검색 결과를 우선하는가
-- [ ] 수정 후보는 **위치를 건드리지 않는다**(Q1 결론). 문구 A/B 는 [프로브](../tests/manual/probe-time-block-position.mts) a 팔이 그대로 형틀이다
+- [x] **원인 분해 완료**(2026-09-28, [DEV_260928 §7](logs/2026/09/DEV_260928.md)) — 실패는 두 방식이고
+  **F1(날짜 치환)만 위치에 민감**하다. 기각한 가설 3개: 지시문 누락 · 그라운딩의 자체 날짜 주입 · 출처 희석
+- [x] **1차 시도 `both`(끝에 한 줄 재진술) — 기각**(§8). F1 5/14→1/14 인데 **F2 0/14→3/14** 로
+  옮겨가 **순효과 p=1.000**. 출하하지 않았다
+- [ ] 🔴 **측정 방법을 먼저 고친다** — 이 팔의 기준선이 1시간 안에 3/7 → 6/7 로 흔들린다(§8-3).
+  14회 이상 + 교대 배치, 또는 그라운딩 결과를 고정할 방법 조사
+- [ ] 그다음 후보: `currentDateStr` 렌더 정리(`AM 12:20 GMT+9` → 24시간·`KST`·ISO 병기, §7-3)
+- [ ] 수정 후보는 **위치를 건드리지 않는다**(Q1 결론). 문구 A/B 는 [프로브](../tests/manual/probe-time-block-position.mts) a 팔이 형틀이며 `--positions start,<대안>` 으로 교대 측정한다
 - [ ] 이 후속이 정해지면 실험 손잡이 `timeBlockAt` 을 지운다(사전 등록 약속 — 지금은 형틀로 쓰려고 남겨 뒀다)
+
+### 5-b. 🔴 도구 의도 12개에는 `[ACTIVE_WEB_SEARCH]` 가 실리지 않는데 base 가 그걸 5곳에서 가리킨다 (2026-09-28 발견)
+
+9단계 문서 점검에서 나왔다. **코드 사실이고, 영향은 미측정이다.**
+
+- `assemblePrompt` 결과에 `[ACTIVE_WEB_SEARCH]` 를 붙이는 것은 **호출부**다
+  ([search-provider.ts](../server/agent/search-provider.ts) `withSearchProviderInstruction`).
+- SDK(Gemini 직접)·OpenAI 경로는 붙인다. **LangChain 경로는 안 붙인다** —
+  [langchain-path.ts](../server/agent/nodes/langchain-path.ts) 가 `new SystemMessage(finalInstruction)` 을 그대로 쓴다.
+- 해당 의도 12개: 약품 2종·약국·병원·동물병원·법령 2종·영화·논문 2종·스포츠·날씨.
+- base 는 그 블록을 **5곳에서 참조한다** — `NEVER_FABRICATE_SOURCES`(최상위 절대 규칙),
+  `[TOOL AVAILABILITY]`, `[ANTI-HALLUCINATION DIRECTIVE]`, 본문 폴백 조항, 인용 금지 조항.
+
+🔴 가장 걱정되는 짝: `[TOOL AVAILABILITY]` 가 *"If it says enabled=false, you MUST NOT emit or
+simulate a search/tool call"* 이라고 못 박는데, **LangChain 경로는 바로 도구를 부르라고 바인딩된
+경로다.** 모델이 "블록이 없음"을 `enabled=false` 로 해석하면 지시가 정면으로 반대가 된다.
+(Gemini 로컬 카드 도구는 `tool_choice` 로 **강제**되므로 그 셀은 보호된다 — 강제가 아닌 의도가 노출 구간이다.)
+
+- [ ] **먼저 재고 고친다.** 09-25 의 교훈 그대로 — 프롬프트만 보고 결함이라 단정하지 않는다
+      (그때 라우터를 안 봐서 결함이 아닌 것을 결함으로 판정했다)
+- [ ] 측정 대상: 도구 의도에서 ① 인용 마커·출처 절을 날조하는가 ② 도구 호출을 건너뛰는가
+- [ ] 고칠 자리 후보 둘 — ⓐ LangChain 경로도 블록을 붙인다(`provider` 를 무엇으로 선언할지 결정 필요:
+      hosted 검색이 아니라 **바인딩된 `searchWebTool`** 이다) ⓑ 참조 문구를 경로 중립으로 바꾼다.
+      ⓐ 가 좁지만 **응답이 바뀌므로 전후 측정을 동반한다**
 
 ## 🟢 P2 — 성능
 

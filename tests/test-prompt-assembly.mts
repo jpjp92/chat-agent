@@ -192,7 +192,7 @@ check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('ge
 // ── 9단계 A/B 손잡이 `timeBlockAt` (PLAN §10-11) ─────────────────────────────
 // 🔴 판정 전까지만 있는 실험 스캐폴딩이다. 프로덕션은 넘기지 않으므로 항상 'start'.
 {
-    const withAt = (at: 'start' | 'end', st = emptyState('general')) => assemblePrompt({
+    const withAt = (at: 'start' | 'end' | 'both', st = emptyState('general')) => assemblePrompt({
         base: baseFor(st, 'Korean'), state: st, langName: 'Korean',
         latestUserText: '테스트 질문', now: NOW, tz: TZ, currentDateStr: DATE_STR,
         cardEntity: { namedEntity: undefined, namedAddress: '' }, hospitalStatus: null, timeBlockAt: at,
@@ -212,6 +212,17 @@ check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('ge
     // 본문 턴에서도 같은가 — 가장 효과가 클 자리(검색 결과가 끼는 턴)
     const src = { ...emptyState('general'), webContent: '[URL_CONTENT]\n본문' };
     check('end(본문 턴): 옮기기만 했다', bag(withAt('start', src)) === bag(withAt('end', src)));
+
+    // 'both' — 앞은 그대로, 끝에 한 줄 재진술(§5-a 후속 실험). 'end' 와 달리 **앞을 유지한다.**
+    const both = withAt('both');
+    check('both: 앞의 시각 블록이 그대로 있다', both.startsWith(start.slice(0, 200)));
+    check('both: start 를 접두로 포함한다 (앞·중간은 한 글자도 안 바뀐다)', both.startsWith(start));
+    check('both: 덧붙은 것은 재진술 한 줄뿐이다',
+        both.slice(start.length).trim().startsWith('[TODAY — RESTATED]')
+        && both.slice(start.length).split('\n\n').filter(x => x.trim()).length === 1);
+    check('both: 시각 블록 본문은 여전히 한 번만 실린다', both.split('[CURRENT_SYSTEM_TIME').length === 2);
+    check('both: 재진술이 같은 날짜 문자열을 쓴다 (두 날짜가 갈리면 안 된다)',
+        both.slice(start.length).includes(DATE_STR));
 }
 
 // ── ⑤ 골든 해시 — **찍기만 하면 골든이 아니다** ─────────────────────────────

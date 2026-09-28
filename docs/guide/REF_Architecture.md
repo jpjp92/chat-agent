@@ -298,11 +298,33 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 
 ```
 [CURRENT_SYSTEM_TIME]  ->  base  ->  제공 본문/문맥  ->  턴 규칙(영화·날씨·카드·논문·재구성)
-                       ->  렌더러 스펙  ->  의도 정책
+                       ->  렌더러 스펙  ->  의도 정책  ->  [ACTIVE_WEB_SEARCH]
 ```
 
 2026-09-23 이전 이 문서는 턴 규칙을 아예 빠뜨리고 순서를 `base -> 렌더러 -> 의도` 로 적었다.
 설계 의도(정적 먼저)와 실제가 반대였고, 그 사실이 [계층화 계획 §5](../plans/PLAN_PROMPT_LAYERING_260923.md) 에서 드러났다.
+
+🔴 **2026-09-28 에 또 하나 빠져 있던 것을 찾았다 — `assemblePrompt` 의 반환값은 최종 프롬프트가 아니다.**
+위 순서도의 맨 끝 `[ACTIVE_WEB_SEARCH]` 는 **호출부가** 붙인다
+([search-provider.ts](../../server/agent/search-provider.ts) 의 `withSearchProviderInstruction()`).
+그래서 **`assemblePrompt` 골든은 최종 프롬프트의 골든이 아니고**, 아래 표의
+*"순서를 선언하는 곳은 둘뿐"* 도 엄밀히는 **셋**이다.
+
+**그리고 경로마다 다르다:**
+
+| 경로 | 의도 | 맨 끝 |
+|---|---|---|
+| SDK(Gemini 직접) · OpenAI | `general` 등 비도구 | `+ [ACTIVE_WEB_SEARCH]` |
+| **LangChain** | **도구 의도 12개**(약품·약국·병원·동물병원·법령 2종·영화·논문 2종·스포츠·날씨) | 🔴 **안 붙는다** — `new SystemMessage(finalInstruction)` 그대로. `drug_id` 는 여기서 `[IDENTIFY_PILL_DATABASE_RESULT]` 등을 **더 덧붙인다** |
+
+🔴 base 는 `[ACTIVE_WEB_SEARCH]` 를 **5곳에서 참조한다** — 최상위 절대 규칙
+(`NEVER_FABRICATE_SOURCES`)과 `[TOOL AVAILABILITY]`·`[ANTI-HALLUCINATION]` 을 포함해서다.
+즉 도구 의도 12개에서는 **없는 블록을 가리키는 규칙이 5개 실린다.**
+영향은 **측정된 바 없다** → [TODO §5-b](../TODO.md).
+
+같은 종류의 누락이 두 번 반복된 이유는 하나다 — **조립이 한 함수에서 끝나지 않는데
+문서가 그 함수만 봤다.** 순서를 적을 때는 `assemblePrompt` 의 `return` **다음에** 무엇이
+붙는지, 그리고 **경로마다 다른지**까지 따라가야 한다.
 
 조각의 소재지(2026-09-24 분리 이후):
 
@@ -311,9 +333,10 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 | 무결성(출처·날조·누설) | [prompt-integrity.ts](../../server/agent/prompt-integrity.ts) |
 | 응답 형태(길이·서식·코드·언어) | [prompt-response.ts](../../server/agent/prompt-response.ts) |
 | **조건부**(영상 턴만) | [prompt-video.ts](../../server/agent/prompt-video.ts) — 판정은 [video-turn.ts](../../server/agent/video-turn.ts) `hasVideoPart()` + `isYoutubeRequest` |
+| **조건부**(본문 턴만, **줄 단위**) | `prompt-integrity.ts` 의 `buildSourceAdherence(lbl, { sourceTurn, videoTurn })` — 전역과 조건부가 한 줄씩 교차해 블록이 아니라 **줄**로 갈렸다. 판정은 `!!state.webContent`(조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 바로 그 조건) |
 | 턴 규칙 | `card-followup.ts` · `movie-followup.ts` · `weather-followup.ts` · `reformat-rules.ts` |
 | 렌더러 스펙 · 의도 정책 | [prompt.ts](../../server/agent/prompt.ts) (`INTENT_RENDERERS` · `INTENT_POLICIES`), 논문 2종은 [intent-policy-paper.ts](../../server/agent/intent-policy-paper.ts) |
-| **순서 선언** | base 는 `getSystemInstruction`, 전체는 `assemblePrompt` — **이 둘뿐이다** |
+| **순서 선언** | base 는 `getSystemInstruction`, 조립은 `assemblePrompt`, **맨 끝 검색 블록은 호출부**(`withSearchProviderInstruction`, 경로마다 다름) — 위 🔴 참조 |
 
 🔴 **조건부 조각은 자리를 옮기지 않는다.** 영상 지시는 `getSystemInstruction` 의 **같은 슬롯**에서
 켜지고 꺼진다 — 뒤(턴 층)로 보내면 위치가 바뀌어 응답이 바뀐다. 그래서 영상 턴은 조건부화
@@ -325,7 +348,16 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 가 그래서 무조건으로 남아 있다 — `reformatTurn` 이 카드·영화·날씨 후속을 배제하는데 블록은
 그렇지 않아, 게이트로 쓰면 카드 후속의 "표로 정리해줘"에서 날조 금지 규칙이 사라진다.
 
-조립 결과는 `tests/test-prompt-assembly.mts` 가 **의도 19개 × 턴 6종 × 언어 4개** 골든으로 고정한다.
+조립 결과는 `tests/test-prompt-assembly.mts` 가 **의도 19개 × 턴 8종 × base 4조합 × 언어 4개**
+골든으로 고정한다(2026-09-28 현재 검사 133개). 턴 골든에 `urlSummary`·`youtubeVideo` 가 있는 이유는
+그전까지 **모든 턴 골든이 `webContent: ''`** 여서 본문 조항이 실린 프롬프트를 sha 로 보는 검사가
+하나도 없었기 때문이다 — 줄 하나를 옮긴 돌연변이가 그 구멍으로 전부 통과했다(DEV_260925 §11-3).
+
+🔴 **시각 블록이 맨 앞인 것은 취향이 아니라 실측 결과다.** 2026-09-28 에 맨 끝으로 옮겨 재보니
+`gemini-2.5-flash` 가 자정 직후 *"오늘"* 을 **검색 기사 날짜에서** 가져오는 실패가 2/7 → 6/7 로 늘었다
+(OpenAI·평문 턴은 무변화) → **현 위치 유지**로 판정했다([DEV_260928](../logs/2026/09/DEV_260928.md)).
+`assemblePrompt` 의 `timeBlockAt` 옵션은 **그 실험 전용**이고 프로덕션(`route.ts`)은 넘기지 않는다 —
+항상 `'start'` 이며 골든이 바이트 동일을 지킨다.
 
 - 예전엔 렌더러 스펙 전부가 base 에 상주해 모든 턴에 주입됐다. **비용 문제가 아니라 문맥 오염 문제**였다 — base 의 `[WEATHER FORMATTING]`("날씨 정보엔 ALWAYS 5일 표")이 날씨와 무관한 `general` 턴까지 오염시켜 후속 대화에서 표가 재출력됐다(DEV_260731 §3-3). 암묵 캐싱 할인(78~98%)이 있어 길이 자체는 문제가 아니었다.
 - `INTENT_RENDERERS` 가 의도 → 조각 목록을 결정한다. 예: `physics` → `diagram` + `chart`, `astronomy` → `constellation`, 약국·병원·법령 → **없음**(fast-pass 라 모델이 렌더러 블록을 쓸 일이 없다).
