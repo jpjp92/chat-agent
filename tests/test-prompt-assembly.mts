@@ -239,25 +239,25 @@ console.log('\n── 골든 해시 ──');
 //    감소폭이 19개 의도·6개 턴에서 **전부 동일**한 것이 "그 블록만 빠졌다"의 증거다.
 //    영상 턴 base 는 바이트 동일하다(아래 BASE_GOLDEN).
 const GOLDEN: Record<string, { len: number; sha: string }> = {
-    drug_id:         { len: 22746, sha: '275096904c20951c' },
-    drug_info:       { len: 23805, sha: '8943ff8a9547feb3' },
-    medical_qa:      { len: 26670, sha: 'b2ed171db14a1aaf' },
-    biology:         { len: 17656, sha: 'c455a502537a03b5' },
-    chemistry:       { len: 20074, sha: 'f80c6f106cb7f51b' },
-    physics:         { len: 22437, sha: '401b68f250305ad0' },
-    astronomy:       { len: 18431, sha: '16b8271341fda0b0' },
-    data_viz:        { len: 19762, sha: 'e23ec6cd3e95b06e' },
-    pharmacy_search: { len: 16651, sha: '00a2819656e9f31c' },
-    hospital_search: { len: 16345, sha: '4f64b6f9e8f58ccc' },
-    vet_search:      { len: 16356, sha: '2c003755d6c94a30' },
-    law_search:      { len: 17053, sha: '5172449026051100' },
-    law_qa:          { len: 16809, sha: '9a9abd366c14519b' },
-    movie_search:    { len: 16541, sha: 'd1966d6fa2d58497' },
-    sports:          { len: 19508, sha: 'e6515af14afbdc9d' },
-    weather:         { len: 17360, sha: '18ac4d393b5f77b1' },
-    paper_search:    { len: 22556, sha: 'd16f8653e2e3896c' },
-    arxiv_search:    { len: 20198, sha: '161606016c8f4cdc' },
-    general:         { len: 19841, sha: '68dd6361956d4bba' },
+    drug_id:         { len: 22912, sha: '6313cd6b02123ab9' },
+    drug_info:       { len: 23971, sha: '91e0a9e4c3ca23a3' },
+    medical_qa:      { len: 26836, sha: '0869e0351a41fd6e' },
+    biology:         { len: 17822, sha: '46260ce340a55837' },
+    chemistry:       { len: 20240, sha: '07189f568cf62de4' },
+    physics:         { len: 22603, sha: '1dd53e4652dc0f95' },
+    astronomy:       { len: 18597, sha: '56c2096f21a9e2d0' },
+    data_viz:        { len: 19928, sha: '0515df72edbfce76' },
+    pharmacy_search: { len: 16817, sha: '61d0ac998b8249b6' },
+    hospital_search: { len: 16511, sha: '39b100574d3f3956' },
+    vet_search:      { len: 16522, sha: '003a1c398b2728d7' },
+    law_search:      { len: 17219, sha: '8102c49a13f60adf' },
+    law_qa:          { len: 16975, sha: '3c280f8ef882baf2' },
+    movie_search:    { len: 16707, sha: 'b85d3480a395161e' },
+    sports:          { len: 19674, sha: 'f135a24d05e41a88' },
+    weather:         { len: 17526, sha: 'a6f9d00074cb07b0' },
+    paper_search:    { len: 22722, sha: 'bff81711cf14fc98' },
+    arxiv_search:    { len: 20364, sha: '12ede82fc597c903' },
+    general:         { len: 20007, sha: '523c03b9ac2bbea1' },
 };
 // 의도가 늘었는데 골든을 안 박으면 하니스는 조용히 초록이다 — 개수 자체를 건다.
 check('골든이 모든 의도를 덮는다', Object.keys(GOLDEN).length === ALL_INTENTS.length,
@@ -272,26 +272,26 @@ for (const [intent, want] of Object.entries(GOLDEN)) {
 // 🔴 **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
 //    규칙이 얹힌 상태의 해시를 함께 박아야 "규칙을 파일로 옮겼을 뿐"이 검사된다(§10 Step 2).
 const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: string }> = {
-    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 20172, sha: 'ce77d4d966e251d4' },
-    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 18075, sha: '197c7e9573a98609' },
-    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 23246, sha: '854178f692080c58' },
+    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 20338, sha: '0eb6cdd3bc528a21' },
+    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 18241, sha: '8000220ac860eb49' },
+    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 23412, sha: '75aa76a247c36633' },
     cardFollowup: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet',
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 20655, sha: '4b557f67b1fdefd2',
+        }, len: 20821, sha: 'e60a7003a23a7937',
     },
     cardSearchTurn: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet', needsSearch: true,
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 20916, sha: '254344114e58ff36',
+        }, len: 21082, sha: 'f2a481ec299b5ea9',
     },
     movieSearch: {
         state: {
             ...emptyState('general'), movieSearchTurn: true,
             movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
-        }, len: 20478, sha: '4dd6dfc2d5510a00',
+        }, len: 20644, sha: '434b146f9338adb0',
     },
 
     // 🔴 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
@@ -347,6 +347,63 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
         plainOut.includes('[ONE-LINE SUMMARY FORMAT]') && plainOut.includes('[TOOL AVAILABILITY]'));
 }
 
+// ── 첨부 유형 × 게이트 행렬 (2026-09-28 신설) ────────────────────────────────
+//
+// 🔴 **이 검사가 없어서 8단계가 결함을 냈다.** `sourceTurn = !!state.webContent` 로 게이트를
+//    걸었는데, `webContent` 는 클라이언트가 **`extractedText` 를 뽑은 첨부에만** 채운다
+//    (docx·xlsx·txt·csv·hwp — `components/ChatInput.tsx`). PDF·이미지·영상·오디오는 추출 분기가
+//    없어 `fileData`/`image_url` 로 가고 `webContent` 는 빈다. 그래서 **첨부가 있는데 첨부 조항이
+//    하나도 없는 턴**이 생겼다(PDF·이미지 base64 = 일반 대화와 바이트 동일).
+//    골든은 "무엇이 빠졌는지"만 증명한다 — **"빠져도 되는 턴인지"는 이 행렬이 본다.**
+{
+    // route.ts 가 첨부를 싣는 형태를 그대로 재현한다(route.ts 의 `humanMessageParts`).
+    const partsFor = (kind: string): any[] => {
+        const t = { type: 'text', text: '이 파일 요약해줘' };
+        switch (kind) {
+            case 'pdf-public':   return [t, { fileData: { fileUri: 'https://x/y.pdf', mimeType: 'application/pdf' } }];
+            case 'pdf-base64':   return [t, { type: 'image_url', image_url: { url: 'data:application/pdf;base64,AAA' } }];
+            case 'image-base64': return [t, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } }];
+            case 'video-public': return [t, { fileData: { fileUri: 'https://x/y.mp4', mimeType: 'video/mp4' } }];
+            case 'audio-public': return [t, { fileData: { fileUri: 'https://x/y.mp3', mimeType: 'audio/mpeg' } }];
+            default: return [t];
+        }
+    };
+    // [라벨, 첨부 형태, webContent 가 채워지는가]
+    const CASES: [string, string, boolean][] = [
+        ['일반 대화',          'none',         false],
+        ['docx·xlsx·txt·csv', 'none',         true ],
+        ['URL 요약',           'none',         true ],
+        ['PDF(공개 URL)',      'pdf-public',   false],
+        ['PDF(base64)',       'pdf-base64',   false],
+        ['이미지(base64)',     'image-base64', false],
+        ['영상(공개 URL)',      'video-public', false],
+        ['오디오(공개 URL)',    'audio-public', false],
+    ];
+    for (const [label, kind, webContent] of CASES) {
+        const st: AssemblyState = { ...emptyState('general'), webContent: webContent ? '[URL_CONTENT]\n본문' : '' };
+        st.messages = [new HumanMessage({ content: partsFor(kind) })];
+        const p = baseFor(st, 'Korean');
+
+        // 🔴 첨부가 있으면 **어떤 형태든** "첨부를 학습 지식보다 우선하라"가 실려야 한다.
+        //    이 줄은 하필 "PDF content" 를 이름으로 부르는데 PDF 턴에서 빠져 있었다.
+        check(`첨부 행렬  ${label}: 본문 우선 규칙이 실린다`,
+            p.includes('You MUST prioritize information from the source text'));
+        // 전역 서식 규칙은 무엇을 끄든 남는다 — 이미지 분석 서식이 URL 과 달라지던 결함의 방어다
+        check(`첨부 행렬  ${label}: 한 줄 요약 서식이 실린다`, p.includes('[ONE-LINE SUMMARY FORMAT]'));
+    }
+
+    // ⚠️ `hasVideoPart` 는 이름과 달리 **모든 `fileData`** 에 반응한다 — PDF·오디오 공개 URL 턴에도
+    //    영상 지시 2,997자가 실린다. 손실이 아니라 **낭비**이고(8단계 전엔 무조건이었다),
+    //    좁히면 그 턴들에서 새로 빠지는 변경이 된다 → TODO §5-c. 현재 동작을 사실대로 고정한다.
+    const videoOn = (kind: string) => {
+        const st: AssemblyState = { ...emptyState('general'), messages: [new HumanMessage({ content: partsFor(kind) })] };
+        return baseFor(st, 'Korean').includes('[VIDEO ANALYSIS DIRECTIVE]');
+    };
+    check('현재 동작: 영상 fileData 는 영상 지시를 켠다', videoOn('video-public'));
+    check('🟡 현재 동작(의도 아님): PDF fileData 도 영상 지시를 켠다 — TODO §5-c', videoOn('pdf-public'));
+    check('base64 첨부는 fileData 가 아니라 영상 지시가 꺼진다', !videoOn('pdf-base64') && !videoOn('image-base64'));
+}
+
 // 언어별 base 골든 — 한국어만 보면 나머지 셋이 조용히 깨진다.
 //
 // 🔴 8단계(2026-09-25)부터 base 는 **두 축으로 조건부**다:
@@ -360,10 +417,10 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
 //    전부 `webContent: ''` 여서 **`sourceTurn=true` base 를 아무도 sha 로 보지 않았던** 것이다.
 //    그래서 4조합 × 4언어 전부 `자수/sha` 로 박는다.
 const BASE_GOLDEN: Record<string, Record<'full' | 'video' | 'source' | 'plain', string>> = {
-    Korean:  { full: '21208/5c2e063c4aafe0c9', video: '18826/1846927678476347', source: '17791/5fef38c127b32bc6', plain: '15409/6811d7bd1688934f' },
-    English: { full: '21272/f991c13df28f925c', video: '18870/a9b4185f5370faf7', source: '17825/753b5489973de0e9', plain: '15423/9f67eff8e2447eb5' },
-    Spanish: { full: '21280/3d5e32205c54674c', video: '18871/03f44ba8b8b603eb', source: '17829/fdf3cead96f023ec', plain: '15420/3a70607a117630e3' },
-    French:  { full: '21294/0824b529cc2aa191', video: '18882/77acdc11a9d5dc87', source: '17834/07f5f410542d57a6', plain: '15422/bff4648f9ec483c9' },
+    Korean:  { full: '21208/5c2e063c4aafe0c9', video: '18992/ac5992676a05985d', source: '17791/5fef38c127b32bc6', plain: '15575/b70afa99c59e6642' },
+    English: { full: '21272/f991c13df28f925c', video: '19036/676fdb45e9d44ec8', source: '17825/753b5489973de0e9', plain: '15589/8c408ceb3d96f341' },
+    Spanish: { full: '21280/3d5e32205c54674c', video: '19037/ae4bade3b8921f89', source: '17829/fdf3cead96f023ec', plain: '15586/b70972ba05011b0e' },
+    French:  { full: '21294/0824b529cc2aa191', video: '19048/7f734d3840ac6d08', source: '17834/07f5f410542d57a6', plain: '15588/2cd766f6ca28be74' },
 };
 
 /**

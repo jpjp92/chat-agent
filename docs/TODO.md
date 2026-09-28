@@ -450,6 +450,21 @@ simulate a search/tool call"* 이라고 못 박는데, **LangChain 경로는 바
       hosted 검색이 아니라 **바인딩된 `searchWebTool`** 이다) ⓑ 참조 문구를 경로 중립으로 바꾼다.
       ⓐ 가 좁지만 **응답이 바뀌므로 전후 측정을 동반한다**
 
+### 5-c. 🟡 `hasVideoPart` 가 이름과 다르다 — 모든 `fileData` 에 반응한다 (2026-09-28)
+
+[video-turn.ts](../server/agent/video-turn.ts) 는 `p?.fileData` 존재만 본다. 그래서 **PDF·오디오
+공개 URL 첨부 턴에도 영상 지시 2,997자가 실린다**(첨부 행렬 검사가 현재 동작으로 고정해 뒀다).
+
+- **손실이 아니라 낭비다.** 8단계 전에는 그 블록이 무조건 실렸으므로 회귀는 아니다.
+- 블록 첫 줄이 *"APPLIES ONLY WHEN ... video MIME type"* 이라 모델이 무시할 여지는 있다.
+- `generator.ts` 의 `hasVideoData` 도 같은 함수를 쓰는데, 거기서는 `isYoutubeRequest` 와 **AND** 되고
+  (`isYtVideoTurn`) 모델 핀·토큰 예산·검색 게이트가 그 값을 읽는다 → **좁히면 그쪽이 함께 바뀐다.**
+
+- [ ] 좁힐지 결정 — `mimeType?.startsWith('video/')` 로 바꾸면 PDF·오디오 턴에서 2,997자가 **새로 빠진다**
+      (제거이므로 측정 동반). 프롬프트 게이트용 술어를 따로 두고 `hasVideoPart` 는 generator 전용으로
+      남기는 쪽이 더 좁다
+- [ ] 어느 쪽이든 이름을 사실대로 고친다 — 지금 이름은 코드가 하는 일과 다르다
+
 ## 🟢 P2 — 성능
 
 현재 Lighthouse: Performance 91 / Accessibility 63 / Best Practices 100 / SEO 91 (2026-06-02 재측정, 4/4과 동일)

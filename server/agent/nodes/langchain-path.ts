@@ -324,6 +324,27 @@ export const runLangChainPath = async (args: {
                 return msg;
             });
 
+            // 🔴 **`[ACTIVE_WEB_SEARCH]` 를 여기 붙이지 마라 — 붙이면 결함이 생긴다.**
+            //
+            // SDK(Gemini 직접)·OpenAI 경로는 `withSearchProviderInstruction()` 으로 그 블록을
+            // 덧붙이지만 이 경로는 `finalInstruction` 을 그대로 쓴다. base 가 그 블록을 5곳에서
+            // 참조하므로("없는 블록을 가리킨다") 붙이는 게 맞아 보이는데, **아니다**:
+            //
+            //   이 경로의 검색은 hosted 기능이 아니라 **바인딩된 함수 `search_web`**(DuckDuckGo)다.
+            //   `SEARCH_PROVIDER_PROFILES` 에 그 프로필이 없어 순진하게 고르면 `'none'` 이 되고,
+            //   `'none'` 은 `enabled=false` 를 찍는다. 그러면 base 의 `[TOOL AVAILABILITY]` 가
+            //   *"you MUST NOT emit or simulate a search/tool call"* 이라고 말하는데 **이 경로는
+            //   바로 그 도구를 부르라고 바인딩된**(단일 도구 1차 턴은 `tool_choice` 로 **강제**)
+            //   경로다. 지시가 정면으로 반대가 된다.
+            //
+            // 블록이 없는 지금이 안전한 이유는 실측으로 확인됐다(DEV_260928 §9-1):
+            //   · 논문 턴에서 두 공급자 모두 인용 마커를 정상 출력한다(DEV_260830 §6.9 —
+            //     3.7 `[5][4][2]`, luna `[1][2]`). "없음"을 `enabled=false` 로 읽지 않는다
+            //   · 0건·장애 턴에서 마커·식별자 날조 0/7(DEV_260925 §1)
+            //
+            // 정말 붙이려면 **먼저** `SearchProvider` 에 바인딩 함수용 프로필을 추가해
+            // `enabled=true` + `tool=search_web` 로 선언해야 한다. 그건 응답이 바뀌는 변경이라
+            // 전후 측정을 동반한다(TODO §5-b).
             const messages = [
                 new SystemMessage(finalInstruction),
                 ...safeMessages,

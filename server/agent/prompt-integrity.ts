@@ -69,7 +69,16 @@ export const buildSourceAdherence = (
     1.  Perform a **"Fast Scan"** by focusing intensely on the **Beginning**, **Middle**, and **Final** parts of the video.
     2.  Prioritize identifying core themes, major plot shifts, and conclusions quickly.
     3.  If the user asks for a specific detail, search the entire video, but for general summaries, use the Fast Scan approach to provide rapid insights.`),
-    ...when(sourceTurn, `- You MUST prioritize information from the source text (Transcript, PDF content, etc.) over pre-trained knowledge or general search results for that specific source.`),
+    // 🔴 **전역이다 — 게이트에 걸지 않는다**(2026-09-28 정정). 8단계 2차에서 `sourceTurn` 으로
+    //    묶었는데 **게이트가 이 줄의 적용 범위보다 좁았다.** `sourceTurn` 은 `!!state.webContent` 이고
+    //    `webContent` 는 클라이언트가 **`extractedText` 를 뽑은 첨부에만** 채운다
+    //    (docx·xlsx·txt·csv·hwp — `components/ChatInput.tsx`). **PDF·이미지·영상·오디오는 추출
+    //    분기가 없어** `fileData`/`image_url` 로 가고 `webContent` 는 빈다 → 이 줄이 **빠졌다.**
+    //    그런데 이 줄은 하필 **"PDF content" 를 이름으로 부른다.** 8단계 전에는 무조건 실렸으므로
+    //    전역으로 되돌리는 것은 **측정된 기준선으로 복귀**다.
+    //    ⚠️ 다른 10줄은 `If PROVIDED_SOURCE_TEXT contains "[...]"` 형태라 본문이 없으면 정말
+    //       무의미하다 — 그것들은 게이트에 남긴다. 이 줄만 `PROVIDED_SOURCE_TEXT` 를 전제하지 않는다.
+    `- You MUST prioritize information from the source text (Transcript, PDF content, etc.) over pre-trained knowledge or general search results for that specific source.`,
     ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[YOUTUBE_VIDEO_INFO]", it is a YouTube video. You are provided with Title, Channel, and Description. **IMPORTANT**: For shorter videos, you also have direct visual/auditory access via a multimodal 'fileUri' in the request parts. If a 'fileUri' part is present, you can "watch" and "listen" to the video directly. If it is NOT present, it means the video is too long or rich enough in metadata for a fast summary—in this case, use the provided Title and Description as your primary source. NEVER say "I cannot analyze video content"; always use the best available information to assist the user.`),
     ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[PAPER INFO]", it's an Arxiv paper. Use the Title, Authors, and Abstract provided.`),
     ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[EXTRACTED_DOCUMENT_CONTENT]", it's the text from a user-uploaded file (Word, TXT, etc.).`),
