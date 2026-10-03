@@ -10,7 +10,9 @@ export const SERVER_MODELS = {
     FLASH_3_5: "gemini-3.5-flash",
     FLASH: "gemini-2.5-flash",
     FLASH_LITE: "gemini-2.5-flash-lite",
-    TTS: "gemini-2.5-flash-preview-tts",
+    // 3.8 Flash Lite TTS — Gemini 중 가장 빠르고(2000자 28~30s) 문장 누락 0/5, 오디오 $6/1M(2026, 2027 부터 $12).
+    // 3.1(preview)은 누락 1/7·더 느림·$20/1M. 2.5 는 stream 호출도 한 덩어리. — PLAN_TTS_STREAMING_261002 §4-2d
+    TTS: "gemini-3.8-flash-lite-tts",
     GPT_5_4_MINI: "gpt-5.4-mini",
     GPT_5_6_LUNA: "gpt-5.6-luna",
     GPT_6_LUNA: "gpt-6-luna",
