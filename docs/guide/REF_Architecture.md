@@ -206,6 +206,7 @@ flowchart TB
         Sessions[("chat_sessions")]
         Messages[("chat_messages")]
         URLCache[("url_cache")]
+        TtsUsage[("tts_usage")]
     end
 
     subgraph Storage ["Storage Buckets"]
@@ -445,11 +446,11 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
 | 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie/sports; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
-| TTS | `gemini-2.5-flash-preview-tts` |
+| TTS | `gemini-3.8-flash-lite-tts` (1순위) → `gpt-4o-mini-tts` (폴백, 🔴 **2027-01-06 OpenAI 제거** → 2026-12 안에 `gemini-3.8-flash-tts` 로 교체). 500자 분할 + PCM 스트리밍 + 서버 음량 보정, 회원 전용·일일 20,000자 — **[REF_TTS](REF_TTS.md)** |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 | 초기 라우터 (현재) | `gemini-2.5-flash`, thinkingBudget:0 (2026-09-02 에 flash-lite 에서 상향). GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
 
-**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 11종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
+**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **예외 — TTS**: 읽을 내용이 같고 목소리만 바뀌므로 Gemini 실패 시 OpenAI 로 폴백한다(첫 바이트 전 실패만, [REF_TTS §1](REF_TTS.md#1-모델-정책)). 채팅에 같은 논리를 적용하지 않는다 — 다른 모델의 답을 선택 모델의 답처럼 보이게 된다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 11종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
 ### 🔴 타임아웃 예산 — **60 을 베껴 오지 말 것**
 
@@ -475,6 +476,24 @@ initial·followup 이 같은 signal 을 공유했다 — 즉 상한이 "턴 전�
 구분되지 않는다. `test-chat-models.mts` 가 followup 이 온전한 상한을 새로 받는지 회귀로 잡는다.
 
 ---
+
+## TTS (Read Aloud) Flow
+
+상세·근거·가격은 **[REF_TTS](REF_TTS.md)** 가 단일 소스다. 여기는 다른 흐름과의 접점만 적는다.
+
+```mermaid
+flowchart LR
+    Btn["ChatMessage 음성 버튼"] -->|authedFetch| Speech["/api/speech"]
+    Speech --> Q["RPC consume_tts_quota<br/>(tts_usage)"]
+    Speech --> S["server/tts/synth.ts<br/>500자 분할 · 선행 2 · 폴백 · 음량 보정"]
+    S --> G["Gemini 3.8 Flash Lite TTS"]
+    S -.첫 바이트 전 실패.-> O["OpenAI gpt-4o-mini-tts"]
+    S -->|"raw PCM stream"| P["playSpeechStream<br/>(services/geminiService.ts)"]
+```
+
+- **입력은 마크다운 원문**이고 서버가 `toSpeakableText` 로 정리한다 — 시각화 카드(`json:weather` 코드 펜스 등)는 본문이 JSON 이라, 그대로 보내면 **철자로 읽는다**(2026-10-03 실사용 결함).
+- 채팅과 달리 **인증 필수·게스트 차단·회원 일일 글자 한도**가 있다(유료 키). `chat` 의 게스트 메시지 한도와는 별개 카운터다.
+- 오류는 `TtsError(kind)` 5종 → 4개 언어 토스트. 공급자 원문은 서버 로그에만.
 
 ## Streaming & Source Handling
 

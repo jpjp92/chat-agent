@@ -44,9 +44,11 @@
   - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
   - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
 
+- [ ] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 폴백을 `gemini-3.8-flash-tts` 로 바꾼다 → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
+    - ⚖️ **`speech` — dev 구현 (2026-10-03)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 적용 후 배포**해야 닫힌다 → [DEV_261003](logs/2026/10/DEV_261003.md)
     남은 6개의 계약은 그대로 미결이다. 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
     - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것

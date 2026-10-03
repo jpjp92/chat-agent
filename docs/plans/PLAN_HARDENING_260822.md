@@ -88,7 +88,7 @@
 |---|---|---|
 | `fetch-url` | ScrapingBee · Browserless · ScraperAPI | ✅ |
 | `sync-drug-image` | 외부 fetch + Supabase Storage 쓰기 | ✅ |
-| `speech` | Gemini TTS | ✅ |
+| `speech` | Gemini TTS (2026-10-03: OpenAI/Gemini 유료 키) | ✅ — **dev 에서 인증·게스트 차단·회원 일일 한도 구현**([PLAN_TTS §7](PLAN_TTS_STREAMING_261002.md), 미배포) |
 | `summarize-title` | Gemini | ✅ |
 | `showtimes` | Browserless | ✅ |
 | `proxy-image` | outbound 대역폭 | ✅ |
@@ -322,7 +322,7 @@ IPv6·숫자 IPv4는 소스의 정규식을 추출해 Node에서 확인했다. �
 회귀 테스트와 CI는 마지막 작업으로 미루지 않고 **각 변경에 함께 넣는다.**
 무인증 라우트 grep은 누락 탐지의 보조 수단이다. 문자열 존재만으로 실제 인증을 증명할 수 없으므로
 무인증·위조 토큰·제한 초과 시 공급자 호출 횟수가 0인지 실행 테스트로 확인한다.
-현재 무인증 라우트는 6개이며, 원검토의 8개 중 2개는 삭제됐다. `model` allowlist는 현재 코드에 이미 있다.
+현재 무인증 라우트는 6개이며(⚖️ 2026-10-03: `speech` 는 dev 에서 토큰 검증 + 게스트 차단 + 회원 일일 글자 한도까지 구현 — 순서 1의 절반. 공급자 호출 0회를 위조·무토큰으로 실측. `summarize-title` 은 남음), 원검토의 8개 중 2개는 삭제됐다. `model` allowlist는 현재 코드에 이미 있다.
 
 ### 6-2. 기존 제안에서 바로잡은 근거
 

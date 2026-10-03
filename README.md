@@ -39,6 +39,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 - **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
 - **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
+- **Read aloud (TTS)**: **Gemini 3.8 Flash Lite TTS**, falling back to OpenAI `gpt-4o-mini-tts` when Gemini fails before the first byte (OpenAI removes that model on 2027-01-06 — the fallback moves to `gemini-3.8-flash-tts` before then). Answers are cleaned server-side (card JSON, code, URLs, math removed), split at sentence boundaries into ≤500-char chunks — longer requests made **both** providers silently skip or repeat the middle — and streamed as raw PCM, so the first sound arrives in ~1 s. **Members only**, 20,000 characters/day. Pricing, measurements, and error handling: [docs/guide/REF_TTS.md](docs/guide/REF_TTS.md)
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
 
 Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
@@ -77,7 +78,8 @@ Per-renderer details (schemas, test prompts): [docs/guide/](docs/guide/)
   (`chat_messages.attachment_url` 에 공개 URL 이 저장돼 있어 백필이 선행이다).
 - SSRF defense — `fetch-url` / `proxy-image` / `sync-drug-image` block RFC 1918 + IPv6 private ranges
 - API key rotation — 429 → 60s cooldown, 401/403 → 24h blacklist
-- Error sanitization — internal stacks/messages never exposed to the client
+- Error sanitization — internal stacks/messages never exposed to the client (TTS: provider errors map to five localized messages; verified that even when both providers fail the body is only `Failed to generate speech`)
+- **`/api/speech` auth + quota** (2026-10-03, dev) — token required, guests blocked, members limited to 20,000 chars/day by an atomic RPC that runs **before** any paid provider call
 
 ---
 
@@ -198,7 +200,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── layout.tsx / page.tsx / globals.css
 │   └── api/
 │       ├── chat/route.ts               # LangGraph SSE streaming (maxDuration 300)
-│       ├── speech/route.ts             # TTS (gemini-2.5-flash-preview-tts)
+│       ├── speech/route.ts             # TTS 스트리밍 (gemini-3.8-flash-lite-tts → 폴백 gpt-4o-mini-tts)
 │       ├── showtimes/route.ts          # 3-chain showtimes + SWR cache
 │       ├── fetch-url/route.ts          # URL prefetch: cache → direct/ScrapingBee → browserless
 │       ├── parse-document/route.ts     # HWP/DOCX/PPTX → kordoc Markdown
@@ -212,6 +214,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── models.ts                       # Server model registry
 │   ├── chat-error-policy.ts            # Provider error classification + client-safe messages
 │   ├── openai/                         # OpenAI Responses adapter + model metadata
+│   ├── tts/                            # TTS: split · speakable(전처리) · retry · synth(폴백·음량·스트림) — 앞 셋은 순수(하니스가 import)
 │   ├── mfds-logic.ts / pill-logic.ts
 │   ├── supabase.ts
 │   ├── lib/weather/index.ts             # KMA + OpenWeather core (dfsXyConv, precip parse)
@@ -317,6 +320,7 @@ Full field descriptions: [.env.example](.env.example)
 | 3 | `storage-user-prefix-rls.sql` | `storage.objects` 유저별 prefix 정책 |
 | 4 | `url-cache.sql` | URL 프리페치 캐시 |
 | 5 | `mfds-pills.sql` | 식약처 낱알 DB → 이어서 `node docs/guide/db/sync-mfds-pills.mjs` 로 적재 |
+| 6 | `tts-quota.sql` | `tts_usage` + RPC `consume_tts_quota` — 🔴 **없으면 TTS 가 500**(fail-closed). 앱 배포보다 먼저 |
 
 > ⚠️ **3번은 코드 배포보다 먼저** 실행한다. 정책이 없는 상태로 코드를 올리면 업로드가 전부 거부된다.
 >

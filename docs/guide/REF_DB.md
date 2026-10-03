@@ -122,6 +122,21 @@ anon 에 INSERT 를 열면 임의 `url_key` 에 본문을 심어 모델에 주�
 
 ---
 
+### `tts_usage`
+
+TTS 회원 일일 사용량(글자 수). **사용자는 읽기·쓰기 모두 불가**(RLS on·정책 없음) — RPC `consume_tts_quota` 만 접근한다. DDL: [tts-quota.sql](db/tts-quota.sql) · 정책: [REF_TTS §4](REF_TTS.md#4-인증한도)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| `user_id` | uuid | PK, FK `auth.users` on delete cascade | |
+| `day` | date | PK | **KST** 날짜 |
+| `chars` | integer | ≥0 | 합성 요청 글자 수 누계(정리 후, 요청당 ≤2000) |
+| `calls` | integer | ≥0 | 호출 수 |
+| `updated_at` | timestamptz | | |
+
+- `consume_tts_quota(p_chars)` — security definer. 게스트 → `guest`, 한도(20,000자, 함수 상수) 초과 → `quota`. 조건부 upsert 한 문장으로 원자적 판정(동시 요청도 넘지 않는다). `authenticated` 만 실행 가능.
+- 적용 현황(2026-10-04): dev DB(poc-test) ✅ · main DB ❌ — main 배포 전 필수.
+
 ### `mfds_pills`
 
 식약처 낱알 식별 정보의 로컬 사본. **이미지 약품 식별의 1순위 경로**다
