@@ -39,7 +39,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 - **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
 - **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
-- **Read aloud (TTS)**: **Gemini 3.8 Flash Lite TTS**, falling back to OpenAI `gpt-4o-mini-tts` when Gemini fails before the first byte (OpenAI removes that model on 2027-01-06 — the fallback moves to `gemini-3.8-flash-tts` before then). Answers are cleaned server-side (card JSON, code, URLs, math removed), split at sentence boundaries into ≤500-char chunks — longer requests made **both** providers silently skip or repeat the middle — and streamed as raw PCM, so the first sound arrives in ~1 s. **Members only**, 20,000 characters/day. Pricing, measurements, and error handling: [docs/guide/REF_TTS.md](docs/guide/REF_TTS.md)
+- **Read aloud (TTS)**: **Gemini 3.8 Flash Lite TTS**, falling back to OpenAI `gpt-4o-mini-tts` when Gemini fails before the first byte (OpenAI removes that model on 2027-01-06 — the fallback moves to `gemini-3.8-flash-tts` before then). Answers are cleaned server-side (card JSON, code, URLs, math removed), split at sentence boundaries into ≤500-char chunks — longer requests made **both** providers silently skip or repeat the middle — and streamed as raw PCM, so the first sound arrives in ~1 s. Replaying the same answer plays from an in-browser cache (no new cost or quota). **Members only**, 20,000 characters/day. Pricing, measurements, and error handling: [docs/guide/REF_TTS.md](docs/guide/REF_TTS.md)
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
 
 Details (intent routing, tool binding, model policy, streaming): [docs/guide/REF_Architecture.md](docs/guide/REF_Architecture.md)
@@ -214,7 +214,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── models.ts                       # Server model registry
 │   ├── chat-error-policy.ts            # Provider error classification + client-safe messages
 │   ├── openai/                         # OpenAI Responses adapter + model metadata
-│   ├── tts/                            # TTS: split · speakable(전처리) · retry · synth(폴백·음량·스트림) — 앞 셋은 순수(하니스가 import)
+│   ├── tts/                            # TTS: split · retry · synth(폴백·음량·스트림). 전처리는 lib/tts-speakable.ts(서버·클라 공용)
 │   ├── mfds-logic.ts / pill-logic.ts
 │   ├── supabase.ts
 │   ├── lib/weather/index.ts             # KMA + OpenWeather core (dfsXyConv, precip parse)

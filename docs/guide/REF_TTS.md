@@ -2,7 +2,7 @@
 
 > 최종 점검: 2026-10-04 · 상태: **dev 구현, main 미배포**
 > 설계·측정 이력: [PLAN_TTS_STREAMING_261002](../plans/PLAN_TTS_STREAMING_261002.md) · 날짜 로그: [DEV_261003](../logs/2026/10/DEV_261003.md)
-> 코드: `app/api/speech/route.ts` · `server/tts/` · `services/geminiService.ts`(`playSpeechStream`) · `components/ChatMessage.tsx`
+> 코드: `app/api/speech/route.ts` · `server/tts/` · `lib/tts-speakable.ts`(서버·클라 공용) · `services/geminiService.ts`(`playSpeechStream`) · `components/ChatMessage.tsx`
 
 ---
 
@@ -64,7 +64,7 @@ flowchart TB
     Clean --> Quota["RPC consume_tts_quota<br/>게스트 403 · 한도 429<br/>(공급자 호출 전 원자적 소비)"]
     Quota --> Split["splitForTts<br/>문장 경계 ≤500자, 첫 조각 ≤80자"]
     Split --> Pre["조각 3개 동시 합성(선행 2)"]
-    Pre --> P1["Gemini 3.8 Lite<br/>재시도 ≤3 · 첫 바이트 12s"]
+    Pre --> P1["Gemini 3.8 Lite<br/>폴백 있으면 2회 · 첫 바이트 6s"]
     P1 -->|"첫 바이트 전 실패"| P2["OpenAI 폴백"]
     P1 --> Gain["서버 음량 보정<br/>gemini 1.0 · openai 1.4"]
     P2 --> Gain
@@ -76,11 +76,13 @@ flowchart TB
 | 조각 상한 | 500자 | 한 요청 ~800자를 넘으면 두 공급자 모두 **중간을 건너뛰거나 반복**(끝은 읽음). 700자도 OpenAI 2/4 생략, 500자 8/8 정상 |
 | 첫 조각 | ≤80자 | 첫 소리를 당긴다 |
 | 선행(prefetch) | 2 | 전체 시간 최소(p1 대비 ~절반) |
-| 재시도 | 조각당 ≤3회, **첫 바이트 전에만** | 오디오를 낸 뒤 재시도하면 앞부분이 두 번 나온다. 영구 4xx·사용자 취소는 재시도 안 함 |
-| 첫 바이트 타임아웃 | 12s | 응답 없이 걸린 시도를 60s 까지 기다려 61초 뒤 500 이 났다 |
+| 재시도 | **뒤에 폴백이 있으면 2회·첫 바이트 6s**, 마지막 공급자는 3회·12s. 모두 **첫 바이트 전에만** | 오디오를 낸 뒤 재시도하면 앞부분이 두 번 나온다. 영구 4xx·사용자 취소는 재시도 안 함 |
+| 첫 바이트 타임아웃 | 6s(폴백 전) · 12s(마지막) | 응답 없이 걸린 시도를 60s 까지 기다려 61초 뒤 500 이 났다. 3회·12s 로도 폴백까지 ~37s 라 "너무 길다" → 걸린 Gemini 실측 **14.3s 에 OpenAI 첫 소리**(2026-10-04) |
 | 폴백 | 첫 조각 실패 → 요청 전체 / 이후 조각 실패 → 그 조각만 | 목소리 하나 유지 vs 내용 누락 방지 |
 | 이후 조각 최종 실패 | 건너뛰고 계속 | 한 조각을 잃는 편이 나머지 전부를 잃는 것보다 낫다 |
 | 음량 | 서버 PCM 보정 | 3.8 Lite 원음이 풀스케일(피크 32768) — 예전 1.8 증폭이 찌그러뜨렸다. OpenAI 는 3.3dB 작다 |
+| 다시 듣기 | 브라우저 메모리 캐시(총 64MB, LRU) | 같은 답변을 다시 누르면 서버 호출 없이 즉시 재생 — 비용·회원 한도 재차감 없음. **끝까지 받은 재생만** 저장(중단·끊김은 저장 안 함). 새로고침하면 사라진다 |
+| 읽을 글 없음 | 클라이언트 사전 판정 | 카드·코드만 있는 답변은 서버를 부르지 않고 "읽을 글이 없습니다" 안내(서버 422 는 안전망) |
 | 응답 크기 | 2000자 ≈ 13MB | 스트리밍이라 Vercel 4.5MB 응답 제한 대상 아님 |
 
 ---
@@ -108,7 +110,8 @@ flowchart TB
 | 세션 만료 | 401 | 로그인이 만료되었습니다. 다시 로그인한 뒤 시도해주세요. |
 | 서버 미도달 | — | 네트워크 연결이 불안정합니다. 연결을 확인한 뒤 다시 시도해주세요. |
 | 두 공급자 모두 실패 등 | 500 `Failed to generate speech` | 음성을 만들지 못했습니다. 잠시 후 다시 시도해주세요. |
-| 사용자 중지 · 422 · 재생 중 끊김 | — | 안내 없음(끊김은 받은 만큼 재생) |
+| 카드·코드만 있는 답변 | (호출 안 함) · 422 | 이 답변에는 소리 내어 읽을 글이 없습니다. (카드·코드만 있는 답변) |
+| 사용자 중지 · 재생 중 끊김 | — | 안내 없음(끊김은 받은 만큼 재생) |
 
 - 공급자 원문(Gemini SDK JSON, OpenAI 응답 본문)은 **서버 로그(`console.warn/error`)에만** 남는다. 실측(2026-10-04): Gemini 무효 키 + 폴백 끔, 두 공급자 모두 무효 키 → 응답 본문 `{"error":"Failed to generate speech"}` 만.
 - 클라이언트는 `TtsError(kind)` 로 분류하고 원인은 `console.warn` 에만 남긴다(`console.error` 는 dev 오버레이에 원문을 띄운다).
@@ -133,13 +136,12 @@ Vercel(2026-10-04): Production 에 `TTS_USE_TIER1`·`API_KEY_TIER1`·`OPENAI_API
 
 | 종류 | 위치 |
 |---|---|
-| 오프라인 하니스(`npm test`) | `tests/test-tts-split.mts` · `test-tts-retry.mts` · `test-tts-speakable.mts` |
+| 오프라인 하니스(`npm test`) | `tests/test-tts-split.mts` · `test-tts-retry.mts`(빠른 넘김 2회 포함) · `test-tts-speakable.mts` |
 | 수동 프로브(유료) | `tests/manual/probe-tts-latency.mts` · `probe-tts-chunking.mts` · `probe-speech-route.mts`(회원 토큰 `TTS_PROBE_BEARER`) — [tests/README](../../tests/README.md) |
 
 ## 8. 남은 것
 
 - 🔴 2026-12 안에 폴백을 `gemini-3.8-flash-tts` 로 교체(OpenAI 2027-01-06 제거)
 - main DB 에 `tts-quota.sql` 적용 후 main 배포
-- Gemini 가 응답 없이 걸리는 장애에서는 재시도 3회 × 12s 를 다 쓴 뒤 폴백 — 최대 ~37s
 - 귀로 확인: 조각 경계 · 음량 균형 · iOS Safari · 음성 후보 비교
-- 말하기 속도 조절(미구현), 카드만 있는 답변에서 버튼 숨김(미구현)
+- 말하기 속도 조절(미구현) · 실패 시 한도 환불(미구현 — 합성 전에 차감) · 라우트 회귀 하니스(인증·한도·오류 노출, 지금은 수동 확인)
