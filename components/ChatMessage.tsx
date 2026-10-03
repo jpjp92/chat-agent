@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
@@ -14,7 +14,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
 import { gateStreamingTables } from '../utils/streamingMarkdown';
-import { generateSpeech, playRawAudio, stopAudio, initAudioContext } from '../services/geminiService';
+import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
 
 // Lazy load visualization components for better performance
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
@@ -154,6 +154,40 @@ interface ChatMessageFullProps extends ChatMessageProps {
   isStreaming?: boolean;
 }
 
+/** TTS 실패 안내 문구 — 상태 코드·원문은 노출하지 않는다(services/geminiService.ts `TtsError`). */
+const TTS_ERROR_MESSAGES: Record<TtsErrorKind, Record<Language, string>> = {
+  guest: {
+    ko: '음성 읽기는 로그인한 회원만 사용할 수 있습니다.',
+    en: 'Read-aloud is available to signed-in members only.',
+    es: 'La lectura en voz alta solo está disponible para miembros registrados.',
+    fr: 'La lecture à voix haute est réservée aux membres connectés.',
+  },
+  quota: {
+    ko: '오늘 음성 읽기 한도를 모두 사용했습니다. 내일 다시 이용해주세요.',
+    en: "You've reached today's read-aloud limit. Please try again tomorrow.",
+    es: 'Has alcanzado el límite diario de lectura en voz alta. Inténtalo mañana.',
+    fr: 'Vous avez atteint la limite quotidienne de lecture à voix haute. Réessayez demain.',
+  },
+  auth: {
+    ko: '로그인이 만료되었습니다. 다시 로그인한 뒤 시도해주세요.',
+    en: 'Your session has expired. Please sign in again.',
+    es: 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
+    fr: 'Votre session a expiré. Veuillez vous reconnecter.',
+  },
+  network: {
+    ko: '네트워크 연결이 불안정합니다. 연결을 확인한 뒤 다시 시도해주세요.',
+    en: 'Network connection problem. Please check your connection and try again.',
+    es: 'Problema de conexión. Comprueba tu conexión e inténtalo de nuevo.',
+    fr: 'Problème de connexion. Vérifiez votre connexion et réessayez.',
+  },
+  server: {
+    ko: '음성을 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
+    en: "Couldn't generate audio. Please try again in a moment.",
+    es: 'No se pudo generar el audio. Inténtalo de nuevo en un momento.',
+    fr: "Impossible de générer l'audio. Réessayez dans un instant.",
+  },
+};
+
 const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko', onEdit, isStreaming = false }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
@@ -172,23 +206,23 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   const mt = i18n_menu[language] || i18n_menu.ko;
 
   const i18n = {
-    ko: { pdf: 'PDF 문서', attachment: '첨부파일', analyzing: '분석 중...' },
-    en: { pdf: 'PDF Document', attachment: 'Attachment', analyzing: 'Analyzing...' },
-    es: { pdf: 'Documento PDF', attachment: 'Adjunto', analyzing: 'Analizando...' },
-    fr: { pdf: 'Document PDF', attachment: 'Pièce jointe', analyzing: 'Analyse...' }
+    ko: { pdf: 'PDF 문서', attachment: '첨부파일', analyzing: '분석 중...', readAloud: '소리 내어 읽기', stopReading: '읽기 중지', preparingAudio: '음성 준비 중...' },
+    en: { pdf: 'PDF Document', attachment: 'Attachment', analyzing: 'Analyzing...', readAloud: 'Read aloud', stopReading: 'Stop reading', preparingAudio: 'Preparing audio...' },
+    es: { pdf: 'Documento PDF', attachment: 'Adjunto', analyzing: 'Analizando...', readAloud: 'Leer en voz alta', stopReading: 'Detener lectura', preparingAudio: 'Preparando audio...' },
+    fr: { pdf: 'Document PDF', attachment: 'Pièce jointe', analyzing: 'Analyse...', readAloud: 'Lire à voix haute', stopReading: 'Arrêter la lecture', preparingAudio: "Préparation de l'audio..." }
   };
 
   const t = i18n[language] || i18n.ko;
 
   const attachment = message.attachment;
 
-  useEffect(() => {
-    return () => {
-      if (isPlaying) {
-        stopAudio();
-      }
-    };
-  }, [isPlaying]);
+  // 언마운트 때만 멈춘다. 🔴 의존성에 isPlaying 을 두면 true→false 전환의 cleanup 이
+  // 전역 stopAudio() 를 불러, 이 메시지를 끊고 시작한 **다른 메시지의 재생**까지 죽인다.
+  const isVoiceActiveRef = useRef(false);
+  isVoiceActiveRef.current = isPlaying || isGenerating;
+  useEffect(() => () => {
+    if (isVoiceActiveRef.current) stopAudio();
+  }, []);
 
 
   const handleCopy = () => {
@@ -196,9 +230,22 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     copyTextToClipboard(message.content, setIsCopied);
   };
 
+  const notifyTtsError = (kind: TtsErrorKind) => {
+    const message = (TTS_ERROR_MESSAGES[kind][language] ?? TTS_ERROR_MESSAGES[kind].ko);
+    const type = kind === 'guest' || kind === 'quota' ? 'info' : 'error';
+    window.dispatchEvent(new CustomEvent('custom-toast', { detail: { message, type } }));
+  };
+
   const handlePlayVoice = async () => {
-    // 모바일 브라우저 오디오 잠금 해제 (반드시 유무 제스처 이벤트 내에서 호출되어야 함)
-    await initAudioContext();
+    // 모바일 브라우저 오디오 잠금 해제 (반드시 유무 제스처 이벤트 내에서 호출되어야 함).
+    // 실패해도(오디오 장치 없음 등) 처리되지 않은 rejection 으로 새지 않게 잡아 안내한다.
+    try {
+      await initAudioContext();
+    } catch (error) {
+      console.warn('[TTS] audio init failed', error);
+      notifyTtsError('server');
+      return;
+    }
 
     if (isPlaying || isGenerating) {
       stopAudio();
@@ -211,14 +258,19 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     setIsGenerating(true);
     try {
-      const plainText = message.content.replace(/[#*`_~]/g, '').slice(0, 2000);
-      const audioData = await generateSpeech(plainText);
-
-      setIsGenerating(false);
-      setIsPlaying(true);
-      await playRawAudio(audioData);
+      // 마크다운 정리는 서버가 한다(카드 JSON·코드 제거 — server/tts/speakable.ts). 라우트 상한 10000자
+      const plainText = message.content.slice(0, 10000);
+      // 첫 오디오 청크가 도착하는 순간 스피너 → 정지 버튼으로 바뀐다
+      await playSpeechStream(plainText, () => {
+        setIsGenerating(false);
+        setIsPlaying(true);
+      });
     } catch (error) {
-      console.error("TTS System Error:", error);
+      // 사용자에게는 종류별 안내만 보이고 상태 코드·원문은 콘솔(warn)에만 남긴다.
+      // console.error 는 개발 모드 오버레이에 원문을 띄우므로 쓰지 않는다.
+      const kind: TtsErrorKind = error instanceof TtsError ? error.kind : 'server';
+      console.warn('[TTS]', kind, error);
+      notifyTtsError(kind);
     } finally {
       setIsGenerating(false);
       setIsPlaying(false);
@@ -838,7 +890,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                 <button
                   onClick={handlePlayVoice}
                   className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${isPlaying || isGenerating ? 'text-primary-500 bg-primary-50 dark:bg-primary-900/10 ring-1 ring-primary-200 dark:ring-primary-800' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5'}`}
-                  title="Read Aloud"
+                  title={isGenerating ? t.preparingAudio : isPlaying ? t.stopReading : t.readAloud}
+                  aria-label={isGenerating ? t.preparingAudio : isPlaying ? t.stopReading : t.readAloud}
                 >
                   <i className={`fa-solid ${isGenerating ? 'fa-spinner fa-spin' : isPlaying ? 'fa-stop' : 'fa-volume-high'} text-[13px]`}></i>
                 </button>

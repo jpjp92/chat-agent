@@ -26,7 +26,6 @@ const CHAT_REQUEST_FAILED: Record<Language, string> = {
   fr: 'Échec de la génération de la réponse. Veuillez réessayer.',
 };
 
-let currentAudioSource: AudioBufferSourceNode | null = null;
 let sharedAudioContext: AudioContext | null = null;
 
 /**
@@ -402,23 +401,36 @@ export const streamChatResponse = async (
   }
 };
 
-export const generateSpeech = async (text: string): Promise<Uint8Array> => {
-  const response = await fetch('/api/speech', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text })
-  });
-  if (!response.ok) throw new Error(`Speech generation failed: ${response.status}`);
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return decodeBase64(data.data);
-};
+/**
+ * 진행 중인 TTS 재생 — 요청 취소용 AbortController 와 예약된 소스들.
+ * 재생 버튼을 다시 누르거나 다른 메시지를 재생하면 둘 다 즉시 멈춘다.
+ */
+/**
+ * TTS 실패를 **사용자 안내 종류**로 분류한다. 호출부는 kind 로 문구만 고르고 상태 코드·원문은 보여주지 않는다.
+ *   guest   — 게스트(로그인 필요, 403)
+ *   quota   — 회원 일일 한도 초과(429)
+ *   auth    — 세션 없음·만료(401, authedFetch 토큰 없음)
+ *   network — 서버에 닿지 못함(오프라인 등)
+ *   server  — 그 밖의 실패(500 등)
+ * 원인(status·원문)은 `detail` 에만 담아 콘솔로 남긴다.
+ */
+export type TtsErrorKind = 'guest' | 'quota' | 'auth' | 'network' | 'server';
+export class TtsError extends Error {
+  constructor(public kind: TtsErrorKind, public detail?: string) {
+    super(`TTS ${kind}${detail ? `: ${detail}` : ''}`);
+    this.name = 'TtsError';
+  }
+}
+
+let currentPlayback: { abort: AbortController; sources: Set<AudioBufferSourceNode> } | null = null;
 
 export const stopAudio = () => {
-  if (currentAudioSource) {
-    try { currentAudioSource.stop(); } catch (e) { }
-    currentAudioSource = null;
+  if (!currentPlayback) return;
+  currentPlayback.abort.abort();
+  for (const s of currentPlayback.sources) {
+    try { s.stop(); } catch (e) { }
   }
+  currentPlayback = null;
 };
 
 /**
@@ -441,35 +453,121 @@ export const initAudioContext = async () => {
   source.stop();
 };
 
-export const playRawAudio = async (data: Uint8Array) => {
-  if (data.length === 0) return;
-  stopAudio();
+/**
+ * 첫 재생을 늦춰 두는 여유(지터 버퍼). 🔴 OpenAI 는 첫 ~0.4s 분량을 몰아 보낸 뒤 **최대 225ms 멈췄다가**
+ * 이어 보낸다(2026-10-03 실측 3/3) — 바로 재생하면 시작 직후 한 번 끊긴다. Gemini 는 끊김 0 이었다.
+ */
+const TTS_START_LEAD_SEC: Record<string, number> = { gemini: 0.05, openai: 0.3 };
+/** 예약 단위 ≈ 0.2s(24kHz·16bit = 48,000 B/s). 첫 소리는 이만큼 모인 뒤 시작한다. */
+const TTS_SCHEDULE_MIN_BYTES = 9_600;
 
-  // 이미 initAudioContext로 생성되어 있어야 함
+/**
+ * `/api/speech` 의 raw PCM(24kHz·16bit·mono) 스트림을 **받는 대로** 이어서 재생한다.
+ * 첫 청크가 오면 `onStart` 를 부르고, 마지막 소스가 끝나면 resolve 한다. `stopAudio()` 로 중단.
+ *
+ * 🔴 네트워크 청크는 홀수 바이트로 끊길 수 있다 — Int16 이 1바이트 밀리면 잡음이 된다.
+ *    남는 1바이트는 다음 청크 앞에 붙인다.
+ */
+export const playSpeechStream = async (text: string, onStart?: () => void): Promise<void> => {
+  stopAudio();
+  const playback = { abort: new AbortController(), sources: new Set<AudioBufferSourceNode>() };
+  currentPlayback = playback;
+
   if (!sharedAudioContext) {
     sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
   }
+  const ctx = sharedAudioContext;
+  if (ctx.state === 'suspended') await ctx.resume();
 
-  if (sharedAudioContext.state === 'suspended') {
-    await sharedAudioContext.resume();
+  // 유료 키 라우트라 토큰이 필요하다(게스트 403, 회원 일일 한도 429 — docs/guide/db/tts-quota.sql)
+  let response: Response;
+  try {
+    response = await authedFetch('/api/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: playback.abort.signal,
+    });
+  } catch (error: any) {
+    if (error?.name === 'AbortError') return; // 사용자가 멈춤
+    if (error?.message === 'Not authenticated') throw new TtsError('auth', 'no session');
+    throw new TtsError('network', error?.message);
   }
+  // 422: 읽을 글이 없다(카드·코드만 있는 답변) — 실패가 아니다
+  if (response.status === 422) return;
+  if (response.status === 403) throw new TtsError('guest');
+  if (response.status === 429) throw new TtsError('quota');
+  if (response.status === 401) throw new TtsError('auth', '401');
+  if (!response.ok || !response.body) throw new TtsError('server', `HTTP ${response.status}`);
 
-  const audioBuffer = await decodeAudioData(data, sharedAudioContext, 24000, 1);
-  const source = sharedAudioContext.createBufferSource();
-  source.buffer = audioBuffer;
+  // 공급자별 음량은 서버가 PCM 에 이미 맞춰 보낸다(server/tts/synth.ts TTS_GAIN) — 폴백으로 섞여도 같은 크기
+  const gainNode = ctx.createGain();
+  const provider = response.headers.get('X-TTS-Provider') ?? 'gemini';
+  const startLead = TTS_START_LEAD_SEC[provider] ?? 0.3;
+  gainNode.connect(ctx.destination);
 
-  const gainNode = sharedAudioContext.createGain();
-  gainNode.gain.value = 1.8;
+  const reader = response.body.getReader();
+  let nextStart = 0;
+  let lastEnded: Promise<void> = Promise.resolve();
+  // 네트워크 청크를 모아 한 번에 예약한다. 🔴 OpenAI 청크는 ~1.4KB(≈28ms)라 그대로 예약하면
+  // 2000자에 소스가 ~9,000개 — 경계 반올림 오차가 쌓여 미세한 틱이 나고 모바일에 무겁다.
+  let pending: Uint8Array[] = [];
+  let pendingBytes = 0;
 
-  source.connect(gainNode);
-  gainNode.connect(sharedAudioContext.destination);
-  currentAudioSource = source;
-  source.start();
+  const schedule = async () => {
+    // 홀수 바이트는 남긴다 — Int16 이 1바이트 밀리면 잡음이 된다(네트워크 청크는 홀수로 끊길 수 있다)
+    const usable = pendingBytes - (pendingBytes % 2);
+    if (usable <= 0) return;
+    const merged = new Uint8Array(pendingBytes);
+    let off = 0;
+    for (const p of pending) { merged.set(p, off); off += p.length; }
+    const rest = merged.slice(usable);
+    pending = rest.length ? [rest] : [];
+    pendingBytes = rest.length;
 
-  return new Promise<void>((resolve) => {
-    source.onended = () => {
-      if (currentAudioSource === source) currentAudioSource = null;
-      resolve();
-    };
-  });
+    // 0 부터 시작하는 사본이라 byteOffset 정렬 문제(홀수면 Int16Array 를 못 만든다)가 없다
+    const audioBuffer = await decodeAudioData(merged.slice(0, usable), ctx, 24000, 1);
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(gainNode);
+
+    if (nextStart === 0) {
+      nextStart = ctx.currentTime + startLead;
+      onStart?.();
+    }
+    // 버퍼링이 재생을 못 따라가 이미 지난 시각이면 지금부터 이어 붙인다
+    nextStart = Math.max(nextStart, ctx.currentTime);
+    source.start(nextStart);
+    nextStart += audioBuffer.duration;
+
+    playback.sources.add(source);
+    lastEnded = new Promise<void>(resolve => {
+      source.onended = () => { playback.sources.delete(source); resolve(); };
+    });
+  };
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (currentPlayback !== playback) return;
+      if (done) { await schedule(); break; }
+      pending.push(value);
+      pendingBytes += value.length;
+      if (pendingBytes >= TTS_SCHEDULE_MIN_BYTES) await schedule();
+    }
+    await lastEnded;
+  } catch (error: any) {
+    // 사용자가 멈춘 것은 실패가 아니다
+    if (error?.name === 'AbortError' || currentPlayback !== playback) return;
+    // 재생이 시작된 뒤 스트림이 끊기면(서버는 첫 바이트 후 재시도하지 않는다) 받은 만큼 끝까지 들려주고 끝낸다.
+    // 바로 throw 하면 버튼은 대기 상태로 돌아가는데 예약된 오디오는 계속 나와 멈출 수 없게 된다.
+    if (nextStart > 0) {
+      console.warn('[TTS] stream interrupted — playing received audio only', error?.message);
+      await lastEnded;
+      return;
+    }
+    throw error instanceof TtsError ? error : new TtsError('server', error?.message);
+  } finally {
+    if (currentPlayback === playback && playback.sources.size === 0) currentPlayback = null;
+  }
 };
