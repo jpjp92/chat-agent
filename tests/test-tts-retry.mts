@@ -122,6 +122,19 @@ async function run(steps: Step[], signal = new AbortController().signal) {
     try { for await (const _ of withTtsRetry(attempt, new AbortController().signal, { firstByteTimeoutMs: 50 })) { /* */ } } catch (e) { error = e; }
     check('전부 걸리면 상한에서 408 로 실패', error?.status === 408 && calls === TTS_MAX_ATTEMPTS, `status=${error?.status} calls=${calls}`);
 }
+{
+    // 폴백이 있을 때의 설정(synth.ts FAST_HANDOFF: 2회·첫 바이트 6s) — 걸린 1순위를 2회만 쥐고 넘긴다
+    let calls = 0;
+    const attempt = (_n: number, signal: AbortSignal) => (async function* () {
+        calls++;
+        await new Promise((_, rej) => signal.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+        yield b(0);
+    })();
+    const t0 = Date.now();
+    let error: any = null;
+    try { for await (const _ of withTtsRetry(attempt, new AbortController().signal, { maxAttempts: 2, firstByteTimeoutMs: 60 })) { /* */ } } catch (e) { error = e; }
+    check('빠른 넘김 설정은 2회 후 408 로 넘긴다', error?.status === 408 && calls === 2 && Date.now() - t0 < 500, `calls=${calls} ${Date.now() - t0}ms`);
+}
 check('Gemini RESOURCE_EXHAUSTED 문구는 재시도 대상', isRetryableTtsError(new Error('{"code":429,"status":"RESOURCE_EXHAUSTED"}')));
 check('메시지 속 404 는 영구 오류', !isRetryableTtsError(new Error('openai tts 404: model not found')));
 

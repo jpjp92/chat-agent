@@ -83,7 +83,17 @@ async function* applyGain(gen: AsyncGenerator<Uint8Array>, gain: number): AsyncG
     if (carry) yield carry;
 }
 
-type Synth = (text: string, signal: AbortSignal) => AsyncGenerator<Uint8Array>;
+/** 시도 설정. 뒤에 폴백이 있으면 짧게 쥐고 빨리 넘긴다(FAST_HANDOFF). */
+type Attempts = { maxAttempts?: number; firstByteTimeoutMs?: number };
+type Synth = (text: string, signal: AbortSignal, attempts?: Attempts) => AsyncGenerator<Uint8Array>;
+
+/**
+ * 뒤에 폴백이 있을 때의 시도 설정 — **2회 · 첫 바이트 6s**. 응답 없이 걸려도 ≈12.5s 안에 폴백으로 넘어간다.
+ * 🔴 기본(3회 · 12s)이면 걸린 Gemini 를 ~37s 붙잡은 뒤에야 폴백했다(사용자: "너무 길다", 2026-10-04).
+ * 정상 첫 소리는 1.2~1.7s 라 6s 는 넉넉하다. 1회가 아니라 2회인 이유: 일시적 429·5xx 는 한 번 더 부르면
+ * 대개 같은 공급자로 풀려 목소리가 덜 바뀐다.
+ */
+const FAST_HANDOFF: Attempts = { maxAttempts: 2, firstByteTimeoutMs: 6_000 };
 
 async function* openAIOnce(text: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
     const res = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -104,8 +114,8 @@ async function* openAIOnce(text: string, signal: AbortSignal): AsyncGenerator<Ui
 }
 
 /** 키가 하나라 같은 키로 다시 부른다 — 429 를 바로 다시 치지 않게 0.5s·1s 쉰다. */
-function synthOpenAI(text: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
-    return withTtsRetry((_, attemptSignal) => openAIOnce(text, attemptSignal), signal, { backoffMs: n => 500 * (n + 1) });
+function synthOpenAI(text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
+    return withTtsRetry((_, attemptSignal) => openAIOnce(text, attemptSignal), signal, { ...attempts, backoffMs: n => 500 * (n + 1) });
 }
 
 /**
@@ -136,10 +146,10 @@ async function* geminiOnce(text: string, apiKey: string, signal: AbortSignal): A
  * 🔴 3.1 TTS 무료 한도는 **키(프로젝트)당 10회/일** — 조각마다 1회라 무료 풀은 금방 바닥난다
  *    (로컬 실사용 2026-10-03: 키 3개 RPD 소진 → 500). 유료 키는 env 로 명시할 때만 쓴다.
  */
-function synthGemini(text: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
+function synthGemini(text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
     const tier1 = process.env.TTS_USE_TIER1 === 'true' ? process.env.API_KEY_TIER1 : undefined;
     if (tier1) {
-        return withTtsRetry((_, s) => geminiOnce(text, tier1, s), signal, { backoffMs: n => 500 * (n + 1) });
+        return withTtsRetry((_, s) => geminiOnce(text, tier1, s), signal, { ...attempts, backoffMs: n => 500 * (n + 1) });
     }
     // 동기 throw 는 ChunkBuffer 밖으로 새어 나간다 — 생성기 안에서 실패시킨다
     if (API_KEYS.length === 0) return (async function* () { throw new Error('gemini tts: no API keys'); })();
@@ -150,7 +160,8 @@ function synthGemini(text: string, signal: AbortSignal): AsyncGenerator<Uint8Arr
         keys[n] = apiKey;
         return geminiOnce(text, apiKey, s);
     }, signal, {
-        maxAttempts: Math.min(3, API_KEYS.length),
+        firstByteTimeoutMs: attempts.firstByteTimeoutMs,
+        maxAttempts: Math.min(attempts.maxAttempts ?? 3, API_KEYS.length),
         onError: (error: any, n) => {
             const isRateLimit = error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED');
             if (isRateLimit && keys[n]) isDailyQuotaError(error) ? markKeyDailyExhausted(keys[n]) : markKeyRateLimited(keys[n]);
@@ -208,7 +219,8 @@ async function* synthWithFallback(
     for (const [k, provider] of providers.entries()) {
         let started = false;
         try {
-            for await (const bytes of applyGain(SYNTH[provider](text, signal), TTS_GAIN[provider])) {
+            const hasFallback = k < providers.length - 1;
+            for await (const bytes of applyGain(SYNTH[provider](text, signal, hasFallback ? FAST_HANDOFF : {}), TTS_GAIN[provider])) {
                 if (!started) { started = true; onProvider(provider); }
                 yield bytes;
             }

@@ -4,7 +4,7 @@
  * 카드 JSON 이 TTS 로 새면 **한 글자씩 철자로 읽고**, 기호뿐인 조각은 오디오가 안 와 스트림이 끊긴다
  * (2026-10-03 로컬 실사용, 날씨 카드). 실제 답변 모양으로 고정한다. 네트워크 없음.
  */
-import { toSpeakableText } from '../server/tts/speakable.js';
+import { toSpeakableText } from '../lib/tts-speakable.js';
 
 let failed = 0;
 const check = (name: string, ok: boolean, detail = '') => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeSpeechStream } from '../../../server/tts/synth';
-import { toSpeakableText } from '../../../server/tts/speakable';
+import { toSpeakableText } from '../../../lib/tts-speakable';
 import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
 
 export const runtime = 'nodejs';
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     if (text.length > 10000) return NextResponse.json({ error: 'Text too long' }, { status: 400 });
 
     // 마크다운 원문을 받아 서버에서 읽을 텍스트로 바꾼다 — 카드 JSON·코드가 TTS 로 새면
-    // 철자로 읽고 기호 조각은 오디오가 안 온다(server/tts/speakable.ts). 2000자 상한은 정리한 뒤에 건다.
+    // 철자로 읽고 기호 조각은 오디오가 안 온다(lib/tts-speakable.ts). 2000자 상한은 정리한 뒤에 건다.
     const speakable = toSpeakableText(text).slice(0, 2000);
     if (!speakable) return NextResponse.json({ error: 'Nothing to read' }, { status: 422 });
 

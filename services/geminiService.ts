@@ -412,9 +412,10 @@ export const streamChatResponse = async (
  *   auth    — 세션 없음·만료(401, authedFetch 토큰 없음)
  *   network — 서버에 닿지 못함(오프라인 등)
  *   server  — 그 밖의 실패(500 등)
+ *   empty   — 읽을 글이 없음(카드·코드만 있는 답변, 422)
  * 원인(status·원문)은 `detail` 에만 담아 콘솔로 남긴다.
  */
-export type TtsErrorKind = 'guest' | 'quota' | 'auth' | 'network' | 'server';
+export type TtsErrorKind = 'guest' | 'quota' | 'auth' | 'network' | 'server' | 'empty';
 export class TtsError extends Error {
   constructor(public kind: TtsErrorKind, public detail?: string) {
     super(`TTS ${kind}${detail ? `: ${detail}` : ''}`);
@@ -423,6 +424,35 @@ export class TtsError extends Error {
 }
 
 let currentPlayback: { abort: AbortController; sources: Set<AudioBufferSourceNode> } | null = null;
+
+/**
+ * 다시 듣기 캐시 — 같은 답변을 다시 누르면 서버를 부르지 않고 받아 둔 PCM 을 바로 재생한다.
+ * 비용·회원 일일 한도가 다시 차감되지 않고 첫 소리도 즉시다. 키는 보낸 원문(스트리밍 중 바뀐 답변은 다른 키).
+ * 브라우저 메모리에만 두며(새로고침하면 사라짐) 2000자 ≈ 13MB 라 총량 상한을 두고 오래된 것부터 버린다.
+ * 🔴 **끝까지 받은 재생만** 저장한다 — 중간에 멈추거나 끊긴 오디오를 저장하면 다음엔 잘린 채로 나온다.
+ */
+const TTS_CACHE_MAX_BYTES = 64 * 1024 * 1024;
+const ttsCache = new Map<string, Uint8Array>();
+let ttsCacheBytes = 0;
+
+function ttsCachePut(key: string, pcm: Uint8Array) {
+  if (pcm.length === 0 || pcm.length > TTS_CACHE_MAX_BYTES) return;
+  const old = ttsCache.get(key);
+  if (old) { ttsCacheBytes -= old.length; ttsCache.delete(key); }
+  ttsCache.set(key, pcm);
+  ttsCacheBytes += pcm.length;
+  for (const [k, v] of ttsCache) {
+    if (ttsCacheBytes <= TTS_CACHE_MAX_BYTES) break;
+    ttsCache.delete(k);
+    ttsCacheBytes -= v.length;
+  }
+}
+
+function ttsCacheGet(key: string): Uint8Array | undefined {
+  const pcm = ttsCache.get(key);
+  if (pcm) { ttsCache.delete(key); ttsCache.set(key, pcm); } // 최근 사용으로 갱신(LRU)
+  return pcm;
+}
 
 export const stopAudio = () => {
   if (!currentPlayback) return;
@@ -479,6 +509,24 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
   const ctx = sharedAudioContext;
   if (ctx.state === 'suspended') await ctx.resume();
 
+  const cached = ttsCacheGet(text);
+  if (cached) {
+    // 서버가 음량까지 맞춘 PCM 이라 그대로 한 덩어리로 재생한다
+    const audioBuffer = await decodeAudioData(cached, ctx, 24000, 1);
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+    playback.sources.add(source);
+    const ended = new Promise<void>(resolve => {
+      source.onended = () => { playback.sources.delete(source); resolve(); };
+    });
+    source.start();
+    onStart?.();
+    await ended;
+    if (currentPlayback === playback) currentPlayback = null;
+    return;
+  }
+
   // 유료 키 라우트라 토큰이 필요하다(게스트 403, 회원 일일 한도 429 — docs/guide/db/tts-quota.sql)
   let response: Response;
   try {
@@ -493,8 +541,8 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
     if (error?.message === 'Not authenticated') throw new TtsError('auth', 'no session');
     throw new TtsError('network', error?.message);
   }
-  // 422: 읽을 글이 없다(카드·코드만 있는 답변) — 실패가 아니다
-  if (response.status === 422) return;
+  // 422: 읽을 글이 없다(카드·코드만 있는 답변). 클라이언트 사전 판정을 지나 온 경우의 안전망
+  if (response.status === 422) throw new TtsError('empty');
   if (response.status === 403) throw new TtsError('guest');
   if (response.status === 429) throw new TtsError('quota');
   if (response.status === 401) throw new TtsError('auth', '401');
@@ -513,6 +561,9 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
   // 2000자에 소스가 ~9,000개 — 경계 반올림 오차가 쌓여 미세한 틱이 나고 모바일에 무겁다.
   let pending: Uint8Array[] = [];
   let pendingBytes = 0;
+  // 다시 듣기 캐시용 — 받은 바이트 전부(끝까지 받았을 때만 저장)
+  const received: Uint8Array[] = [];
+  let receivedBytes = 0;
 
   const schedule = async () => {
     // 홀수 바이트는 남긴다 — Int16 이 1바이트 밀리면 잡음이 된다(네트워크 청크는 홀수로 끊길 수 있다)
@@ -550,7 +601,16 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
     for (;;) {
       const { done, value } = await reader.read();
       if (currentPlayback !== playback) return;
-      if (done) { await schedule(); break; }
+      if (done) {
+        await schedule();
+        const all = new Uint8Array(receivedBytes - (receivedBytes % 2));
+        let off = 0;
+        for (const r of received) { const n = Math.min(r.length, all.length - off); all.set(r.subarray(0, n), off); off += n; }
+        ttsCachePut(text, all);
+        break;
+      }
+      received.push(value);
+      receivedBytes += value.length;
       pending.push(value);
       pendingBytes += value.length;
       if (pendingBytes >= TTS_SCHEDULE_MIN_BYTES) await schedule();

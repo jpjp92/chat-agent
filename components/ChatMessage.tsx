@@ -15,6 +15,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Role, Message, UserProfile } from '../types';
 import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
+import { toSpeakableText } from '../lib/tts-speakable';
 
 // Lazy load visualization components for better performance
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
@@ -180,6 +181,12 @@ const TTS_ERROR_MESSAGES: Record<TtsErrorKind, Record<Language, string>> = {
     es: 'Problema de conexión. Comprueba tu conexión e inténtalo de nuevo.',
     fr: 'Problème de connexion. Vérifiez votre connexion et réessayez.',
   },
+  empty: {
+    ko: '이 답변에는 소리 내어 읽을 글이 없습니다. (카드·코드만 있는 답변)',
+    en: 'There is no text to read aloud in this answer (cards or code only).',
+    es: 'Esta respuesta no tiene texto para leer en voz alta (solo tarjetas o código).',
+    fr: "Cette réponse ne contient aucun texte à lire à voix haute (cartes ou code uniquement).",
+  },
   server: {
     ko: '음성을 만들지 못했습니다. 잠시 후 다시 시도해주세요.',
     en: "Couldn't generate audio. Please try again in a moment.",
@@ -232,7 +239,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const notifyTtsError = (kind: TtsErrorKind) => {
     const message = (TTS_ERROR_MESSAGES[kind][language] ?? TTS_ERROR_MESSAGES[kind].ko);
-    const type = kind === 'guest' || kind === 'quota' ? 'info' : 'error';
+    const type = kind === 'guest' || kind === 'quota' || kind === 'empty' ? 'info' : 'error';
     window.dispatchEvent(new CustomEvent('custom-toast', { detail: { message, type } }));
   };
 
@@ -256,10 +263,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     if (!message.content) return;
 
+    // 카드·코드만 있는 답변은 서버까지 가지 않고 바로 알린다(서버도 같은 함수로 판정 — 422 안전망)
+    const plainText = message.content.slice(0, 10000);
+    if (!toSpeakableText(plainText)) {
+      notifyTtsError('empty');
+      return;
+    }
+
     setIsGenerating(true);
     try {
-      // 마크다운 정리는 서버가 한다(카드 JSON·코드 제거 — server/tts/speakable.ts). 라우트 상한 10000자
-      const plainText = message.content.slice(0, 10000);
+      // 마크다운 정리는 서버가 한다(lib/tts-speakable.ts). 라우트 상한 10000자. 같은 원문은 다시 듣기 캐시에서 즉시 재생
       // 첫 오디오 청크가 도착하는 순간 스피너 → 정지 버튼으로 바뀐다
       await playSpeechStream(plainText, () => {
         setIsGenerating(false);
