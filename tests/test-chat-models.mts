@@ -165,9 +165,13 @@ check('OpenAI 검색 OFF 프롬프트 매핑',
     && noSearchBody.instructions?.includes('tool=none')
     && !noSearchBody.tools);
 
+// OpenAI web_search 는 순위를 승·패만 있는 oai-sports 로 푼다(2026-10-04) — 전체 표 규칙은 OpenAI 에만
+check('OpenAI 검색 지시에 순위표 전체 규칙(무승부·승점)', buildSearchProviderInstruction('openai').includes('Never present a win-loss-only table'));
+check('Gemini 검색 지시에는 순위표 규칙이 없다', !buildSearchProviderInstruction('google').includes('win-loss-only'));
+
 const localRegistrySource = fs.readFileSync(new URL('../server/agent/local-tool-registry.ts', import.meta.url), 'utf8');
-check('GPT 로컬 함수 intent 9종 등록',
-    ['drug_info', 'pharmacy_search', 'hospital_search', 'vet_search', 'law_search', 'law_qa', 'movie_search', 'sports', 'weather']
+check('GPT 로컬 함수 intent 8종 등록',
+    ['drug_info', 'pharmacy_search', 'hospital_search', 'vet_search', 'law_search', 'law_qa', 'movie_search', 'weather']
         .every(intent => localRegistrySource.includes(`intent: '${intent}'`)));
 check('strict 함수 객체는 추가 속성을 거부하고 모든 속성을 required 처리',
     localRegistrySource.includes("additionalProperties: false")

@@ -373,7 +373,6 @@ import { PAPER_SEARCH_POLICY, ARXIV_SEARCH_POLICY } from "./intent-policy-paper"
 const INTENT_RENDERERS: Partial<Record<IntentType, string[]>> = {
     general: ['chart'],
     data_viz: ['chart'],
-    sports: ['chart'],
     chemistry: ['smiles', 'chart'],
     biology: ['bio', 'smiles'],
     physics: ['diagram', 'chart'],
@@ -450,8 +449,7 @@ Guidelines:
  * 이번 턴 의도의 정책을 반환한다(없으면 빈 문자열). 조립의 **맨 뒤**에 붙는다.
  *
  * 🔴 이전 주석은 *"general 은 빈 문자열"* 이라고 적었는데 **틀렸다** — `general` 은 순위표
- *    완전 출력 규칙 331자를 갖는다. 빈 것은 `sports` 뿐이고, 그건 누락이 아니라 규칙이
- *    `worldcup-tool.ts` 의 도구 출력에 실려 있기 때문이다(§10-5). 하니스가 그 0자를 고정한다.
+ *    완전 출력 규칙 331자를 갖는다. (0자였던 `sports` 는 2026-10-04 의도째 제거)
  */
 export const getIntentPolicy = (intent: IntentType): string => {
     return INTENT_POLICIES[intent] ?? "";

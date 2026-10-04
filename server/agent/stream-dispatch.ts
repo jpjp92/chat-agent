@@ -98,8 +98,6 @@ export function createStreamDispatch(
     const stripCitations = (t: string) => PINNED_CARD_INTENT_SET.has(st.detectedIntent)
         ? dropMarkersOutsideRange(repairPaperMarkerLinks(t, st.pinnedPaperUrls), st.pinnedPaperCount)
         : stripFabricated(t);
-    // sports(월드컵 순위/일정 표)는 토큰 증분 스트리밍 시 마크다운 표가 셀 단위로 실시간
-    // 조립되며 어색함 → 스트리밍을 건너뛰고 generator on_chain_end에서 완성본을 한 번에 전송.
 
     const handle = (event: any) => {
       const data = event.data;
@@ -111,8 +109,6 @@ export function createStreamDispatch(
         // via searchDrugInfoTool) otherwise leak their output (e.g. "JP","W") into the
         // user-facing answer ahead of the real json:drug block.
         if (langGraphNode !== 'generator') return;
-        // sports: 증분 토큰을 흘리지 않고 generator on_chain_end에서 표 전체를 한 번에 전송.
-        if (st.detectedIntent === 'sports') return;
         const chunk = data?.chunk;
         const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {

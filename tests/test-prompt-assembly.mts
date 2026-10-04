@@ -157,7 +157,7 @@ console.log('\n── 렌더러/의도 경계 ──');
 const ALL_INTENTS: IntentType[] = [
     'drug_id', 'drug_info', 'medical_qa', 'biology', 'chemistry', 'physics', 'astronomy',
     'data_viz', 'pharmacy_search', 'hospital_search', 'vet_search', 'law_search', 'law_qa',
-    'movie_search', 'sports', 'weather', 'paper_search', 'arxiv_search', 'general',
+    'movie_search', 'weather', 'paper_search', 'arxiv_search', 'general',
 ];
 const orphans: string[] = [];
 for (const intent of ALL_INTENTS) {
@@ -173,12 +173,6 @@ for (const intent of ALL_INTENTS) {
 }
 check('요구한 렌더러의 스펙이 모두 실린다', orphans.length === 0, `스펙 없이 요구됨: ${orphans.join(', ')}`);
 
-// `sports` 의 의도 정책이 0자인 것은 **누락이 아니라 배치**다(§10-3).
-// 판정 근거: 그 의도에서만 참인 규칙(팀명 한국어 표기, `[NOT_DETERMINED]` 처리)은 존재하지만
-// `worldcup-tool.ts` 가 **도구 결과에 실어 보낸다.** 프롬프트로 올리면 중복이 되고,
-// 도구를 안 탄 턴에까지 규칙이 걸린다. 그래서 0자를 **고정한다** — 누가 채우면 여기서 깨지고,
-// 그때 "도구 출력의 것과 중복 아닌가"를 반드시 되묻게 된다.
-check('sports 의도 정책은 비어 있다 (규칙은 도구 출력에 산다)', getIntentPolicy('sports') === '');
 
 // ── ④ 불변 계약 ──────────────────────────────────────────────────────────────
 console.log('\n── 불변 계약 ──');
@@ -253,7 +247,6 @@ const GOLDEN: Record<string, { len: number; sha: string }> = {
     law_search:      { len: 17219, sha: '8102c49a13f60adf' },
     law_qa:          { len: 16975, sha: '3c280f8ef882baf2' },
     movie_search:    { len: 16707, sha: 'b85d3480a395161e' },
-    sports:          { len: 19674, sha: 'f135a24d05e41a88' },
     weather:         { len: 17526, sha: 'a6f9d00074cb07b0' },
     paper_search:    { len: 22722, sha: 'bff81711cf14fc98' },
     arxiv_search:    { len: 20364, sha: '12ede82fc597c903' },

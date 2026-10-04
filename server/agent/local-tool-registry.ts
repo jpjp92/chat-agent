@@ -4,7 +4,6 @@ import { hospitalTool } from './hospital-tool';
 import { vetTool } from './vet-tool';
 import { lawTool } from './law-tool';
 import { movieTool } from './movie-tool';
-import { worldCupTool } from './worldcup-tool';
 import { weatherTool } from './weather-tool';
 import { paperTool } from './paper-tool';
 import { arxivTool, ARXIV_QUERY_DESCRIPTION } from './arxiv-tool';
@@ -137,19 +136,6 @@ const tools: LocalFunctionTool[] = [
         resultMode: 'fast-pass',
         cardType: 'movie',
         execute: executeTool(movieTool),
-    },
-    {
-        intent: 'sports',
-        name: 'search_world_cup',
-        description: '현재 진행 중인 2026 FIFA 월드컵 조별 순위, 경기·대진 또는 득점왕 정보를 조회한다.',
-        parameters: strictObject({
-            resource: { type: 'string', enum: ['standings', 'matches', 'scorers'], description: '조회 데이터 종류' },
-            stage: nullable({ type: 'string', enum: ['GROUP_STAGE', 'LAST_32', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'THIRD_PLACE', 'FINAL'], description: '경기 단계' }),
-            status: nullable({ type: 'string', enum: ['SCHEDULED', 'TIMED', 'FINISHED', 'IN_PLAY', 'PAUSED'], description: '경기 상태' }),
-            limit: nullable({ type: 'number', description: '득점왕 표시 인원 수' }),
-        }),
-        resultMode: 'synthesize',
-        execute: executeTool(worldCupTool),
     },
     {
         intent: 'paper_search',

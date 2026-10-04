@@ -38,9 +38,6 @@ type Case = {
 //    패턴을 좁히는 작업이므로, 여기가 깨지면 좁히기가 과했다는 뜻이다.
 // ══════════════════════════════════════════════════════════════════════
 const TRUE_POSITIVES: Case[] = [
-    { text: '월드컵 조별리그 순위 알려줘', expect: 'sports', note: '조별 리그' },
-    { text: '16강 대진 어떻게 돼?', expect: 'sports', note: '16강' },
-
     { text: '오늘 상영시간표 알려줘', expect: 'movie_search', note: '상영시간표', rescue: true },
     { text: '볼만한 영화 추천해줘', expect: 'movie_search', note: '볼만한 영화', rescue: true },
     { text: 'CGV 강남점 예매', expect: 'movie_search', note: '멀티플렉스명', rescue: true },
@@ -89,6 +86,9 @@ const TRUE_POSITIVES: Case[] = [
 // 2. 잡으면 안 되는 것 — 전부 general이어야 한다
 // ══════════════════════════════════════════════════════════════════════
 const FALSE_POSITIVES: Case[] = [
+    // sports 의도 제거(2026-10-04) — 스포츠는 general 이 검색으로 받는다. 규칙이 되살아나면 여기서 깨진다
+    { text: '월드컵 조별리그 순위 알려줘', expect: 'general', note: 'sports 제거 → 검색' },
+    { text: '프리미어리그 순위 알려줘', expect: 'general', note: '리그 순위도 검색' },
     // ── astronomy: `별\s` `별$` `우주` ──────────────────────────────
     { text: '그건 별 문제 아니야', expect: 'general', note: '별 = 별로' },
     { text: '별 다섯개 리뷰 써줘', expect: 'general', note: '별점' },

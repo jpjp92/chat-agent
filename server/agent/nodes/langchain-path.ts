@@ -10,7 +10,6 @@ import { hospitalTool } from "../hospital-tool";
 import { vetTool } from "../vet-tool";
 import { lawTool } from "../law-tool";
 import { movieTool } from "../movie-tool";
-import { worldCupTool } from "../worldcup-tool";
 import { weatherTool } from "../weather-tool";
 import { paperTool } from "../paper-tool";
 import { arxivTool } from "../arxiv-tool";
@@ -81,10 +80,10 @@ export const runLangChainPath = async (args: {
             // 일반 대화(SDK 경로)만 3.5 유지. 기본 모델 3.5 전환(1cd48c2, 2026-05-30) 전엔 이 경로가
             // 전부 2.5였고 빨랐음 → 그 상태로 복원(이 전환이 도구 응답 전반을 느리게 한 회귀의 원인).
             //   · fast-pass(출력 폐기, 카드=툴 JSON): thinking 완전 off(budget 0) — 순수 tool-router.
-            //   · drug_info/drug_id/sports(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
+            //   · drug_info/drug_id(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
             //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
             const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
-            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "sports", "law_qa", "paper_search", "arxiv_search"]);
+            const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "law_qa", "paper_search", "arxiv_search"]);
             // 산문은 모델이, 카드는 도구 출력이 그대로 간다.
             const PINNED_CARD_INTENTS = { paper_search: "paper", arxiv_search: "paper" } as const;
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
@@ -294,8 +293,6 @@ export const runLangChainPath = async (args: {
                 allTools = shouldAddWebSearchToPaperFollowup(state.intent, lastMsg._getType() === 'tool', latestUserTextForTools)
                     ? [paperCardTool, searchWebTool]
                     : [paperCardTool];
-            } else if (state.intent === "sports") {
-                allTools = [worldCupTool];
             } else if (state.intent === "weather") {
                 allTools = [weatherTool];
             }

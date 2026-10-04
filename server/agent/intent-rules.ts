@@ -24,7 +24,8 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
  *
  * ## ⚠️ 배열 순서 = 우선순위 (first-match-wins)
  * 위에 있을수록 이긴다. 의도적으로 이 순서다:
- *   1. `sports`·`movie_search`·`law_search` — 고유명사·조문번호라 다른 분야와 겹치지 않는다
+ *   1. `movie_search`·`law_search` — 고유명사·조문번호라 다른 분야와 겹치지 않는다
+ *      (`sports` 는 2026-10-04 제거 — 월드컵 종료 후 리그 질문까지 가로채 거절·무출처 답을 냈다. 스포츠는 general 검색)
  *   2. `pharmacy` → `vet` → `hospital` — **`vet`이 `hospital`보다 반드시 앞.**
  *      `동물병원`의 `병원`이 hospital에 먼저 걸리면 수의 경로가 통째로 죽는다
  *   3. `weather` — 위 장소 검색들과 어휘가 안 겹친다
@@ -36,10 +37,6 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
  * 기획: docs/plans/PLAN_INTENT_RULES_PRECISION_260816.md
  */
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
-    {
-        intent: "sports",
-        pattern: /(월드컵|world\s?cup|조별\s*리그|조별\s*순위|[A-L]조\s*순위|16강|8강|준결승|결승\s*대진|월드컵\s*대진|월드컵\s*득점왕|월드컵\s*일정)/i,
-    },
     {
         // ⚠️ `영화관` 단독은 뺐다. `영화관 데이트 코스 글 써줘`처럼 작문 소재로 쓰이면
         //    상영시간 카드가 뜬다. 이 규칙은 **구제 경로**(router.ts 영화 의도 구제)라

@@ -185,7 +185,6 @@ export const routerNode = async (state: AgentStateType) => {
 - "law_qa"          : explanation, summary, comparison, scenario, or application of Korean law grounded in current statute data
 - "paper_search"    : the user is asking for RESEARCH PAPERS / studies / academic evidence — 논문, 연구 결과, 임상시험, 근거 자료, "관련 논문 찾아줘", "연구된 게 있어?". Judge only whether they want papers; do NOT judge the field here. The field is decided separately by "paper_source" below, which also decides whether any database can serve it. A medical question that never asks for research ("고혈압에 좋은 음식 알려줘", "감기 걸렸는데 어떻게 해?") is "medical_qa" — but "연구 있어?", "연구된 거 있어?", "연구 결과 알려줘" ARE paper requests even without the word 논문. NEGATIVE ANCHOR — judge what the user wants DELIVERED, not what the subject is about. If they want a SOFTWARE ARTIFACT handed to them — code repositories, GitHub/GitLab repos (레포, 레포지토리, 저장소, 깃허브), open-source projects, libraries, packages, SDKs, frameworks, tools, or documentation — that is "general", NOT paper_search, even when the topic is academic and even when the message says 검색/찾아줘: "클로드 skills 관련된 레포 검색" and "rag 라이브러리 추천해줘" want software, so "general". But those same words may merely NAME THE SUBJECT of a study — "깃허브 코파일럿 생산성 논문 있나", "오픈소스 라이선스 연구 있어?" ask for literature ABOUT software, so they stay paper_search. The deciding question: would a repository satisfy them, or does only a paper?
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
-- "sports"          : CURRENT/ONGOING FIFA World Cup standings, group rankings, fixtures/bracket (16강/8강 대진), match results, top scorers. ONLY for the tournament happening now — past World Cups (2022 등) go to "general".
 - "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
 - "biology"         : biology, protein structure, DNA, RNA, cell biology, genetics, enzymes
 - "chemistry"       : chemistry, molecular structure, chemical reaction, element, compound, SMILES
@@ -230,7 +229,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
-                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "sports", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
+                const validIntents: IntentType[] = ["drug_id", "drug_info", "medical_qa", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "weather", "biology", "chemistry", "physics", "astronomy", "data_viz", "general"];
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                 }
@@ -447,12 +446,6 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     if (intent === "general" && !weatherCardShown && classifyIntentByRules(textContent, hasImage) === "weather") {
         console.log('[LangGraph] Weather intent rescue (general→weather): heuristic matched');
         intent = "weather";
-    }
-
-    // 과거/완료 월드컵(연도 명시 또는 "지난/과거 월드컵")은 API 미지원(403) → general로 보내 학습지식으로 답.
-    if (intent === "sports" && /(20\d\d|지난|과거|역대|작년|예전)\s*(년)?\s*(월드컵|world\s?cup)|(월드컵|world\s?cup)\s*(20\d\d|역대|역사)/i.test(textContent)) {
-        console.log('[LangGraph] Sports: 과거 대회 질의 → general (API는 현재 대회만)');
-        intent = "general";
     }
 
     // 날씨 후속 처리: 화면에 카드가 떠 있으면(weatherCardShown) 후속 발화를 두 갈래로 가른다.

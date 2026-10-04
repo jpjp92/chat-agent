@@ -84,10 +84,8 @@ console.log('\n§4 law_qa — 중간 법률 카드를 사용자 채널로 보내
     check('law_search 는 카드를 흘린다', search.text.includes(block('law')));
 }
 
-console.log('\n§5 sports — 토큰을 흘리지 않고 최종본을 한 번에 보낸다');
+console.log('\n§5 일반 의도는 토큰이 흐른다 (sports 표 일괄 전송 게이트는 2026-10-04 의도째 제거)');
 {
-    const s = run([routerEvent('sports'), token('| 순위 |'), token(' 팀 |')]);
-    check('sports 는 증분 토큰을 막는다', s.text === '', s.text);
     const g = run([routerEvent('general'), token('안녕'), token('하세요')]);
     check('일반 의도는 토큰이 흐른다', g.text === '안녕하세요', g.text);
 }
