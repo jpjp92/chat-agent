@@ -1,6 +1,6 @@
 import { AgentStateType } from "../state";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, API_KEYS } from "../../config";
+import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, isPaidKey, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
@@ -118,7 +118,7 @@ export const createGeneratorNode = (
         // Intent routing:
         // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
         // SDK path — all other intents (Google Search grounding available)
-        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "sports", "weather"];
+        const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "weather"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube
@@ -199,7 +199,10 @@ export const createGeneratorNode = (
         //    ①만 보고 `freeTierSearch: true` 로 뒤집었을 때 **에러 없이** 3.6 의 2/5 오답이
         //    출처 칩을 달고 나가기 시작한다. 그래서 이름을 나눠 둔다.
         const rmCaps = modelCaps(resolvedModel);
-        const needsSearchFallback = !rmCaps.freeTierSearch || !rmCaps.groundingReliable;
+        // ①은 **키에 달렸다** — 유료 키면 3.x 검색이 된다(PLAN_GEMINI_PAID_FIRST_261004 §6). 그래서 시도마다
+        // 지금 키로 다시 판단한다: 회원 유료 키가 실패해 무료 키로 내려가면 모델도 2.5 로 같이 내려간다.
+        const searchFallbackFor = (apiKey: string) =>
+            (!rmCaps.freeTierSearch && !isPaidKey(apiKey)) || !rmCaps.groundingReliable;
         let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
         // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
         // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
@@ -261,7 +264,7 @@ export const createGeneratorNode = (
         // OpenAI 일반 요청은 Gemini 키와 독립적으로 위에서 완료된다. Gemini SDK·LangChain
         // 도구·멀티모달 capability fallback에 실제로 진입할 때만 Gemini 키를 요구한다.
         const geminiApiKey = getNextApiKey();
-        console.log('[LangGraph] Gemini key required:', true, '| available:', !!geminiApiKey, '| intent:', state.intent);
+        console.log('[LangGraph] Gemini key required:', true, '| available:', !!geminiApiKey, '| key:', isPaidKey(geminiApiKey) ? 'paid' : 'free', '| intent:', state.intent);
         if (!geminiApiKey) throw new Error("No Gemini API key available");
 
         if (!useLangChain) {
@@ -324,6 +327,7 @@ export const createGeneratorNode = (
 
                 try {
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
+                    const needsSearchFallback = searchFallbackFor(sdkApiKey);
                     // 이 attempt의 모든 SDK 서브콜을 한 데드라인으로 묶음 — 행/혼잡 시 catch의 timeout 강등 경로로.
                     // 영상 턴만 예산형 긴 데드라인(48s) — 25s는 정상 영상 분석을 끊는다(DEV_260627 회귀).
                     const attemptTimeoutMs = isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS;

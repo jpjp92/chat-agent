@@ -7,6 +7,7 @@ import { toLangName, pickByLang, type LangName } from '../../../server/agent/lan
 import { compileAgentGraph } from '../../../server/agent/graph';
 import { DEFAULT_CHAT_MODEL, isChatModelId } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
+import { runWithKeyTier } from '../../../server/key-tier';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
 import { classifyChatError } from '../../../server/chat-error-policy';
@@ -71,7 +72,10 @@ export async function POST(req: NextRequest) {
   const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;
   const publicLang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
 
-  const stream = new ReadableStream({
+  // 회원만 유료 키를 먼저 쓴다(PLAN_GEMINI_PAID_FIRST_261004 §2-1). 게스트·프로필 없음은 무료 로테이션.
+  // start 는 생성자 안에서 동기 호출되므로 생성을 감싸면 그래프 실행 전체가 이 등급을 물려받는다.
+  const keyTier = profile && profile.is_guest === false ? 'paid-first' : 'free';
+  const stream = runWithKeyTier(keyTier, () => new ReadableStream({
     async start(controller) {
       const sendEvent = (data: any) => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch {}
@@ -248,7 +252,7 @@ export async function POST(req: NextRequest) {
         controller.close();
       }
     }
-  });
+  }));
 
   return new Response(stream, {
     headers: {

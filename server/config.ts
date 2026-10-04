@@ -1,5 +1,6 @@
 
 import 'server-only';
+import { currentKeyTier } from './key-tier';
 
 /**
  * API Key Management Utility
@@ -81,7 +82,29 @@ export const markKeyInvalid = (apiKey: string) => {
  * Get the next available API key, skipping rate-limited ones.
  * Returns null if all keys are currently rate-limited.
  */
+/**
+ * 유료 키 — 이름의 TIER1 은 Google 등급 번호가 아니라 "유료 프로젝트 키" 라는 뜻이다(2026-10-04 Tier 2 승급 후에도 이름 유지).
+ * `^API_KEY\d*$` 에 걸리지 않으므로 무료 풀(API_KEYS)에 섞이지 않는다. 테스트가 env 를 바꿀 수 있게 호출 시점에 읽는다.
+ */
+const paidKey = (): string | null => process.env.API_KEY_TIER1 || null;
+
+/** 회원 유료 우선 스위치 — 끄면 현행(무료 로테이션만)과 동일. 비용이 튀면 배포 없이 끈다. */
+export const isPaidFirstEnabled = (): boolean => process.env.GEMINI_PAID_FIRST === 'true' && !!paidKey();
+
+/** 이 키로 부르는 호출이 유료 등급인가 — 검색 강등(freeTierSearch) 판단에 쓴다. */
+export const isPaidKey = (apiKey: string | null | undefined): boolean => !!apiKey && apiKey === paidKey();
+
 export const getNextApiKey = (): string | null => {
+    // 회원(paid-first) 요청은 유료 키부터. 실패한 유료 키는 기존 mark* 가 쿨다운을 걸므로
+    // 재시도 루프가 다시 부르면 아래 무료 로테이션으로 내려간다(PLAN_GEMINI_PAID_FIRST_261004 §2-1 (a)).
+    if (currentKeyTier() === 'paid-first' && isPaidFirstEnabled()) {
+        const key = paidKey()!;
+        const cooldownUntil = rateLimitedUntil.get(key);
+        if (!cooldownUntil || Date.now() > cooldownUntil) {
+            if (cooldownUntil) rateLimitedUntil.delete(key);
+            return key;
+        }
+    }
     if (API_KEYS.length === 0) return null;
 
     const now = Date.now();

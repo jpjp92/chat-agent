@@ -62,7 +62,7 @@ export const SUMMARY_MODELS = [
 //    업로드 영상은 항상, PDF 는 1MB 초과 시(useChatStream 임계값) 이 경로를 탄다.
 export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimodal: boolean; fastLongInput: boolean; urlFileData: boolean; groundingReliable: boolean }> = {
     "gemini-3.7-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5; 긴 입력은 무료티어 혼잡 때문에 핀
-    "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false, groundingReliable: false },  // 🔴 정답률 2/5
+    "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false, groundingReliable: true  },  // 2026-10-04 21/21 (검색 끄면 0/7 인 문항, PLAN_GEMINI_PAID_FIRST §7-1). 08-17 의 2/5 는 09-22·10-04 두 번 재현 안 됨
     "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5
     "gemini-2.5-flash": { freeTierSearch: true,  fastMultimodal: true,  fastLongInput: true,  urlFileData: true , groundingReliable: true  },  // 5/5
 };
