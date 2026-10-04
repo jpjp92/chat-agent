@@ -78,7 +78,7 @@ Per-renderer details (schemas, test prompts): [docs/guide/](docs/guide/)
   (`chat_messages.attachment_url` 에 공개 URL 이 저장돼 있어 백필이 선행이다).
 - SSRF defense — `fetch-url` / `proxy-image` / `sync-drug-image` block RFC 1918 + IPv6 private ranges
 - API key rotation — 429 → 60s cooldown, 401/403 → 24h blacklist
-- Error sanitization — internal stacks/messages never exposed to the client (TTS: provider errors map to five localized messages; verified that even when both providers fail the body is only `Failed to generate speech`)
+- Error sanitization — internal stacks/messages never exposed to the client (TTS: provider errors map to six localized messages in 4 languages; verified that even when both providers fail the body is only `Failed to generate speech`)
 - **`/api/speech` auth + quota** (2026-10-03, dev) — token required, guests blocked, members limited to 20,000 chars/day by an atomic RPC that runs **before** any paid provider call
 
 ---
@@ -185,7 +185,7 @@ Per-intent tool binding and routing details: [docs/guide/REF_Architecture.md](do
 | Markdown      | react-markdown + remark-gfm / remark-math (`$$` only) / remark-cjk-friendly / rehype-katex |
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
 | Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
-| AI            | Gemini 3.7/3.6/3.5/2.5 Flash, GPT-6 luna / GPT-5.6 luna (GPT-5.4 mini legacy), Google GenAI SDK, OpenAI Responses API, LangChain |
+| AI            | Gemini 3.7/3.6/3.5/2.5 Flash, GPT-6 luna / GPT-5.6 luna (GPT-5.4 mini legacy), TTS: Gemini 3.8 Flash Lite TTS → gpt-4o-mini-tts, Google GenAI SDK, OpenAI Responses API, LangChain |
 | Database      | Supabase (PostgreSQL + Storage)                                           |
 
 Per-model usage policy: [docs/guide/REF_Architecture.md#model-policy](docs/guide/REF_Architecture.md)  

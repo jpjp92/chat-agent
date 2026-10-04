@@ -399,10 +399,11 @@ const App: React.FC = () => {
           </div>
           <div className="mt-1 text-center">
             <p className="text-[8px] sm:text-[11px] text-slate-400 dark:text-slate-500 px-4 opacity-70">
-              {language === 'ko' ? 'Gemini는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
-                language === 'es' ? 'Gemini puede cometer errores. (Análisis de URL y soporte PDF)' :
-                  language === 'fr' ? 'Gemini peut faire des erreurs. (Analyse URL et support PDF)' :
-                    'Gemini may display inaccurate info. (URL analysis & PDF support)'}
+              {/* 공급자 중립 — Gemini 와 GPT 를 함께 쓰므로 특정 모델명을 쓰지 않는다 */}
+              {language === 'ko' ? 'AI는 실수할 수 있습니다. (URL 직접 분석 및 PDF 지원)' :
+                language === 'es' ? 'La IA puede cometer errores. (Análisis de URL y soporte PDF)' :
+                  language === 'fr' ? "L'IA peut faire des erreurs. (Analyse URL et support PDF)" :
+                    'AI may display inaccurate info. (URL analysis & PDF support)'}
             </p>
           </div>
         </footer>

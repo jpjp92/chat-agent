@@ -1,5 +1,6 @@
 # TODO
 
+- [ ] **검색 경로만 Gemini 3.8 로 — 프로브 선행** (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
 - [ ] **Gemini 3.8 Flash 검증·도입** — [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md). 제한된 비교 후 하드닝 1·2와 공개 적용 순서를 조율한다. 선택 옵션 추가와 기본 승격은 분리하며, 현재 기본은 3.6이다.
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
@@ -49,7 +50,7 @@
   - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
     - ⚖️ **`speech` — dev 구현 (2026-10-03)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 적용 후 배포**해야 닫힌다 → [DEV_261003](logs/2026/10/DEV_261003.md)
-    남은 6개의 계약은 그대로 미결이다. 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
+    `speech` 를 뺀 5개의 계약은 그대로 미결이다(`speech` 는 운영 DB SQL·배포 전까지 열려 있다). 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
     - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
   - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**

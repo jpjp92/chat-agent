@@ -81,7 +81,7 @@ export default function TermsPage() {
 
             <Section n={6} title="제3자 서비스" titleEn="Third-party services">
                 <p>
-                    서비스는 Google Gemini, Supabase, 그리고 공공기관·영화관·기상 등 외부 API에 의존합니다.
+                    서비스는 Google Gemini, OpenAI, Supabase, 그리고 공공기관·영화관·기상 등 외부 API에 의존합니다.
                     이들 서비스의 장애·정책 변경·데이터 오류로 인한 영향은 서비스가 통제할 수 없습니다.
                 </p>
             </Section>

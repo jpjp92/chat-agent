@@ -14,7 +14,7 @@ import Link from 'next/link';
 export const CONTACT_EMAIL = 'johnnyworld9278@gmail.com';
 
 /** 최종 개정일 — 내용을 고치면 반드시 함께 올린다. */
-export const LAST_UPDATED = '2026-08-01';
+export const LAST_UPDATED = '2026-10-04';
 
 export function LegalPage({
     title,
