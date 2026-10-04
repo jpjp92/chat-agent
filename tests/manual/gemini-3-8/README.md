@@ -222,3 +222,14 @@ node --import tsx tests/manual/gemini-3-8/summarize-three.mts \
 - 셀당 관측이 42개(3회 × 14 TC)다. 정답률 차이의 **통계적 유의성을 주장하지 않는다.**
 - 구조·값 보존 채점이므로 자유서술의 설명 품질·사실성은 측정하지 않는다.
 - 단발 멀티턴·미디어·실제 외부 도구·브라우저 렌더링은 여전히 범위 밖이다.
+
+## 검색 품질 (유료 키, PLAN_GEMINI_PAID_FIRST_261004 §7)
+
+```bash
+# 계획만(호출 0)
+TSX_TSCONFIG_PATH=tests/tsconfig.probe.json node --import tsx tests/manual/gemini-3-8/grounding-quality.mts
+# tc-grounding-hard.mts 정답 확인·기입 후
+TSX_TSCONFIG_PATH=tests/tsconfig.probe.json node --import tsx tests/manual/gemini-3-8/grounding-quality.mts --live --confirm-expectations
+```
+
+2.5·3.6·3.7 × 7문항 × (3라운드 + 검색 끈 대조 1) = 84회. 대조에서 맞힌 문항은 판정 제외. `synthCoverage`(여러 결과 합치기)·`supportRatio`(답변 중 출처가 뒷받침하는 바이트 비율)를 추가로 잰다. 정답이 비어 있으면 호출하지 않는다.

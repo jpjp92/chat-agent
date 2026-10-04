@@ -45,6 +45,7 @@ npm run verify  # typecheck + test
 ## `manual/` — 수동 네트워크 프로브
 
 - **TTS 프로브**(DEV_261003): `probe-tts-latency.mts`(공급자별 첫 소리) · `probe-tts-chunking.mts`(길이 스윕·분할 비교, `TTS_PROVIDER`·`CONFIGS`) · `probe-speech-route.mts`(라우트 실호출 + **전사 기반 문장 누락 판정**, 🔴 회원 토큰 `TTS_PROBE_BEARER` 필요 — 회원 일일 한도도 소비된다). `--conditions=react-server` 로 실행(`server-only` 우회). 이 셋은 `TIER1=1` 규약을 따르지 않는다 — 키는 `TTS_USE_TIER1`·`OPENAI_API_TTS` 등 라우트와 같은 env 를 읽는다
+- **키 tier 프로브**(PLAN_GEMINI_PAID_FIRST_261004 §4-0): `probe-gemini-key-tier.mts` — `API_KEY_TIER1` vs 무료 풀을 router·generate·grounding 3축으로 교대 측정(TTFB·전체 중앙/p90·실패 종류). `--dry` 는 호출 0회로 계획만, `PROBE_OUT=파일` 로 원자료 저장. 기본 3라운드 = 72회(유료 36)
 - [Gemini 모델 프로브](manual/gemini-3-8/README.md): 오프라인 앱 연결 감사, 제한된 SDK/LangChain 호환성 검사, 3.6/3.7/3.8 intent별 정답률 비교. 전부 기본 dry-run이며 `--live`에서만 키를 읽고 호출한다.
 
 `tests/manual/`은 외부 공급자·실사이트 상태를 재현하는 수동 진단 도구다. 환경변수와 네트워크를
