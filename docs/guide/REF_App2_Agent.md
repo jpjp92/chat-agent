@@ -323,7 +323,7 @@ weatherCardShown 일 때:
 
 | intent | 주입되는 스펙 | intent | 주입되는 스펙 |
 |---|---|---|---|
-| general / data_viz / sports | chart | astronomy | constellation |
+| general / data_viz | chart | astronomy | constellation |
 | chemistry | smiles + chart | drug_id / drug_info | drug |
 | biology | bio + smiles | medical_qa | drug + chart |
 | physics | diagram + chart | pharmacy·hospital·vet·law·movie | 없음 |

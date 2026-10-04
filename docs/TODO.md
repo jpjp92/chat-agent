@@ -1,6 +1,7 @@
 # TODO
 
-- [ ] **검색 경로만 Gemini 3.8 로 — 프로브 선행** (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
+- [ ] **Gemini 유료 키 우선 (회원만)** (2026-10-04 기획): 회원은 `API_KEY_TIER1` 먼저 → 실패 시 무료 로테이션, 게스트·무인증 라우트는 무료만. 유료 vs 무료 지연 측정 선행, 🔴 켜기 전 GCP 예산 상한 → [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md)
+- [x] ~~**검색 경로만 Gemini 3.8 로 — 프로브 선행**~~ → **10-04 측정: 보류.** 어려운 문항에서 3.6·3.7·3.8 정답 21/21 동률, 3.8 이 ~2.2s 느림 ([PLAN_GEMINI_PAID_FIRST §7-2](plans/PLAN_GEMINI_PAID_FIRST_261004.md)). 원문: (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
 - [ ] **Gemini 3.8 Flash 검증·도입** — [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md). 제한된 비교 후 하드닝 1·2와 공개 적용 순서를 조율한다. 선택 옵션 추가와 기본 승격은 분리하며, 현재 기본은 3.6이다.
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.

@@ -77,6 +77,8 @@ flowchart TB
 
 ## Agent Runtime Branches
 
+**Gemini 키 등급 (2026-10-04, [PLAN_GEMINI_PAID_FIRST](../plans/PLAN_GEMINI_PAID_FIRST_261004.md)):** 채팅 라우트가 `profiles.is_guest` 로 등급을 정해 스트림 생성을 [`runWithKeyTier`](../../server/key-tier.ts) 로 감싼다. 회원(`paid-first`) + `GEMINI_PAID_FIRST=true` 면 `getNextApiKey()` 가 `API_KEY_TIER1` 을 먼저 주고, 쿨다운이면 무료 로테이션으로 내려간다. 게스트·무인증 라우트는 컨텍스트가 없어 항상 무료. 검색 강등은 **시도마다 그 키로** 판단한다 — 유료 키 + 3.x 는 3.x 로 검색, 무료 키면 2.5. 이미지·PDF·영상·약/법률 요약의 2.5 고정은 키와 무관하게 유지(재측정 대기, 계획 §8).
+
 `generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 초기 intent router는 아직 Gemini 우선이지만, GPT 일반 생성과 로컬 도구 실행은 Gemini 키와 분리돼 있다.
 
 ```mermaid
@@ -106,9 +108,9 @@ flowchart TB
 
 | Path | Intents | Model |
 |------|---------|-------|
-| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색, 로컬 도구 **11종**(`local-tool-registry.ts` 의 `tools` 실제 개수 — 같은 문서 §Model Policy 와 맞춰 둔다) | 선택한 GPT 모델 유지 |
+| OpenAI Responses | GPT 선택 시 일반 텍스트, URL 본문, 이미지, 웹 검색, 로컬 도구 **10종**(`local-tool-registry.ts` 의 `tools` 실제 개수 — 같은 문서 §Model Policy 와 맞춰 둔다) | 선택한 GPT 모델 유지 |
 | Gemini SDK | `general`, `medical_qa`, `astronomy`, `biology`, `chemistry`, `physics`, `data_viz` | 선택한 Gemini 모델; capability/search 정책에 따라 2.5 사용 |
-| LangChain | `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `sports`, `weather` | `gemini-2.5-flash` (fast-pass intents: thinking off) |
+| LangChain | `drug_id`, `drug_info`, `pharmacy_search`, `hospital_search`, `vet_search`, `law_search`, `movie_search`, `weather` | `gemini-2.5-flash` (fast-pass intents: thinking off) |
 | Vision (pill pre-process) | `drug_id` + image | `gemini-2.5-flash`, thinking off |
 
 추가 규칙:
@@ -120,7 +122,7 @@ flowchart TB
 - **URL 컨텐츠 있을 때**: `[URL_CONTENT]` 주입 시 별도 Google Search는 OFF하고 페이지 본문을 선택 모델이 처리. Gemini 3.x는 모델별 long-input capability 정책 적용
 - **문서 첨부 시**: `[EXTRACTED_CONTENT:]` 있으면 grounding 기본 OFF, 사용자 명시 요청 시만 ON
 - **Renderer intents**: Google Search 기본 OFF; 사용자가 "검색/최신/출처" 명시 시 ON
-- **`sports` intent**: 전체 마크다운 표를 `on_chain_end` 단일 청크로 전송 (셀 단위 스트리밍 방지)
+- ~~`sports` intent~~ — **2026-10-04 제거.** 월드컵(7월 종료) 전용 도구가 리그 질문까지 가로채 거절하거나(Gemini) 학습 지식으로 출처 없는 표를 냈다(GPT). 스포츠는 `general` + 검색
 
 ---
 
@@ -243,7 +245,6 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md)
 | `movie_search` | 공급자별 function calling → card가 `/api/showtimes` 클라이언트 fetch | 선택 공급자 |
 | `weather` | 공급자별 function calling + KMA/OpenWeather → `json:weather` fast-pass | 선택 공급자 |
 | `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
-| `sports` | 공급자별 function calling + football-data.org, 선택 모델이 Markdown 종합 | 선택 공급자 |
 | `paper_search` | 공급자별 function calling + PubMed E-utilities/CrossRef → `json:paper` (카드는 도구 출력으로 고정, 산문은 모델) | 선택 공급자 |
 | `arxiv_search` | 같은 카드·다른 출처. 라우터가 고르지 않고 `paper_source` 에서 파생된다 | 선택 공급자 |
 | `medical_qa` | 선택 공급자 일반 생성 + 필요 시 검색 | 선택 모델; Gemini는 모델별 search capability 적용 |
@@ -426,7 +427,7 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | `lawTool` | `server/agent/law-tool.ts` | 국가법령정보센터 법령 목록/본문/조항 조회 |
 | `movieTool` | `server/agent/movie-tool.ts` | 지역 → 3-chain 기본 지점 (`json:movie`); 상영시간 클라이언트 fetch |
 | `weatherTool` | `server/agent/weather-tool.ts` | 날씨 카드 (`json:weather`); KMA API Hub(국내, `dfsXyConv` 격자) + OpenWeather(해외·폴백), 다중 도시 |
-| `worldCupTool` | `server/agent/worldcup-tool.ts` | FIFA WC 순위/대진/득점왕 (`lib/sports/football-data.ts`); markdown 출력 |
+| ~~`worldCupTool`~~ | `server/agent/worldcup-tool.ts` | **연결 해제 2026-10-04** — 파일만 보존(다음 대회용) |
 
 **지점 매칭 (`lib/theaters.ts`)** — 서버 툴과 클라 렌더러가 공유한다. `resolveBranch()` 는 매칭 성공 여부를 `matched` 로 같이 돌려주고, 지역을 말했는데 그 체인에 지점이 없으면 `defaultsForRegion()` 이 **`null`** 을 넣어 카드가 "지점이 없습니다"로 표시한다. 예전엔 조용히 기본 지점(가산디지털)으로 폴백해, `강남 상영표` 질문에 다른 동네 회차가 카드와 `movieContext` 에 섞여 들어갔다(DEV_260801 §3-3).
 
@@ -444,13 +445,13 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
 | GPT + YouTube 원본·업로드 영상/오디오·fileData | `gemini-2.5-flash` capability fallback. 텍스트 자막이면 GPT 유지 |
 | Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
-| 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie/sports; fast-pass = thinking off) |
+| 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
 | TTS | `gemini-3.8-flash-lite-tts` (1순위) → `gpt-4o-mini-tts` (폴백, 🔴 **2027-01-06 OpenAI 제거** → 2026-12 안에 `gemini-3.8-flash-tts` 로 교체). 500자 분할 + PCM 스트리밍 + 서버 음량 보정, 회원 전용·일일 20,000자 — **[REF_TTS](REF_TTS.md)** |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 | 초기 라우터 (현재) | `gemini-2.5-flash`, thinkingBudget:0 (2026-09-02 에 flash-lite 에서 상향). GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
 
-**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **예외 — TTS**: 읽을 내용이 같고 목소리만 바뀌므로 Gemini 실패 시 OpenAI 로 폴백한다(첫 바이트 전 실패만, [REF_TTS §1](REF_TTS.md#1-모델-정책)). 채팅에 같은 논리를 적용하지 않는다 — 다른 모델의 답을 선택 모델의 답처럼 보이게 된다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 11종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
+**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **예외 — TTS**: 읽을 내용이 같고 목소리만 바뀌므로 Gemini 실패 시 OpenAI 로 폴백한다(첫 바이트 전 실패만, [REF_TTS §1](REF_TTS.md#1-모델-정책)). 채팅에 같은 논리를 적용하지 않는다 — 다른 모델의 답을 선택 모델의 답처럼 보이게 된다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 10종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
 ### 🔴 타임아웃 예산 — **60 을 베껴 오지 말 것**
 

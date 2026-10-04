@@ -8,6 +8,8 @@
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
+> **2026-10-04 Gemini 유료 키 우선:** [PLAN_GEMINI_PAID_FIRST_261004](PLAN_GEMINI_PAID_FIRST_261004.md) — 회원은 유료 키 먼저 → 실패 시 무료 로테이션, 게스트·무인증 라우트는 무료만. `GEMINI_PAID_FIRST` 스위치. **측정(유료 vs 무료 지연) 선행**, 미구현.
+
 > **2026-10-02 TTS 스트리밍:** [PLAN_TTS_STREAMING_261002](PLAN_TTS_STREAMING_261002.md) — 공급자는 측정(TTFB)으로 결정,
 > **2026-10-03 dev 구현**([DEV_261003](../logs/2026/10/DEV_261003.md)) — 500자 분할 스트리밍, OpenAI 기본, `speech` 인증·게스트 차단·회원 일일 한도. 미배포(운영 DB SQL 선행).
 

@@ -1,5 +1,7 @@
 # Sports (World Cup): Test Prompt Guide
 
+> 🔴 **2026-10-04 연결 해제 — 아래는 보존 기록.** 월드컵(2026-07 종료) 후 `sports` 의도가 프리미어리그 같은 리그 질문까지 가로채, Gemini 는 거절하고 GPT 는 학습 지식으로 출처 없는 순위표를 냈다. 라우터·도구 등록에서 뺐고 스포츠 질문은 `general` 검색으로 간다. `worldcup-tool.ts`·`lib/sports/football-data.ts` 는 다음 대회용으로 파일만 남겼다.
+
 `sports` intent와 `worldCupTool`(football-data.org 연동) 테스트용 레퍼런스. 현재 진행 중인 FIFA 월드컵의 조별 순위·대진/일정·득점왕을 실시간 조회한다.
 
 > 기술 상세(grounding 한계 진단·API 검증·구현): [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §5, [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md)

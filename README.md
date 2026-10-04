@@ -34,7 +34,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 - **Search on/off is decided by declared tiers, not by statement order** — `400` hard constraint > `300` user's explicit request > `200` answer already grounded (URL / attached doc / video) > `100` classifiers > `0` default-on. Nobody overwrites anybody; each gate submits a signal and the highest tier wins (`server/agent/search-policy.ts`). ⚠️ **Tier 400 is Gemini-only**: it encodes *"Gemini cannot put an image and grounding in one request"*, which is not true of OpenAI Responses — so the OpenAI path passes `provider: 'openai'` and the signal is never emitted (2026-09-02; before that, an attached image silently disabled search on the turn right after it — exactly the turn where a user says "now search and check this")
 - **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
 - **Intent routing**: currently `gemini-2.5-flash` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, `follow_up`, `topic_field`, and `paper_source`; provider-native routing for GPT is a tracked follow-up. Deterministic guards correct known LLM misroutes after the call — clinic vs pharmacy, weather-card stickiness, non-biomedical PubMed topics, and **literature vs software artifact** (`레포 검색` must not return an arXiv card)
-- **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for 11 intents — drug / pharmacy / hospital / vet / law_search / law_qa / movie / sports / PubMed papers / arXiv papers / weather. Card tools fast-pass their renderer block; drug, sports, and paper results are synthesized by the selected GPT. A hosted web search and a forced local function never share one request, but a paper lookup **plus an explicit user request to search** attaches web search to the synthesis step so the request is not silently dropped
+- **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for 10 intents — drug / pharmacy / hospital / vet / law_search / law_qa / movie / PubMed papers / arXiv papers / weather. Sports questions go to web search with sources (the World Cup tool was retired 2026-10-04 after the tournament ended — it was intercepting league questions). Card tools fast-pass their renderer block; drug and paper results are synthesized by the selected GPT. A hosted web search and a forced local function never share one request, but a paper lookup **plus an explicit user request to search** attaches web search to the synthesis step so the request is not silently dropped
 - **Card follow-up**: weather, movie, pharmacy, hospital, vet, law, and paper cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages. Guards also stop a displayed card from pulling in unrelated turns
 - **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
 - **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
@@ -227,7 +227,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── intentRules.ts              # 폴백 규칙 + LLM 오라우팅 교정 가드 (순수 — 하니스가 import)
 │       ├── search-policy.ts            # 🔴 검색 tier 선언 — 우선순위가 코드가 아니라 데이터다
 │       ├── search-signals.ts           # 텍스트 → 검색 신호 (순수 — 하니스가 import)
-│       ├── local-tool-registry.ts      # OpenAI strict function calling 도구 11종
+│       ├── local-tool-registry.ts      # OpenAI strict function calling 도구 10종
 │       ├── stream-dispatch.ts          # SSE 이벤트 루프 (route.ts 가 아니라 여기 — 하니스가 실물을 태운다)
 │       ├── prompt-assembly.ts          # 최종 인스트럭션 조립 (순수 — 골든 해시로 고정)
 │       ├── today-guard.ts              # 출력 사후 검증 — 틀린 "오늘" 단정에 정정을 덧붙인다
@@ -248,7 +248,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── supabase/client.ts / route.ts   # 인증 스택 (NEXT_PUBLIC_* 를 읽는다)
 │   ├── storage-name.ts                 # 업로드 파일명 → Storage 키 정규화 (순수)
 │   ├── theaters.ts / movieContext.ts
-│   └── sports/football-data.ts         # football-data.org WC data layer
+│   └── sports/football-data.ts         # football-data.org WC data layer (2026-10-04 연결 해제, 다음 대회용 보존)
 ├── docs/guide/db/                        # 🔴 DB 스키마의 출처. §5-2 참조
 │   ├── auth-mvp-*.sql                  # 인증 MVP 스키마 · 컷오버 · 검증
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
