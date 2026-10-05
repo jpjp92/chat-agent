@@ -29,7 +29,7 @@ const App: React.FC = () => {
   });
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   // 추천 칩 클릭 → 입력창 채움 (ts로 같은 칩 재클릭도 재발화)
-  const [prefill, setPrefill] = useState<{ text: string; ts: number } | null>(null);
+  const [prefill, setPrefill] = useState<{ text: string; ts: number; attach?: boolean } | null>(null);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -367,7 +367,7 @@ const App: React.FC = () => {
                       prefill={prefill}
                     />
                   </div>
-                  <SuggestChips language={language} onSelect={(s) => setPrefill({ text: s, ts: Date.now() })} />
+                  <SuggestChips language={language} onSelect={(s, attach) => setPrefill({ text: s, ts: Date.now(), attach })} />
                 </div>
               ) : (
                 <ChatArea

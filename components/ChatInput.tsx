@@ -15,7 +15,7 @@ interface ChatInputProps {
   selectedModel: ChatModelId;
   onModelChange: (model: ChatModelId) => void;
   welcome?: boolean;                               // 웰컴(입력창 중앙)=드롭다운 아래로 / 그 외=위로
-  prefill?: { text: string; ts: number } | null;   // 추천 칩 클릭 시 입력창 채움 (ts로 재클릭 재발화)
+  prefill?: { text: string; ts: number; attach?: boolean } | null;   // 추천 칩 클릭 시 입력창 채움 (ts로 재클릭 재발화, attach면 파일 선택 창도 연다)
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -160,6 +160,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       finalTranscriptRef.current = prefill.text;
       textareaRef.current?.focus();
       setTimeout(adjustHeight, 10);
+      // 이미지 분석 칩 — 사진 없이 보내면 "올려주세요"로 끝나므로 선택 창을 바로 연다.
+      // 칩 클릭의 사용자 활성화 안에서 실행돼야 브라우저가 막지 않는다.
+      if (prefill.attach) fileInputRef.current?.click();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.ts]);
