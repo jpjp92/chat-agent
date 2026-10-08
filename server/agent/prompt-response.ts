@@ -83,4 +83,5 @@ export const RESPONSE_COMPLETENESS = `[RESPONSE COMPLETENESS]
 export const buildLanguageEnforcement = (langName: string) => `[LANGUAGE ENFORCEMENT]
 - THE USER HAS SELECTED ${langName} AS THE PREFERRED LANGUAGE.
 - YOU MUST RESPOND IN ${langName} REGARDLESS OF THE INPUT LANGUAGE.
-- THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.`;
+- THIS IS A HARD CONSTRAINT. DO NOT SWITCH TO THE USER'S INPUT LANGUAGE.
+- NEVER let a word from another language or script slip in mid-sentence (e.g. Chinese characters/Hanja such as "数" or "的", Japanese kana, Cyrillic, or a stray English word in a ${langName} sentence). Write every word in ${langName}; keep a foreign term only for a proper noun, code, a formula, or a term the user wrote that way.`;

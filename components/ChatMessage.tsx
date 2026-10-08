@@ -17,6 +17,17 @@ import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
 import { toSpeakableText } from '../lib/tts-speakable';
 
+/**
+ * 줄 맨 앞의 `$$식$$ 문장` → `$$` 블록 + 문장으로 쪼갠다.
+ * remark-math 는 줄 첫머리 `$$` 를 **디스플레이 블록 시작**으로 읽어, 같은 줄에서 닫혀도
+ * 다음 줄 단독 `$$` 까지(없으면 끝까지) 삼킨다 → KaTeX 파싱 실패로 이후 답변 전체가 빨간 원문.
+ * 실측(2026-10, GPT-5.6): 이미지 분석 답변 후반부가 통째로 빨갛게 나왔다.
+ */
+export const splitInlineDisplayMath = (text: string): string =>
+  text.replace(/(^|\n)[ \t]*\$\$((?:(?!\$\$)[\s\S])+?)\$\$[ \t]*([^\n]*\S[^\n]*)/g,
+    (_m, pre, expr, rest) => `${pre}$$\n${expr.trim()}\n$$\n\n${rest.trim()}`);
+
+
 // Lazy load visualization components for better performance
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
 const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
@@ -551,7 +562,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
       if (match.index > lastIndex) {
         let textPart = content.substring(lastIndex, match.index);
         // Convert <br> tags to bullet separator — rehypeRaw not installed so <br> renders as text in table cells
-        textPart = textPart.replace(/<br\s*\/?>/gi, ' · ');
+        textPart = splitInlineDisplayMath(textPart.replace(/<br\s*\/?>/gi, ' · '));
         // Process for numeric ranges (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
         // (제거됨) 한글 조사 앞 `**` 보정용 정규식 2줄 — remarkCjkFriendly 가 파서 단에서 처리한다.
@@ -631,7 +642,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
         if (visibleText.trim()) {
           // Process for numeric ranges (1~10 -> 1&#126;10)
-          let processedVisible = visibleText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
+          let processedVisible = splitInlineDisplayMath(visibleText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
           // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
           // Safely close dangling code blocks during streaming
@@ -655,7 +666,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         }
       } else {
         // Process for numeric ranges (1~10 -> 1&#126;10)
-        let processedRemaining = remainingText.replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
+        let processedRemaining = splitInlineDisplayMath(remainingText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
         // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
         // Safely close dangling code blocks during streaming

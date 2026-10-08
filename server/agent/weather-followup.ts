@@ -52,7 +52,7 @@ const DISCOURSE_MARKER = /^(아니|아니아니|근데|그런데|그래서|그�
 // 시간 표현 — "이번 주 날씨"의 `주`, "오늘 날씨"의 `오늘`이 지명으로 오인되던 자리.
 /** "부산은?"·"내일은?" 꼴의 단독 재질의. 도시 판정과 시점 판정이 **같은 모양**을 본다. */
 const REASK = /^([가-힣A-Za-z]{1,10})\s*(?:은|는|도)\s*[?？]?$/;
-const TIME_TOKEN = /^(오늘|내일|모레|글피|어제|주|이번|다음|저번|지난|주말|평일|아침|점심|저녁|밤|낮|오후|오전|새벽|월요일|화요일|수요일|목요일|금요일|토요일|일요일|월욜|화욜|수욜|목욜|금욜|토욜|일욜)$/;
+const TIME_TOKEN = /^(오늘|내일|모레|글피|어제|주|이번|다음|저번|지난|주말|평일|앞으로|당분간|이번주|다음주|주간|요번|올해|이달|이번달|아침|점심|저녁|밤|낮|오후|오전|새벽|월요일|화요일|수요일|목요일|금요일|토요일|일요일|월욜|화욜|수욜|목욜|금욜|토욜|일욜)$/;
 const TIME_SHIFT = /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/;
 const WEATHER_WORD = /날씨|예보|기온|온도|몇\s*도|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)|강수|더[워울]|추[워울]|맑|흐[림려]/;
 const REQUEST_VERB = /(알려|보여|어때|어떄|어떻|찾아|줘|해\s*줘|궁금|부탁)/;
@@ -105,7 +105,9 @@ export const detectCityMention = (text: string, shownCities: string[] = []): Cit
     if (reask) candidates.push(reask[1]);
 
     let sawUnknown = false;
-    for (const t of candidates) {
+    for (const raw of candidates) {
+        // "오늘의 날씨"·"앞으로의 날씨" — 조사를 떼고 본다
+        const t = raw.replace(/의$/, "");
         if (isNonPlaceToken(t)) continue;
         // `X 날씨`는 명시적 카드 요청이다 — 이미 떠 있어도 새로고침으로 본다.
         if (isKnownCityName(t)) return "known";

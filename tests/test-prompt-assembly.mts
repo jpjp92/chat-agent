@@ -233,24 +233,24 @@ console.log('\n── 골든 해시 ──');
 //    감소폭이 19개 의도·6개 턴에서 **전부 동일**한 것이 "그 블록만 빠졌다"의 증거다.
 //    영상 턴 base 는 바이트 동일하다(아래 BASE_GOLDEN).
 const GOLDEN: Record<string, { len: number; sha: string }> = {
-    drug_id:         { len: 22912, sha: '6313cd6b02123ab9' },
-    drug_info:       { len: 23971, sha: '91e0a9e4c3ca23a3' },
-    medical_qa:      { len: 26836, sha: '0869e0351a41fd6e' },
-    biology:         { len: 17822, sha: '46260ce340a55837' },
-    chemistry:       { len: 20240, sha: '07189f568cf62de4' },
-    physics:         { len: 22603, sha: '1dd53e4652dc0f95' },
-    astronomy:       { len: 18597, sha: '56c2096f21a9e2d0' },
-    data_viz:        { len: 19928, sha: '0515df72edbfce76' },
-    pharmacy_search: { len: 16817, sha: '61d0ac998b8249b6' },
-    hospital_search: { len: 16511, sha: '39b100574d3f3956' },
-    vet_search:      { len: 16522, sha: '003a1c398b2728d7' },
-    law_search:      { len: 17219, sha: '8102c49a13f60adf' },
-    law_qa:          { len: 16975, sha: '3c280f8ef882baf2' },
-    movie_search:    { len: 16707, sha: 'b85d3480a395161e' },
-    weather:         { len: 17526, sha: 'a6f9d00074cb07b0' },
-    paper_search:    { len: 22722, sha: 'bff81711cf14fc98' },
-    arxiv_search:    { len: 20364, sha: '12ede82fc597c903' },
-    general:         { len: 20007, sha: '523c03b9ac2bbea1' },
+    drug_id:         { len: 23491, sha: '9c9e13d9c08e9915' },
+    drug_info:       { len: 24550, sha: 'cc9e235632fdf309' },
+    medical_qa:      { len: 27415, sha: '6a032958436480dd' },
+    biology:         { len: 18401, sha: 'dcdb0f642237367e' },
+    chemistry:       { len: 20819, sha: '57869d468deb2f07' },
+    physics:         { len: 23182, sha: '8916d5b29a008491' },
+    astronomy:       { len: 19176, sha: '9dca09ed7279b6bd' },
+    data_viz:        { len: 20507, sha: '39fe2477c4af43ee' },
+    pharmacy_search: { len: 17396, sha: 'd47a893e02eddd27' },
+    hospital_search: { len: 17090, sha: 'f19905176c4a72bd' },
+    vet_search:      { len: 17101, sha: 'e34aec5107d209c8' },
+    law_search:      { len: 17798, sha: 'b1bebaa29f8fc437' },
+    law_qa:          { len: 17554, sha: '022b9a872f7d8a0c' },
+    movie_search:    { len: 17286, sha: '77d91df552b5903b' },
+    weather:         { len: 18105, sha: '716865d17ee53625' },
+    paper_search:    { len: 23301, sha: '1178d1e4d22fe5e2' },
+    arxiv_search:    { len: 20943, sha: 'd6c7e8d6a7730f0a' },
+    general:         { len: 20586, sha: '7064c893f7f027af' },
 };
 // 의도가 늘었는데 골든을 안 박으면 하니스는 조용히 초록이다 — 개수 자체를 건다.
 check('골든이 모든 의도를 덮는다', Object.keys(GOLDEN).length === ALL_INTENTS.length,
@@ -265,26 +265,26 @@ for (const [intent, want] of Object.entries(GOLDEN)) {
 // 🔴 **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
 //    규칙이 얹힌 상태의 해시를 함께 박아야 "규칙을 파일로 옮겼을 뿐"이 검사된다(§10 Step 2).
 const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: string }> = {
-    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 20338, sha: '0eb6cdd3bc528a21' },
-    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 18241, sha: '8000220ac860eb49' },
-    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 23412, sha: '75aa76a247c36633' },
+    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 20917, sha: 'de1d58a04cbbcbe5' },
+    weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 18820, sha: '21f9fb738c8975b9' },
+    paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 23991, sha: 'c113226ef3438438' },
     cardFollowup: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet',
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 20821, sha: 'e60a7003a23a7937',
+        }, len: 21400, sha: '4bd310fca2929123',
     },
     cardSearchTurn: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet', needsSearch: true,
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 21082, sha: 'f2a481ec299b5ea9',
+        }, len: 21661, sha: 'f67ad3a6af4003f0',
     },
     movieSearch: {
         state: {
             ...emptyState('general'), movieSearchTurn: true,
             movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
-        }, len: 20644, sha: '434b146f9338adb0',
+        }, len: 21223, sha: 'c9852cabdbfa677c',
     },
 
     // 🔴 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
@@ -295,7 +295,7 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
     //    붙이는 쪽이라 **별도로 찍어야** 한다.
     urlSummary: {
         state: { ...emptyState('general'), webContent: '[URL_CONTENT]\n기사 본문 예시입니다.' },
-        len: 22274, sha: '009f68b5ad8f3537',
+        len: 22853, sha: '798ee90982408256',
     },
     // 두 게이트가 **동시에** 켜지는 유일한 골든 — `full` base 가 실제로 나가는 경로다.
     youtubeVideo: {
@@ -306,7 +306,7 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
                 { type: 'text', text: '이 영상 요약해줘' },
                 { fileData: { fileUri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', mimeType: 'video/mp4' } },
             ] })],
-        }, len: 25741, sha: '5e0e95cbf23ea57c',
+        }, len: 26320, sha: '52f172ef135388e8',
     },
 };
 for (const [name, want] of Object.entries(TURN_GOLDEN)) {
@@ -410,10 +410,10 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
 //    전부 `webContent: ''` 여서 **`sourceTurn=true` base 를 아무도 sha 로 보지 않았던** 것이다.
 //    그래서 4조합 × 4언어 전부 `자수/sha` 로 박는다.
 const BASE_GOLDEN: Record<string, Record<'full' | 'video' | 'source' | 'plain', string>> = {
-    Korean:  { full: '21208/5c2e063c4aafe0c9', video: '18992/ac5992676a05985d', source: '17791/5fef38c127b32bc6', plain: '15575/b70afa99c59e6642' },
-    English: { full: '21272/f991c13df28f925c', video: '19036/676fdb45e9d44ec8', source: '17825/753b5489973de0e9', plain: '15589/8c408ceb3d96f341' },
-    Spanish: { full: '21280/3d5e32205c54674c', video: '19037/ae4bade3b8921f89', source: '17829/fdf3cead96f023ec', plain: '15586/b70972ba05011b0e' },
-    French:  { full: '21294/0824b529cc2aa191', video: '19048/7f734d3840ac6d08', source: '17834/07f5f410542d57a6', plain: '15588/2cd766f6ca28be74' },
+    Korean:  { full: '21787/d3c19000d4b5441f', video: '19571/6ccf3c737fc167f8', source: '18370/65bbb2524d519835', plain: '16154/3c998bd4f51daea4' },
+    English: { full: '21863/f9193eba953d53b7', video: '19627/26337866b99b012e', source: '18416/3dcaa4b8823fc9dd', plain: '16180/61b9121b0e2c7265' },
+    Spanish: { full: '21868/2b6d99b011c7e95e', video: '19625/58a03277c2e87544', source: '18417/443a2a49451da98d', plain: '16174/1b1d488fb0ce1be0' },
+    French:  { full: '21886/4bb4abecc3ddafa4', video: '19640/a0c2f02dffe5ea5b', source: '18426/3901c42d908fa5b0', plain: '16180/290214b81603b082' },
 };
 
 /**
