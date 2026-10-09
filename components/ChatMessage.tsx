@@ -16,16 +16,8 @@ import { Role, Message, UserProfile } from '../types';
 import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
 import { toSpeakableText } from '../lib/tts-speakable';
+import { splitInlineDisplayMath } from '../utils/mathNormalize';
 
-/**
- * 줄 맨 앞의 `$$식$$ 문장` → `$$` 블록 + 문장으로 쪼갠다.
- * remark-math 는 줄 첫머리 `$$` 를 **디스플레이 블록 시작**으로 읽어, 같은 줄에서 닫혀도
- * 다음 줄 단독 `$$` 까지(없으면 끝까지) 삼킨다 → KaTeX 파싱 실패로 이후 답변 전체가 빨간 원문.
- * 실측(2026-10, GPT-5.6): 이미지 분석 답변 후반부가 통째로 빨갛게 나왔다.
- */
-export const splitInlineDisplayMath = (text: string): string =>
-  text.replace(/(^|\n)[ \t]*\$\$((?:(?!\$\$)[\s\S])+?)\$\$[ \t]*([^\n]*\S[^\n]*)/g,
-    (_m, pre, expr, rest) => `${pre}$$\n${expr.trim()}\n$$\n\n${rest.trim()}`);
 
 
 // Lazy load visualization components for better performance
