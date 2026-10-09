@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 19종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
+npm test        # 24종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
 npm run verify  # typecheck + test
 ```
 
@@ -198,6 +198,8 @@ npm run verify  # typecheck + test
 | `render-paper-card.mts` | 논문 카드 — **실제로 렌더한 HTML** 을 본다. 철회/초록없음 칸이 정말 그려지는가, 두 칸이 섞이지 않는가, 4개 언어 문구, 빈손 분기, 옛 카드 하위호환. 위 하니스와 겹치지 않는다(정규식은 "코드가 파일에 있다" 까지만 말한다) |
 | `test-model-labels.mts` | 모델 선택 UI 문자열 — **리팩터링 전 골든** 대조(섹션 3 + 모델 6 × 4개 언어 × 라벨/설명), 컴포넌트로 문자열이 되돌아오지 않는 구조 보장, 빈 값·언어 폴백, 렌더 지점 배선 |
 | `test-doc-links.mts` | **문서 링크·앵커·행번호** — `docs/**` 의 상대링크를 전수 검사한다. 파일 부재와 `.md` 앵커 부재는 실패, 코드 `#L` 행번호는 **`docs/logs/` 안에서만 경고**(날짜 로그는 그날의 기록이라 코드가 움직였다고 고치지 않는다). 코드블록·인라인 코드는 제외한다 — 안 거르면 인용 마커 예시 `[1](A)` 가 대량 오탐이다. 계기: [DEV_260913](../docs/logs/2026/09/DEV_260913.md) |
+| `test-key-tier.mts` | **Gemini 키 등급** — 회원 유료 키 우선·실패 시 무료 로테이션·게스트는 무료만(PLAN_GEMINI_PAID_FIRST) |
+| `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 

@@ -21,18 +21,22 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 
 ### 1-1. Conversation & Auth
 
-- **Login-less**: starts instantly with an auto-generated nickname and avatar
+- **Guest or member**: starts instantly as an anonymous Supabase guest (auto nickname/avatar, limited messages); members sign in for full limits, TTS, and the paid Gemini key
 - **Persistent history**: sessions and messages stored in Supabase (PostgreSQL)
 - **Auto-title**: session titles generated automatically from conversation content
+- **Suggestion chips** (desktop only): weather · today's showtimes · latest news · image analysis (opens the file picker)
+- **Thinking Orb**: while waiting for the first token, a `thinking-orbs` canvas animation plus the current status ("이미지 분석 중…") replaces the old three dots; it disappears on the first chunk and pauses under reduced-motion / off-screen
 - **Sidebar infinite scroll**: loads 30 at a time, fetches more on scroll
 - **Localization**: KO / EN / ES / FR — the client sends a lang code, and `server/agent/lang.ts` is the single source that maps it for prompts and renderer specs
 
 ### 1-2. AI Intelligence
 
 - **Models**: Gemini 3.7 Flash / **3.6 Flash (default)** / 3.5 Flash / 2.5 Flash, plus **GPT-6 luna** / GPT-5.6 luna (GPT-5.4 mini demoted to `legacy` on 2026-09-23 — hidden from the picker but still accepted, since sessions carry it in `preferred_model`). The grouped provider picker is persisted in `preferred_model` local storage. **3.8 은 측정 후 미채택** — 7개 intent 14 TC × 3모델(252회)과 grounding 30문항 × 3모델(90회)이 전부 만점으로 갈려서 정답률로는 차이가 나지 않았다(2026-09-22, `tests/manual/gemini-3-8/`)
+- **Gemini key tiers**: members use the paid key (`API_KEY_TIER1`) first and fall back to the free rotation (with a 2.5 downgrade) on failure; guests and unauthenticated routes only ever use free keys. Switch `GEMINI_PAID_FIRST`, on in production since 2026-10-05 → [PLAN_GEMINI_PAID_FIRST_261004](docs/plans/PLAN_GEMINI_PAID_FIRST_261004.md)
 - **Web grounding**: the selected Gemini or GPT model handles ordinary text, fetched URL content, images, and web-search answers. Gemini search paths may use 2.5 Flash where the selected Gemini model requires it
 - **Search on/off is decided by declared tiers, not by statement order** — `400` hard constraint > `300` user's explicit request > `200` answer already grounded (URL / attached doc / video) > `100` classifiers > `0` default-on. Nobody overwrites anybody; each gate submits a signal and the highest tier wins (`server/agent/search-policy.ts`). ⚠️ **Tier 400 is Gemini-only**: it encodes *"Gemini cannot put an image and grounding in one request"*, which is not true of OpenAI Responses — so the OpenAI path passes `provider: 'openai'` and the signal is never emitted (2026-09-02; before that, an attached image silently disabled search on the turn right after it — exactly the turn where a user says "now search and check this")
-- **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`
+- **Math rendering**: `$$` only. A post-processor (`utils/mathNormalize.ts`) splits a line-leading `$$expr$$ text` — remark-math would otherwise read it as a display block and swallow the rest of the answer into one red KaTeX error — while leaving fenced blocks, inline math, and code untouched
+- **Numbered citations (both providers)**: OpenAI `url_citation` annotations and Gemini `groundingSupports` are both turned into clickable `[N]` markers in the body plus matching badges below. Only sources actually cited get a number; a model-written bare `[N]` with no backing source is still stripped as a fabricated citation. Gemini's segment offsets are UTF-8 byte offsets, not JS string indices — see `server/agent/gemini-citations.ts`. Gemini sources arrive as `vertexaisearch` redirect links titled with a bare domain, so source-chip favicons use that domain instead of the redirect host
 - **Intent routing**: currently `gemini-2.5-flash` + rule-based fallback (`intentRules.ts`). One JSON call returns `intent`, `needs_search`, `follow_up`, `topic_field`, and `paper_source`; provider-native routing for GPT is a tracked follow-up. Deterministic guards correct known LLM misroutes after the call — clinic vs pharmacy, weather-card stickiness, non-biomedical PubMed topics, and **literature vs software artifact** (`레포 검색` must not return an arXiv card)
 - **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for 10 intents — drug / pharmacy / hospital / vet / law_search / law_qa / movie / PubMed papers / arXiv papers / weather. Sports questions go to web search with sources (the World Cup tool was retired 2026-10-04 after the tournament ended — it was intercepting league questions). Card tools fast-pass their renderer block; drug and paper results are synthesized by the selected GPT. A hosted web search and a forced local function never share one request, but a paper lookup **plus an explicit user request to search** attaches web search to the synthesis step so the request is not silently dropped
 - **Card follow-up**: weather, movie, pharmacy, hospital, vet, law, and paper cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages. Guards also stop a displayed card from pulling in unrelated turns
@@ -76,10 +80,11 @@ Per-renderer details (schemas, test prompts): [docs/guide/](docs/guide/)
   🔴 그 전까지 **인증 자체가 없었다** — 누구나 공개 버킷에 파일을 쌓을 수 있었다.
   🟡 **Phase 2 미완**: 버킷은 아직 공개라 **URL 을 아는 제3자는 읽을 수 있다**
   (`chat_messages.attachment_url` 에 공개 URL 이 저장돼 있어 백필이 선행이다).
-- SSRF defense — `fetch-url` / `proxy-image` / `sync-drug-image` block RFC 1918 + IPv6 private ranges
+- SSRF defense — `sync-drug-image` uses a host allowlist; `fetch-url` / `proxy-image` use a blocklist (localhost, RFC 1918, `169.254`). 🔴 **Known gaps (re-verified 2026-10-09)**: the IPv6 entries never match because `hostname` keeps its brackets (`[::1]` passes), and redirects are followed without re-checking → [TODO §보안](docs/TODO.md#보안)
+- 🔴 **Unauthenticated routes (5)**: `fetch-url` · `proxy-image` · `showtimes` · `summarize-title` · `sync-drug-image` — `summarize-title` calls Gemini on the free key pool and is the top hardening item → [PLAN_HARDENING_260822](docs/plans/PLAN_HARDENING_260822.md)
 - API key rotation — 429 → 60s cooldown, 401/403 → 24h blacklist
 - Error sanitization — internal stacks/messages never exposed to the client (TTS: provider errors map to six localized messages in 4 languages; verified that even when both providers fail the body is only `Failed to generate speech`)
-- **`/api/speech` auth + quota** (2026-10-03, dev) — token required, guests blocked, members limited to 20,000 chars/day by an atomic RPC that runs **before** any paid provider call
+- **`/api/speech` auth + quota** (2026-10-03, in production since 2026-10-05) — token required, guests blocked, members limited to 20,000 chars/day by an atomic RPC that runs **before** any paid provider call. Requires `tts-quota.sql` in the target DB (§5-2)
 
 ---
 
@@ -120,7 +125,7 @@ flowchart TB
         Gemini[["Google Gemini AI"]]
         OpenAI[["OpenAI API"]]
         Supabase[("Supabase")]
-        APIs[["Public APIs (MFDS / HIRA / Law / Vet / football-data.org / KMA + OpenWeather / PubMed + CrossRef / arXiv)"]]
+        APIs[["Public APIs (MFDS / HIRA / Law / Vet / KMA + OpenWeather / PubMed + CrossRef / arXiv)"]]
         Multiplex[["CGV / Lotte / Megabox"]]
     end
 
@@ -181,7 +186,7 @@ Per-intent tool binding and routing details: [docs/guide/REF_Architecture.md](do
 
 | Layer         | Technology                                                                |
 | ------------- | ------------------------------------------------------------------------- |
-| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion  |
+| Frontend      | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion, thinking-orbs (0.3.2 pinned) |
 | Markdown      | react-markdown + remark-gfm / remark-math (`$$` only) / remark-cjk-friendly / rehype-katex |
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, HTML5 Canvas, astronomy-engine    |
 | Backend       | Next.js Route Handlers (Vercel), LangGraph.js                             |
@@ -234,7 +239,8 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │       ├── card-followup.ts / card-tool-output.ts / gemini-citations.ts
 │       ├── tools.ts                    # identify_pill, search_web (DDG)
 │       ├── drug-info-tool.ts / pharmacy-tool.ts / hospital-tool.ts / hospital-hours.ts
-│       ├── vet-tool.ts / law-tool.ts / movie-tool.ts / worldcup-tool.ts
+│       ├── vet-tool.ts / law-tool.ts / movie-tool.ts
+│       ├── worldcup-tool.ts            # 2026-10-04 연결 해제 — 다음 대회용 보존
 │       ├── paper-tool.ts / arxiv-tool.ts # PubMed+CrossRef · arXiv (같은 카드, 다른 출처)
 │       ├── weather-tool.ts              # weather intent (multi-city)
 │       └── nodes/
@@ -254,7 +260,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
 │   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
-├── tests/                              # 🔴 회귀 하니스 19종 (`npm test`). tests/README.md
+├── tests/                              # 🔴 회귀 하니스 24종 (`npm test`, tests/*.mts 자동 수집). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-card-followup / test-storage-name / test-pill-messages
 │   ├── test-ddg-parse / test-thinking-config / test-openai-url-fetch
@@ -265,12 +271,16 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── test-prompt-assembly            # 프롬프트 조립 골든 — 계층 재배치가 문구를 안 바꿨음을 증명
 │   ├── test-theaters                   # 상영관 지역 매칭 (data/theater-branches.json)
 │   ├── test-doc-links                  # 문서 링크·앵커·행번호 — 추적 md 한정(gitignore 트리 제외)
+│   ├── test-tts-split / test-tts-retry / test-tts-speakable  # TTS 분할·재시도·전처리
+│   ├── test-key-tier                   # 회원 유료 키 우선 · 게스트 무료만
+│   ├── test-math-normalize             # 수식 후처리 — 실제 렌더 체인으로 삼킴 재현·보정
 │   ├── manual/                         # 외부 공급자·DB 실측 프로브 (npm test 제외)
 │   │   └── gemini-3-8/                 # 3.6·3.7·3.8 정답률 비교 + grounding suite (결정적 채점기 동봉)
 │   └── tsconfig.probe.json + lib/      # `server-only` 모듈을 tsx 로 직접 돌리는 우회
 ├── utils/
 │   ├── astronomyHelper.ts / celestialMath.ts
-│   └── streamingMarkdown.ts            # Anti-flicker table gating (mid-stream)
+│   ├── streamingMarkdown.ts            # Anti-flicker table gating (mid-stream)
+│   └── mathNormalize.ts                # 줄 첫머리 `$$식$$ 문장` 분리 (순수 — 하니스가 import)
 ├── src/
 │   ├── lib/models.ts                   # 클라 모델 레지스트리 + 선택 UI 문자열(단일 소스)
 │   └── hooks/                          # useAuthSession / useChatSessions / useChatStream
@@ -345,12 +355,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 19종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 24종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 19종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 24종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

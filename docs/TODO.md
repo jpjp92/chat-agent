@@ -1,6 +1,7 @@
 # TODO
 
-- [ ] **Gemini 유료 키 우선 (회원만)** (2026-10-04 기획): 회원은 `API_KEY_TIER1` 먼저 → 실패 시 무료 로테이션, 게스트·무인증 라우트는 무료만. 유료 vs 무료 지연 측정 선행, 🔴 켜기 전 GCP 예산 상한 → [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md)
+- [x] **Gemini 유료 키 우선 (회원만)** — **10-05 운영 배포·스위치 on**(`GEMINI_PAID_FIRST=true`, b182ec4). 회원 4개 모델 환율 질문 출처 정상 → [DEV_261005](logs/2026/10/DEV_261005.md)
+  - [ ] 🟡 런타임 로그 `key: paid`(회원)·`key: free`(게스트) 확인 · GCP 예산 알림 · 개인정보처리방침 회원 문구 수정 → [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md)
 - [x] ~~**검색 경로만 Gemini 3.8 로 — 프로브 선행**~~ → **10-04 측정: 보류.** 어려운 문항에서 3.6·3.7·3.8 정답 21/21 동률, 3.8 이 ~2.2s 느림 ([PLAN_GEMINI_PAID_FIRST §7-2](plans/PLAN_GEMINI_PAID_FIRST_261004.md)). 원문: (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
 - [ ] **Gemini 3.8 Flash 검증·도입** — [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md). 제한된 비교 후 하드닝 1·2와 공개 적용 순서를 조율한다. 선택 옵션 추가와 기본 승격은 분리하며, 현재 기본은 3.6이다.
 
@@ -50,7 +51,7 @@
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
-    - ⚖️ **`speech` — dev 구현 (2026-10-03)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 적용 후 배포**해야 닫힌다 → [DEV_261003](logs/2026/10/DEV_261003.md)
+    - ⚖️ **`speech` — 코드는 운영 배포됨 (2026-10-03 구현 b1956ac, 10-05 운영 배포에 포함)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 이 적용됐는지 기록이 없다** — 미적용이면 회원 TTS 가 500(fail-closed). 운영에서 듣기 1회로 확인 → [DEV_261003](logs/2026/10/DEV_261003.md)
     `speech` 를 뺀 5개의 계약은 그대로 미결이다(`speech` 는 운영 DB SQL·배포 전까지 열려 있다). 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
     - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
@@ -70,6 +71,7 @@
       [::1] · [fd00::1] · [fc00::1] · [fe80::1] · [::ffff:127.0.0.1]  → 전부 통과
       ```
       ⚠️ **따라서 아래 "`::ffff:*` 추가" 는 실행해도 통하지 않는다** — 목록에 무엇을 더해도 대괄호가 남아 있으면 `^` 가 매치를 막는다(실측 확인). 상세: [DEV_260903 §3.1-a](logs/2026/09/DEV_260903.md)
+    - 🔴 **2026-10-09 재확인 — 여전히 열림.** Node 로 현재 정규식을 돌린 결과 `[::1]`·`[fd00::1]`·`[::ffff:127.0.0.1]` **PASS**(`2130706433`·`169.254.169.254` 는 BLOCK). `proxy-image` 도 같은 정규식([proxy-image:39](../app/api/proxy-image/route.ts#L39)). 두 라우트 모두 `redirect` 처리 코드가 없어 fetch 기본값(리다이렉트 추적)이다 → 아래 ⓐ는 "미검증"이 아니라 **방어 없음**
     - [ ] 🔴 **먼저 대괄호를 벗긴다 (1줄)** — `new URL(t).hostname.replace(/^\[|\]$/g,'')`. 이걸 해야 기존 4항목이 비로소 동작한다
     - [ ] 그 다음 IPv4-mapped IPv6(`::ffff:*`) 를 `SSRF_BLOCK` 에 추가
     - [ ] `new URL()` **정규화 의존을 코드 주석에 적기** — 위 ✅ 항목이 지시해둔 것인데 아직 미반영. 파서를 안 거치도록 리팩터링하면 **정규식은 그대로인데 숫자 IP 방어가 사라진다**
