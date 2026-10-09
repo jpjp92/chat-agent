@@ -10,6 +10,8 @@
 
 > **2026-10-05 모션 UX · 추천 문구:** [PLAN_MOTION_UX_261005](PLAN_MOTION_UX_261005.md) — Codex 기획안을 코드와 대조. 🔴 `animate-in` 계열 49곳이 플러그인 미설치로 **무효** → 살리기가 0단계. 오브는 이미 있음. 단계형 Thinking 은 SSE 상태 이벤트가 선행. 추천 칩 재구성(약·Python 제외, 데스크톱 전용 유지). 미구현.
 
+> **2026-10-09 UI 개선 후보:** [PLAN_UI_TRENDS_261009](PLAN_UI_TRENDS_261009.md) — 최신 AI 채팅 트렌드 중 가능성 높은 6개만. 우선순위: 모션 0단계 → 정지 버튼·스크롤 존중 → 단계형 상태(SSE, Orb 상태 활용) → 출처 정리 → 다시 생성. 미구현. (같은 날 Thinking Orb 는 MOTION_UX §3-1 로 구현)
+
 > **2026-10-04 Gemini 유료 키 우선:** [PLAN_GEMINI_PAID_FIRST_261004](PLAN_GEMINI_PAID_FIRST_261004.md) — 회원은 유료 키 먼저 → 실패 시 무료 로테이션, 게스트·무인증 라우트는 무료만. `GEMINI_PAID_FIRST` 스위치. **측정(유료 vs 무료 지연) 선행**, 미구현.
 
 > **2026-10-02 TTS 스트리밍:** [PLAN_TTS_STREAMING_261002](PLAN_TTS_STREAMING_261002.md) — 공급자는 측정(TTFB)으로 결정,
