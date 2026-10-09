@@ -1,6 +1,6 @@
 # 모션 UX 정비 · 추천 문구 재구성
 
-> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4)만 구현(10-05, 1f49b8c), 모션 0·1단계 미구현
+> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4) 구현(10-05), Thinking Orb(§3-1) 구현(10-09), 모션 0단계·나머지 1단계 미구현
 > 출발점: Codex 기획안 [reference/모션그래픽참고.md](../../reference/모션그래픽참고.md) — 코드와 대조해 **채택/보류/기각**을 가렸다
 > 원칙: 새 모션 시스템보다 **이미 넣었는데 안 도는 것**부터. 1차는 CSS 만, 메인 번들에 Framer 추가 없음
 
@@ -55,6 +55,11 @@
 ### 3-1. 1차 — 체감 개선 (CSS 만)
 
 - **Thinking**: 점 3개 → 펄스 아이콘 1개 + "답변을 준비하고 있어요"(4개 언어). 첫 텍스트가 오면 사라짐
+  - ✅ **10-09 구현 — Thinking Orb** ([지시서](../../reference/CHAT_AGENT_THINKING_ORBS_IMPLEMENTATION.md) 검토 후 LLM 대기만 채택). `thinking-orbs@0.3.2`(MIT, 0.x 라 정확 버전 고정) `state="working" size={20}`, 인디고 틴트. [ChatArea.tsx](../../components/ChatArea.tsx) 점 3개 자리만 교체(높이 40px 동일 → 레이아웃 이동 없음). reduced-motion·화면 밖·숨은 탭 정지는 라이브러리 내장.
+  - 고정 문구 대신 **이미 계산되지만 렌더되지 않던 `loadingStatus`**("이미지 분석 중…" 등)를 Orb 옆에 표시 — 4개 언어 문구 신설 불필요. 상태 없으면 Orb 만.
+  - 🔴 덤 수정: `loadingStatus` 가 스트림 **끝까지** 남아 답변 아래에서 대기 표시가 계속 돌던 결함 → 첫 조각에서 내림([useChatStream.ts](../../src/hooks/useChatStream.ts)).
+  - ❌ STT Orb 기각: 지시서는 "녹음 → 서버 전사" 를 가정했으나 실제는 **Web Speech API**(말하는 동안 입력창에 실시간 반영) — `working`(전사 대기) 단계가 없고 녹음 패널도 없다. 마이크 버튼 빨간 pulse 로 충분.
+  - 명명: 배경 장식 오브(App.tsx)와 구분해 "Thinking Orb" 로 부른다.
 - **입력창**: hover 시 border 소폭 강조, focus 시 violet 계열 은은한 glow
 - **추천 칩**: 등장 stagger(0/60/120/180ms, 1회), hover `translateY(-2px)` + border 강조, tap `scale(0.98)`(이미 있음)
 - **Hero**: 진입 1회 fade-up(300ms)

@@ -46,6 +46,7 @@
     "remark-math": "^6.0.0",
     "server-only": "^0.0.1",
     "smiles-drawer": "^2.1.7",
+    "thinking-orbs": "0.3.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

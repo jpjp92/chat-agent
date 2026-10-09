@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect, useRef } from 'react';
+import { ThinkingOrb } from 'thinking-orbs';
 import { Message, Role, UserProfile, Language } from '../types';
 
 // Lazy load ChatMessage to defer react-markdown + react-syntax-highlighter + rehype-katex
@@ -58,10 +59,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                             <i className="fa-solid fa-sparkles text-white text-[10px]"></i>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1.5 py-4">
-                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s]"></div>
-                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]"></div>
-                        <div className="w-2 h-2 bg-indigo-300 dark:bg-indigo-400 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]"></div>
+                    {/* 대기 표시 — 첫 텍스트 조각이 오면 답변 말풍선이 생기면서 이 블록이 빠진다(useChatStream).
+                        Thinking Orb 는 reduced-motion·화면 밖·숨은 탭에서 스스로 멈춘다. */}
+                    <div className="flex items-center gap-2.5 py-2.5" role="status" aria-live="polite">
+                        <ThinkingOrb state="working" size={20} theme="auto" color="#a5b4fc" aria-hidden="true" />
+                        {loadingStatus && (
+                            <span className="text-sm text-slate-500 dark:text-slate-400">{loadingStatus}</span>
+                        )}
                     </div>
                 </div>
             )}

@@ -434,6 +434,9 @@ export const useChatStream = ({
         activeSession?.messages || [],
         (chunk, isReset) => {
           if (isReset) modelResponse = '';
+          // 첫 조각이 오면 대기 표시(Thinking Orb + 상태 문구)를 내린다. 예전엔 이미지·첨부 분석 문구가
+          // 스트림 끝까지 남아 답변 아래에서 대기 표시가 계속 돌았다.
+          if (!modelResponse && chunk) setLoadingStatus(null);
           modelResponse += chunk;
 
           setSessions(prev => prev.map(session => {
