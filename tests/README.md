@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 24종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
+npm test        # 25종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
 npm run verify  # typecheck + test
 ```
 
