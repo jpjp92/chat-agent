@@ -10,6 +10,10 @@
 
 > **2026-10-05 모션 UX · 추천 문구:** [PLAN_MOTION_UX_261005](PLAN_MOTION_UX_261005.md) — Codex 기획안을 코드와 대조. 🔴 `animate-in` 계열 49곳이 플러그인 미설치로 **무효** → 살리기가 0단계. 오브는 이미 있음. 단계형 Thinking 은 SSE 상태 이벤트가 선행. 추천 칩 재구성(약·Python 제외, 데스크톱 전용 유지). **추천 칩 구현(10-05)·Thinking Orb 구현(10-09)**, 0단계·나머지 1단계 미구현.
 
+> **2026-10-10 미디어 첨부 라우팅:** [PLAN_MEDIA_ROUTING_261010](PLAN_MEDIA_ROUTING_261010.md) — 재측정: 3.x 업로드 영상·PDF **429 0건**(08-08 결론 소멸), GPT 는 PDF 직접 처리 ✅(2~7s). 게스트 2.5·무료, 회원 3.x·유료(실패 2.5), GPT+PDF 직접, GPT+영상·오디오는 Gemini 분석 → GPT 정제. 미구현.
+
+> **2026-10-10 자료 요약 템플릿 통합:** [PLAN_SOURCE_SUMMARY_261010](PLAN_SOURCE_SUMMARY_261010.md) — 한 줄 요약은 **이 턴의 새 자료 + 요약 의도**일 때만(코드 판정), 같은 자료 후속 턴은 헤딩 없이 답(멀티턴 반복 제거). 템플릿 한 함수로 통합 — url·document·text·image·video·youtube. 전역 규칙 제거로 Gemini 일반 질문 요약도 구조적으로 해소. 미구현.
+
 > **2026-10-09 UI 개선 후보:** [PLAN_UI_TRENDS_261009](PLAN_UI_TRENDS_261009.md) — 최신 AI 채팅 트렌드 중 가능성 높은 6개만. 우선순위: 모션 0단계 → 정지 버튼·스크롤 존중 → 단계형 상태(SSE, Orb 상태 활용) → 출처 정리 → 다시 생성. 미구현. (같은 날 Thinking Orb 는 MOTION_UX §3-1 로 구현)
 
 > **2026-10-04 Gemini 유료 키 우선:** [PLAN_GEMINI_PAID_FIRST_261004](PLAN_GEMINI_PAID_FIRST_261004.md) — 회원은 유료 키 먼저 → 실패 시 무료 로테이션, 게스트·무인증 라우트는 무료만. `GEMINI_PAID_FIRST` 스위치. 측정 완료(§6·§7) → **10-05 운영 배포·스위치 on**. 남은 것: 로그 `key: paid|free` 확인·재측정(§8).

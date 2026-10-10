@@ -14,7 +14,7 @@ ChatGPT·Claude·Perplexity·Gemini 에서 공통으로 굳어진 패턴 중 **�
 |---|---|---|---|---|
 | 1 | **정지 버튼** | 생성 중 전송 버튼 → ■ 정지. 누르면 스트림 중단, 받은 부분까지 남김 | 소 | 사실상 표준. 현재 생성 중엔 입력이 막히기만 함([App.tsx](../../App.tsx) `disabled={isTyping…}`). 스트림 요청에 `AbortController` 는 이미 있음(타임아웃용, [geminiService.ts:242](../../services/geminiService.ts#L242)) → 외부 abort 연결만 필요할 가능성. 서버 측 중단 처리 확인 필요 |
 | 2 | **맨 아래로 버튼 + 스크롤 존중** | 위로 올려 읽는 중이면 자동 스크롤 멈춤, "↓ 새 답변" 버튼 표시 | 소 | 현재 메시지·`isTyping`·`loadingStatus` 가 바뀔 때마다 무조건 `scrollIntoView`([ChatArea.tsx:37](../../components/ChatArea.tsx#L37)) → 스트리밍 중 위를 읽을 수 없을 가능성. 실기기 확인 후 착수 |
-| 3 | **단계형 생성 상태** | "검색 중 → 자료 읽는 중 → 정리 중" | 중(서버) | 모션 기획 §3-3 의 SSE 상태 이벤트. Thinking Orb 가 `searching`·`composing` 등 상태를 내장해 **표시 쪽은 준비됨**. 라우터 의도 확정·도구 호출 시점에서 이벤트 송신 |
+| 3 | **단계형 생성 상태** — ✅ **최소 버전 10-10 구현**(검색·조회 2종, [DEV_261010 §2-12](../logs/2026/10/DEV_261010.md)) | "검색 중 → 자료 읽는 중 → 정리 중" | 중(서버) | 모션 기획 §3-3 의 SSE 상태 이벤트. Thinking Orb 가 `searching`·`composing` 등 상태를 내장해 **표시 쪽은 준비됨**. 라우터 의도 확정·도구 호출 시점에서 이벤트 송신 |
 | 4 | **출처 정리** | 인용 번호 문장당 최대 2개, 칩에 favicon, 번호 hover 시 제목·도메인 미리보기 | 소~중 | Gemini 가 한 문장에 번호 4개(`1 6 7 8`)를 다는 사례(10-09). 번호 제한은 [gemini-citations.ts](../../server/agent/gemini-citations.ts) 후처리로 가능. ✅ **favicon 10-09 구현** — Gemini 링크가 전부 `vertexaisearch` 경유라 아이콘이 모두 구글 G 였다 → 제목 자리의 도메인으로 아이콘([ChatMessage.tsx](../../components/ChatMessage.tsx) `faviconDomain`). 기사 제목 복원은 경유 링크를 출처마다 따라가야 해 기각 |
 | 5 | **다시 생성 · 다른 모델로 다시** | 답변 액션 줄(듣기·복사)에 추가 | 중 | 모델 5종 비교가 이 앱의 강점이라 특히 맞음. 모션 기획에선 "신기능"으로 범위 밖 처리했던 항목 |
 | 6 | **새 메시지 등장 모션** | 새 말풍선만 짧은 fade-up | 소 | 모션 기획 0단계(무효 클래스 49곳 살리기)와 같은 작업. 여기선 중복 기재만 |

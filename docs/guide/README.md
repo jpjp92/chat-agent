@@ -10,6 +10,7 @@
 |---|---|---|
 | [Architecture](REF_Architecture.md) | LangGraph, 모델·intent 라우팅, URL Fetch, 오류·스트리밍 정책 + **도구 정의가 두 벌인 구조** | 2026-09-03 현행화 |
 | [TTS](REF_TTS.md) | 소리 내어 읽기 — **모델 정책(3.8 Lite → OpenAI 폴백)·가격·흐름·인증/한도·오류 처리** | 2026-10-04 신규 |
+| [한 줄 요약](REF_OneLineSummary.md) | 응답 맨 위 `한 줄 요약` — **경로별로 나오는지·안 나오는지·구조**, 알려진 불일치(YouTube 자막 경로) | 2026-10-10 신규 |
 | [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블, Storage, URL 캐시, MFDS | 2026-08-23 현행화 |
 | [Document](REF_Document.md) | 업로드, HWP 파싱, PDF·영상 capability fallback | 2026-09-03 검색 게이트 절 정정 |
 | [Search Routing](REF_SearchRouting.md) | 검색 on/off tier 정책(공급자별 400), 이미지+검색 탈출구, 논문↔소프트웨어 산출물 3층 방어 + **테스트 질의 카탈로그** | 2026-09-03 신규 |
