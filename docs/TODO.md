@@ -49,6 +49,7 @@
 
 - [ ] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 폴백을 `gemini-3.8-flash-tts` 로 바꾼다 → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+  - ✅ **2026-10-10** — `summarize-title` 인증(프로필 행 필수) · 🔴 신규 발견 anon 키 Bearer 로 `/api/chat` 게스트 한도 우회 → 차단 · SSRF 공용 판정 [`server/ssrf.ts`](../server/ssrf.ts)(대괄호 IPv6·mapped·DNS·리다이렉트 hop 재검사) → [DEV_261010](logs/2026/10/DEV_261010.md). **남은 무인증 4개**: `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. 아래 기록은 당시 상태.
   - **현재 6개** (2026-08-29) — `fetch-url` · `proxy-image` · `showtimes` · `speech` · `summarize-title` · `sync-drug-image`.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
     - ⚖️ **`speech` — 코드는 운영 배포됨 (2026-10-03 구현 b1956ac, 10-05 운영 배포에 포함)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 이 적용됐는지 기록이 없다** — 미적용이면 회원 TTS 가 500(fail-closed). 운영에서 듣기 1회로 확인 → [DEV_261003](logs/2026/10/DEV_261003.md)

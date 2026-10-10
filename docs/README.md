@@ -18,7 +18,7 @@
 | 함수 타임아웃 | 🔴 **60s 는 플랫폼 한계가 아니다** — Hobby 도 fluid 기본·최대 **300s** 다. `/api/chat` 은 `maxDuration=300`, Gemini 일반 25s·무거운 미디어 90s, OpenAI **120s(호출당)**. 새 경로를 만들 때 **60 을 베껴 오지 말 것** — 이 정정이 세 번 필요했다 | [2026-08-08 §9](logs/2026/08/DEV_260808.md), [2026-09-28 §11](logs/2026/09/DEV_260928.md) |
 | 오늘 날짜 | 주입된 `[CURRENT_SYSTEM_TIME]` 이 **유일한 출처**이고 블록은 base **맨 앞**(실측). 자정 직후 Gemini 2.5 가 기사 날짜로 "오늘" 을 재추론하는 실패는 **문구로 세 번 못 고쳤다** → 출력 사후 검증이 정정을 덧붙인다 | [2026-09-28 §13·§14](logs/2026/09/DEV_260928.md), [today-guard.ts](../server/agent/today-guard.ts) |
 | 자동 검증 | `npm test` 회귀 하니스 25종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
-| 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). 🔴 **무인증 라우트 5개** 미결(10-09 코드 재확인) — `fetch-url`·`proxy-image`·`showtimes`·`summarize-title`·`sync-drug-image`. 그중 `summarize-title` 은 **인증 없이 Gemini 키 풀을 쓰는 LLM 엔드포인트**라 최우선. SSRF 차단 목록의 IPv6(대괄호) 구멍·리다이렉트 미검사도 그대로 | [TODO §보안](TODO.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md), [보안 검토 §3.4](logs/2026/09/DEV_260903.md) |
+| 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). ✅ 10-10 `summarize-title` 인증 + **anon 키 Bearer 우회 차단**(chat 포함, 프로필 행 필수), SSRF 공용 판정 `server/ssrf.ts`(IPv6 대괄호·DNS·리다이렉트 hop 재검사) — [DEV_261010](logs/2026/10/DEV_261010.md). 🔴 **무인증 라우트 4개** 남음 — `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. SSRF 남은 공백은 DNS 재바인딩 | [TODO §보안](TODO.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md), [보안 검토 §3.4](logs/2026/09/DEV_260903.md) |
 
 ## 최근 문서
 

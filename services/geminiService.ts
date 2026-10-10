@@ -204,7 +204,7 @@ async function decodeAudioData(
 
 export const summarizeConversation = async (history: Message[], language: Language = 'ko'): Promise<string> => {
   try {
-    const response = await fetch('/api/summarize-title', {
+    const response = await authedFetch('/api/summarize-title', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ history, language })

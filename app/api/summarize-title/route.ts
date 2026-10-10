@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { API_KEYS, getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from '../../../server/config';
 import { SUMMARY_MODELS } from '../../../server/models';
+import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,6 +18,20 @@ const stripMarkdown = (t: string) => t.replace(/```[\s\S]*?```/g, '').replace(/[
 const stripUrls = (t: string) => t.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim();
 
 export async function POST(req: NextRequest) {
+    // 인증 — 무인증이면 누구나 우리 키로 LLM 을 부를 수 있다(10-09 감사 최우선).
+    // createRouteClient 는 Bearer 존재만 본다. 위조 토큰은 PostgREST 가 거르지만, **공개 anon 키**를
+    // Bearer 로 보내면 유효 JWT(role=anon)라 에러 없이 빈 결과가 온다 → 프로필 행이 있어야 통과.
+    // (모든 auth 유저는 가입 트리거로 profiles 행을 갖는다 — auth-mvp-schema.sql)
+    const db = createRouteClient(req);
+    if (!db) return unauthorized();
+    const { data: profile, error: authError } = await db.from('profiles').select('id').maybeSingle();
+    if (authError) {
+        if (isAuthError(authError)) return unauthorized();
+        console.error('[Title API] Auth check error:', authError.message);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+    if (!profile) return unauthorized();
+
     const { history, language } = await req.json();
     const currentLang = language || 'ko';
     const TITLE_PROMPT = TITLE_PROMPTS[currentLang] ?? TITLE_PROMPTS.ko;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { assertPublicUrl, safeFetch, SsrfError } from '../../../server/ssrf';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { fetchUrlContentWithOpenAI, isOpenAIUrlFallbackHost } from '../../../server/openai/url-fetch';
@@ -19,7 +20,6 @@ const OPENAI_URL_FALLBACK_ENABLED = process.env.OPENAI_URL_FALLBACK_ENABLED === 
 // cache 쓰기는 서비스키 우선(없으면 anon). 근거: docs/logs/DEV_260606.md §11
 const db = supabaseAdmin ?? supabase;
 
-const SSRF_BLOCK = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i;
 
 const isSecurityBlock = (text: string) => {
     const t = text.toLowerCase();
@@ -157,10 +157,9 @@ export async function POST(req: NextRequest) {
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
 
     try {
-        const { hostname } = new URL(url);
-        if (SSRF_BLOCK.test(hostname)) return NextResponse.json({ error: 'URL not allowed' }, { status: 400 });
-    } catch {
-        return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
+        await assertPublicUrl(url);
+    } catch (e) {
+        return NextResponse.json({ error: e instanceof SsrfError && e.message !== 'invalid url' ? 'URL not allowed' : 'Invalid URL' }, { status: 400 });
     }
 
     try {
@@ -187,7 +186,7 @@ export async function POST(req: NextRequest) {
 
             const [oembedResult, pageResult] = await Promise.allSettled([
                 fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, { signal: oembedCtrl.signal }),
-                fetch(targetUrl, { signal: pageCtrl.signal }),
+                safeFetch(targetUrl, { signal: pageCtrl.signal }),
             ]);
             clearTimeout(t1); clearTimeout(t2);
 
@@ -246,7 +245,7 @@ export async function POST(req: NextRequest) {
             const ctrl = new AbortController();
             const t = setTimeout(() => ctrl.abort(), 10000);
             try {
-                const response = await fetch(targetUrl, {
+                const response = await safeFetch(targetUrl, {
                     signal: ctrl.signal,
                     headers: {
                         'User-Agent': BROWSER_UA,

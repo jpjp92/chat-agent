@@ -80,8 +80,8 @@ Per-renderer details (schemas, test prompts): [docs/guide/](docs/guide/)
   🔴 그 전까지 **인증 자체가 없었다** — 누구나 공개 버킷에 파일을 쌓을 수 있었다.
   🟡 **Phase 2 미완**: 버킷은 아직 공개라 **URL 을 아는 제3자는 읽을 수 있다**
   (`chat_messages.attachment_url` 에 공개 URL 이 저장돼 있어 백필이 선행이다).
-- SSRF defense — `sync-drug-image` uses a host allowlist; `fetch-url` / `proxy-image` use a blocklist (localhost, RFC 1918, `169.254`). 🔴 **Known gaps (re-verified 2026-10-09)**: the IPv6 entries never match because `hostname` keeps its brackets (`[::1]` passes), and redirects are followed without re-checking → [TODO §보안](docs/TODO.md#보안)
-- 🔴 **Unauthenticated routes (5)**: `fetch-url` · `proxy-image` · `showtimes` · `summarize-title` · `sync-drug-image` — `summarize-title` calls Gemini on the free key pool and is the top hardening item → [PLAN_HARDENING_260822](docs/plans/PLAN_HARDENING_260822.md)
+- SSRF defense — `sync-drug-image` uses a host allowlist; `fetch-url` / `proxy-image` share [`server/ssrf.ts`](server/ssrf.ts) (2026-10-10): IP literals judged by bytes (incl. bracketed IPv6, IPv4-mapped, NAT64), every DNS answer checked, redirects followed manually and re-checked per hop. Remaining gap: DNS rebinding between check and connect → [DEV_261010](docs/logs/2026/10/DEV_261010.md)
+- 🔴 **Unauthenticated routes (4)**: `fetch-url` · `proxy-image` · `showtimes` · `sync-drug-image` — `summarize-title` now requires a token and a `profiles` row (2026-10-10; a bare anon-key Bearer is rejected on it and on `/api/chat`) → [PLAN_HARDENING_260822](docs/plans/PLAN_HARDENING_260822.md)
 - API key rotation — 429 → 60s cooldown, 401/403 → 24h blacklist
 - Error sanitization — internal stacks/messages never exposed to the client (TTS: provider errors map to six localized messages in 4 languages; verified that even when both providers fail the body is only `Failed to generate speech`)
 - **`/api/speech` auth + quota** (2026-10-03, in production since 2026-10-05) — token required, guests blocked, members limited to 20,000 chars/day by an atomic RPC that runs **before** any paid provider call. Requires `tts-quota.sql` in the target DB (§5-2)
@@ -260,7 +260,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
 │   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
-├── tests/                              # 🔴 회귀 하니스 24종 (`npm test`, tests/*.mts 자동 수집). tests/README.md
+├── tests/                              # 🔴 회귀 하니스 25종 (`npm test`, tests/*.mts 자동 수집). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-card-followup / test-storage-name / test-pill-messages
 │   ├── test-ddg-parse / test-thinking-config / test-openai-url-fetch
@@ -355,12 +355,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 24종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 25종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 24종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 25종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

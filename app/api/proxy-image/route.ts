@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BROWSER_UA } from '../../../server/browser-ua';
+import { assertPublicUrl, safeFetch } from '../../../server/ssrf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,8 +37,9 @@ export async function GET(req: NextRequest) {
         }
 
         const targetUrl = new URL(finalUrl);
-        const blockedHost = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|::1|fc[\da-f]{2}:|fd[\da-f]{2}:|fe80:)/i.test(targetUrl.hostname);
-        if (blockedHost) return NextResponse.json({ error: 'URL not allowed' }, { status: 400 });
+        // 내부 주소 차단 — 리다이렉트 대상까지 safeFetch 가 hop 마다 다시 검사한다(server/ssrf.ts).
+        try { await assertPublicUrl(targetUrl); }
+        catch { return NextResponse.json({ error: 'URL not allowed' }, { status: 400 }); }
 
         let referer = targetUrl.origin + '/';
         if (targetUrl.hostname.includes('pstatic.net') || targetUrl.hostname.includes('naver.com')) {
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
         const timeout = setTimeout(() => controller.abort(), 10000);
         let response: Response;
         try {
-            response = await fetch(finalUrl, {
+            response = await safeFetch(finalUrl, {
                 signal: controller.signal,
                 headers: {
                     Referer: referer,

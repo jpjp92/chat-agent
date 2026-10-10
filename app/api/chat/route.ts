@@ -59,7 +59,10 @@ export async function POST(req: NextRequest) {
     console.error('[Chat API] Profile gate error:', profileError.message);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-  if (profile?.is_guest && (profile.message_count ?? 0) >= GUEST_MESSAGE_LIMIT) {
+  // 프로필 없음 = 공개 anon 키를 Bearer 로 보낸 요청(유효 JWT·role=anon → RLS 로 빈 결과).
+  // 통과시키면 게스트 한도를 우회한다. 정상 유저는 가입 트리거로 항상 행이 있다.
+  if (!profile) return unauthorized();
+  if (profile.is_guest && (profile.message_count ?? 0) >= GUEST_MESSAGE_LIMIT) {
     return Response.json(
       { error: GUEST_LIMIT_ERROR, limit: GUEST_MESSAGE_LIMIT },
       { status: 403 },
@@ -72,9 +75,9 @@ export async function POST(req: NextRequest) {
   const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;
   const publicLang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
 
-  // 회원만 유료 키를 먼저 쓴다(PLAN_GEMINI_PAID_FIRST_261004 §2-1). 게스트·프로필 없음은 무료 로테이션.
+  // 회원만 유료 키를 먼저 쓴다(PLAN_GEMINI_PAID_FIRST_261004 §2-1). 게스트는 무료 로테이션.
   // start 는 생성자 안에서 동기 호출되므로 생성을 감싸면 그래프 실행 전체가 이 등급을 물려받는다.
-  const keyTier = profile && profile.is_guest === false ? 'paid-first' : 'free';
+  const keyTier = profile.is_guest === false ? 'paid-first' : 'free';
   const stream = runWithKeyTier(keyTier, () => new ReadableStream({
     async start(controller) {
       const sendEvent = (data: any) => {

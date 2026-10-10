@@ -262,16 +262,34 @@ const LAW_RAW_LOOKUP = /(원문|전문|조문\s*(보여|조회)|제\s*\d+\s*조.
  */
 const LAW_SIGNAL = /(법령|법률|법조문|조문|시행령|시행규칙|제\s*\d+\s*조|판례|헌재|위헌|소송|고소|고발|과태료|벌금|형량|처벌|위반|해고|임금|연차|퇴직금|근로|계약서|약관|저작권|특허|상속|이혼|손해배상|[가-힣]{2,}(?<![방용요수기화작어창주서편비타문])법(?=[은는이가을를에과와의도로만,.?!\s]|$))/i;
 /** 화면 카드를 가리키는 말 — 주제가 안 바뀐 후속이다. */
-const LAW_CARD_REF = /(이|그|해당|위|앞)\s*(조항|조문|법|규정|내용|부분)|방금\s*(그|말한)|아까\s*(그|말한)/;
+const LAW_CARD_REF = /(이|그|해당|위|앞)\s*(조항|조문|법|규정|내용|부분)|방금\s*(그|말한)|아까\s*(그|말한)|(구체적|자세(히|한)|상세)/;
+
+/**
+ * 화면의 법률 카드에 **조문 본문**이 있는가. 목록 카드(`laws` 만)는 법령명·시행일 메타데이터뿐이라
+ * "설명해줘" 를 카드로 답하면 "카드에 내용이 없습니다" 가 된다(실측 2026-10-10, Gemini 3.7:
+ * `근로기준법 관련 법률` → 목록 카드 → `시행규칙 설명해줘` 가 공포일만 읊음).
+ * 컨텍스트가 없거나 깨졌으면 true — 예전 동작(refine) 유지.
+ */
+export function lawCardHasArticles(cardContext?: string): boolean {
+    if (!cardContext) return true;
+    const json = cardContext.match(/```json:law\s*([\s\S]*?)```/)?.[1] ?? cardContext;
+    try {
+        const data = JSON.parse(json);
+        return Array.isArray(data?.articles) && data.articles.length > 0;
+    } catch {
+        return true;
+    }
+}
 
 export type LawInteractionDecision = 'lookup' | 'synthesize' | 'refine' | 'acknowledge' | 'unrelated';
 
 /**
+ * @param cardHasArticles 화면 카드에 조문 본문이 있는가(`lawCardHasArticles`). 없으면 설명 요청은 synthesize.
  * @param intentIsLaw 라우터 LLM 이나 규칙이 이미 법률로 판정했는가. 참이면 예전처럼
  *   catch-all 조회가 옳다 — 판정 근거가 카드의 존재만이 아니기 때문이다.
  */
 export function decideLawInteraction(
-    textValue: string, cardShown: boolean, intentIsLaw: boolean = true,
+    textValue: string, cardShown: boolean, intentIsLaw: boolean = true, cardHasArticles: boolean = true,
 ): LawInteractionDecision {
     const text = textValue.trim();
     // 🔴 주제가 카드를 떠났는가를 **먼저** 본다. 아래 규칙들은 법률 문맥을 전제하므로,
@@ -279,7 +297,8 @@ export function decideLawInteraction(
     if (cardShown && !intentIsLaw && !LAW_SIGNAL.test(text) && !LAW_CARD_REF.test(text)
         && !ACKNOWLEDGEMENT.test(text)) return 'unrelated';
     if (LAW_ADDITIONAL_LOOKUP.test(text)) return 'synthesize';
-    if (LAW_EXPLANATION.test(text)) return cardShown ? 'refine' : 'synthesize';
+    // 카드로 답할 수 있는 건 카드에 조문이 있을 때뿐 — 목록 카드면 본문을 조회해 합성한다.
+    if (LAW_EXPLANATION.test(text)) return cardShown && cardHasArticles ? 'refine' : 'synthesize';
     if (LAW_RAW_LOOKUP.test(text)) return 'lookup';
     if (cardShown && ACKNOWLEDGEMENT.test(text)) return 'acknowledge';
     return 'lookup';

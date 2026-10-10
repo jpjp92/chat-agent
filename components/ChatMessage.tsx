@@ -849,7 +849,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   // Force a fixed-width container for pharmacy cards so width never varies with content length
-  const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*(pharmacy|hospital|vet)/i);
+  // law 포함(10-10): 목록 카드(메타데이터만)는 좁고 본문 카드(긴 조문)는 넓어 같은 법률 카드 폭이 들쭉날쭉했다.
+  const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*(pharmacy|hospital|vet|law)/i);
   const hasChartBlock = !isUser && !!message.content?.match(/```json\s*:\s*chart/i);
   // Movie cards: widen on desktop only (chips 2-col need the width); mobile keeps the default 95%
   const hasMovieBlock = !isUser && !!message.content?.match(/```json\s*:\s*movie/i);

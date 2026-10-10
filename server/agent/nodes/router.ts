@@ -6,7 +6,7 @@ import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvali
 import { ROUTER_MODEL } from "../../models";
 import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intent-rules";
 import { decideWeatherFollowup } from "../weather-followup";
-import { extractCardEntityNames, decideLawInteraction, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
+import { extractCardEntityNames, decideLawInteraction, lawCardHasArticles, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -412,7 +412,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     //   law_search 로 가서 "관련 법령을 찾을 수 없습니다" 빈 카드가 나갔다(실측 2026-08-31).
     const intentIsLaw = intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search';
     if (intentIsLaw || (lawCardShown && state.activeCards?.latest === 'law')) {
-        const decision = decideLawInteraction(textContent, lawCardShown, intentIsLaw);
+        const decision = decideLawInteraction(textContent, lawCardShown, intentIsLaw, lawCardHasArticles(state.cardContexts?.law));
         if (decision === 'lookup') intent = 'law_search';
         else if (decision === 'synthesize') intent = 'law_qa';
         // 주제가 카드를 떠났다 → 법률로 끌어오지 않는다. LLM 이 정한 의도를 그대로 둔다.

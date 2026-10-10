@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { buildEmptyCardRules, buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, decideLawInteraction, decideLocationCardFollowup, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup, needsLiveStatusSearch } from '../server/agent/card-followup.js';
+import { lawCardHasArticles, buildEmptyCardRules, buildCardFollowupFacts, buildHospitalHoursFacts, buildSearchTargetBlock, decideLawInteraction, decideLocationCardFollowup, extractCardEntityNames, findCardEntityAddress, needsHospitalHoursLookup, needsLiveStatusSearch } from '../server/agent/card-followup.js';
 import { resolveAreaCodesFromAddress } from '../server/agent/hospital-tool.js';
 import { assertSafeFastPassOutput, buildCardToolOutput, cardHasResults, sanitizeActiveCards, sanitizeCardContexts } from '../server/agent/card-tool-output.js';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
@@ -66,6 +66,18 @@ check('법률 원문 조회', decideLawInteraction('도로교통법 제44조 원
 check('법률 첫 설명은 근거 조회 후 합성', decideLawInteraction('도로교통법 제44조를 시나리오별로 설명해줘', false), 'synthesize');
 check('표시된 법률 카드 설명은 후속', decideLawInteraction('이 조항을 시나리오별로 설명해줘', true), 'refine');
 check('추가 처벌 질문은 추가 조회 합성', decideLawInteraction('처벌과 면허 취소 기준도 알려줘', true), 'synthesize');
+
+// 🔴 목록 카드에는 조문이 없다(실측 2026-10-10, Gemini 3.7): `근로기준법 관련 법률` → 목록 카드 →
+//   `근로기준법 시행규칙 설명해줘` 가 refine 으로 가서 공포일만 읊고, `구체적인 내용 설명해줘` 는
+//   "카드에는 조문이 포함되어 있지 않습니다". 목록 카드면 본문을 조회해 합성해야 한다.
+const LIST_CARD = '```json:law\n' + JSON.stringify({ query: '근로기준법', mode: 'list', count: 3, laws: [{ name: '근로기준법 시행규칙' }] }) + '\n```';
+const BODY_CARD = '```json:law\n' + JSON.stringify({ query: '도로교통법', mode: 'body', law: { name: '도로교통법' }, articles: [{ number: '44', text: '…' }] }) + '\n```';
+check('목록 카드엔 조문 없음', lawCardHasArticles(LIST_CARD), false);
+check('본문 카드엔 조문 있음', lawCardHasArticles(BODY_CARD), true);
+check('카드 컨텍스트 없음 → 예전 동작(조문 있다고 봄)', lawCardHasArticles(undefined), true);
+check('목록 카드 + "시행규칙 설명해줘" → 본문 조회 합성', decideLawInteraction('근로기준법 시행규칙 설명해줘', true, true, false), 'synthesize');
+check('목록 카드 + "구체적인 내용 설명해줘"(법률 판정 없음) → 합성', decideLawInteraction('구체적인 내용 설명해줘', true, false, false), 'synthesize');
+check('본문 카드 + 설명 → 카드 후속 유지', decideLawInteraction('이 조항 쉽게 설명해줘', true, true, true), 'refine');
 
 // 🔴 법률 카드가 떠 있으면 **무엇을 물어도** law_search 로 갔다(실측 2026-08-31, 사용자 로컬).
 //   "트랜스포머 어텐션 최적화 논문" → "관련 법령을 찾을 수 없습니다" 빈 카드.
