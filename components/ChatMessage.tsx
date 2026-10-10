@@ -422,17 +422,20 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     pre: CodeBlock,
     table: ({ children }: any) => (
       <div className="my-4 sm:my-8 rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm table-scrollbar" style={{ maxHeight: '400px', overflowX: 'auto', overflowY: 'auto' }}>
-        <table className="min-w-full text-left border-collapse" style={{ wordBreak: 'normal', overflowWrap: 'normal' }}>{children}</table>
+        {/* 🔴 keep-all(10-11): 한국어는 word-break:normal 에서 **음절마다** 줄을 바꿀 수 있어, 표가 열을
+            최소 폭으로 접으면서 "맨체스 / 터 시 / 티" 처럼 단어 중간이 끊겼다(순위표 실측). keep-all 은 공백에서만
+            끊는다 — 단어 하나가 칸보다 길면 열이 그만큼 넓어지고, 넘치면 바깥 div 가 가로 스크롤한다. */}
+        <table className="min-w-full text-left border-collapse" style={{ wordBreak: 'keep-all', overflowWrap: 'normal' }}>{children}</table>
       </div>
     ),
     thead: ({ children }: any) => <thead className="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-200/50 dark:border-white/5">{children}</thead>,
-    th: ({ children }: any) => <th className="px-3 py-2 sm:px-5 sm:py-4 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[10px] sm:text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02] whitespace-nowrap">{children}</th>,
+    th: ({ children }: any) => <th className="px-3 py-2 sm:px-4 sm:py-3.5 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[10px] sm:text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02] whitespace-nowrap">{children}</th>,
     // 🔴 `td` 의 `whitespace-nowrap` 을 풀었다(2026-09-23). 셀이 절대 줄바꿈하지 않아
     // **긴 셀 하나가 표 전체를 가로 스크롤**로 만들었다 — 모바일에서 나머지 열이 화면 밖으로
     // 밀려난다. 프롬프트의 "셀 ≤12단어" 규칙이 이 제약을 떠받치고 있었지만, 모델이 한 번
     // 어기면 그대로 깨지는 구조였다. `th` 는 nowrap 유지 — 헤더는 원래 짧고(같은 프롬프트 규칙),
     // 헤더가 접히면 열 폭 기준이 흔들린다. 숫자 정렬은 `tabular-nums` 가 그대로 잡는다.
-    td: ({ children }: any) => <td className="px-3 py-2 sm:px-5 sm:py-4 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[12px] sm:text-[14px] leading-snug sm:leading-relaxed align-middle tabular-nums">{children}</td>,
+    td: ({ children }: any) => <td className="px-3 py-2 sm:px-4 sm:py-3.5 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[12px] sm:text-[14px] leading-snug sm:leading-relaxed align-middle tabular-nums">{children}</td>,
     tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
 

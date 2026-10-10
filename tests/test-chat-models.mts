@@ -5,7 +5,7 @@ import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { CHAT_MODELS, CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, isChatModelId } from '../src/lib/models.js';
 import { buildOpenAIChatRequest, generateOpenAIChat, normalizeOpenAIWebCitations, OpenAIChatError } from '../server/openai/chat.js';
 import { isOpenAIChatModel, openAIModelCapabilities } from '../server/openai/models.js';
-import { classifyChatError, OPENAI_QUOTA_ERROR_CODES } from '../server/chat-error-policy.js';
+import { classifyChatError, forGuest, OPENAI_QUOTA_ERROR_CODES } from '../server/chat-error-policy.js';
 import { buildSearchProviderInstruction } from '../server/agent/search-provider.js';
 import { getSystemInstruction } from '../server/agent/prompt.js';
 import { assemblePrompt, type AssemblyState } from '../server/agent/prompt-assembly.js';
@@ -125,6 +125,16 @@ for (const code of OPENAI_QUOTA_ERROR_CODES) {
 }
 check('OpenAI 일시적 429는 rate limit 분류',
     classifyChatError({ status: 429, code: 'rate_limit_exceeded' }) === 'rateLimit');
+
+// 게스트 무료 키 실패는 "로그인 후 사용" 안내(10-10). 로그인과 무관한 실패는 그대로.
+check('게스트 + 429 → guestCapacity', forGuest(classifyChatError({ status: 429 }), true) === 'guestCapacity');
+check('게스트 + 503 → guestCapacity', forGuest(classifyChatError({ status: 503 }), true) === 'guestCapacity');
+check('게스트 + 키 전부 소진 → guestCapacity', forGuest(classifyChatError(new Error('[LangGraph] All API keys exhausted for LangChain path.')), true) === 'guestCapacity');
+check('게스트 + 안전 차단은 그대로', forGuest(classifyChatError({ safetyBlock: true }), true) === 'safety');
+check('게스트 + OpenAI 할당량은 그대로', forGuest(classifyChatError({ status: 429, code: 'insufficient_quota' }), true) === 'openAIQuota');
+check('게스트 + 일반 오류는 그대로', forGuest(classifyChatError(new Error('boom')), true) === 'generic');
+check('회원 + 429 는 기존 rateLimit', forGuest(classifyChatError({ status: 429 }), false) === 'rateLimit');
+check('route 가 게스트 여부를 넘긴다', fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('profile.is_guest === true') && fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('guestCapacity:'));
 
 for (const model of ['gpt-5.4-mini', 'gpt-5.6-luna']) {
     check(`OpenAI 채팅 모델 판정  ${model}`, isOpenAIChatModel(model));

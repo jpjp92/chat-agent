@@ -1,5 +1,6 @@
 import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
 import { checkTodayClaim } from './today-guard';
+import { STATUS_EVENT, statusForRouter } from './status-event';
 
 /**
  * `graph.streamEvents` 이벤트 → SSE 프레임.
@@ -40,6 +41,8 @@ export interface DispatchState {
     pinnedPaperCount: number;
     /** 카드 논문의 인용 URL — `[N](url)` 의 번호를 URL 로 교정하는 근거(순서 = 카드 순번). */
     pinnedPaperUrls: string[];
+    /** 마지막으로 보낸 진행 상태 — 같은 상태를 두 번 보내지 않는다(재시도 루프가 검색을 다시 켜도). */
+    lastStatus: string;
 }
 
 export interface StreamDispatch {
@@ -73,6 +76,13 @@ export function createStreamDispatch(
         lcCitationBuffer: '',
         pinnedPaperCount: 0,
         pinnedPaperUrls: [],
+        lastStatus: '',
+    };
+    /** 진행 상태(server/agent/status-event.ts) — 본문이 이미 나가기 시작했으면 의미가 없으니 보내지 않는다. */
+    const sendStatus = (kind: string | null) => {
+        if (!kind || kind === st.lastStatus || st.fullAiResponse) return;
+        st.lastStatus = kind;
+        sendEvent({ status: kind });
     };
 
     // 🔴 닫힌 `[1]` 도 보류 대상이다 — 다음 청크가 `(` 로 시작하면 그건 실제 링크
@@ -151,10 +161,13 @@ export function createStreamDispatch(
             }
           } catch { /* 부분 출력·에러 카드 — 0 으로 두면 아무것도 하지 않는다 */ }
         }
+      } else if (event.event === 'on_custom_event' && event.name === STATUS_EVENT) {
+        sendStatus(data?.kind ?? null);
       } else if (event.event === 'on_chain_end' && event.name === 'router') {
         // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
         const ri = data?.output?.intent;
         if (typeof ri === 'string') st.detectedIntent = ri;
+        sendStatus(statusForRouter(data?.output));
       } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && st.lcCitationBuffer) {
         // 스트림 끝이라 뒤에 `(` 가 올 일이 없다 → 보류분에도 가짜 번호 제거를 적용해 flush.
         const flushed = stripCitations(st.lcCitationBuffer); st.lcCitationBuffer = '';

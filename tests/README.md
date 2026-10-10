@@ -1,7 +1,7 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 25종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
+npm test        # 28종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
 npm run verify  # typecheck + test
 ```
 
@@ -201,6 +201,9 @@ npm run verify  # typecheck + test
 | `test-key-tier.mts` | **Gemini 키 등급** — 회원 유료 키 우선·실패 시 무료 로테이션·게스트는 무료만(PLAN_GEMINI_PAID_FIRST) |
 | `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |
+| `test-image-multiturn.mts` | **이미지 멀티턴** — 히스토리 미디어 창(`mediaWindow`)을 지나 턴별로 모델이 이미지를 받는지·새 이미지 식별·창 밖 강등을 관측. 3턴째 강등은 **현재 동작 기록**(바꾸면 기대 갱신) (DEV_261010 §2-4) |
+| `test-loading-status.mts` | **응답 대기 문구** — 상황별 판정(알약 `'정'` 오판·영상·arXiv·문서 형식 9종), 4개 언어 키 완비·문구 원칙("..."·괄호·소요시간·모델명 금지), 훅이 URL 처리 뒤 한 번 정하는지, shimmer reduced-motion (DEV_261010 §2-11) |
+| `test-status-event.mts` | **서버 진행 상태** — 라우터 → `lookup`(카드 후속 제외), 실제 검색 → `searching`(라우터 needsSearch 만으론 안 보냄), 중복·본문 후 금지. 실제 LangGraph `streamEvents` → 디스패처 → SSE 경로 (DEV_261010 §2-12) |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
 

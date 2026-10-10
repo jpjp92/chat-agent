@@ -387,25 +387,25 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* Header */}
-                {/* Side padding tracks the chart area below (p-2 sm:p-4) so the title starts on the
-                    same line as the body at every breakpoint — px-3 sat 4px outside it on desktop
-                    and 4px inside it on mobile, so the mismatch flipped direction by breakpoint. */}
-                <div className="px-2 sm:px-4 py-1.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/30 dark:bg-white/[0.04]">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                {/* 좌우 여백은 카드 모서리(rounded-[2rem] = 32px) 곡선 안쪽으로 둔다.
+                    예전엔 아래 차트 영역 패딩(p-2 sm:p-4)에 맞춰 8~16px 였는데, 반지름 32px 카드에선
+                    점·다운로드 아이콘이 곡선 구간에 걸려 가장자리에 붙어 보였다(모바일 실측 10-11).
+                    다른 카드 헤더(Chemical px-4 sm:px-6 · Diagram px-5)와 같은 범위로 맞춘다. */}
+                <div className="px-5 sm:px-6 py-2.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between gap-3 bg-slate-50/30 dark:bg-white/[0.04]">
+                    <div className="flex items-center gap-2 min-w-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>
                         <h3 className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate leading-none">
                             {title || t.title}
                         </h3>
                     </div>
-                    {/* -mr-1 cancels the button's own px-1 so the ICON's optical edge lands on the
-                        container padding, matching the dot's gutter on the left. mr-2 put the icon
-                        at 24px while the dot sat at 12px — twice the gutter. */}
+                    {/* p-2 -m-2: 터치 영역은 ~26px 로 넓히되 아이콘 위치는 헤더 여백선에 그대로 둔다. */}
                     <button
                         onClick={handleDownload}
-                        className="flex items-center text-slate-400 hover:text-indigo-500 transition-colors px-1 flex-shrink-0 ml-2 -mr-1"
+                        className="flex items-center justify-center text-slate-400 hover:text-indigo-500 transition-colors p-2 -m-2 flex-shrink-0"
                         title={t.download}
+                        aria-label={t.download}
                     >
-                        <i className="fa-solid fa-download text-[9px] leading-none"></i>
+                        <i className="fa-solid fa-download text-[10px] leading-none"></i>
                     </button>
                 </div>
 

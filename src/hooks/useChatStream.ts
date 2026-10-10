@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage, GuestLimitError, UserFacingChatError } from '../../services/geminiService';
+import { pickWaitingStatus, type WaitingStatus } from '../lib/loading-status';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
@@ -10,59 +11,102 @@ import { getMovieContextText } from '../../lib/movie-context';
 // (이전: App.tsx가 statusMessages subset 객체를 만들어 prop으로 전달 → 중복 타입/배관)
 const STATUS: Record<Language, {
   uploadFailed: string;
+  chatFailed: string;
+  uploading: string;
+  retrying: string;
+  fetchingUrl: string;
   identifyingPill: string;
-  analyzingLargeDoc: string;
+  analyzingVideo: string;
+  analyzingAudio: string;
+  analyzingPaper: string;
+  analyzingDoc: string;      // {type} 자리 — 형식이 하나일 때
+  analyzingDocGeneric: string;
   analyzingImage: string;
   analyzingAttachment: string;
-  analyzingPaper: string;
-  watchingVideo: string;
-  fetchingUrl: string;
-  chatFailed: string;
+  analyzingWebpage: string;
+  searchingWeb: string;      // 서버 status 'searching'
+  lookingUp: string;         // 서버 status 'lookup'
 }> = {
+  // 대기 문구는 짧은 진행형 한 줄 — 소요 시간·괄호 설명·모델명 없음(src/lib/loading-status.ts 원칙)
   ko: {
     uploadFailed: '업로드 실패',
-    identifyingPill: '약품 식별 중... (약학정보원 DB 조회)',
-    analyzingLargeDoc: 'Gemini가 대용량 문서를 정교하게 분석 중입니다 (10~20초 소요 가능)...',
-    analyzingImage: '이미지를 분석 중입니다...',
-    analyzingAttachment: '첨부파일 분석 중...',
-    analyzingPaper: '논문 데이터를 정밀하게 분석 중입니다...',
-    watchingVideo: 'Gemini가 영상을 시청 중입니다... (1분 정도 소요될 수 있습니다)',
-    fetchingUrl: 'URL에서 내용을 가져오는 중...',
     chatFailed: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.',
+    uploading: '파일을 업로드 중입니다',
+    retrying: '재시도 중입니다',
+    fetchingUrl: '웹페이지를 가져오는 중입니다',
+    identifyingPill: '약품을 식별 중입니다',
+    analyzingVideo: '영상을 분석 중입니다',
+    analyzingAudio: '오디오를 분석 중입니다',
+    analyzingPaper: '논문을 분석 중입니다',
+    analyzingDoc: '{type} 문서를 분석 중입니다',
+    analyzingDocGeneric: '문서를 분석 중입니다',
+    analyzingImage: '이미지를 분석 중입니다',
+    analyzingAttachment: '첨부파일을 분석 중입니다',
+    analyzingWebpage: '웹페이지를 분석 중입니다',
+    searchingWeb: '웹을 검색 중입니다',
+    lookingUp: '정보를 조회 중입니다',
   },
   en: {
     uploadFailed: 'Upload failed',
-    identifyingPill: 'Identifying medication... (Searching database)',
-    analyzingLargeDoc: 'Gemini is analyzing a large document in detail (may take 10-20s)...',
-    analyzingImage: 'Analyzing image...',
-    analyzingAttachment: 'Analyzing attachment...',
-    analyzingPaper: 'Analyzing paper data in detail...',
-    watchingVideo: 'Gemini is watching the video... (May take about 1 min)',
-    fetchingUrl: 'Fetching content from URL...',
     chatFailed: 'Failed to generate a response. Please try again.',
+    uploading: 'Uploading file',
+    retrying: 'Retrying',
+    fetchingUrl: 'Fetching web page',
+    identifyingPill: 'Identifying medication',
+    analyzingVideo: 'Analyzing video',
+    analyzingAudio: 'Analyzing audio',
+    analyzingPaper: 'Analyzing paper',
+    analyzingDoc: 'Analyzing {type} document',
+    analyzingDocGeneric: 'Analyzing document',
+    analyzingImage: 'Analyzing image',
+    analyzingAttachment: 'Analyzing attachment',
+    analyzingWebpage: 'Analyzing web page',
+    searchingWeb: 'Searching the web',
+    lookingUp: 'Looking up information',
   },
   es: {
     uploadFailed: 'Error de subida',
-    identifyingPill: 'Identificando medicamento... (Buscando base de datos)',
-    analyzingLargeDoc: 'Gemini está analizando un documento extenso en detalle (puede tomar 10-20s)...',
-    analyzingImage: 'Analizando imagen...',
-    analyzingAttachment: 'Analizando archivo adjunto...',
-    analyzingPaper: 'Analizando datos del artículo...',
-    watchingVideo: 'Gemini está viendo el video... (Puede tomar 1 min)',
-    fetchingUrl: 'Obteniendo contenido de URL...',
     chatFailed: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.',
+    uploading: 'Subiendo archivo',
+    retrying: 'Reintentando',
+    fetchingUrl: 'Obteniendo página web',
+    identifyingPill: 'Identificando medicamento',
+    analyzingVideo: 'Analizando video',
+    analyzingAudio: 'Analizando audio',
+    analyzingPaper: 'Analizando artículo',
+    analyzingDoc: 'Analizando documento {type}',
+    analyzingDocGeneric: 'Analizando documento',
+    analyzingImage: 'Analizando imagen',
+    analyzingAttachment: 'Analizando archivo adjunto',
+    analyzingWebpage: 'Analizando página web',
+    searchingWeb: 'Buscando en la web',
+    lookingUp: 'Consultando información',
   },
   fr: {
     uploadFailed: "Échec d'envoi",
-    identifyingPill: 'Identification du médicament... (Recherche database)',
-    analyzingLargeDoc: 'Gemini analyse un document volumineux en détail (peut prendre 10-20s)...',
-    analyzingImage: "Analyse de l'image...",
-    analyzingAttachment: 'Analyse de la pièce jointe...',
-    analyzingPaper: "Analyse des données de l'article...",
-    watchingVideo: 'Gemini regarde la vidéo... (Peut prendre 1 min)',
-    fetchingUrl: 'Récupération du contenu URL...',
     chatFailed: 'Échec de la génération de la réponse. Veuillez réessayer.',
+    uploading: 'Envoi du fichier',
+    retrying: 'Nouvelle tentative',
+    fetchingUrl: 'Récupération de la page web',
+    identifyingPill: 'Identification du médicament',
+    analyzingVideo: 'Analyse de la vidéo',
+    analyzingAudio: "Analyse de l'audio",
+    analyzingPaper: "Analyse de l'article",
+    analyzingDoc: 'Analyse du document {type}',
+    analyzingDocGeneric: 'Analyse du document',
+    analyzingImage: "Analyse de l'image",
+    analyzingAttachment: 'Analyse de la pièce jointe',
+    analyzingWebpage: 'Analyse de la page web',
+    searchingWeb: 'Recherche sur le web',
+    lookingUp: 'Recherche des informations',
   },
+};
+
+/** 대기 판정 → 화면 문구. 문서 형식이 하나면 "XLSX 문서를…", 아니면 "문서를…". */
+const waitingText = (status: (typeof STATUS)[Language], w: WaitingStatus | null): string | null => {
+  if (!w) return null;
+  if (w.key === 'analyzingDoc') return w.docType ? status.analyzingDoc.replace('{type}', w.docType) : status.analyzingDocGeneric;
+  return status[w.key];
 };
 
 interface UseChatStreamOptions {
@@ -224,7 +268,7 @@ export const useChatStream = ({
             continue;
           }
 
-          setLoadingStatus(`${attachment.fileName || '파일'} 업로드 중...`);
+          setLoadingStatus(status.uploading);
 
           const bucket = isVideo ? 'chat-videos' : isImage ? 'chat-imgs' : 'chat-docs';
           const uploadResult = await uploadToStorage({
@@ -264,20 +308,8 @@ export const useChatStream = ({
     let pendingSources: any[] = [];
     const modelMessageId = (Date.now() + 1).toString();
 
-    const hasLargeFile = finalAttachments.some(attachment => attachment.mimeType === 'application/pdf');
-    const pillKeywords = ['알약', '약품', '정', '캡슐', '명칭', '식별', '무슨 약'];
-    const hasPillKeyword = pillKeywords.some(keyword => content.includes(keyword)) || /(?:^|\s)약(?:$|\s|이|을|은|에|과|도|은|는)/.test(content);
-    const hasImage = finalAttachments.some(attachment => attachment.mimeType.startsWith('image/'));
-
-    if (hasPillKeyword && hasImage) {
-      setLoadingStatus(status.identifyingPill);
-    } else if (hasLargeFile) {
-      setLoadingStatus(status.analyzingLargeDoc);
-    } else if (hasImage) {
-      setLoadingStatus(status.analyzingImage);
-    } else if (finalAttachments.length > 0) {
-      setLoadingStatus(status.analyzingAttachment);
-    }
+    // 대기 문구는 URL 처리 뒤에 한 번 정한다(pickWaitingStatus). 여기서 미리 정하면 URL 분기가 덮어쓴다.
+    const urlKind = { youtube: false, arxiv: false, urlFetched: false };
 
     const activeSession = sessions.find(session => session.id === activeSessionId);
     let webContext = '';
@@ -364,16 +396,14 @@ export const useChatStream = ({
       }
 
       if (isArxiv) {
-        setLoadingStatus(status.analyzingPaper);
+        urlKind.arxiv = true;
         finalAttachments.push({ fileName: 'arxiv.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[ARXIV_PDF_LINK_QUEUED]';
-        setLoadingStatus(null);
       } else if (isYoutube) {
         // fetch-url.ts 호출 제거: Gemini가 fileData로 영상을 직접 분석하므로 중복
         // 제목/채널/description 텍스트 사전 수집 불필요 → 8~10초 절감
-        setLoadingStatus(status.watchingVideo);
+        urlKind.youtube = true;
         youtubeContextUrl = url;
-        setTimeout(() => setLoadingStatus(null), 3000);
       } else if (isPdf) {
         finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
         webContext += '\n[URL_PDF_LINK_QUEUED]';
@@ -386,6 +416,7 @@ export const useChatStream = ({
           const { content } = urlData;
 
           if (content && !content.startsWith('[FETCH_ERROR')) {
+            urlKind.urlFetched = true;
             webContext += `\n\n[URL_CONTENT: ${url}]\n${content}`;
           } else {
             const isSecurityBlock = content?.includes('보안 인증이 필요한');
@@ -410,6 +441,13 @@ export const useChatStream = ({
       // 검색 fallback은 비슷한 다른 문서를 요약할 수 있어 명시 URL 요약에서는 사용하지 않는다.
     }
 
+    // 모델을 기다리는 동안의 문구 — 첫 응답 조각에서 내린다(아래 onChunk).
+    setLoadingStatus(waitingText(status, pickWaitingStatus({
+      text: content,
+      attachments: finalAttachments,
+      ...urlKind,
+    })));
+
     let hasError = false;
 
     const attemptStream = async (attempt: number) => {
@@ -425,7 +463,7 @@ export const useChatStream = ({
             ),
           };
         }));
-        setLoadingStatus('재시도 중...');
+        setLoadingStatus(status.retrying);
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
@@ -512,6 +550,12 @@ export const useChatStream = ({
             .map(kind => [kind, getRecentCardBlock(messages, kind)])
             .filter(([, value]) => Boolean(value)));
         })(),
+        // 서버 진행 상태 — 본문이 아직 없을 때만 문구로(첫 조각에서 내려가는 기존 규칙과 같다)
+        (serverStatus) => {
+          if (modelResponse) return;
+          if (serverStatus === 'searching') setLoadingStatus(status.searchingWeb);
+          else if (serverStatus === 'lookup') setLoadingStatus(status.lookingUp);
+        },
       );
 
       const videoAttachment = finalAttachments.find(attachment => attachment.mimeType?.startsWith('video/'));

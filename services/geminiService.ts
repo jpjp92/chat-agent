@@ -238,6 +238,8 @@ export const streamChatResponse = async (
   // 판정해서 넘긴다 — movieContext가 이미 쓰던 방식과 같은 패턴.
   activeCards?: { weather?: boolean; paper?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: 'pharmacy' | 'hospital' | 'vet' | 'law' },
   cardContexts?: Partial<Record<'pharmacy' | 'hospital' | 'vet' | 'law', string>>,
+  // 서버 진행 상태 — 'searching'(실제 웹 검색 시작) · 'lookup'(외부 조회 의도 확정). server/agent/status-event.ts
+  onStatus?: (status: string) => void,
 ) => {
   const controller = new AbortController();
   let lastActivity = Date.now();
@@ -365,6 +367,7 @@ export const streamChatResponse = async (
           if (data.error) throw new UserFacingChatError(data.error);
           if (data.text) { onChunk(data.text, false); receivedAnyText = true; }
           if (data.sources && onMetadata) onMetadata(data.sources);
+          if (data.status && onStatus) onStatus(data.status);
         }
       }
     }

@@ -64,7 +64,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                     <div className="flex items-center gap-2.5 py-2.5" role="status" aria-live="polite">
                         <ThinkingOrb state="working" size={20} theme="auto" color="#a5b4fc" aria-hidden="true" />
                         {loadingStatus && (
-                            <span className="text-sm text-slate-500 dark:text-slate-400">{loadingStatus}</span>
+                            <span key={loadingStatus} className="status-shimmer text-sm">{loadingStatus}</span>
                         )}
                     </div>
                 </div>

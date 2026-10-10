@@ -193,6 +193,40 @@ html {
   .modal-panel-in { animation: none; }
 }
 
+/* 응답 대기 문구 shimmer — ChatGPT·Claude 의 "Thinking…" 처럼 글자 위로 빛이 지나간다.
+   진행감은 문구(소요 시간·"...")가 아니라 이 효과로 준다(src/lib/loading-status.ts).
+   문구가 바뀌면 status-fade-in 으로 부드럽게 교체(ChatArea 가 key 로 다시 마운트). */
+@keyframes statusShimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: -100% 0; }
+}
+@keyframes statusFadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.status-shimmer {
+  --shimmer-base: rgb(100 116 139);      /* slate-500 */
+  --shimmer-hi: rgb(203 213 225);        /* slate-300 */
+  color: var(--shimmer-base);
+  background: linear-gradient(90deg, var(--shimmer-base) 0%, var(--shimmer-base) 40%, var(--shimmer-hi) 50%, var(--shimmer-base) 60%, var(--shimmer-base) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: statusShimmer 2.2s linear infinite, statusFadeIn 240ms ease-out both;
+}
+.dark .status-shimmer {
+  --shimmer-base: rgb(148 163 184);      /* slate-400 */
+  --shimmer-hi: rgb(241 245 249);        /* slate-100 */
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-shimmer {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
 .prose p {
   margin-bottom: 1.25em;
   line-height: 1.8;
