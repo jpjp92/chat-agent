@@ -41,7 +41,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 - **Provider-native tools**: GPT selections use OpenAI Responses strict function calling for 10 intents — drug / pharmacy / hospital / vet / law_search / law_qa / movie / PubMed papers / arXiv papers / weather. Sports questions go to web search with sources (the World Cup tool was retired 2026-10-04 after the tournament ended — it was intercepting league questions). Card tools fast-pass their renderer block; drug and paper results are synthesized by the selected GPT. A hosted web search and a forced local function never share one request, but a paper lookup **plus an explicit user request to search** attaches web search to the synthesis step so the request is not silently dropped
 - **Card follow-up**: weather, movie, pharmacy, hospital, vet, law, and paper cards stay on screen across turns instead of being redrawn. The client reports which cards are visible (`activeCards`), because the server only receives the last 10 messages. Guards also stop a displayed card from pulling in unrelated turns
 - **Open-now facts are computed server-side, never guessed**: pharmacy hours come from the pharmacy API and hospital hours from the HIRA detail service, and the server — not the model — decides `is_open_now`. Only when the authoritative source has no record (HIRA detail coverage measured at 30% overall, 14% for clinics) does the turn fall back to web search, and that answer must say it is unconfirmed and to call ahead. Vet cards carry licence status only, so they always take the search path
-- **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT video/audio and Gemini-native file inputs use a capability fallback to Gemini 2.5 Flash
+- **Multimodal**: images, PDF (30MB+), video, DOCX/PPTX/XLSX, HWP/HWPX (kordoc). GPT reads PDFs directly (Responses `input_file`); GPT video/audio use a capability fallback to Gemini 2.5 Flash
 - **YouTube**: captions can be handled as text by the selected model; native video analysis uses Gemini 2.5 Flash
 - **Read aloud (TTS)**: **Gemini 3.8 Flash Lite TTS**, falling back to OpenAI `gpt-4o-mini-tts` when Gemini fails before the first byte (OpenAI removes that model on 2027-01-06 — the fallback moves to `gemini-3.8-flash-tts` before then). Answers are cleaned server-side (card JSON, code, URLs, math removed), split at sentence boundaries into ≤500-char chunks — longer requests made **both** providers silently skip or repeat the middle — and streamed as raw PCM, so the first sound arrives in ~1 s. Replaying the same answer plays from an in-browser cache (no new cost or quota). **Members only**, 20,000 characters/day. Pricing, measurements, and error handling: [docs/guide/REF_TTS.md](docs/guide/REF_TTS.md)
 - **LangGraph agent**: Semantic Router → Vision / Generator ↔ Tools
@@ -260,7 +260,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── storage-user-prefix-rls.sql     # storage.objects RLS (3버킷 × 4정책)
 │   ├── url-cache.sql / mfds-pills.sql  # URL 캐시 · 식약처 낱알 DB
 │   └── sync-mfds-pills.mjs             # 약품 ~25,000행 적재기
-├── tests/                              # 🔴 회귀 하니스 28종 (`npm test`, tests/*.mts 자동 수집). tests/README.md
+├── tests/                              # 🔴 회귀 하니스 30종 (`npm test`, tests/*.mts 자동 수집). tests/README.md
 │   ├── test-intent-rules / test-search-policy / test-weather-followup
 │   ├── test-card-followup / test-storage-name / test-pill-messages
 │   ├── test-ddg-parse / test-thinking-config / test-openai-url-fetch
@@ -355,12 +355,12 @@ npm start
 ```bash
 npm run verify     # typecheck + 회귀 하니스 (현재 green — 커밋 전 이걸 돌린다)
 npm run typecheck  # tsc --noEmit
-npm test           # 하니스 28종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
+npm test           # 하니스 30종 (tests/) — 외부 네트워크 없이 핵심 라우팅·정책·오류 계약 검증
 npm run lint       # eslint (기존 에러 30건 — 아직 verify 에 포함하지 않는다)
 ```
 
 > 🔴 **폴더가 곧 정책이다** (2026-08-18 정리). `.gitignore` 에 예외를 다는 대신 위치로 가른다:
-> **`tests/`** 회귀 하니스 28종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
+> **`tests/`** 회귀 하니스 30종 — 시크릿·네트워크 없이 돌고 프로덕션 로직을 import 해서 잰다([tests/README.md](tests/README.md)). 외부 공급자 실측은 `tests/manual/`에서 별도로 실행한다.
 > **`docs/guide/db/`** 스키마 SQL + 적재 스크립트 — 환경 재현의 유일한 출처([README](docs/guide/db/README.md)).
 > **`scripts/`** 는 **통째로 `.gitignore`** 다 — 실 API 키로 외부를 때리는 일회성 습작 전용이라
 > 언제 사라져도 되는 것만 둔다. 예전엔 한 폴더에 섞어두고 예외를 6줄 달았는데,

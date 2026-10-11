@@ -27,14 +27,14 @@
 ### A. 멀티모달 네이티브
 
 바이너리/`fileData`를 모델 입력으로 전달해 레이아웃·이미지·표를 직접 인식한다. 이미지는 선택한
-Gemini/GPT가 처리한다. 영상·오디오·PDF/fileData를 GPT가 선택된 상태에서 첨부하면 현재 OpenAI
-어댑터가 지원하지 않는 입력이므로 Gemini 2.5 Flash capability fallback을 사용한다.
+Gemini/GPT가 처리한다. PDF는 GPT도 Responses `input_file`로 직접 읽는다(2026-10-11, [DEV_261011](../logs/2026/10/DEV_261011.md)).
+영상·오디오는 OpenAI 어댑터가 받지 않으므로 GPT 선택 시 Gemini 2.5 Flash capability fallback을 사용한다.
 
 | 타입 | 처리 | 비고 |
 |---|---|---|
 | **이미지** (`image/*`) | 클라에서 최대 1920px·JPEG 85% 압축 후 `image_url` | GIF는 애니메이션 보존 위해 원본 유지 |
 | **영상** (`video/*`) | Gemini 네이티브 비디오 파트 | GPT 선택 시 Gemini 2.5 capability fallback. YouTube 원본도 동일 |
-| **PDF** (`application/pdf`) | Gemini 네이티브 멀티모달(`fileData` fileUri/base64) | GPT 선택 시 Gemini 2.5 capability fallback. **kordoc 경유 안 함** |
+| **PDF** (`application/pdf`) | Gemini 네이티브 멀티모달(`fileData` fileUri/base64) | GPT 선택 시 GPT가 `input_file`로 직접(업로드·링크 `file_url`, 인라인 `file_data`). 링크를 못 받으면(400) 그 턴만 2.5. **kordoc 경유 안 함** |
 
 > 서버 `supportedMimeTypes`는 `audio/`도 멀티모달로 수용하나 `accept`에 없어 파일 선택기로는 노출 안 됨(백엔드 capable, UI 미노출).
 
@@ -75,7 +75,7 @@ HWP 첨부 → ChatInput.parseViaKordoc(file)
 
 ## PDF 처리 상세 (네이티브 멀티모달)
 
-PDF는 **텍스트 추출(kordoc/mammoth) 경유 금지**다. Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다. `[EXTRACTED_CONTENT:]` 마커를 만들지 않으며, GPT가 선택돼도 이 턴만 Gemini 2.5로 capability fallback한다.
+PDF는 **텍스트 추출(kordoc/mammoth) 경유 금지**다. Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다. `[EXTRACTED_CONTENT:]` 마커를 만들지 않는다. GPT도 PDF 원본을 `input_file`로 직접 읽는다(텍스트 추출 아님).
 
 ```
 PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
