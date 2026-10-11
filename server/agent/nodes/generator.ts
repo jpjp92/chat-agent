@@ -16,6 +16,7 @@ import { resolveAreaCodesFromAddress } from "../hospital-tool";
 import { runLangChainPath } from "./langchain-path";
 import { applyGeminiCitations } from "../gemini-citations";
 import { generateOpenAIChat } from "../../openai/chat";
+import { hasOpenAIUnsupportedMedia, hasOpenAIPdf, isOpenAIFileFetchError } from "../../openai/media";
 import { isOpenAIChatModel } from "../../openai/models";
 import { withSearchProviderInstruction } from "../search-provider";
 import { getLocalFunctionTool } from "../local-tool-registry";
@@ -58,7 +59,8 @@ export const createGeneratorNode = (
     /** 9단계 A/B 전용 손잡이 — 프로덕션은 넘기지 않으므로 항상 기본값(현재 동작). */
     experiment: { timeBlockAt?: 'start' | 'end' | 'both' } = {},
 ) => {
-    return async (state: AgentStateType) => {
+    // 이름을 붙여 둔다 — GPT 가 PDF 링크를 못 받으면 같은 노드를 2.5 로 한 번 다시 부른다(openAIPdfFallback).
+    const generate = async (state: AgentStateType): Promise<any> => {
         console.log('[LangGraph] Entering Generator Node');
         console.log('[LangGraph] Selected provider model | intent:', state.intent, '| model:', state.model);
 
@@ -159,17 +161,11 @@ export const createGeneratorNode = (
             Array.isArray(m.content) && m.content.some((p: any) =>
                 p.fileData?.fileUri && !/youtube\.com|youtu\.be/.test(p.fileData.fileUri))
         );
-        const pinUrlFileData = hasUrlFileData && !selCaps.urlFileData;
-        // OpenAI 선택 모델은 텍스트·이미지를 직접 처리한다. 현재 어댑터가 전달하지 않는
-        // 영상·오디오·PDF fileData/inline 문서는 기존 검증된 Gemini 2.5 경로로 핀한다.
-        const hasOpenAIUnsupportedMedia = isOpenAIChatModel(sel) && state.messages.some((m: any) =>
-            Array.isArray(m.content) && m.content.some((p: any) =>
-                Boolean(p.fileData) ||
-                (p.type === 'image_url' && typeof p.image_url?.url === 'string' &&
-                    /^data:(?:application\/pdf|audio\/|video\/)/i.test(p.image_url.url))
-            )
-        );
-        const pinOpenAIUnsupportedMedia = hasOpenAIUnsupportedMedia;
+        // GPT 는 이 축과 무관하다 — PDF 는 input_file 로 직접 받고(media.ts), 영상·오디오는 아래 핀이 잡는다.
+        const pinUrlFileData = hasUrlFileData && !selCaps.urlFileData && !isOpenAIChatModel(sel);
+        // OpenAI 선택 모델은 텍스트·이미지·PDF 를 직접 처리한다(PDF 는 Responses input_file — DEV_261011).
+        // Responses 가 받지 않는 영상·오디오만 기존 검증된 Gemini 2.5 경로로 핀한다.
+        const pinOpenAIUnsupportedMedia = isOpenAIChatModel(sel) && hasOpenAIUnsupportedMedia(state.messages);
         // 예산형 단일 데드라인 대상 — 영상 토큰이 무거운 단일 heavy 호출이라 25s 로는 정상 응답이 끊긴다.
         const isHeavyMediaTurn = isYtVideoTurn || hasUrlFileData;
         const resolvedModel = (pinYoutube || pinUrlFileData || pinOpenAIUnsupportedMedia || (pinUrl && !isOpenAIChatModel(sel)))
@@ -250,14 +246,24 @@ export const createGeneratorNode = (
             });
             const effectiveMaxTokens = useWebSearch && resolvedMaxTokens < 8192 ? 8192 : resolvedMaxTokens;
             console.log('[LangGraph] Starting OpenAI Responses call | model:', resolvedModel, '| useWebSearch:', useWebSearch, '| maxTokens:', effectiveMaxTokens);
-            const result = await generateOpenAIChat({
-                model: resolvedModel,
-                messages: state.messages,
-                instructions: finalInstruction,
-                useWebSearch,
-                maxOutputTokens: effectiveMaxTokens,
-                functionTool,
-            });
+            let result;
+            try {
+                result = await generateOpenAIChat({
+                    model: resolvedModel,
+                    messages: state.messages,
+                    instructions: finalInstruction,
+                    useWebSearch,
+                    maxOutputTokens: effectiveMaxTokens,
+                    functionTool,
+                });
+            } catch (error: any) {
+                // OpenAI 가 PDF 링크를 못 받아 왔다(봇 차단·로그인 필요·만료 — 400 "Error while downloading file.").
+                // 이 턴만 Gemini 2.5 로 다시 부른다. 2.5 는 지금까지 PDF 를 받아 온 검증된 경로다.
+                const openAIPdfFallback = isOpenAIFileFetchError(error) && hasOpenAIPdf(state.messages);
+                if (!openAIPdfFallback) throw error;
+                console.warn(`[LangGraph] OpenAI PDF fetch failed (${error.message}) — retrying this turn on ${SERVER_MODELS.FLASH}`);
+                return generate({ ...state, model: SERVER_MODELS.FLASH });
+            }
             // Responses API는 현재 비스트리밍 호출이다. 텍스트 전송·DB 누적은 route의
             // generator on_chain_end 한 곳에서만 처리해 중복 전송을 막는다.
             return { messages: [new AIMessage(result.text)], groundingSources: result.sources, provider: 'openai' };
@@ -823,4 +829,5 @@ export const createGeneratorNode = (
             langName,
         });
     };
+    return generate;
 };

@@ -3,6 +3,7 @@ import { withSearchProviderInstruction } from '../agent/search-provider';
 import type { LocalFunctionTool } from '../agent/local-tool-registry';
 import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../agent/card-tool-output';
 import { buildEmptyCardRules } from '../agent/card-followup';
+import { toOpenAIFilePart } from './media';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /**
@@ -90,6 +91,10 @@ const toInputContent = (message: any, role: 'user' | 'assistant'): string | Json
     for (const part of value) {
         if (part?.type === 'text' || part?.type === 'input_text' || part?.type === 'output_text') {
             content.push({ type: 'input_text', text: String(part.text ?? '') });
+        } else if (role === 'user' && toOpenAIFilePart(part)) {
+            // PDF(업로드·링크·인라인) → input_file. 🔴 image_url 분기보다 **먼저** 본다 —
+            //   인라인 PDF 도 history 에선 `image_url: data:application/pdf…` 모양이다(media.ts).
+            content.push(toOpenAIFilePart(part)!);
         } else if (role === 'user' && part?.type === 'image_url' && typeof part.image_url?.url === 'string') {
             content.push({ type: 'input_image', image_url: part.image_url.url, detail: 'auto' });
         }
@@ -98,9 +103,9 @@ const toInputContent = (message: any, role: 'user' | 'assistant'): string | Json
     // Responses API의 수동 멀티턴 공식 형식은 이전 assistant 메시지를
     // `{ role: 'assistant', content: '...' }`로 다시 전달한다. assistant에
     // input_text content part 배열을 붙이면 첫 턴은 성공해도 후속 턴이 400으로 실패할 수 있다.
-    // user도 텍스트뿐이면 같은 easy-input 문자열 형식을 쓰고, 이미지를 동반할 때만 배열을 쓴다.
-    const hasImage = content.some(part => part.type === 'input_image');
-    if (role === 'assistant' || !hasImage) {
+    // user도 텍스트뿐이면 같은 easy-input 문자열 형식을 쓰고, 이미지·PDF를 동반할 때만 배열을 쓴다.
+    const hasMedia = content.some(part => part.type === 'input_image' || part.type === 'input_file');
+    if (role === 'assistant' || !hasMedia) {
         return content
             .filter(part => part.type === 'input_text')
             .map(part => String(part.text ?? ''))
