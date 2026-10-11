@@ -39,7 +39,8 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           {
             key: 'Content-Security-Policy',
-            value: "frame-src https://www.youtube.com; object-src 'none'; base-uri 'self'",
+            // accounts.google.com — Google 로그인 버튼(GIS)이 iframe 으로 그려진다(components/GoogleIdButton.tsx).
+            value: "frame-src https://www.youtube.com https://accounts.google.com; object-src 'none'; base-uri 'self'",
           },
         ],
       },

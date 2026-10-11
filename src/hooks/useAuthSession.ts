@@ -180,6 +180,25 @@ export const useAuthSession = () => {
     if (error) throw error;
   }, []);
 
+  // ── ID 토큰 경로(GIS) — 리다이렉트 없이 앱 안에서 끝난다(src/lib/google-id.ts) ──────────
+  // link/signIn 의 선택 기준은 위와 같다(호출부가 정한다). 성공하면 **새로고침**한다 —
+  // 리다이렉트 경로는 돌아오며 페이지를 새로 그렸고, 세션·대화 캐시·프로필이 그 전제로 짜여 있다.
+  // 제자리 갱신으로 바꾸면 그 전제가 조용히 깨질 수 있으므로 같은 끝맺음을 유지한다.
+
+  /** 게스트에 Google 신원을 붙인다(같은 uuid, 대화 승계). 충돌이면 throw → 호출부가 충돌 분기. */
+  const linkGoogleIdToken = useCallback(async (cred: { token: string; nonce: string }) => {
+    const { error } = await getSupabaseClient().auth.linkIdentity({ provider: 'google', token: cred.token, nonce: cred.nonce });
+    if (error) throw error;
+    window.location.reload();
+  }, []);
+
+  /** ID 토큰으로 로그인(현재 세션 데이터는 승계되지 않음). 충돌 재시도에서 같은 토큰을 다시 쓴다 → 계정을 두 번 안 고른다. */
+  const signInGoogleIdToken = useCallback(async (cred: { token: string; nonce: string }) => {
+    const { error } = await getSupabaseClient().auth.signInWithIdToken({ provider: 'google', token: cred.token, nonce: cred.nonce });
+    if (error) throw error;
+    window.location.reload();
+  }, []);
+
   const signOut = useCallback(async () => {
     // 이 플래그로 App 이 에러 화면 대신 "로그아웃 중" 로딩을 그린다.
     // signOut() 이 onAuthStateChange(SIGNED_OUT)로 currentUser 를 null 로 만들면
@@ -208,6 +227,8 @@ export const useAuthSession = () => {
     updateProfile,
     linkGoogle,
     signInWithGoogle,
+    linkGoogleIdToken,
+    signInGoogleIdToken,
     signOut,
     hydratedUserProfile: useMemo(() => currentUser ? buildUserProfile(currentUser) : null, [currentUser]),
   };

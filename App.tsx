@@ -64,9 +64,9 @@ const App: React.FC = () => {
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
   });
 
-  const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, signOut, hydratedUserProfile } = useAuthSession();
+  const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, linkGoogleIdToken, signInGoogleIdToken, signOut, hydratedUserProfile } = useAuthSession();
   // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
-  const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
+  const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | 'switch' | null>(null);
   // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
   // 아무 설명 없이 돌아와 같은 버튼을 다시 누른다(실측: 무한 재시도).
   const [linkConflict, setLinkConflict] = useState(false);
@@ -108,6 +108,9 @@ const App: React.FC = () => {
   // 값이라 대화 직후엔 stale → 그걸 쓰면 대화한 게스트가 고아가 된다).
   // 빈 New Chat 은 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라 개수로는 못 센다.
   const guestHasData = sessions.some(s => !(s.title === 'New Chat' && s.messages.length === 0));
+  // 🔴 link 는 **게스트**에게만. 정식 사용자의 계정 전환('switch')에서 guestHasData 만 보면
+  //   자기 대화가 있으니 참 → 지금 계정에 다른 Google 신원을 **붙여 버린다**.
+  const shouldLinkGuest = (currentUser?.is_guest ?? true) && guestHasData && authModalReason !== 'switch';
 
 
 
@@ -318,7 +321,8 @@ const App: React.FC = () => {
           isGuest={currentUser?.is_guest ?? true}
           userEmail={currentUser?.email}
           onLogin={() => setAuthModalReason('save')}
-          onSwitchAccount={signInWithGoogle}
+          // 계정 전환도 모달의 Google 버튼(ID 토큰)으로 — 리다이렉트면 계정 선택 화면에 Supabase 주소가 뜬다.
+          onSwitchAccount={() => setAuthModalReason('switch')}
           onSignOut={signOut}
           language={language}
           selectedModel={selectedModel}
@@ -433,9 +437,13 @@ const App: React.FC = () => {
         // 승계할 게 없으면 연결이 아니라 로그인이다. 빈 게스트(= 캐시를 지운 사용자)에게
         // linkIdentity 를 태우면, 이미 쓰던 계정을 고른 순간 충돌로 튕겨나갔다가
         // "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 잃을 게 없을 땐 처음부터 로그인으로.
-        onLink={guestHasData ? linkGoogle : signInWithGoogle}
+        onLink={shouldLinkGuest ? linkGoogle : signInWithGoogle}
         // 충돌 재시도 — 방금 계정을 골라 돌아왔으니 select_account 를 빼 자동 통과시킨다(두 번 고르는 체감 제거).
         onSignIn={() => signInWithGoogle({ chooseAccount: false })}
+        // ID 토큰 경로(GIS) — link/signIn 기준은 onLink 와 같다.
+        onCredential={shouldLinkGuest ? linkGoogleIdToken : signInGoogleIdToken}
+        onSignInWithCredential={signInGoogleIdToken}
+        isDark={isDark}
         initialConflict={linkConflict}
         language={language}
       />

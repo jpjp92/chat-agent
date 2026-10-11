@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Language } from '../types';
+import GoogleIdButton from './GoogleIdButton';
+import { GOOGLE_CLIENT_ID, isIdentityConflict, type GoogleCredential } from '../src/lib/google-id';
 
 interface AuthModalProps {
     isOpen: boolean;
     onClose: () => void;
-    /** 왜 열렸는가. 'limit'이면 한도 도달 문구, 'save'면 자발적 저장 문구. */
-    reason?: 'save' | 'limit';
+    /** 왜 열렸는가. 'limit'이면 한도 도달 문구, 'save'면 자발적 저장 문구, 'switch'면 정식 사용자의 계정 전환. */
+    reason?: 'save' | 'limit' | 'switch';
     /** 게스트 표시 이름 — 승계 대상을 사용자에게 그대로 보여준다. */
     guestName: string;
     guestAvatarUrl?: string | null;
@@ -15,6 +17,14 @@ interface AuthModalProps {
     onLink: () => Promise<void>;
     /** 기존 계정으로 로그인 (게스트 대화 미승계) */
     onSignIn: () => Promise<void>;
+    /**
+     * ID 토큰 경로(GIS, 리다이렉트 없음 — Supabase 주소가 계정 선택 화면에 안 뜬다).
+     * 기본 동작: 승계할 게 있으면 link, 없으면 signIn(호출부가 정한다 — onLink 와 같은 기준).
+     */
+    onCredential: (cred: GoogleCredential) => Promise<void>;
+    /** 충돌 재시도 — 방금 받은 토큰으로 바로 로그인(계정을 두 번 고르지 않는다). */
+    onSignInWithCredential: (cred: GoogleCredential) => Promise<void>;
+    isDark: boolean;
     /**
      * 충돌 분기로 바로 연다. OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 오므로
      * (consumeOAuthError), 호출부가 그걸 읽어 이 플래그로 넘긴다.
@@ -39,6 +49,7 @@ const i18n = {
         genericError: '연결하지 못했습니다. 잠시 후 다시 시도해주세요.',
         close: '닫기',
         guestBadge: '게스트',
+        switchTitle: '다른 Google 계정으로 로그인',
     },
     en: {
         title: 'Pick up on any device',
@@ -53,6 +64,7 @@ const i18n = {
         genericError: 'Could not link the account. Please try again.',
         close: 'Close',
         guestBadge: 'Guest',
+        switchTitle: 'Sign in with another Google account',
     },
     es: {
         title: 'Continúa en cualquier dispositivo',
@@ -67,6 +79,7 @@ const i18n = {
         genericError: 'No se pudo vincular la cuenta. Inténtalo de nuevo.',
         close: 'Cerrar',
         guestBadge: 'Invitado',
+        switchTitle: 'Iniciar sesión con otra cuenta de Google',
     },
     fr: {
         title: 'Reprenez sur tout appareil',
@@ -81,6 +94,7 @@ const i18n = {
         genericError: 'Échec de la liaison. Veuillez réessayer.',
         close: 'Fermer',
         guestBadge: 'Invité',
+        switchTitle: 'Se connecter avec un autre compte Google',
     },
 };
 
@@ -96,10 +110,15 @@ const GoogleMark = () => (
 
 const AuthModal: React.FC<AuthModalProps> = ({
     isOpen, onClose, reason = 'save', guestName, guestAvatarUrl, sessionCount, onLink, onSignIn,
-    initialConflict = false, language,
+    onCredential, onSignInWithCredential, isDark, initialConflict = false, language,
 }) => {
     const t = i18n[language] || i18n.ko;
     const isLimit = reason === 'limit';
+    const isSwitch = reason === 'switch';
+    // GIS 를 못 쓰면(클라이언트 ID 없음·스크립트 차단) 기존 리다이렉트 버튼으로 떨어진다.
+    const [gisFailed, setGisFailed] = useState(!GOOGLE_CLIENT_ID);
+    // 충돌 시 다시 쓸 토큰. 🔴 state 가 아니라 ref — 다시 그릴 이유가 없고, 모달을 닫으면 버린다.
+    const lastCred = useRef<GoogleCredential | null>(null);
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState(initialConflict);
     const [error, setError] = useState<string | null>(null);
@@ -110,6 +129,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
         // 열 때마다 충돌 상태를 호출부 판단으로 되돌린다. 닫고 다시 열면 초기화되지만,
         // 리다이렉트로 돌아온 충돌(initialConflict)은 그대로 보여줘야 한다.
         setConflict(isOpen ? initialConflict : false);
+        if (!isOpen) lastCred.current = null;
     }, [isOpen, initialConflict]);
 
     useEffect(() => {
@@ -132,7 +152,22 @@ const AuthModal: React.FC<AuthModalProps> = ({
             console.error('[AuthModal] linkIdentity failed:', e?.code, e?.message, e);
             // 이미 다른 유저에게 묶인 신원 → 충돌 분기. 이게 없으면 사용자는 무한 재시도에 갇힌다.
             const msg = String(e?.message ?? '').toLowerCase();
-            if (msg.includes('already') || e?.code === 'identity_already_exists') setConflict(true);
+            if (isIdentityConflict(e)) setConflict(true);
+            else setError(t.genericError);
+            setBusy(false);
+        }
+    };
+
+    const handleCredential = async (cred: GoogleCredential) => {
+        setBusy(true); setError(null);
+        lastCred.current = cred;
+        try {
+            // 계정 전환은 승계 대상이 없다 → 항상 로그인.
+            await (isSwitch ? onSignInWithCredential(cred) : onCredential(cred));
+            // 성공하면 훅이 새로고침한다.
+        } catch (e: any) {
+            console.error('[AuthModal] ID token auth failed:', e?.code, e?.message, e);
+            if (isIdentityConflict(e)) setConflict(true);
             else setError(t.genericError);
             setBusy(false);
         }
@@ -140,7 +175,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
 
     const handleSignIn = async () => {
         setBusy(true); setError(null);
-        try { await onSignIn(); } catch (e: any) {
+        try {
+            // GIS 로 받은 토큰이 있으면 그대로 로그인(리다이렉트 없음). 리다이렉트로 돌아온 충돌(initialConflict)은 토큰이 없다.
+            if (lastCred.current) await onSignInWithCredential(lastCred.current);
+            else await onSignIn();
+        } catch (e: any) {
             console.error('[AuthModal] signInWithOAuth failed:', e?.code, e?.message, e);
             setError(t.genericError); setBusy(false);
         }
@@ -190,7 +229,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                     일반적인 자물쇠 아이콘 대신 사용자의 실제 게스트 신원이
                                     Google 계정으로 건너가는 모습을 보여준다. 같은 uuid가 유지된다는
                                     제품의 사실을 그대로 그림으로 만든 것. */}
-                                <div className="flex items-center justify-center gap-3 pt-1 pb-5">
+                                {!isSwitch && <div className="flex items-center justify-center gap-3 pt-1 pb-5">
                                     <div className="flex flex-col items-center gap-1.5">
                                         <img
                                             src={guestAvatarUrl || undefined}
@@ -216,11 +255,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                             Google
                                         </span>
                                     </div>
-                                </div>
+                                </div>}
 
                                 <div className="text-center space-y-1.5">
                                     <h3 id="auth-modal-title" className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                                        {isLimit ? t.limitTitle : t.title}
+                                        {isSwitch ? t.switchTitle : isLimit ? t.limitTitle : t.title}
                                     </h3>
                                     {/* 자발적 진입(save)엔 설명이 없다 — 제목이 혜택을, 아래 칩이 약속을 말하므로
                                         한 줄 더 쓰면 같은 말을 세 번 하게 된다. 한도(limit)는 왜 막혔는지
@@ -232,7 +271,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                     )}
                                 </div>
 
-                                {sessionCount > 0 && (
+                                {!isSwitch && sessionCount > 0 && (
                                     <div className="mt-4 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-primary-50 dark:bg-primary-500/10">
                                         <i className="fa-solid fa-arrow-right-arrow-left text-[10px] text-primary-600 dark:text-primary-400" />
                                         <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">
@@ -241,7 +280,18 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                     </div>
                                 )}
 
-                                <button
+                                {!gisFailed ? (
+                                    <div className="mt-5">
+                                        <GoogleIdButton
+                                            onCredential={handleCredential}
+                                            onUnavailable={() => setGisFailed(true)}
+                                            language={language}
+                                            isDark={isDark}
+                                            disabled={busy}
+                                        />
+                                        {busy && <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">{t.linking}</p>}
+                                    </div>
+                                ) : <button
                                     onClick={handleLink}
                                     disabled={busy}
                                     className="w-full mt-5 py-3 rounded-xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-60 text-slate-800 dark:text-slate-100 font-bold text-sm flex items-center justify-center gap-2.5 transition-colors active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
@@ -254,7 +304,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                             {t.google}
                                         </>
                                     )}
-                                </button>
+                                </button>}
 
                                 {error && (
                                     <p className="mt-3 text-center text-xs font-medium text-red-500">{error}</p>
