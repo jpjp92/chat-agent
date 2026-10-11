@@ -14,14 +14,13 @@ interface HeaderProps {
   /** 게스트 → 로그인 모달 열기 */
   onLogin: () => void;
   /** 로그인 상태 → 다른 Google 계정으로 갈아탄다(로그아웃 선행 불요) */
-  onSwitchAccount: () => void;
   onSignOut: () => void;
   language: Language;
   selectedModel: ChatModelId;          // 모바일 헤더 모델 선택기용 (데스크톱은 입력창에 통합)
   onModelChange: (model: ChatModelId) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, isGuest, userEmail, onLogin, onSwitchAccount, onSignOut, language, selectedModel, onModelChange }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuClick, showToast, isGuest, userEmail, onLogin, onSignOut, language, selectedModel, onModelChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -40,7 +39,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       sizeError: "용량 초과 (최대 10MB)",
       signIn: "Google로 계속하기",
       signInDesc: "로그인하면 어느 기기에서든 대화를 이어갈 수 있어요.",
-      switchAccount: "다른 계정으로 로그인",
       signOut: "로그아웃",
       guestLabel: "게스트",
     },
@@ -54,7 +52,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       sizeError: "File too large (Max 10MB)",
       signIn: "Continue with Google",
       signInDesc: "Sign in to pick up your chats on any device.",
-      switchAccount: "Sign in with another account",
       signOut: "Sign out",
       guestLabel: "Guest",
     },
@@ -68,7 +65,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       sizeError: "Archivo muy grande (Máx 10MB)",
       signIn: "Continuar con Google",
       signInDesc: "Inicia sesión para continuar tus chats en cualquier dispositivo.",
-      switchAccount: "Iniciar sesión con otra cuenta",
       signOut: "Cerrar sesión",
       guestLabel: "Invitado",
     },
@@ -82,7 +78,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       sizeError: "Fichier trop lourd (Max 10Mo)",
       signIn: "Continuer avec Google",
       signInDesc: "Connectez-vous pour retrouver vos conversations sur tout appareil.",
-      switchAccount: "Se connecter avec un autre compte",
       signOut: "Se déconnecter",
       guestLabel: "Invité",
     }
@@ -280,15 +275,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                         {userEmail && (
                           <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium truncate px-2">{userEmail}</p>
                         )}
-                        {/* 계정 전환. 로그아웃을 선행할 필요가 없다 — 돌아오면 세션이 교체되고,
-                            원래 계정의 대화는 그 uuid 에 그대로 남아 다시 로그인하면 돌아온다. */}
-                        <button
-                          onClick={() => { setIsModalOpen(false); onSwitchAccount(); }}
-                          className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-800 dark:text-white font-bold text-sm active:scale-95 transition-all border border-black/5 dark:border-white/10 flex items-center justify-center gap-2"
-                        >
-                          <i className="fa-solid fa-right-left text-xs"></i>
-                          {t.switchAccount}
-                        </button>
+                        {/* 계정 전환 버튼은 두지 않는다(2026-10-11) — 로그아웃하면 새 게스트가 되고, 로그인 모달에서
+                            계정을 고르면 된다(대화 없는 게스트 → signIn). 버튼이 둘이면 차이가 안 보이고,
+                            전환 경로는 정식 계정에 다른 신원을 link 할 위험만 늘렸다(DEV_261011 §5). */}
                         <button
                           onClick={() => { setIsModalOpen(false); onSignOut(); }}
                           className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold text-sm active:scale-95 transition-all"

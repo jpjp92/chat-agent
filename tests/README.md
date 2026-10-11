@@ -200,7 +200,7 @@ npm run verify  # typecheck + test
 | `test-doc-links.mts` | **문서 링크·앵커·행번호** — `docs/**` 의 상대링크를 전수 검사한다. 파일 부재와 `.md` 앵커 부재는 실패, 코드 `#L` 행번호는 **`docs/logs/` 안에서만 경고**(날짜 로그는 그날의 기록이라 코드가 움직였다고 고치지 않는다). 코드블록·인라인 코드는 제외한다 — 안 거르면 인용 마커 예시 `[1](A)` 가 대량 오탐이다. 계기: [DEV_260913](../docs/logs/2026/09/DEV_260913.md) |
 | `test-key-tier.mts` | **Gemini 키 등급** — 회원 유료 키 우선·실패 시 무료 로테이션·게스트는 무료만(PLAN_GEMINI_PAID_FIRST) |
 | `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
-| `test-google-id.mts` | **Google 로그인(GIS ID 토큰)** — nonce 원문/SHA-256 일치, 충돌 판정, link 는 게스트에게만(계정 전환 제외), 충돌 시 토큰 재사용, 클라이언트 ID 없으면 리다이렉트 폴백, CSP (DEV_261011 §5) |
+| `test-google-id.mts` | **Google 로그인(GIS ID 토큰)** — nonce 원문/SHA-256 일치, 충돌 판정, link 는 게스트에게만, 계정 전환 버튼 없음, 충돌 시 토큰 재사용, 클라이언트 ID 없으면 리다이렉트 폴백, CSP (DEV_261011 §5) |
 | `test-openai-pdf.mts` | **GPT PDF 직접** — PDF part → Responses `input_file`(업로드·링크 `file_url`, 인라인 `file_data`, image_url 분기보다 먼저), 핀은 영상·오디오만, 링크 다운로드 400 만 2.5 재시도, generator 배선 (DEV_261011) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |
 | `test-image-multiturn.mts` | **이미지 멀티턴** — 히스토리 미디어 창(`mediaWindow`)을 지나 턴별로 모델이 이미지를 받는지·새 이미지 식별·창 밖 강등을 관측. 3턴째 강등은 **현재 동작 기록**(바꾸면 기대 갱신) (DEV_261010 §2-4) |

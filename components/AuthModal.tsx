@@ -6,8 +6,8 @@ import { GOOGLE_CLIENT_ID, isIdentityConflict, type GoogleCredential } from '../
 interface AuthModalProps {
     isOpen: boolean;
     onClose: () => void;
-    /** 왜 열렸는가. 'limit'이면 한도 도달 문구, 'save'면 자발적 저장 문구, 'switch'면 정식 사용자의 계정 전환. */
-    reason?: 'save' | 'limit' | 'switch';
+    /** 왜 열렸는가. 'limit'이면 한도 도달 문구, 'save'면 자발적 저장 문구. */
+    reason?: 'save' | 'limit';
     /** 게스트 표시 이름 — 승계 대상을 사용자에게 그대로 보여준다. */
     guestName: string;
     guestAvatarUrl?: string | null;
@@ -49,7 +49,6 @@ const i18n = {
         genericError: '연결하지 못했습니다. 잠시 후 다시 시도해주세요.',
         close: '닫기',
         guestBadge: '게스트',
-        switchTitle: '다른 Google 계정으로 로그인',
     },
     en: {
         title: 'Pick up on any device',
@@ -64,7 +63,6 @@ const i18n = {
         genericError: 'Could not link the account. Please try again.',
         close: 'Close',
         guestBadge: 'Guest',
-        switchTitle: 'Sign in with another Google account',
     },
     es: {
         title: 'Continúa en cualquier dispositivo',
@@ -79,7 +77,6 @@ const i18n = {
         genericError: 'No se pudo vincular la cuenta. Inténtalo de nuevo.',
         close: 'Cerrar',
         guestBadge: 'Invitado',
-        switchTitle: 'Iniciar sesión con otra cuenta de Google',
     },
     fr: {
         title: 'Reprenez sur tout appareil',
@@ -94,7 +91,6 @@ const i18n = {
         genericError: 'Échec de la liaison. Veuillez réessayer.',
         close: 'Fermer',
         guestBadge: 'Invité',
-        switchTitle: 'Se connecter avec un autre compte Google',
     },
 };
 
@@ -114,7 +110,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
     const t = i18n[language] || i18n.ko;
     const isLimit = reason === 'limit';
-    const isSwitch = reason === 'switch';
     // GIS 를 못 쓰면(클라이언트 ID 없음·스크립트 차단) 기존 리다이렉트 버튼으로 떨어진다.
     const [gisFailed, setGisFailed] = useState(!GOOGLE_CLIENT_ID);
     // 충돌 시 다시 쓸 토큰. 🔴 state 가 아니라 ref — 다시 그릴 이유가 없고, 모달을 닫으면 버린다.
@@ -162,8 +157,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
         setBusy(true); setError(null);
         lastCred.current = cred;
         try {
-            // 계정 전환은 승계 대상이 없다 → 항상 로그인.
-            await (isSwitch ? onSignInWithCredential(cred) : onCredential(cred));
+            await onCredential(cred);
             // 성공하면 훅이 새로고침한다.
         } catch (e: any) {
             console.error('[AuthModal] ID token auth failed:', e?.code, e?.message, e);
@@ -229,7 +223,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                     일반적인 자물쇠 아이콘 대신 사용자의 실제 게스트 신원이
                                     Google 계정으로 건너가는 모습을 보여준다. 같은 uuid가 유지된다는
                                     제품의 사실을 그대로 그림으로 만든 것. */}
-                                {!isSwitch && <div className="flex items-center justify-center gap-3 pt-1 pb-5">
+                                <div className="flex items-center justify-center gap-3 pt-1 pb-5">
                                     <div className="flex flex-col items-center gap-1.5">
                                         <img
                                             src={guestAvatarUrl || undefined}
@@ -255,11 +249,11 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                             Google
                                         </span>
                                     </div>
-                                </div>}
+                                </div>
 
                                 <div className="text-center space-y-1.5">
                                     <h3 id="auth-modal-title" className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
-                                        {isSwitch ? t.switchTitle : isLimit ? t.limitTitle : t.title}
+                                        {isLimit ? t.limitTitle : t.title}
                                     </h3>
                                     {/* 자발적 진입(save)엔 설명이 없다 — 제목이 혜택을, 아래 칩이 약속을 말하므로
                                         한 줄 더 쓰면 같은 말을 세 번 하게 된다. 한도(limit)는 왜 막혔는지
@@ -271,7 +265,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                     )}
                                 </div>
 
-                                {!isSwitch && sessionCount > 0 && (
+                                {sessionCount > 0 && (
                                     <div className="mt-4 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-primary-50 dark:bg-primary-500/10">
                                         <i className="fa-solid fa-arrow-right-arrow-left text-[10px] text-primary-600 dark:text-primary-400" />
                                         <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">

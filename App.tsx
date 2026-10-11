@@ -66,7 +66,7 @@ const App: React.FC = () => {
 
   const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, linkGoogleIdToken, signInGoogleIdToken, signOut, hydratedUserProfile } = useAuthSession();
   // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
-  const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | 'switch' | null>(null);
+  const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
   // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
   // 아무 설명 없이 돌아와 같은 버튼을 다시 누른다(실측: 무한 재시도).
   const [linkConflict, setLinkConflict] = useState(false);
@@ -108,9 +108,9 @@ const App: React.FC = () => {
   // 값이라 대화 직후엔 stale → 그걸 쓰면 대화한 게스트가 고아가 된다).
   // 빈 New Chat 은 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라 개수로는 못 센다.
   const guestHasData = sessions.some(s => !(s.title === 'New Chat' && s.messages.length === 0));
-  // 🔴 link 는 **게스트**에게만. 정식 사용자의 계정 전환('switch')에서 guestHasData 만 보면
-  //   자기 대화가 있으니 참 → 지금 계정에 다른 Google 신원을 **붙여 버린다**.
-  const shouldLinkGuest = (currentUser?.is_guest ?? true) && guestHasData && authModalReason !== 'switch';
+  // 🔴 link 는 **게스트**에게만. guestHasData 는 정식 사용자에게도 참이다(자기 대화) — 정식 사용자가
+  //   이 모달에 오는 경로가 생기면 지금 계정에 다른 Google 신원을 **붙여 버린다**(DEV_261011 §5).
+  const shouldLinkGuest = (currentUser?.is_guest ?? true) && guestHasData;
 
 
 
@@ -321,8 +321,6 @@ const App: React.FC = () => {
           isGuest={currentUser?.is_guest ?? true}
           userEmail={currentUser?.email}
           onLogin={() => setAuthModalReason('save')}
-          // 계정 전환도 모달의 Google 버튼(ID 토큰)으로 — 리다이렉트면 계정 선택 화면에 Supabase 주소가 뜬다.
-          onSwitchAccount={() => setAuthModalReason('switch')}
           onSignOut={signOut}
           language={language}
           selectedModel={selectedModel}

@@ -40,12 +40,13 @@ const modal = fs.readFileSync('components/AuthModal.tsx', 'utf8');
 check('충돌 재시도는 받은 토큰을 다시 쓴다(계정 두 번 고르지 않음)', /if \(lastCred\.current\) await onSignInWithCredential\(lastCred\.current\)/.test(modal));
 check('리다이렉트로 돌아온 충돌(토큰 없음)은 기존 onSignIn', /else await onSignIn\(\)/.test(modal));
 check('GIS 실패 시 기존 버튼', /!gisFailed \?/.test(modal) && /onClick=\{handleLink\}/.test(modal));
-check('계정 전환은 항상 signIn(승계 없음)', /isSwitch \? onSignInWithCredential\(cred\) : onCredential\(cred\)/.test(modal));
+check('계정 전환 모드 없음(로그아웃 → 로그인으로 대체)', !/switch/i.test(modal));
 const app = fs.readFileSync('App.tsx', 'utf8');
-check('🔴 link 는 게스트에게만 — 계정 전환에서 지금 계정에 신원을 붙이지 않는다',
-    /shouldLinkGuest = \(currentUser\?\.is_guest \?\? true\) && guestHasData && authModalReason !== 'switch'/.test(app));
+check('🔴 link 는 게스트에게만 — 정식 계정에 다른 신원을 붙이지 않는다',
+    /shouldLinkGuest = \(currentUser\?\.is_guest \?\? true\) && guestHasData;/.test(app));
 check('onLink·onCredential 이 같은 기준', app.includes('onLink={shouldLinkGuest ? linkGoogle : signInWithGoogle}') && app.includes('onCredential={shouldLinkGuest ? linkGoogleIdToken : signInGoogleIdToken}'));
-check('헤더 계정 전환 → 모달(switch)', app.includes("onSwitchAccount={() => setAuthModalReason('switch')}"));
+const header = fs.readFileSync('components/Header.tsx', 'utf8');
+check('헤더에 "다른 계정으로 로그인" 없음(로그아웃만)', !/onSwitchAccount|switchAccount/.test(header) && !/onSwitchAccount/.test(app));
 check('CSP frame-src 에 accounts.google.com', /frame-src[^"]*https:\/\/accounts\.google\.com/.test(fs.readFileSync('next.config.ts', 'utf8')));
 
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
