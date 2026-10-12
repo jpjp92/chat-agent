@@ -1,6 +1,6 @@
 # DB Schema — 현재 구조
 
-> 작성일: 2026-05-25 · 최종 수정: 2026-08-23
+> 작성일: 2026-05-25 · 최종 수정: 2026-10-12
 >
 > 실제 DDL과 실행 순서의 유일한 출처: [db/README.md](db/README.md)
 
@@ -11,7 +11,7 @@
 | 항목 | 값 |
 |---|---|
 | 플랫폼 | Supabase (PostgreSQL) |
-| 인증 | Supabase Auth 익명 세션 → Google identity linking |
+| 인증 | Supabase Auth 익명 세션 → Google(GIS ID 토큰)·카카오(OAuth) identity linking — 구조·콘솔 설정은 [REF_Auth](REF_Auth.md) |
 | 사용자 라우트 | Bearer access token + anon key로 user-scoped client 생성 |
 | 인가 | `profiles`, `chat_sessions`, `chat_messages`, Storage에 RLS 적용 |
 | 서버 전용 | 공유 `url_cache`, `mfds_pills`와 `drug-cache/` Storage 쓰기에 `service_role` 사용 |

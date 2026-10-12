@@ -148,6 +148,7 @@
 - [x] GPT 영상·오디오·PDF/fileData → Gemini 2.5 capability fallback
 - [x] GPT PDF 직접 처리(`input_file`) — 링크 다운로드 실패만 2.5 재시도 (10-11, [DEV_261011](logs/2026/10/DEV_261011.md))
 - [ ] Google 로그인 앱 내 처리(GIS ID 토큰) — 로컬 FedCM ✅ · dev 모바일 ✅, prod env 등록·반영 남음 (10-11, [DEV_261011 §5](logs/2026/10/DEV_261011.md))
+- [ ] 카카오 로그인 — 로컬 로그인 ✅, 연결·충돌 확인, prod Supabase Kakao 입력, 원본 앱 대표 도메인 prod 로, 연결 해제 웹훅 (10-11, [DEV_261011 §6](logs/2026/10/DEV_261011.md))
 - [x] GPT 일반 요청에서 Gemini API 키 선행 요구 제거
 - [x] GPT 분기가 Gemini 키 취득보다 먼저 실행되는 회귀 테스트
 - [ ] 선택 공급자별 initial router 분리(Gemini→2.5 Flash Lite, GPT→5.6 Luna)

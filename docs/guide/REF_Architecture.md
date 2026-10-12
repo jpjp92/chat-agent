@@ -1,6 +1,6 @@
 # REF: Architecture
 
-> 작성일: 2026-06-26 · 최종 수정: 2026-09-24
+> 작성일: 2026-06-26 · 최종 수정: 2026-10-12
 > 관련: [README §2](../../README.md#2-architecture) · [REF_App2_Agent](REF_App2_Agent.md)(에이전트 설계 근거)
 
 상세 다이어그램과 런타임 정책을 모아둔 레퍼런스. README는 개요 다이어그램만 유지하고 상세는 여기에 기록한다.
@@ -228,7 +228,7 @@ flowchart TB
 > 함수 타임아웃·메모리 때문에 2026-03-09 에 대체됐고, **2026-08-17 에 라우트를 삭제**했다.
 > `/api/auth` 도 인증 MVP 때 소멸했다(IDOR-1). 경로 규약: `${auth.uid()}/{timestamp}_{name}`.
 
-DB 스키마 상세: [REF_DB.md](REF_DB.md)
+DB 스키마 상세: [REF_DB.md](REF_DB.md) · 로그인(게스트 → Google·카카오)·콘솔 설정: [REF_Auth.md](REF_Auth.md)
 
 ---
 
@@ -443,7 +443,8 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | 선택 가능 모델 | **현행** — Gemini 3.7 / 3.6 / 3.5 / 2.5 Flash, **GPT-6 luna** / GPT-5.6 luna. **legacy** — GPT-5.4 mini(2026-09-23 강등). ⚠️ legacy 는 **목록에서만 내렸고 계속 동작한다** — `preferred_model` 에 그 값을 가진 세션이 올라오므로 서버 허용 목록에서는 빼지 않는다(빼면 그 사용자가 오류를 본다) |
 | `gpt-6-luna` 주의 | 🔴 caps 가 **모델 카드 기재값이고 실호출로 재지 않았다**. `chatReasoningEffort: 'none'` 은 취향이 아니다 — 카드가 *"function calling only with reasoning_effort set to none"* 이라 못 박았고, 올리면 **도구 호출이 조용히 사라진다**. 실측 하니스는 `tests/manual/live-openai-chat-models.mts` |
 | GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
-| GPT + YouTube 원본·업로드 영상/오디오·fileData | `gemini-2.5-flash` capability fallback. 텍스트 자막이면 GPT 유지 |
+| GPT + PDF (업로드·링크·arXiv·인라인) | **선택한 GPT 가 직접** — Responses `input_file`(`file_url`/`file_data`, [server/openai/media.ts](../../server/openai/media.ts)). OpenAI 가 링크를 못 받으면(400 download) **그 턴만** `gemini-2.5-flash` (2026-10-11, [DEV_261011 §1~3](../logs/2026/10/DEV_261011.md)) |
+| GPT + YouTube 원본·업로드 영상/오디오 | `gemini-2.5-flash` capability fallback. 텍스트 자막이면 GPT 유지. 2단계(Gemini 분석 → GPT 정제)는 [PLAN_MEDIA_ROUTING](../plans/PLAN_MEDIA_ROUTING_261010.md) |
 | Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
 | 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |

@@ -22,6 +22,7 @@ Every data.go.kr service is granted per-service on one account key (`PHARM_KEY`)
 ### 1-1. Conversation & Auth
 
 - **Guest or member**: starts instantly as an anonymous Supabase guest (auto nickname/avatar, limited messages); members sign in for full limits, TTS, and the paid Gemini key
+- **Sign-in**: **Google** via Google Identity Services ID token (in-app popup/FedCM — the account chooser shows our domain, not `*.supabase.co`) and **Kakao** via OAuth redirect. A guest with conversations is *linked* (same uuid, history kept); otherwise it is a plain sign-in. Console settings for Google Cloud / Supabase / Kakao Developers → [REF_Auth](docs/guide/REF_Auth.md)
 - **Persistent history**: sessions and messages stored in Supabase (PostgreSQL)
 - **Auto-title**: session titles generated automatically from conversation content
 - **Suggestion chips** (desktop only): weather · today's showtimes · latest news · image analysis (opens the file picker)
@@ -218,7 +219,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   ├── config.ts                       # API key pool + rotation
 │   ├── models.ts                       # Server model registry
 │   ├── chat-error-policy.ts            # Provider error classification + client-safe messages
-│   ├── openai/                         # OpenAI Responses adapter + model metadata
+│   ├── openai/                         # OpenAI Responses adapter + model metadata · media.ts (PDF → input_file)
 │   ├── tts/                            # TTS: split · retry · synth(폴백·음량·스트림). 전처리는 lib/tts-speakable.ts(서버·클라 공용)
 │   ├── mfds-logic.ts / pill-logic.ts
 │   ├── supabase.ts
@@ -249,7 +250,7 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │           ├── generation-config.ts / pill-messages.ts / retry.ts
 │           └── image-flags.ts               # 신규첨부 vs 히스토리 이미지 (순수 — 하니스가 import)
 │       └── weather-followup.ts         # 날씨 후속 판정 (순수 함수 — 하니스가 import)
-├── components/                         # 26 UI components (13 renderers + core)
+├── components/                         # 27 UI components (incl. AuthModal · GoogleIdButton) (13 renderers + core)
 ├── lib/
 │   ├── supabase/client.ts / route.ts   # 인증 스택 (NEXT_PUBLIC_* 를 읽는다)
 │   ├── storage-name.ts                 # 업로드 파일명 → Storage 키 정규화 (순수)
@@ -283,7 +284,8 @@ DB schema: [docs/guide/REF_DB.md](docs/guide/REF_DB.md)
 │   └── mathNormalize.ts                # 줄 첫머리 `$$식$$ 문장` 분리 (순수 — 하니스가 import)
 ├── src/
 │   ├── lib/models.ts                   # 클라 모델 레지스트리 + 선택 UI 문자열(단일 소스)
-│   └── hooks/                          # useAuthSession / useChatSessions / useChatStream
+│   ├── lib/google-id.ts                # GIS 로더 · nonce · 충돌 판정 (Google 앱 내 로그인)
+│   └── hooks/                          # useAuthSession (게스트·Google·카카오) / useChatSessions / useChatStream
 ├── services/geminiService.ts
 ├── data/theater-branches.json          # 424 branches (CGV 177 · Lotte 133 · Megabox 114)
 ├── docs/                               # See §4-1 for conventions
