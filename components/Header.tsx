@@ -37,7 +37,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "정사각형 이미지, 최대 10MB",
       placeholder: "이름을 입력하세요",
       sizeError: "용량 초과 (최대 10MB)",
-      signIn: "Google로 계속하기",
+      signIn: "로그인",
       signInDesc: "로그인하면 어느 기기에서든 대화를 이어갈 수 있어요.",
       signOut: "로그아웃",
       guestLabel: "게스트",
@@ -50,7 +50,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Square image, max 10MB",
       placeholder: "Enter your name",
       sizeError: "File too large (Max 10MB)",
-      signIn: "Continue with Google",
+      signIn: "Sign in",
       signInDesc: "Sign in to pick up your chats on any device.",
       signOut: "Sign out",
       guestLabel: "Guest",
@@ -63,7 +63,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Imagen cuadrada, máx 10MB",
       placeholder: "Introduce tu nombre",
       sizeError: "Archivo muy grande (Máx 10MB)",
-      signIn: "Continuar con Google",
+      signIn: "Iniciar sesión",
       signInDesc: "Inicia sesión para continuar tus chats en cualquier dispositivo.",
       signOut: "Cerrar sesión",
       guestLabel: "Invitado",
@@ -76,7 +76,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
       photoDesc: "Image carrée, max 10Mo",
       placeholder: "Entrez votre nom",
       sizeError: "Fichier trop lourd (Max 10Mo)",
-      signIn: "Continuer avec Google",
+      signIn: "Se connecter",
       signInDesc: "Connectez-vous pour retrouver vos conversations sur tout appareil.",
       signOut: "Se déconnecter",
       guestLabel: "Invité",
@@ -260,12 +260,8 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                           onClick={() => { setIsModalOpen(false); onLogin(); }}
                           className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-800 dark:text-white font-bold text-sm active:scale-95 transition-all border border-black/5 dark:border-white/10 flex items-center justify-center gap-2"
                         >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
-                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
-                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
-                            <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z" />
-                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.05l3.66 2.84c.87-2.6 3.3-4.51 6.16-4.51Z" />
-                          </svg>
+                          {/* 공급자 중립 — 이 버튼은 로그인 모달(Google·카카오)을 연다. G 마크·"Google로" 문구는 Google 전용처럼 보였다(10-11). */}
+                          <i className="fa-solid fa-right-to-bracket text-xs" aria-hidden="true"></i>
                           {t.signIn}
                         </button>
                         <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 leading-snug px-2">{t.signInDesc}</p>

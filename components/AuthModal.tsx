@@ -25,6 +25,8 @@ interface AuthModalProps {
     /** 충돌 재시도 — 방금 받은 토큰으로 바로 로그인(계정을 두 번 고르지 않는다). */
     onSignInWithCredential: (cred: GoogleCredential) => Promise<void>;
     isDark: boolean;
+    /** 카카오 — 리다이렉트 OAuth. 승계할 게 있으면 link, 없으면 signIn(호출부가 정한다). */
+    onKakao: () => Promise<void>;
     /**
      * 충돌 분기로 바로 연다. OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 오므로
      * (consumeOAuthError), 호출부가 그걸 읽어 이 플래그로 넘긴다.
@@ -42,6 +44,7 @@ const i18n = {
         limitSubtitle: '게스트로는 5개까지 보낼 수 있어요. 계정을 연결하면 계속 이어서 대화할 수 있고, 지금까지의 기록도 그대로 옮겨집니다.',
         carry: (n: number) => `대화 ${n}개가 그대로 옮겨집니다`,
         google: 'Google로 계속하기',
+        kakao: '카카오 로그인',
         linking: '연결하는 중…',
         conflictTitle: '이미 사용 중인 Google 계정입니다',
         conflictBody: '그 계정으로 로그인할 수 있습니다. 다만 지금 게스트로 나눈 대화는 옮겨지지 않습니다.',
@@ -56,6 +59,7 @@ const i18n = {
         limitSubtitle: 'Guests can send 5 messages. Link an account to keep going — your history carries over.',
         carry: (n: number) => `${n} conversation${n === 1 ? '' : 's'} will carry over`,
         google: 'Continue with Google',
+        kakao: 'Login with Kakao',
         linking: 'Linking…',
         conflictTitle: 'That Google account is already in use',
         conflictBody: 'You can sign in to it. Your current guest conversations will not carry over.',
@@ -70,6 +74,7 @@ const i18n = {
         limitSubtitle: 'Los invitados pueden enviar 5 mensajes. Vincula una cuenta para seguir — tu historial se conserva.',
         carry: (n: number) => `${n} conversación${n === 1 ? '' : 'es'} se transferirá${n === 1 ? '' : 'n'}`,
         google: 'Continuar con Google',
+        kakao: 'Login with Kakao',
         linking: 'Vinculando…',
         conflictTitle: 'Esa cuenta de Google ya está en uso',
         conflictBody: 'Puedes iniciar sesión en ella, pero tus conversaciones de invitado no se transferirán.',
@@ -84,6 +89,7 @@ const i18n = {
         limitSubtitle: "Les invités peuvent envoyer 5 messages. Liez un compte pour continuer — votre historique est conservé.",
         carry: (n: number) => `${n} conversation${n === 1 ? '' : 's'} ${n === 1 ? 'sera transférée' : 'seront transférées'}`,
         google: 'Continuer avec Google',
+        kakao: 'Login with Kakao',
         linking: 'Liaison…',
         conflictTitle: 'Ce compte Google est déjà utilisé',
         conflictBody: "Vous pouvez vous y connecter, mais vos conversations d'invité ne seront pas transférées.",
@@ -104,9 +110,16 @@ const GoogleMark = () => (
     </svg>
 );
 
+/** 카카오 심볼(말풍선) — 공식 리소스 형태, 검정 90%. */
+const KakaoMark = () => (
+    <svg viewBox="0 0 18 18" className="w-[18px] h-[18px] shrink-0" aria-hidden="true">
+        <path fill="rgba(0,0,0,0.9)" d="M9 1.5C4.58 1.5 1 4.33 1 7.82c0 2.25 1.5 4.22 3.75 5.34l-.96 3.5c-.08.3.26.54.52.37l4.13-2.74c.18.02.37.03.56.03 4.42 0 8-2.83 8-6.32S13.42 1.5 9 1.5z" />
+    </svg>
+);
+
 const AuthModal: React.FC<AuthModalProps> = ({
     isOpen, onClose, reason = 'save', guestName, guestAvatarUrl, sessionCount, onLink, onSignIn,
-    onCredential, onSignInWithCredential, isDark, initialConflict = false, language,
+    onCredential, onSignInWithCredential, isDark, onKakao, initialConflict = false, language,
 }) => {
     const t = i18n[language] || i18n.ko;
     const isLimit = reason === 'limit';
@@ -161,6 +174,19 @@ const AuthModal: React.FC<AuthModalProps> = ({
             // 성공하면 훅이 새로고침한다.
         } catch (e: any) {
             console.error('[AuthModal] ID token auth failed:', e?.code, e?.message, e);
+            if (isIdentityConflict(e)) setConflict(true);
+            else setError(t.genericError);
+            setBusy(false);
+        }
+    };
+
+    const handleKakao = async () => {
+        setBusy(true); setError(null);
+        try {
+            await onKakao();
+            // 성공하면 카카오로 리다이렉트된다. 충돌은 돌아온 URL 로 온다(App 의 consumeOAuthError).
+        } catch (e: any) {
+            console.error('[AuthModal] Kakao OAuth failed:', e?.code, e?.message, e);
             if (isIdentityConflict(e)) setConflict(true);
             else setError(t.genericError);
             setBusy(false);
@@ -299,6 +325,16 @@ const AuthModal: React.FC<AuthModalProps> = ({
                                         </>
                                     )}
                                 </button>}
+
+                                {/* 카카오 로그인 버튼 — 카카오 디자인 가이드: #FEE500 · 검정 심볼 · "카카오 로그인" 문구. 높이·모양은 GIS large pill(40px)에 맞춘다 */}
+                                <button
+                                    onClick={handleKakao}
+                                    disabled={busy}
+                                    className="w-full mt-2.5 h-[40px] rounded-full bg-[#FEE500] hover:brightness-95 disabled:opacity-60 text-[rgba(0,0,0,0.85)] font-semibold text-sm flex items-center justify-center gap-2 transition-[filter] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+                                >
+                                    <KakaoMark />
+                                    {t.kakao}
+                                </button>
 
                                 {error && (
                                     <p className="mt-3 text-center text-xs font-medium text-red-500">{error}</p>

@@ -12,7 +12,7 @@ import WelcomeMessage from './components/WelcomeMessage';
 import SuggestChips from './components/SuggestChips';
 import ChatArea from './components/ChatArea';
 import { UserProfile, Language, MessageAttachment } from './types';
-import { useAuthSession } from './src/hooks/useAuthSession';
+import { useAuthSession, lastOAuthProvider } from './src/hooks/useAuthSession';
 import { consumeOAuthError } from './lib/supabase/client';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
@@ -64,7 +64,7 @@ const App: React.FC = () => {
     avatarUrl: 'https://ui-avatars.com/api/?name=U&background=6366f1&color=fff&rounded=true&bold=true'
   });
 
-  const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, linkGoogleIdToken, signInGoogleIdToken, signOut, hydratedUserProfile } = useAuthSession();
+  const { currentUser, isAuthLoading, isSigningOut, updateProfile, linkGoogle, signInWithGoogle, linkGoogleIdToken, signInGoogleIdToken, linkKakao, signInWithKakao, signOut, hydratedUserProfile } = useAuthSession();
   // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
   const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
   // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
@@ -437,11 +437,13 @@ const App: React.FC = () => {
         // "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 잃을 게 없을 땐 처음부터 로그인으로.
         onLink={shouldLinkGuest ? linkGoogle : signInWithGoogle}
         // 충돌 재시도 — 방금 계정을 골라 돌아왔으니 select_account 를 빼 자동 통과시킨다(두 번 고르는 체감 제거).
-        onSignIn={() => signInWithGoogle({ chooseAccount: false })}
+        // 🔴 리다이렉트 충돌은 **시도한 공급자**로 다시 로그인한다 — 카카오로 시도했는데 Google 로 보내면 엉뚱한 계정이 된다.
+        onSignIn={() => lastOAuthProvider() === 'kakao' ? signInWithKakao() : signInWithGoogle({ chooseAccount: false })}
         // ID 토큰 경로(GIS) — link/signIn 기준은 onLink 와 같다.
         onCredential={shouldLinkGuest ? linkGoogleIdToken : signInGoogleIdToken}
         onSignInWithCredential={signInGoogleIdToken}
         isDark={isDark}
+        onKakao={shouldLinkGuest ? linkKakao : signInWithKakao}
         initialConflict={linkConflict}
         language={language}
       />

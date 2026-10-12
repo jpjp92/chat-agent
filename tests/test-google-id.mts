@@ -49,5 +49,16 @@ const header = fs.readFileSync('components/Header.tsx', 'utf8');
 check('헤더에 "다른 계정으로 로그인" 없음(로그아웃만)', !/onSwitchAccount|switchAccount/.test(header) && !/onSwitchAccount/.test(app));
 check('CSP frame-src 에 accounts.google.com', /frame-src[^"]*https:\/\/accounts\.google\.com/.test(fs.readFileSync('next.config.ts', 'utf8')));
 
+console.log('\n── ④ 카카오(리다이렉트 OAuth) ──');
+check('카카오 link 는 linkIdentity({ provider: kakao })', /linkIdentity\(\{ provider: 'kakao'/.test(hook));
+check('카카오 scopes 명시(사진 누락 대응)', /scopes: 'profile_nickname profile_image account_email'/.test(hook) && (hook.match(/KAKAO_OAUTH_OPTIONS\(\)/g) || []).length === 2);
+check('카카오 signIn 은 signInWithOAuth({ provider: kakao })', /signInWithOAuth\(\{ provider: 'kakao'/.test(hook));
+check('시도한 공급자를 남긴다(google·kakao 모두)', (hook.match(/rememberOAuthProvider\('kakao'\)/g) || []).length === 2 && (hook.match(/rememberOAuthProvider\('google'\)/g) || []).length === 2);
+check('🔴 리다이렉트 충돌은 시도한 공급자로 다시 로그인', app.includes("lastOAuthProvider() === 'kakao' ? signInWithKakao() : signInWithGoogle({ chooseAccount: false })"));
+check('카카오도 link/signIn 기준이 같다', app.includes('onKakao={shouldLinkGuest ? linkKakao : signInWithKakao}'));
+check('카카오 버튼 — 디자인 가이드 색(#FEE500)·4개 언어 문구', modal.includes('bg-[#FEE500]') && (modal.match(/kakao: '/g) || []).length === 4);
+
+check('🔴 새로고침은 인증 해시를 버린다(reload 금지)', !hook.includes('window.location.reload()') && hook.includes('window.location.replace(window.location.pathname + window.location.search)'));
+check('세션 확보 뒤 주소의 토큰 해시 제거', /await ensureSession\(\);\s*\n[^\n]*\n\s*stripAuthHash\(\);/.test(hook));
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
 process.exit(fail ? 1 : 0);

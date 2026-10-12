@@ -45,7 +45,8 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
                 box.current.replaceChildren();
                 gid.renderButton(box.current, {
                     type: 'standard',
-                    theme: isDark ? 'filled_black' : 'outline',
+                    // 다크에서도 흰 단색(outline) — filled_black 은 반투명 회색이라 카카오 노랑 옆에서 흐려 보였다(10-11).
+                    theme: 'outline',
                     size: 'large',
                     shape: 'pill',
                     text: 'continue_with',

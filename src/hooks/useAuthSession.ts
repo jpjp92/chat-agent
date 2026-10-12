@@ -32,6 +32,43 @@ const buildUserProfile = (user: SupabaseUser): UserProfile => ({
  * **같은 계정을 두 번 고르게** 되어 "두 번 로그인하는" 체감이 난다. 어느 계정인지
  * 아니까 프롬프트를 빼서 Google 이 자동 통과하게 둔다 → 사용자 조작은 한 번.
  */
+/**
+ * 새로고침하되 **주소의 인증 해시(#access_token=…)를 버린다.**
+ * 🔴 카카오(리다이렉트, implicit) 로그인 뒤 주소에 `#access_token…` 이 남는다. 그 상태에서 로그아웃·GIS 로그인이
+ *   `reload()` 하면 **끝난 세션의 토큰을 다시 싣고** 열려 detectSessionInUrl 이 그 토큰으로 세션을 되살리거나
+ *   새 세션과 엇갈렸다(10-11 실측: 카카오 → 로그아웃 → Google 로그인이 안 들어감).
+ */
+const AUTH_HASH = /(^|&)(access_token|refresh_token|provider_token|expires_at|token_type|error_code)=/;
+export const stripAuthHash = () => {
+  if (typeof window === 'undefined') return;
+  if (AUTH_HASH.test(window.location.hash.replace(/^#/, ''))) {
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }
+};
+const reloadWithoutAuthHash = () => {
+  window.location.replace(window.location.pathname + window.location.search);
+};
+
+/**
+ * 리다이렉트 OAuth 를 어느 공급자로 시도했나 — 돌아온 충돌(identity_already_exists)에 같은 공급자로 로그인시키려고.
+ * sessionStorage: 탭 단위·리다이렉트 왕복에는 살아남는다. 실패해도 기본(google)으로 동작한다.
+ */
+const OAUTH_PROVIDER_KEY = 'chatagent.oauthProvider';
+export type OAuthProviderId = 'google' | 'kakao';
+const rememberOAuthProvider = (p: OAuthProviderId) => { try { sessionStorage.setItem(OAUTH_PROVIDER_KEY, p); } catch { /* 저장 불가 */ } };
+export const lastOAuthProvider = (): OAuthProviderId => {
+  try { return sessionStorage.getItem(OAUTH_PROVIDER_KEY) === 'kakao' ? 'kakao' : 'google'; } catch { return 'google'; }
+};
+
+/**
+ * 카카오 OAuth 옵션. 🔴 scopes 를 **명시한다**(2026-10-11 실측): 동의 화면엔 프로필 사진이 보였는데
+ *   Supabase identity_data 에 `avatar_url`·`picture` 가 없었다(사진 있는 계정). 동의항목 ID 그대로 요청한다.
+ */
+const KAKAO_OAUTH_OPTIONS = () => ({
+  redirectTo: window.location.origin,
+  scopes: 'profile_nickname profile_image account_email',
+});
+
 const oauthOptions = (chooseAccount = true) => ({
   redirectTo: window.location.origin,
   ...(chooseAccount ? { queryParams: { prompt: 'select_account' } } : {}),
@@ -77,6 +114,8 @@ export const useAuthSession = () => {
       // ensureSession()이 진행 중인 로그인을 공유하므로 StrictMode 이중 실행에도
       // 익명 유저가 하나만 생긴다.
       const userId = await ensureSession();
+      // 세션을 URL 에서 읽어 들인 뒤엔 토큰을 주소에 남기지 않는다(새로고침·공유·히스토리에 토큰 노출 방지).
+      stripAuthHash();
       if (!userId) throw new Error('No user after sign-in');
 
       const profile = await loadProfile(userId);
@@ -154,6 +193,7 @@ export const useAuthSession = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('No session to link');
 
+    rememberOAuthProvider('google');
     const { error } = await supabase.auth.linkIdentity({
       provider: 'google',
       options: oauthOptions(),
@@ -173,10 +213,30 @@ export const useAuthSession = () => {
    * 계정을 두 번 고르는 체감을 없앤다.
    */
   const signInWithGoogle = useCallback(async (opts?: { chooseAccount?: boolean }) => {
+    rememberOAuthProvider('google');
     const { error } = await getSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
       options: oauthOptions(opts?.chooseAccount ?? true),
     });
+    if (error) throw error;
+  }, []);
+
+  // ── 카카오 — 리다이렉트 OAuth(2026-10-11, DEV_261011 §6) ─────────────────────────────
+  // Google 과 달리 리다이렉트로 둔다: 카카오 동의 화면에는 Supabase 주소가 아니라 **앱 이름**("Chat Agent")이 뜬다.
+  // link/signIn 기준은 Google 과 같다(호출부 shouldLinkGuest). 충돌은 돌아온 URL 의 error_code 로 오므로
+  // 어느 공급자로 시도했는지 남겨 둔다 → 충돌 화면의 "기존 계정으로 로그인" 이 같은 공급자로 간다.
+
+  /** 게스트에 카카오 신원을 붙인다(같은 uuid, 대화 승계). */
+  const linkKakao = useCallback(async () => {
+    rememberOAuthProvider('kakao');
+    const { error } = await getSupabaseClient().auth.linkIdentity({ provider: 'kakao', options: KAKAO_OAUTH_OPTIONS() });
+    if (error) throw error;
+  }, []);
+
+  /** 카카오로 로그인(현재 세션 데이터는 승계되지 않음). */
+  const signInWithKakao = useCallback(async () => {
+    rememberOAuthProvider('kakao');
+    const { error } = await getSupabaseClient().auth.signInWithOAuth({ provider: 'kakao', options: KAKAO_OAUTH_OPTIONS() });
     if (error) throw error;
   }, []);
 
@@ -189,14 +249,14 @@ export const useAuthSession = () => {
   const linkGoogleIdToken = useCallback(async (cred: { token: string; nonce: string }) => {
     const { error } = await getSupabaseClient().auth.linkIdentity({ provider: 'google', token: cred.token, nonce: cred.nonce });
     if (error) throw error;
-    window.location.reload();
+    reloadWithoutAuthHash();
   }, []);
 
   /** ID 토큰으로 로그인(현재 세션 데이터는 승계되지 않음). 충돌 재시도에서 같은 토큰을 다시 쓴다 → 계정을 두 번 안 고른다. */
   const signInGoogleIdToken = useCallback(async (cred: { token: string; nonce: string }) => {
     const { error } = await getSupabaseClient().auth.signInWithIdToken({ provider: 'google', token: cred.token, nonce: cred.nonce });
     if (error) throw error;
-    window.location.reload();
+    reloadWithoutAuthHash();
   }, []);
 
   const signOut = useCallback(async () => {
@@ -215,7 +275,7 @@ export const useAuthSession = () => {
       clearSessionsCache();
       // 네트워크 signOut 이 실패해도 로컬 세션은 지워졌으니 리로드로 마무리한다.
       // 새로고침하면 ensureSession()이 새 게스트를 만든다.
-      window.location.reload();
+      reloadWithoutAuthHash();
     }
   }, []);
 
@@ -229,6 +289,8 @@ export const useAuthSession = () => {
     signInWithGoogle,
     linkGoogleIdToken,
     signInGoogleIdToken,
+    linkKakao,
+    signInWithKakao,
     signOut,
     hydratedUserProfile: useMemo(() => currentUser ? buildUserProfile(currentUser) : null, [currentUser]),
   };
