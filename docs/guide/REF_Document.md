@@ -75,7 +75,7 @@ HWP 첨부 → ChatInput.parseViaKordoc(file)
 
 ## PDF 처리 상세 (네이티브 멀티모달)
 
-PDF는 **텍스트 추출(kordoc/mammoth) 경유 금지**다. Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다. `[EXTRACTED_CONTENT:]` 마커를 만들지 않는다. GPT도 PDF 원본을 `input_file`로 직접 읽는다(텍스트 추출 아님).
+PDF는 **첫 턴에 텍스트 추출(kordoc/mammoth) 경유 금지**다(후속 턴 근거용 `pdfText`는 별도 — 아래 멀티턴). Gemini가 PDF를 직접 읽어 레이아웃·표·이미지·스캔본까지 인식한다. `[EXTRACTED_CONTENT:]` 마커를 만들지 않는다. GPT도 PDF 원본을 `input_file`로 직접 읽는다(텍스트 추출 아님).
 
 ```
 PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
@@ -91,13 +91,17 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 ```
 
 **핵심 동작**
-- **크기**: 네이티브라 30MB+ 가능. **1MB 임계값**으로 인라인(base64)/Storage(공개 URL) 분기 — HWP의 4MB 임계값과는 별개(PDF는 base64라 임계값이 더 보수적).
+- **크기**: 네이티브라 30MB+ 가능. **1MB 임계값**으로 인라인(base64)/Storage(공개 URL) 분기 — HWP의 4MB 임계값과는 별개(PDF는 base64라 임계값이 더 보수적). 업로드 후 URL 치환은 **세션 상태에도 반영**해야 다음 턴 history가 base64를 재전송하지 않는다(누락 시 3.9MB PDF → 후속 요청 10.4MB 선차단, DEV_261013 §7).
 - **검색 게이트**: PDF는 Gemini 멀티모달 경로로 처리되므로 Search 동시 사용을 끄고 첨부 본문을 우선한다.
   ⚖️ **이 차단은 Gemini 전용이다**(2026-09-02 정정). tier 400 은 *"Gemini 는 이미지와 grounding 을 한
   요청에 못 담는다"* 는 API 사실이고, OpenAI Responses 는 `input_image` 와 `web_search` 를 함께 보낸다 —
   그래서 `decideGoogleSearch` 가 `provider` 를 받아 400 을 Gemini 턴에서만 낸다
   ([REF_SearchRouting §1-1](REF_SearchRouting.md), [DEV_260902 §3.1](../logs/2026/09/DEV_260902.md)).
-- **멀티턴**: PDF는 `extractedText`가 없어 `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]` 복원 대상이 아님. 대신 chat 라우트가 **최근 3턴**의 첨부를 history에 재전송(`fileData`/`image_url`)해 컨텍스트 유지, 그 이전 턴은 `[Attached File: 파일명]` 텍스트 마커로만 남음. → 긴 대화에서 PDF를 다시 참조하려면 재첨부 권장.
+- **멀티턴** (2026-10-13 변경, [DEV_261013 §7](../logs/2026/10/DEV_261013.md)):
+  - chat 라우트는 최근 **메시지 3개**(`mediaWindow`, 턴이 아니라 메시지 단위)의 첨부만 history에 재전송(`fileData`)한다 — **후속 1회째까지만** PDF 원본이 가고, 2회째부터는 `[Attached File: 파일명]` 이름표만 남는다.
+  - 그 공백을 메우려고 첨부 시 브라우저에서 **pdfjs로 텍스트층을 추출**해 `pdfText`(최대 200K자, [lib/pdf-text.ts](../../lib/pdf-text.ts))에 담는다. 첫 턴엔 쓰지 않고(`extractedText`와 분리 — 첫 분석은 네이티브 그대로), 후속 턴에 `lastActiveDoc.pdfText` → `[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:]`(30K자 상한)로 복원한다.
+  - `pdfText`는 서버로 보내지 않는다(클라 전용). 스캔 PDF는 텍스트층이 없어 빈 값 → 기존처럼 이름표만.
+  - 한계: `lastActiveDoc`은 메모리 상태라 새로고침하면 사라진다(DOCX 등도 동일). 30K자 초과분은 잘린다.
 - **저장/표시**: 업로드 경로는 `${auth.uid()}/{timestamp}_{name}`이고 쓰기·열거는 Storage RLS가 격리한다. 다만 버킷은 아직 public이라 `getPublicUrl`을 아는 제3자의 읽기는 가능하며, 비공개 전환과 기존 URL 백필은 Phase 2 백로그다.
 
 > 비교: **표/키-값 추출이 목적**이면 HWP/XLSX/CSV(구조 보존)가 유리하고, **레이아웃·이미지·스캔 인식**이 목적이면 PDF 네이티브가 최선. 같은 한글 문서라도 .hwp는 kordoc(표 마크다운), .pdf는 멀티모달로 서로 다른 강점.
