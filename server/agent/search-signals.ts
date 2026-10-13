@@ -15,6 +15,7 @@ import {
     classifySearchNeed,
     shouldSuppressSearchForFollowup,
     detectExplicitSearchRequest,
+    wantsGroundedDetail,
 } from "./intent-rules";
 import { TIER, type SearchSignal } from "./search-policy";
 
@@ -72,6 +73,13 @@ export const collectTextSearchSignals = (opts: {
             verdict: "off",
             source: "followup-guard",
             reason: "직전 턴 검색됨 + 가공형 follow-up",
+        });
+    } else if (wantsGroundedDetail(latestUserText, prevSearched)) {
+        signals.push({
+            tier: TIER.CLASSIFIER,
+            verdict: "on",
+            source: "followup-detail",
+            reason: "직전 턴 검색됨 + 세부·다른 항목 follow-up",
         });
     }
 

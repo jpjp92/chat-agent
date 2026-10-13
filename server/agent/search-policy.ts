@@ -65,6 +65,7 @@ const SAME_TIER_PRECEDENCE = [
     'renderer',
     'medical-qa',
     'followup-guard',
+    'followup-detail',
     'rule',
     'router-llm',
     'default',

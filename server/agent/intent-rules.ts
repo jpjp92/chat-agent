@@ -290,6 +290,17 @@ export const detectExplicitSearchRequest = (text: string): boolean =>
     EXPLICIT_SEARCH_PATTERN.test(text) && !PAST_REF_PATTERN.test(text);
 
 /**
+ * 직전 검색 답변 위에서 **세부나 다른 항목**을 묻는 후속(DEV_261013).
+ * "구체적으로 알려줘"·"화학상은?"·"다시 검증해줘" — 직전 답변에 없는 사실이 필요하다.
+ * 라우터 LLM 은 프롬프트로 유도해도 off 를 유지했다(실측) → 규칙으로 켠다.
+ * 순수 재구성("표로 정리")은 shouldSuppressSearchForFollowup 이 먼저 잡는다.
+ */
+const DETAIL_FOLLOWUP_PATTERN = /(구체적|자세히|자세하게|상세|더\s*(알려|설명)|검증|확인해)|^\s*\S{1,12}(은|는)\s*\??\s*$/;
+
+export const wantsGroundedDetail = (currentText: string, prevSearched: boolean): boolean =>
+    prevSearched && DETAIL_FOLLOWUP_PATTERN.test(currentText) && !shouldSuppressSearchForFollowup(currentText, prevSearched);
+
+/**
  * 멀티턴 가드 (기획 6-3): 직전 턴에 검색이 일어났고 현재 메시지가 follow-up 가공형이면,
  * 새 최신요구(temporal/domain ON & not past-ref)가 아닌 한 재검색을 억제(off)한다.
  * @param currentText 현재 사용자 메시지
