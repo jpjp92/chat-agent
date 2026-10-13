@@ -13,6 +13,7 @@ export interface MessageAttachment {
   fileName?: string;
   fileSize?: number; // bytes — for display in chat history cards
   extractedText?: string; // Client-side extracted text (for docx, txt, etc.)
+  pdfText?: string; // PDF 텍스트층 — 첫 턴엔 안 쓰고 후속 턴 lastActiveDoc 근거로만(lib/pdf-text.ts)
   storageUrl?: string; // Uploaded URL for persistence while keeping inline data for current analysis
 }
 

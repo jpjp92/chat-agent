@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { MessageAttachment, Language } from '../types';
 import { CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, pickLabel, type ChatModelId } from '../src/lib/models';
 import { authedFetch } from '../services/geminiService';
+import { extractPdfText } from '../lib/pdf-text';
 
 interface ChatInputProps {
   onSend: (message: string, attachment?: MessageAttachment, attachments?: MessageAttachment[]) => void;
@@ -302,8 +303,15 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     }
 
     let extractedText = "";
+    let pdfText = "";
 
     try {
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        pdfText = await extractPdfText(await file.arrayBuffer()).catch(err => {
+          console.error("PDF text extraction failed:", err);
+          return "";
+        });
+      }
       if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith(".docx")) {
         const arrayBuffer = await file.arrayBuffer();
         // convertToHtml로 표를 <table>(th/td)로 보존 — extractRawText는 셀을 평문으로 뭉갬.
@@ -459,7 +467,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         mimeType,
         fileName: file.name,
         fileSize: file.size,
-        extractedText: extractedText || undefined
+        extractedText: extractedText || undefined,
+        pdfText: pdfText || undefined,
       };
       setSelectedAttachments(prev => [...prev, newAttachment]);
     };

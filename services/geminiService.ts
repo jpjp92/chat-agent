@@ -276,7 +276,7 @@ export const streamChatResponse = async (
     const sanitizeAttachment = (att: any, keepMedia: boolean) => {
       if (!att) return att;
       // extractedText 는 webContent 로 따로 가므로 항상 제거(중복 페이로드)
-      const { extractedText: _et, ...rest } = att;
+      const { extractedText: _et, pdfText: _pt, ...rest } = att;
       const isInlineBase64 = typeof rest.data === 'string' && rest.data.length > 0 && !rest.data.startsWith('http');
       if (!isInlineBase64) return rest;
       // 업로드된 사본이 있으면 base64 대신 URL 로 — 서버가 URL 을 그대로 처리하므로 기능 동일
@@ -290,12 +290,18 @@ export const streamChatResponse = async (
       const keepMedia = i >= trimmedHistory.length - KEEP_MEDIA_LAST;
       return {
         ...msg,
-        attachment: sanitizeAttachment(msg.attachment, keepMedia),
+        // attachment 는 attachments[0] 의 구버전 사본 — 서버(history.ts)는 attachments 가 있으면 안 본다. 중복 전송 방지.
+        attachment: msg.attachments?.length ? undefined : sanitizeAttachment(msg.attachment, keepMedia),
         attachments: msg.attachments?.map(att => sanitizeAttachment(att, keepMedia)),
       };
     });
 
-    const body = JSON.stringify({ prompt, history: sanitizedHistory, language, attachment, webContent, session_id: sessionId, attachments, model, timeZone, movieContext, activeCards, cardContexts });
+    // pdfText 는 클라이언트 후속 턴용(lastActiveDoc)이라 서버로 보내지 않는다 — 200K자까지 커질 수 있다.
+    const stripPdfText = (att: any) => { if (!att) return att; const { pdfText: _pt, ...rest } = att; return rest; };
+    const outAttachments = attachments?.map(stripPdfText);
+    // attachment 는 attachments[0] 사본 — route.ts 는 attachments 배열이 있으면 그걸 쓴다.
+    const outAttachment = outAttachments?.length ? undefined : stripPdfText(attachment);
+    const body = JSON.stringify({ prompt, history: sanitizedHistory, language, attachment: outAttachment, webContent, session_id: sessionId, attachments: outAttachments, model, timeZone, movieContext, activeCards, cardContexts });
     const bodyBytes = new TextEncoder().encode(body).length;
     if (bodyBytes > 1_000_000) {
       // 어떤 요소가 본문을 키웠는지 확정용 계측 — 413 재발 시 이 로그로 범인을 특정한다.

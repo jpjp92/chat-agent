@@ -304,6 +304,17 @@ export const useChatStream = ({
       return message;
     });
 
+    // 🔴 업로드 URL 치환을 세션 상태에도 반영한다. 안 하면 세션엔 원본 base64 가 남아 다음 턴 히스토리로
+    //    재전송된다 — 3.9MB PDF 가 base64 5.2MB × (attachment + attachments) = 10.4MB 로 선차단(DEV_261013).
+    if (attachments.length > 0) {
+      setSessions(prev => prev.map(session => session.id !== activeSessionId ? session : {
+        ...session,
+        messages: session.messages.map(msg => msg.id === userMessage.id
+          ? { ...msg, attachments: finalAttachments, attachment: finalAttachments[0] }
+          : msg),
+      }));
+    }
+
     let modelResponse = '';
     let pendingSources: any[] = [];
     const modelMessageId = (Date.now() + 1).toString();
@@ -322,11 +333,13 @@ export const useChatStream = ({
       });
     }
 
-    if (webContext === '' && activeSession?.lastActiveDoc?.extractedText) {
+    // PDF 는 extractedText 가 없고 pdfText(텍스트층)만 있다 — 후속 턴 근거로 같은 경로에 태운다(lib/pdf-text.ts).
+    const lastDocText = activeSession?.lastActiveDoc?.extractedText || activeSession?.lastActiveDoc?.pdfText;
+    if (webContext === '' && activeSession?.lastActiveDoc && lastDocText) {
       const isVideoContext = activeSession.lastActiveDoc.mimeType?.startsWith('video/');
       const tag = isVideoContext ? 'VIDEO_ANALYSIS_SUMMARY' : 'PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT';
       const MAX_DOC_CHARS = 30_000;
-      const raw = activeSession.lastActiveDoc.extractedText;
+      const raw = lastDocText;
       const body = raw.length > MAX_DOC_CHARS
         ? raw.slice(0, MAX_DOC_CHARS) + '\n[CONTENT_TRUNCATED: 문서가 길어 일부만 전달됩니다]'
         : raw;
