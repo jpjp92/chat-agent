@@ -179,6 +179,11 @@ export const GraphState = Annotation.Root({
     lastTurnSearched: Annotation<boolean | undefined>({
         reducer: (x, y) => y ?? x,
         default: () => undefined,
+    }),
+    // 직전 턴 출처 이름표(제목) — 근거 규칙(grounded-history-rules.ts)에 싣는다. DEV_261013.
+    lastTurnSourceLabels: Annotation<string[]>({
+        reducer: (x, y) => y ?? x,
+        default: () => [],
     })
 });
 

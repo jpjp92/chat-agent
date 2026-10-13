@@ -58,6 +58,22 @@ export const deriveLastTurnSearched = (history: ClientHistoryMessage[]): boolean
     return Array.isArray(lastBotMsg.groundingSources) && lastBotMsg.groundingSources.length > 0;
 };
 
+/**
+ * 직전 봇 답변의 출처를 **이름표**로 뽑는다 — 근거 규칙에 실어 모델이 "무엇으로 확인했는지" 보게 한다(DEV_261013).
+ * 추상 안내("직전 답변은 검색으로 확인됨")만으로는 GPT 가 번복을 멈추지 않았다. URL 은 넣지 않는다 —
+ * 본문에 URL 을 박는 포맷을 다시 학습시키지 않으려고 인용 마커를 지운 것과 같은 이유다.
+ */
+export const deriveLastTurnSourceLabels = (history: ClientHistoryMessage[], max = 6): string[] => {
+    const lastBotMsg = (history || [])
+        .filter((m: any) => m?.role === 'assistant' || m?.role === 'model')
+        .at(-1);
+    const sources = Array.isArray(lastBotMsg?.groundingSources) ? lastBotMsg!.groundingSources! : [];
+    const labels = sources
+        .map((s: any) => String(s?.title ?? '').trim())
+        .filter(Boolean);
+    return [...new Set(labels)].slice(0, max);
+};
+
 export const buildHistoryMessages = (
     history: ClientHistoryMessage[],
     opts: { limit?: number; mediaWindow?: number } = {},

@@ -8,6 +8,7 @@ import {
 } from "./card-followup";
 import { buildDateLadderBlock, buildWeatherFollowupRules } from "./weather-followup";
 import { buildMovieFollowupRules, buildMovieSearchRules } from "./movie-followup";
+import { buildGroundedHistoryRules } from "./grounded-history-rules";
 import { buildReformatRules } from "./reformat-rules";
 import type { fetchHospitalOpenStatus } from "./hospital-hours";
 
@@ -42,7 +43,7 @@ import type { fetchHospitalOpenStatus } from "./hospital-hours";
 export type AssemblyState = Pick<AgentStateType,
     | 'intent' | 'messages' | 'webContent' | 'contextInfo' | 'needsSearch'
     | 'cardFollowup' | 'cardContexts' | 'paperFollowup' | 'reformatTurn'
-    | 'movieFollowup' | 'movieSearchTurn' | 'movieContext' | 'weatherFollowup'>;
+    | 'movieFollowup' | 'movieSearchTurn' | 'movieContext' | 'weatherFollowup' | 'lastTurnSearched' | 'lastTurnSourceLabels'>;
 
 export type AssemblePromptInput = {
     /** `getSystemInstruction(langName)` 의 결과. 이 함수는 base 를 만들지 않는다. */
@@ -198,6 +199,12 @@ export const assemblePrompt = (input: AssemblePromptInput): string => {
     // 제품 4개짜리 표를 만들어낸 사례가 있다(DEV_260815_DEPLOY_CHECK). 해당 턴에만 강하게 못 박는다.
     if (state.reformatTurn) {
         finalInstruction += `\n\n${buildReformatRules()}`;
+    }
+
+    // 직전 턴이 실제로 검색됐다(groundingSources 있음). 출처 내용은 다시 싣지 않으므로, 검색이 꺼진
+    // 후속 턴에서 모델이 학습 시점 이후 사실을 환각으로 보고 번복하지 않게 한다(DEV_261013).
+    if (state.lastTurnSearched === true) {
+        finalInstruction += `\n\n${buildGroundedHistoryRules(state.lastTurnSourceLabels ?? [])}`;
     }
 
     // 이번 턴 의도에 필요한 렌더러 스펙만 주입한다(base에는 더 이상 없음 — prompt.ts INTENT_RENDERERS).

@@ -9,7 +9,7 @@ import { DEFAULT_CHAT_MODEL, isChatModelId } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
 import { runWithKeyTier } from '../../../server/key-tier';
 import { HumanMessage } from '@langchain/core/messages';
-import { buildHistoryMessages, deriveLastTurnSearched } from '../../../server/agent/history';
+import { buildHistoryMessages, deriveLastTurnSearched, deriveLastTurnSourceLabels } from '../../../server/agent/history';
 import { classifyChatError, forGuest } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 import { createStreamDispatch } from '../../../server/agent/stream-dispatch';
@@ -166,6 +166,7 @@ export async function POST(req: NextRequest) {
         cardContexts: sanitizeCardContexts(cardContexts),
         // 직전 턴 실제 검색 여부 — 정규식 근사 대신 history의 grounding 출처를 본다(Step 6).
         lastTurnSearched: deriveLastTurnSearched(history),
+        lastTurnSourceLabels: deriveLastTurnSourceLabels(history),
       };
 
       const unhandledRejectionGuard = (reason: any) => {

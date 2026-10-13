@@ -102,6 +102,11 @@ const withReformat = build({ ...emptyState('general'), reformatTurn: true });
 check('재구성 턴이 규칙을 얹는다', withReformat.includes('[재구성 요청 처리 규칙 — 이번 턴]'));
 check('재구성 아닌 턴에는 없다', !plain.includes('[재구성 요청 처리 규칙 — 이번 턴]'));
 
+// DEV_261013: 검색 꺼진 후속 턴에서 GPT 가 직전 검색 답변을 번복했다(MT-02·03·04).
+const GROUNDED = '[GROUNDED PREVIOUS ANSWER — this turn]';
+check('직전 턴 검색됨 → 근거 규칙을 얹는다', build({ ...emptyState('general'), lastTurnSearched: true }).includes(GROUNDED));
+check('직전 턴 미검색·판단불가 → 없다(골든 불변)', !plain.includes(GROUNDED) && !build({ ...emptyState('general'), lastTurnSearched: false }).includes(GROUNDED));
+
 const withPaper = build({ ...emptyState('paper_search'), paperFollowup: true });
 check('논문 후속 턴이 규칙을 얹는다', withPaper.length > build(emptyState('paper_search')).length);
 
