@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   // API routes use Node.js runtime (Gemini SDK, LangGraph, Supabase service role)
   // Do NOT set runtime: 'edge' globally
   allowedDevOrigins: ['127.0.0.1'],
+  // next dev 가 레포 루트에 AGENTS.md·CLAUDE.md 를 자동 생성하지 않게 한다(불필요).
+  agentRules: false,
   // kordoc은 nodejs 런타임에서 require로 동작. 번들링하면 webpack이 kordoc 내부의
   // pdfjs-dist worker(PDF 경로용·미설치) 정적 import를 해석하려다 빌드 실패 →
   // 외부 패키지로 지정해 번들 제외(HWP 경로만 사용하므로 런타임 정상). 설계: PLAN_KORDOC §2

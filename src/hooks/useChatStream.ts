@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createSession, fetchUrlData, streamChatResponse, summarizeConversation, updateSessionTitle, uploadToStorage, GuestLimitError, UserFacingChatError } from '../../services/geminiService';
-import { pickWaitingStatus, type WaitingStatus } from '../lib/loading-status';
+import { pickWaitingStatus, SLOW_TURN_MS, type WaitingStatus } from '../lib/loading-status';
 import { ChatSession, Language, Message, MessageAttachment, Role } from '../../types';
 import { ChatModelId } from '../lib/models';
 import { SupabaseUser } from './useAuthSession';
@@ -26,6 +26,7 @@ const STATUS: Record<Language, {
   analyzingWebpage: string;
   searchingWeb: string;      // 서버 status 'searching'
   lookingUp: string;         // 서버 status 'lookup'
+  preparing: string;         // 문구 없는 턴이 SLOW_TURN_MS 넘게 첫 조각을 못 받을 때
 }> = {
   // 대기 문구는 짧은 진행형 한 줄 — 소요 시간·괄호 설명·모델명 없음(src/lib/loading-status.ts 원칙)
   ko: {
@@ -45,6 +46,7 @@ const STATUS: Record<Language, {
     analyzingWebpage: '웹페이지를 분석 중입니다',
     searchingWeb: '웹을 검색 중입니다',
     lookingUp: '정보를 조회 중입니다',
+    preparing: '답변을 준비 중입니다',
   },
   en: {
     uploadFailed: 'Upload failed',
@@ -63,6 +65,7 @@ const STATUS: Record<Language, {
     analyzingWebpage: 'Analyzing web page',
     searchingWeb: 'Searching the web',
     lookingUp: 'Looking up information',
+    preparing: 'Preparing a response',
   },
   es: {
     uploadFailed: 'Error de subida',
@@ -81,6 +84,7 @@ const STATUS: Record<Language, {
     analyzingWebpage: 'Analizando página web',
     searchingWeb: 'Buscando en la web',
     lookingUp: 'Consultando información',
+    preparing: 'Preparando la respuesta',
   },
   fr: {
     uploadFailed: "Échec d'envoi",
@@ -99,6 +103,7 @@ const STATUS: Record<Language, {
     analyzingWebpage: 'Analyse de la page web',
     searchingWeb: 'Recherche sur le web',
     lookingUp: 'Recherche des informations',
+    preparing: 'Préparation de la réponse',
   },
 };
 
@@ -486,11 +491,18 @@ export const useChatStream = ({
     }
 
     // 모델을 기다리는 동안의 문구 — 첫 응답 조각에서 내린다(아래 onChunk).
-    setLoadingStatus(waitingText(status, pickWaitingStatus({
+    const initialWaiting = waitingText(status, pickWaitingStatus({
       text: content,
       attachments: finalAttachments,
       ...urlKind,
-    })));
+    }));
+    setLoadingStatus(initialWaiting);
+
+    // 문구 없는 턴(일반 질문)은 오브만 둔다. 다만 SLOW_TURN_MS 안에 첫 조각도 서버 단계 알림도 없으면
+    // "답변을 준비 중입니다" 를 띄운다 — 빠른 답에서 문구가 깜빡이지 않게, 느린 답에서 멈춘 것처럼 보이지 않게.
+    let slowTimer: ReturnType<typeof setTimeout> | undefined = initialWaiting ? undefined
+      : setTimeout(() => { if (!modelResponse) setLoadingStatus(status.preparing); }, SLOW_TURN_MS);
+    const cancelSlowTimer = () => { if (slowTimer) { clearTimeout(slowTimer); slowTimer = undefined; } };
 
     let hasError = false;
 
@@ -507,6 +519,7 @@ export const useChatStream = ({
             ),
           };
         }));
+        cancelSlowTimer();
         setLoadingStatus(status.retrying);
         await new Promise(resolve => setTimeout(resolve, 500));
       }
@@ -518,7 +531,7 @@ export const useChatStream = ({
           if (isReset) modelResponse = '';
           // 첫 조각이 오면 대기 표시(Thinking Orb + 상태 문구)를 내린다. 예전엔 이미지·첨부 분석 문구가
           // 스트림 끝까지 남아 답변 아래에서 대기 표시가 계속 돌았다.
-          if (!modelResponse && chunk) setLoadingStatus(null);
+          if (!modelResponse && chunk) { cancelSlowTimer(); setLoadingStatus(null); }
           modelResponse += chunk;
 
           setSessions(prev => prev.map(session => {
@@ -597,6 +610,7 @@ export const useChatStream = ({
         // 서버 진행 상태 — 본문이 아직 없을 때만 문구로(첫 조각에서 내려가는 기존 규칙과 같다)
         (serverStatus) => {
           if (modelResponse) return;
+          cancelSlowTimer();
           if (serverStatus === 'searching') setLoadingStatus(status.searchingWeb);
           else if (serverStatus === 'lookup') setLoadingStatus(status.lookingUp);
         },
@@ -694,6 +708,7 @@ export const useChatStream = ({
           };
         }));
       }
+      cancelSlowTimer();
       setIsTyping(false);
       setLoadingStatus(null);
       setEditingMessageContent(undefined);

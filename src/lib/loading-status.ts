@@ -14,6 +14,13 @@ export type WaitingStatusKey =
     | 'analyzingDoc' | 'analyzingImage' | 'analyzingAttachment' | 'analyzingWebpage';
 
 export type WaitingStatus = { key: WaitingStatusKey; docType?: string };
+
+/**
+ * 문구 없는 턴(일반 질문)에서 "답변을 준비 중입니다" 를 띄우기까지의 대기(ms).
+ * 그 전에 첫 응답 조각이나 서버 단계 알림(searching·lookup)이 오면 띄우지 않는다(useChatStream).
+ * 미리보기: /dev/loading-preview (dev 전용)
+ */
+export const SLOW_TURN_MS = 2000;
 export type WaitingAttachment = { mimeType: string; fileName?: string };
 
 /**

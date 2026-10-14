@@ -52,7 +52,7 @@ for (const lang of ['ko', 'en', 'es', 'fr']) {
 }
 check('대기 문구에 "..."·괄호·초·Gemini 없음', !/(identifyingPill|analyzing\w+|uploading|retrying|fetchingUrl): ['"][^'"\n]*(\.\.\.|\(|초|\bs\)|Gemini)/.test(block));
 check('ko 는 "중입니다" 로 통일', [...block.slice(block.indexOf('  ko: {'), block.indexOf('  en: {')).matchAll(/(?:uploading|retrying|fetchingUrl|identifyingPill|analyzing\w+): '([^']+)'/g)].every(m => m[1].endsWith('중입니다')));
-check('shimmer 적용 + reduced-motion 정지', fs.readFileSync('components/ChatArea.tsx', 'utf8').includes('status-shimmer')
+check('shimmer 적용 + reduced-motion 정지', fs.readFileSync('components/WaitingIndicator.tsx', 'utf8').includes('status-shimmer')
     && /prefers-reduced-motion: reduce\)\s*\{\s*\.status-shimmer/.test(fs.readFileSync('app/globals.css', 'utf8')));
 
 console.log('\n── 훅 배선 ──');
@@ -60,7 +60,11 @@ const hook = fs.readFileSync('src/hooks/useChatStream.ts', 'utf8');
 check('arXiv 분기가 문구를 즉시 지우지 않는다', !/analyzingPaper\);\s*\n[^\n]*\n[^\n]*\n\s*setLoadingStatus\(null\)/.test(hook));
 check('YouTube 3초 타이머 제거', !hook.includes('setTimeout(() => setLoadingStatus(null), 3000)'));
 check('URL 처리 뒤 pickWaitingStatus 로 한 번 정한다', hook.indexOf('pickWaitingStatus({') > hook.indexOf('[URL_FETCH_FAILED'));
-check('첫 조각에서 문구를 내린다', hook.includes('if (!modelResponse && chunk) setLoadingStatus(null);'));
+check('첫 조각에서 문구를 내린다', hook.includes('if (!modelResponse && chunk) { cancelSlowTimer(); setLoadingStatus(null); }'));
+// 문구 없는 턴의 지연 문구 — 문구가 이미 있으면 타이머를 걸지 않고, 첫 조각·서버 알림·재시도·종료에서 취소한다
+check('지연 문구: 문구 있는 턴은 타이머 없음', /initialWaiting \? undefined\s*:\s*setTimeout\(/.test(hook));
+check('지연 문구: 취소 지점 4곳(첫 조각·서버 알림·재시도·종료)', (hook.match(/cancelSlowTimer\(\)/g) ?? []).length >= 4);
+check('지연 문구: 4개 언어 문구', (hook.match(/preparing: '/g) ?? []).length === 4);
 check('하드코딩 한국어 문구 없음(업로드·재시도)', hook.includes('setLoadingStatus(status.uploading)') && hook.includes('setLoadingStatus(status.retrying)'));
 
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);

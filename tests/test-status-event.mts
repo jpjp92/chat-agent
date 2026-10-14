@@ -63,7 +63,7 @@ check('OpenAI 경로: 실제 검색 결정 직후 searching', /if \(useWebSearch
 const svc = fs.readFileSync('services/geminiService.ts', 'utf8');
 check('클라이언트 SSE 파서가 status 를 넘긴다', svc.includes('if (data.status && onStatus) onStatus(data.status);'));
 const hook = fs.readFileSync('src/hooks/useChatStream.ts', 'utf8');
-check('본문이 시작됐으면 상태 문구를 띄우지 않는다', /if \(modelResponse\) return;\s*\n\s*if \(serverStatus === 'searching'\)/.test(hook));
+check('본문이 시작됐으면 상태 문구를 띄우지 않는다', /if \(modelResponse\) return;\s*\n\s*cancelSlowTimer\(\);\s*\n\s*if \(serverStatus === 'searching'\)/.test(hook));
 for (const lang of ['ko', 'en', 'es', 'fr']) {
     const sec = hook.slice(hook.indexOf(`  ${lang}: {`)).split('\n  },')[0];
     check(`${lang} searchingWeb·lookingUp 문구`, /searchingWeb: '/.test(sec) && /lookingUp: '/.test(sec));
