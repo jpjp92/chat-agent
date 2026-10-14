@@ -247,6 +247,7 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md) · 로그인(게스트 → Google·�
 | `hospital_search` | 공급자별 function calling + HIRA hospital API fast-pass | 선택 공급자 |
 | `vet_search` | 공급자별 function calling + animal hospital API fast-pass | 선택 공급자 |
 | `law_search` | 공급자별 function calling + 국가법령 Open API fast-pass | 선택 공급자 |
+| `law_*` **문서 후속** | 첨부 문서 본문이 실린 턴(`[EXTRACTED_CONTENT:`/`[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:`)에서 LLM 이 `law_*` 를 골라도, 규칙 law_search(법령 직접 언급)도 법령 카드도 없으면 라우터 Doc guard 가 `general` 로 되돌린다 — 문서 대신 법령 카드가 나가던 회귀(DEV_261014 §9) | — |
 | `movie_search` | 공급자별 function calling → card가 `/api/showtimes` 클라이언트 fetch | 선택 공급자 |
 | `weather` | 공급자별 function calling + KMA/OpenWeather → `json:weather` fast-pass | 선택 공급자 |
 | `weather` **후속** | 라우터가 `general` 로 강등(`weatherFollowup`) → SDK 경로 + 검색 OFF → **히스토리 카드로 산문 답변**. fast-pass를 타지 않는다 | — |
