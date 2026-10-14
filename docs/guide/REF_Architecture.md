@@ -131,6 +131,11 @@ flowchart TB
 URL이 포함된 프롬프트는 `/api/chat` 전에 `/api/fetch-url`에서 프리페치.  
 캐시 히트 시 browserless/ScrapingBee 유닛 절약.
 
+**다운로드형 PDF**(2026-10-14, [DEV_261014](../logs/2026/10/DEV_261014.md)): 경로가 `.pdf` 로 끝나는 링크는 클라가 바로 PDF 첨부로 보낸다.
+그 밖의 URL 은 fetch-url 이 응답으로 판별한다 — Content-Type · `Content-Disposition` 파일명 · `%PDF-` 첫 바이트([server/pdf-sniff.ts](../../server/pdf-sniff.ts)).
+PDF 면 본문 대신 `{ isPdf: true }` 를 돌려주고 클라가 그 URL 을 PDF 링크(`[URL_PDF_LINK_QUEUED]`)로 붙인다. 대체 스크래퍼가 PDF 바이너리를 글자로 돌려준 경우도 같은 응답(캐시 안 함).
+직접 받은 PDF 는 텍스트층도 추출해 `pdfText` 로 함께 준다([server/pdf-text-node.ts](../../server/pdf-text-node.ts)) — 클라가 세션 메시지·`lastActiveDoc` 에 기록해 후속 턴 근거로 쓴다(업로드 PDF 와 같은 경로).
+
 ```mermaid
 flowchart TB
     Prompt["URL 포함 프롬프트"]
