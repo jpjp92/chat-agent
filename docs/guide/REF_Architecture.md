@@ -1,9 +1,84 @@
 # REF: Architecture
 
-> 작성일: 2026-06-26 · 최종 수정: 2026-10-12
+> 작성일: 2026-06-26 · 최종 수정: 2026-10-14
 > 관련: [README §2](../../README.md#2-architecture) · [REF_App2_Agent](REF_App2_Agent.md)(에이전트 설계 근거)
 
 상세 다이어그램과 런타임 정책을 모아둔 레퍼런스. README는 개요 다이어그램만 유지하고 상세는 여기에 기록한다.
+
+---
+
+## 요청 흐름 단계별 지도
+
+README 는 큰 그림(4단계)만 둔다. 각 단계의 상세는 아래 섹션에 있다.
+
+| 단계 | 하는 일 | 상세 |
+|---|---|---|
+| 1. 클라이언트 | 첨부 업로드(서명 URL), 링크 프리페치, 히스토리·`activeCards` 조립 | [URL Prefetch](#url-prefetch--fallback-flow) · [Database & Storage](#database--storage-flow) |
+| 2. 라우터 | intent·검색 여부·후속 판정, 결정적 가드 | [LangGraph Agent Flow](#langgraph-agent-flow) · [Intent Routing](#intent-routing) · [Card Follow-up](#card-follow-up-state) |
+| 3. 생성 | 공급자별 경로, 도구 루프, 알약 식별 | [Agent Runtime Branches](#agent-runtime-branches) · [Tool Inventory](#tool-inventory) · [Pill ID](#pill-image-identification-flow) · [Model Policy](#model-policy) |
+| 4. 스트리밍·렌더 | SSE, 출처 칩, 카드 렌더, 저장 | [Streaming & Source Handling](#streaming--source-handling) · [Client Rendering](#client-rendering-pipeline) |
+| 부가 | 읽어주기 | [TTS Flow](#tts-read-aloud-flow) |
+
+### 전체 구성도
+
+```mermaid
+flowchart TB
+    In([User Input])
+
+    subgraph Frontend ["Frontend (React 19 + Next.js App Router)"]
+        UI[Main UI]
+        Stream[useChatStream]
+        Renderers["Renderers (13)"]
+    end
+
+    subgraph FetchAPI ["/api/fetch-url"]
+        URLCache["url_cache (14-day TTL)"]
+        Direct["Direct fetch (HTML / PDF 판별)"]
+        ScrapingBee["ScrapingBee static/render"]
+        Browserless["browserless /unblock"]
+    end
+
+    subgraph ChatAPI ["/api/chat"]
+        Router["Semantic Router"]
+        Vision["Vision Node (pill)"]
+        Generator["Generator Node"]
+        ToolNode["ToolNode"]
+    end
+
+    subgraph ShowtimesAPI ["/api/showtimes"]
+        SWR["SWR cache 120s/30min"]
+        ChainFetch["Lotte/Megabox direct + CGV browserless"]
+    end
+
+    subgraph External ["External"]
+        Gemini[["Google Gemini"]]
+        OpenAI[["OpenAI"]]
+        Supabase[("Supabase")]
+        APIs[["Public APIs (MFDS / HIRA / Law / Vet / KMA + OpenWeather / PubMed + CrossRef / arXiv)"]]
+        Multiplex[["CGV / Lotte / Megabox"]]
+    end
+
+    Out([Rendered Answer + source chips])
+
+    In --> UI --> Stream
+    Stream -->|URL prefetch| URLCache -->|miss| Direct
+    Direct -->|blocked/boilerplate| ScrapingBee
+    ScrapingBee -->|fail| Browserless
+    URLCache <--> Supabase
+    Stream -->|POST /api/chat| Router
+    Router -->|drug_id + image| Vision --> Generator
+    Router -->|other intents| Generator
+    Generator -->|tool_calls| ToolNode --> APIs
+    ToolNode -.->|ToolMessage| Generator
+    Renderers -->|movie card| SWR --> ChainFetch <--> Multiplex
+    Generator <--> Gemini
+    Generator <--> OpenAI
+    Generator -.->|SSE stream| Stream -.-> UI -.-> Renderers -.-> Out
+    Stream <--> Supabase
+
+    classDef io fill:#16a34a,stroke:#15803d,color:#fff;
+    class In,Out io;
+```
 
 ---
 
@@ -502,6 +577,16 @@ flowchart LR
 - **입력은 마크다운 원문**이고 서버가 `toSpeakableText` 로 정리한다 — 시각화 카드(`json:weather` 코드 펜스 등)는 본문이 JSON 이라, 그대로 보내면 **철자로 읽는다**(2026-10-03 실사용 결함).
 - 채팅과 달리 **인증 필수·게스트 차단·회원 일일 글자 한도**가 있다(유료 키). `chat` 의 게스트 메시지 한도와는 별개 카운터다.
 - 오류는 `TtsError(kind)` 5종 → 4개 언어 토스트. 공급자 원문은 서버 로그에만.
+
+## Security Boundaries
+
+| 경계 | 방어 | 위치 |
+|---|---|---|
+| 서버가 대신 가져오는 URL(`fetch-url`, `proxy-image`) | SSRF — IP 리터럴 바이트 판정(대괄호 IPv6·IPv4-mapped·NAT64 포함), DNS 응답 전부 검사, 리다이렉트 hop 마다 재검사. 남은 구멍: 검사↔연결 사이 DNS 재바인딩 | [server/ssrf.ts](../../server/ssrf.ts) · [DEV_261010](../logs/2026/10/DEV_261010.md) |
+| 업로드 | 서명 URL + Bearer 필수, `${uid}/` prefix, `storage.objects` RLS | [REF_DB](REF_DB.md) |
+| 모델·도구 오류 | 클라에는 현지화 안내 문구만, 원문은 서버 로그 | [chat-error-policy.ts](../../server/chat-error-policy.ts) |
+| 브라우저 쪽 오류(업로드 PUT·로그인) | 콘솔에는 `[scope] failed` 만, 원본은 `sendBeacon` → `/api/client-log` → Vercel 로그 `[client-error]`. 수신은 scope 허용 목록·2KB 상한·줄바꿈 제거 | [client-error.ts](../../src/lib/client-error.ts) · [client-log](../../app/api/client-log/route.ts) |
+| 콘솔 로그 | 프로덕션 빌드는 `console.log/info/debug/warn` 제거(서버·클라 공통). 진단 시 `KEEP_LOGS=1` | [next.config.ts](../../next.config.ts) |
 
 ## Streaming & Source Handling
 

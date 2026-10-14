@@ -751,7 +751,7 @@ const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollow
 
 **contract fail 만 CI 를 막는다.** metric 은 추세로 보고, warning 은 리뷰 재료다.
 이렇게 갈라야 "가독성 하니스가 늘 빨갛다"는 상태를 피할 수 있다 —
-`lint` 를 `verify` 에 넣지 않은 이유([README §5-4](../../README.md))와 같은 판단이다.
+`lint` 를 `verify` 에 넣지 않은 이유([README §4-4](../../README.md#4-4-verify))와 같은 판단이다.
 
 ### 11-3. 프롬프트 검증에 모델을 섞지 않는다
 

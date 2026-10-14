@@ -2,7 +2,7 @@
 
 업로드 가능한 모든 파일 타입과 각 처리 경로(멀티모달 네이티브 vs 텍스트 추출) 레퍼런스. 첨부 → 추출/전달 → 모델 입력까지의 흐름과 한도·동작을 한 곳에 정리한다.
 
-> 최종 수정: 2026-08-23
+> 최종 수정: 2026-10-14
 
 > 관련: kordoc HWP 연동 [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md) §6·§7, 검증·설계 [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §2, [`../plans/PLAN_KORDOC_INTEGRATION_260620.md`](../plans/PLAN_KORDOC_INTEGRATION_260620.md)
 > 코드: 첨부 처리 [`components/ChatInput.tsx`](../../components/ChatInput.tsx) `processFile`, 서버 파싱 [`app/api/parse-document/route.ts`](../../app/api/parse-document/route.ts), 컨텍스트 주입 [`src/hooks/useChatStream.ts`](../../src/hooks/useChatStream.ts)
@@ -67,7 +67,7 @@ HWP 첨부 → ChatInput.parseViaKordoc(file)
   실패 시(.hwpx 한정) → 기존 JSZip <hp:t> 폴백 (.hwp/.hwp3/.hwpml은 폴백 없음=원래 미지원)
 ```
 
-- 라우트: `runtime=nodejs`, `preferredRegion=icn1`, `maxDuration=60`. `next.config.ts`에 `serverExternalPackages:['kordoc']`(webpack이 kordoc 내부 pdfjs worker 정적 import 번들하려다 빌드 실패 → 외부화).
+- 라우트: `runtime=nodejs`, `preferredRegion=icn1`, `maxDuration=60`. `next.config.ts`에 `serverExternalPackages:['kordoc','pdfjs-dist']`(webpack이 kordoc 내부 pdfjs worker 정적 import 번들하려다 빌드 실패 → 외부화).
 - **길이 상한(L4)**: 마크다운 100,000자 초과 시 트렁케이트 + 안내(`truncated:true`). NIA 159K자 사례 대응.
 - **인증·보안**: 두 `/api/parse-document` 경로 모두 Bearer 토큰을 요구한다. Storage 경로는 `^{uuid}/\d+_[a-z0-9._-]+\.(hwp|hwpx|hwp3|hwpml)$` 형태만 받고, 첫 세그먼트 소유권은 Storage RLS가 `auth.uid()`와 대조한다. 정리용 `remove()`는 두지 않으며 고아 파일 정리는 별도 백로그다.
 
@@ -107,6 +107,18 @@ PDF 첨부 → ChatInput: base64 data URL로 읽기(압축·추출 없음)
 > 비교: **표/키-값 추출이 목적**이면 HWP/XLSX/CSV(구조 보존)가 유리하고, **레이아웃·이미지·스캔 인식**이 목적이면 PDF 네이티브가 최선. 같은 한글 문서라도 .hwp는 kordoc(표 마크다운), .pdf는 멀티모달로 서로 다른 강점.
 
 ---
+
+## 링크 PDF (다운로드형 URL 포함)
+
+사용자가 PDF 링크를 주면 업로드 PDF 와 같은 경로를 탄다(2026-10-14, [DEV_261014](../logs/2026/10/DEV_261014.md)).
+
+- **판별**: 경로가 `.pdf` 로 끝나는 링크는 바로 PDF. 그 외(`callDownload.do` 등)는 `/api/fetch-url` 이 응답으로 판별한다 —
+  Content-Type → `Content-Disposition` 파일명 → 본문 `%PDF-` 순([pdf-sniff.ts](../../server/pdf-sniff.ts)).
+  대체 스크래퍼가 PDF 바이트를 글자로 돌려준 경우도 PDF 로 본다(캐시하지 않음).
+- **첫 턴**: 모델이 URL 을 직접 읽는다(Gemini `fileData`, GPT `input_file.file_url`).
+- **후속 턴**: fetch-url 이 서버에서 텍스트층을 뽑아 `pdfText` 로 돌려주고([pdf-text-node.ts](../../server/pdf-text-node.ts), 8초 상한),
+  클라가 사용자 메시지 첨부와 `lastActiveDoc` 에 기록한다 → 아래 멀티턴 경로로 이어진다.
+- 첨부 칩 이름은 링크 파일명(확장자가 없으면 `.pdf` 를 붙인다).
 
 ## 멀티턴 문서 컨텍스트
 

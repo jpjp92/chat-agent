@@ -2,7 +2,7 @@
 
 Reference prompts for testing the `json:law` renderer and the Korean statute lookup pipeline (국가법령정보센터 Open API).
 
-> 최종 수정: 2026-08-23
+> 최종 수정: 2026-10-14
 >
 > 기술 상세와 API 실측: [DEV_260517](../logs/2026/05/DEV_260517.md), [DEV_260609](../logs/2026/06/DEV_260609.md). 예전 `LAW_API_TEST.md`는 현재 저장소에 없으므로 깨진 링크를 제거했다.
 
@@ -119,6 +119,15 @@ Reference prompts for testing the `json:law` renderer and the Korean statute loo
 | "근로법" | `근로기준법` |
 
 ---
+
+## 5. 첨부 문서 후속 질문 — 법령 카드를 띄우지 않는다
+
+법령을 다룬 문서(예: 인공지능 기본법 해설 PDF)를 놓고 "계도기간은 얼마나 돼?"처럼 물으면, 라우터 LLM 이 주제만 보고 `law_*` 를 고를 수 있다.
+라우터의 **Doc guard** 가 이를 `general` 로 되돌려 문서로 답하게 한다([router.ts](../../server/agent/nodes/router.ts), [DEV_261014 §9](../logs/2026/10/DEV_261014.md)).
+
+- 조건: 이번 요청에 첨부 문서 본문이 실려 있고, 사용자가 법령을 직접 말하지 않았고(규칙 `law_search` 아님), 법령 카드가 떠 있지 않다
+- 문서를 보면서 "관련 법령 찾아줘"·"제31조 원문 보여줘"처럼 직접 요청하면 법령 카드가 정상으로 나온다
+- 로그: `[LangGraph] Doc guard: law_* → general`
 
 ## Tips
 

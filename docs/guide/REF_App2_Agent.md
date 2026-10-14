@@ -2,7 +2,8 @@
 
 > 정리: 2026-07-31 · 대상: `reference/Wireless-Value-Added-Agent-main/app2` (Python, LangGraph, 69,672줄)
 >
-> 현행 상태(2026-08-23): 이 문서는 외부 코드에서 가져올 설계 원칙을 기록한 분석본이다. 현재 Gemini/OpenAI 모델·라우팅 계약은 [REF_Architecture](REF_Architecture.md)가 우선하며, 아래 `scripts/test-*` 프로브는 로컬 전용으로 Git에서 추적되지 않는다.
+> 현행 상태(2026-08-23): 이 문서는 외부 코드에서 가져올 설계 원칙을 기록한 분석본이다.
+> 이름 변경(2026-10-14 기준): `getIntentFocusHint` → `getIntentPolicy`(prompt.ts), `composeInstruction` → `assemblePrompt`(prompt-assembly.ts), `MOVIE_CONTEXT_TERMS` → `MOVIE_STRONG_TERMS`·`MOVIE_WEAK_TERMS`(router.ts), 날씨 후속 판정 → weather-followup.ts. `RESPONSE_GUIDE`·`UI_JSON`·`WM_LANG` 은 app2·로컬 프로브 쪽 이름이다. 현재 Gemini/OpenAI 모델·라우팅 계약은 [REF_Architecture](REF_Architecture.md)가 우선하며, 아래 `scripts/test-*` 프로브는 로컬 전용으로 Git에서 추적되지 않는다.
 > 선행 검토: [REF_ExternalAgents.md](REF_ExternalAgents.md) / [DEV_260724](../logs/2026/07/DEV_260724.md) — 그때는 `Master-Agent-main`(오케스트레이터)과 상담봇을 봤고, **`app2` 는 미검토 영역**이었다.
 >
 > ⚠️ **전제 차이(이식 판단의 기준선)**
@@ -82,7 +83,7 @@ if not result.is_refinement: state.conditions = conditions      # 교체
 else:                        state.conditions.extend(conditions) # 누적
 ```
 
-**우리 대비**: 동일 판정을 정규식 더미로 한다 — `newFetch` / `VAGUE_BEFORE_WEATHER` / `timeShift && weatherWord` / `interpretive`([router.ts:216-245](../../server/agent/nodes/router.ts#L216-L245)). 이번 주에만 두 번 고쳤다.
+**우리 대비**: 동일 판정을 정규식 더미로 한다 — `newFetch` / `VAGUE_BEFORE_WEATHER` / `interpretive`(작성 당시 router.ts, 현재는 [weather-followup.ts](../../server/agent/weather-followup.ts)). 이번 주에만 두 번 고쳤다.
 
 ---
 

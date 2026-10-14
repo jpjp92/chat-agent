@@ -30,13 +30,19 @@
 `mediaWindow`(기본 3) **개**까지만 미디어로 싣고 그 밖은 `[Attached File: …]` 텍스트로 강등한다.
 강등되는 순간 `[History] 첨부 미디어 → 텍스트 강등` 로그가 찍힌다 — 판정이 뒤집힌 이유는 거기서 읽는다.
 
+**첨부 문서(200 `doc-content`)의 예외**: 사용자가 근거 밖 확인을 원하면(명시 요청, 또는 룰 분류기가 최신 정보 질의로 on) 이 off 신호를 내지 않는다.
+그래서 문서 후속이라도 "계도기간은 얼마나 돼?" 같은 질의는 검색이 켜질 수 있다 — 답은 문서 본문이 우선이다([DEV_261014 §7](../logs/2026/10/DEV_261014.md)).
+
+**검색 직후 후속(100 `followup-detail`)**: 직전 턴이 검색했고 이번 질문이 그 결과의 세부·다른 항목을 묻는다면 on —
+"그 중 두 번째 자세히", "다른 건?" 같은 질의가 히스토리만으로 지어내지 않게 한다([search-signals.ts](../../server/agent/search-signals.ts), [DEV_261013](../logs/2026/10/DEV_261013.md)).
+
 ### 1-2. 이미지를 빼고 검색을 켜는 탈출구 (Gemini 전용)
 
 `shouldDropImageForSearch`([search-signals.ts](../../server/agent/search-signals.ts)) —
 **이번 턴에 새 이미지가 없고**, 히스토리에 이미지가 있고, 검색 신호가 있으면 미디어를 빼고 검색을 켠다.
 
 - 대상: `general` · `medical_qa`
-- **제외: 렌더러 4종**(`astronomy`·`biology`·`chemistry`·`physics`·`data_viz`) — 히스토리 이미지가
+- **제외: 렌더러 5종**(`astronomy`·`biology`·`chemistry`·`physics`·`data_viz`) — 히스토리 이미지가
   답의 **대상**일 수 있고(`이 사진 속 분자 구조 그려줘`) tier 200 으로 어차피 off 다
 
 ### 1-3. 논문이냐 소프트웨어 산출물이냐
@@ -210,7 +216,7 @@ npm run dev        # 또는 npx vercel dev
 | [tests/manual/live-arxiv-query.mts](../../tests/manual/live-arxiv-query.mts) *(수동)* | H | **실제 arXiv 상위 5건 관련도.** 조립 수정은 이걸 안 돌리면 판단할 수 없다 |
 
 ```bash
-npm run verify     # typecheck + 하니스 17종
+npm run verify     # typecheck + 하니스 31종
 ```
 
 🔴 **하니스가 덮지 못하는 것**: 라우터 LLM 의 실제 판정(A·B 의 프롬프트 층), 카드 렌더,
