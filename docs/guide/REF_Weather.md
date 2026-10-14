@@ -17,7 +17,7 @@
 ```
 날씨 질의 → router(weather, search:false) → generator/langchain-path(weatherTool)
   → server/lib/weather (geocoding 1회 → dfsXyConv 격자 → KMA 2콜 or OWM)
-  → ```json:weather 블록 → route.ts on_tool_end 스트리밍 → fast-pass(LLM 우회)
+  → ```json:weather 블록 → route.ts on_tool_end 스트리밍 → fast-pass(LLM 우회, 카드 위 한 줄 설명)
   → ChatMessage 파서 → WeatherRenderer 카드
 ```
 
@@ -26,6 +26,13 @@
 **격자는 하드코딩 표가 아니라 `dfsXyConv(lat,lon)` LCC 공식**(오프라인, 전국 커버) — geocoding이 준 lat/lon을 KMA 격자 nx/ny로 변환. 서울 60,127·부산 98,76 등 검증 완료.
 
 ---
+
+## 카드 위 한 줄 설명 (2026-10-15)
+
+fast-pass 라 모델 산문이 없다. 대신 [stream-dispatch](../../server/agent/stream-dispatch.ts) 가 각 카드 **바로 위**에 카드와 같은 데이터로 만든 한 줄을 둔다([weather-summary.ts](../../server/agent/weather-summary.ts), 모델 호출 없음).
+- 예: "서울은 현재 맑고 16°입니다. 오늘은 10~21°, 강수확률 30%예요." — 사실만, 조언(우산 등) 없음
+- 상태 표기는 카드와 같은 표([lib/weather-labels.ts](../../lib/weather-labels.ts)). 한국어는 연결형(맑고·흐리고), 4개 언어
+- 오류 카드에는 붙이지 않는다. 하니스 `test-weather-summary`
 
 ## Tool Schema — `weatherTool`
 

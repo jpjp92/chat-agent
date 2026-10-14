@@ -204,6 +204,7 @@ npm run verify  # typecheck + test
 | `test-openai-pdf.mts` | **GPT PDF 직접** — PDF part → Responses `input_file`(업로드·링크 `file_url`, 인라인 `file_data`, image_url 분기보다 먼저), 핀은 영상·오디오만, 링크 다운로드 400 만 2.5 재시도, generator 배선 (DEV_261011) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |
 | `test-pdf-sniff.mts` | **PDF 응답 판별** — Content-Type 없이 `Content-Disposition` 파일명·`%PDF-` 본문만으로 PDF 를 가려내는지(KDI `callDownload.do` 형), HTML·다른 첨부는 PDF 로 오인하지 않는지, 대체 스크래퍼가 돌려준 PDF 텍스트 판별(DEV_261014) |
+| `test-weather-summary.mts` | **날씨 카드 한 줄 설명** — 카드 데이터로 만든 문장 형식, 한국어 연결형·조사, 4개 언어, 오류 카드 제외, 여러 도시에서 각 카드 위에 짝지어 붙는지, 실제 SSE 루프에서 문장이 카드보다 앞인지(DEV_261015) |
 | `test-image-multiturn.mts` | **이미지 멀티턴** — 히스토리 미디어 창(`mediaWindow`)을 지나 턴별로 모델이 이미지를 받는지·새 이미지 식별·창 밖 강등을 관측. 3턴째 강등은 **현재 동작 기록**(바꾸면 기대 갱신) (DEV_261010 §2-4) |
 | `test-loading-status.mts` | **응답 대기 문구** — 상황별 판정(알약 `'정'` 오판·영상·arXiv·문서 형식 9종), 4개 언어 키 완비·문구 원칙("..."·괄호·소요시간·모델명 금지), 훅이 URL 처리 뒤 한 번 정하는지, shimmer reduced-motion (DEV_261010 §2-11) |
 | `test-status-event.mts` | **서버 진행 상태** — 라우터 → `lookup`(카드 후속 제외), 실제 검색 → `searching`(라우터 needsSearch 만으론 안 보냄), 중복·본문 후 금지. 실제 LangGraph `streamEvents` → 디스패처 → SSE 경로 (DEV_261010 §2-12) |

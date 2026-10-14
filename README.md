@@ -161,7 +161,7 @@ npm run dev      # http://localhost:3000
 
 ```bash
 npm run verify   # typecheck + regression harnesses — run before every commit
-npm test         # 31 harnesses, no network or secrets needed
+npm test         # 32 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)

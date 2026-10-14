@@ -302,6 +302,7 @@
 - [ ] 🟡 **문서 후속인데 검색이 켜지는 질의** — "계도기간은 얼마나 돼?" 를 룰 분류기가 on 으로 봐 `doc-content` off 가 빠진다. 답은 문서와 일치해 보류
 - [ ] 🟡 **`/api/sessions` 가 만료 토큰도 500** — PostgREST 401 `PGRST301` 을 401 로 매핑(지금은 모든 오류를 500)
 - [ ] ⬜ 로컬 `url_cache` 가 `Invalid API key` — dev 환경 키 확인
+- [ ] 🟡 **서울 날씨가 KMA 대신 OpenWeather 로 나옴(10-15)** — 같은 도시 예보가 크게 다르다(금 강수 20% vs 99%). `KEEP_LOGS=1 npm run dev` 로 `[weather] KMA 실패` 원인 확인 → [DEV_261015 §3](logs/2026/10/DEV_261015.md)
 
 ### 1. 멀티턴 경고·차단
 

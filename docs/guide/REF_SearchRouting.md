@@ -216,7 +216,7 @@ npm run dev        # 또는 npx vercel dev
 | [tests/manual/live-arxiv-query.mts](../../tests/manual/live-arxiv-query.mts) *(수동)* | H | **실제 arXiv 상위 5건 관련도.** 조립 수정은 이걸 안 돌리면 판단할 수 없다 |
 
 ```bash
-npm run verify     # typecheck + 하니스 31종
+npm run verify     # typecheck + 하니스 32종
 ```
 
 🔴 **하니스가 덮지 못하는 것**: 라우터 LLM 의 실제 판정(A·B 의 프롬프트 층), 카드 렌더,
