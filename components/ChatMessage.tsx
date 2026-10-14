@@ -481,7 +481,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
     if (isPDF) {
       return (
-        <div key={index} className={`mb-2 flex items-center gap-3 px-3.5 py-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] hover:border-red-300 dark:hover:border-red-500/40 transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div key={index} className={`mb-2 flex w-fit max-w-full items-center gap-3 px-3.5 py-3 rounded-2xl ${isUser ? 'ml-auto' : ''} bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] hover:border-red-300 dark:hover:border-red-500/40 transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
           <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0 border border-red-100 dark:border-red-500/20">
             <i className="fa-solid fa-file-pdf text-2xl"></i>
           </div>
@@ -511,7 +511,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
                   :           { icon: 'fa-file',             color: 'text-slate-400',  bg: 'bg-slate-50 dark:bg-slate-400/10', border: 'border-slate-200 dark:border-slate-400/20', hover: 'hover:border-slate-300 dark:hover:border-slate-400/40' };
     const docLabel = isWord ? 'docx' : isExcel ? 'xlsx' : isPPT ? 'pptx' : isCSV ? 'csv' : isHWPX ? 'hwpx' : 'file';
     return (
-      <div key={index} className={`mb-2 flex items-center gap-3 px-3.5 py-3 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] ${docIcon.hover} transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div key={index} className={`mb-2 flex w-fit max-w-full items-center gap-3 px-3.5 py-3 rounded-2xl ${isUser ? 'ml-auto' : ''} bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] ${docIcon.hover} transition-colors ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         <div className={`w-12 h-12 rounded-xl ${docIcon.bg} flex items-center justify-center flex-shrink-0 border ${docIcon.border}`}>
           <i className={`fa-solid ${docIcon.icon} ${docIcon.color} text-2xl`}></i>
         </div>

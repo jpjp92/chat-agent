@@ -53,16 +53,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             </Suspense>
 
             {((isTyping && messages.length > 0 && messages[messages.length - 1].role === Role.USER) || loadingStatus) && (
-                <div className="flex items-start gap-4 mt-4 pl-1">
-                    <div className="flex-shrink-0 mt-1">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 via-primary-500 to-violet-500 flex items-center justify-center shadow-lg shadow-primary-500/10">
-                            <i className="fa-solid fa-sparkles text-white text-[10px]"></i>
-                        </div>
-                    </div>
+                <div className="flex items-start mt-4 pl-1">
                     {/* 대기 표시 — 첫 텍스트 조각이 오면 답변 말풍선이 생기면서 이 블록이 빠진다(useChatStream).
+                        오브가 아바타 자리(w-8)를 대신한다 — 답변이 시작되면 같은 자리에 아바타가 들어와 위치가 튀지 않는다.
                         Thinking Orb 는 reduced-motion·화면 밖·숨은 탭에서 스스로 멈춘다. */}
-                    <div className="flex items-center gap-2.5 py-2.5" role="status" aria-live="polite">
-                        <ThinkingOrb state="working" size={20} theme="auto" color="#a5b4fc" aria-hidden="true" />
+                    <div className="flex items-center gap-4 mt-1" role="status" aria-live="polite">
+                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                            <ThinkingOrb state="working" size={32} theme="auto" color="#a5b4fc" aria-hidden="true" />
+                        </span>
                         {loadingStatus && (
                             <span key={loadingStatus} className="status-shimmer text-sm">{loadingStatus}</span>
                         )}
