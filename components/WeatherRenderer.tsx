@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { COND_LABEL } from '../lib/weather-labels';
 
 /**
  * 날씨 카드 렌더러 — weatherTool의 json:weather(언어 중립 구조)를 받아 렌더.
@@ -40,22 +41,6 @@ const GLYPH: Record<Condition, string> = {
   snow: '❄️', rainSnow: '🌨️', flurry: '🌨️', fog: '🌫️', unknown: '🌡️',
 };
 
-const COND_LABEL: Record<Condition, Record<Lang, string>> = {
-  clear: { ko: '맑음', en: 'Clear', es: 'Despejado', fr: 'Dégagé' },
-  mostlyClear: { ko: '대체로 맑음', en: 'Mostly clear', es: 'Mayormente despejado', fr: 'Plutôt dégagé' },
-  partlyCloudy: { ko: '구름 조금', en: 'Partly cloudy', es: 'Parcialmente nublado', fr: 'Partiellement nuageux' },
-  cloudy: { ko: '구름 많음', en: 'Cloudy', es: 'Nublado', fr: 'Nuageux' },
-  overcast: { ko: '흐림', en: 'Overcast', es: 'Cubierto', fr: 'Couvert' },
-  rain: { ko: '비', en: 'Rain', es: 'Lluvia', fr: 'Pluie' },
-  shower: { ko: '소나기', en: 'Showers', es: 'Chubascos', fr: 'Averses' },
-  drizzle: { ko: '이슬비', en: 'Drizzle', es: 'Llovizna', fr: 'Bruine' },
-  thunder: { ko: '뇌우', en: 'Thunderstorm', es: 'Tormenta', fr: 'Orage' },
-  snow: { ko: '눈', en: 'Snow', es: 'Nieve', fr: 'Neige' },
-  rainSnow: { ko: '비/눈', en: 'Rain & snow', es: 'Aguanieve', fr: 'Pluie et neige' },
-  flurry: { ko: '진눈깨비', en: 'Flurries', es: 'Nevisca', fr: 'Rafales de neige' },
-  fog: { ko: '안개', en: 'Fog', es: 'Niebla', fr: 'Brouillard' },
-  unknown: { ko: '정보 없음', en: 'No data', es: 'Sin datos', fr: 'Aucune donnée' },
-};
 
 const T: Record<Lang, Record<string, string>> = {
   ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', forecast: '예보', today: '오늘', updated: '업데이트', feels: '체감', now: '현재', expected: '오늘 예상', kmaFoot: '기상청 단기예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', kmaDays: 'KMA +{n}일', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
@@ -114,7 +99,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
     const e = (data as any) as { input?: string; code?: string };
     const msg = e.code === 'CITY_NOT_FOUND' ? tt.notFound : tt.fetchFail;
     return (
-      <div className="w-full max-w-[380px] sm:max-w-[540px] mx-auto my-3 rounded-[22px] border border-[#e7e0d4] dark:border-white/[0.07] bg-[#fbfaf6] dark:bg-[#1b1714] px-5 py-4 flex items-center gap-3">
+      <div className="w-full max-w-[380px] sm:max-w-[540px] my-3 rounded-[22px] border border-[#e7e0d4] dark:border-white/[0.07] bg-[#fbfaf6] dark:bg-[#1b1714] px-5 py-4 flex items-center gap-3">
         <span className="text-xl">🌫️</span>
         <div>
           <div className="text-sm font-bold text-[#26221d] dark:text-[#f2eee7]">{msg}</div>
@@ -137,7 +122,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
   const forecastNote = isKma ? tt.kmaDays.replace('{n}', String(w.forecastDays)) : 'OpenWeather';
 
   return (
-    <div className="w-full max-w-[380px] sm:max-w-[540px] mx-auto my-3 font-[Inter,system-ui,sans-serif]">
+    <div className="w-full max-w-[380px] sm:max-w-[540px] my-3 font-[Inter,system-ui,sans-serif]">
       <div className="relative rounded-[26px] overflow-hidden border border-[#e7e0d4] dark:border-white/[0.07] bg-[#fbfaf6] dark:bg-[#1b1714] shadow-[0_1px_2px_rgba(60,45,30,.05),0_12px_34px_-12px_rgba(60,45,30,.16)] dark:shadow-[0_12px_40px_-14px_rgba(0,0,0,.7)]">
         {/* 하늘 그라디언트 */}
         <div className={`pointer-events-none absolute inset-x-0 top-0 h-[180px] ${skyClass(c.condition)}`} />

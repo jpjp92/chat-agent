@@ -1,4 +1,6 @@
 import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
+import { interleaveWeatherSummaries } from './weather-summary';
+import type { WeatherLang } from '../../lib/weather-labels';
 import { checkTodayClaim } from './today-guard';
 import { STATUS_EVENT, statusForRouter } from './status-event';
 
@@ -66,9 +68,10 @@ export interface StreamDispatch {
  */
 export function createStreamDispatch(
     sendEvent: (data: any) => void,
-    options: { timeZone?: string } = {},
+    options: { timeZone?: string; lang?: WeatherLang } = {},
 ): StreamDispatch {
     const timeZone = options.timeZone || 'Asia/Seoul';
+    const lang: WeatherLang = options.lang ?? 'ko';
     const st: DispatchState = {
         fullAiResponse: '',
         allSources: [],
@@ -246,7 +249,12 @@ export function createStreamDispatch(
          * 메시지에 `pinCardToProse` 가 카드를 붙여 오므로 카드도 잃지 않는다 — 산문 토큰이
          * 먼저 흐르는 Gemini 경로에서는 아래 `pendingCardBlocks` 가 붙인다.
          */
-        if (blockMatches && cardHasResults(toolOutput)) { const jsonBlock = '\n' + blockMatches.join('\n\n') + '\n\n'; st.fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock }); }
+        if (blockMatches && cardHasResults(toolOutput)) {
+          // 날씨는 각 카드 위에 카드와 같은 데이터로 만든 한 줄 설명을 둔다(weather-summary.ts) — fast-pass 라 산문이 0줄이었다.
+          const body = blockType === 'weather' ? interleaveWeatherSummaries(blockMatches, lang) : blockMatches.join('\n\n');
+          const jsonBlock = '\n' + body + '\n\n';
+          st.fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock });
+        }
       } else if (event.event === 'on_tool_end' && ['search_web', 'search_drug_info'].includes(event.name)) {
         const rawOutput = data?.output;
         const toolOutput: string = typeof rawOutput === 'string' ? rawOutput : typeof rawOutput?.content === 'string' ? rawOutput.content : Array.isArray(rawOutput?.content) ? rawOutput.content.map((c: any) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : '';
