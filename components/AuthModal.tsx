@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Language } from '../types';
 import GoogleIdButton from './GoogleIdButton';
 import { GOOGLE_CLIENT_ID, isIdentityConflict, type GoogleCredential } from '../src/lib/google-id';
+import { reportClientError } from '../src/lib/client-error';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -155,9 +156,9 @@ const AuthModal: React.FC<AuthModalProps> = ({
             await onLink();
             // 성공하면 OAuth 리다이렉트로 페이지를 떠난다.
         } catch (e: any) {
-            // 사용자에겐 일반 메시지를 보여주지만, 원본은 남겨야 한다. 링크 실패는
+            // 사용자에겐 일반 메시지를 보여주지만, 원본은 남겨야 한다 — 서버 로그로(client-error.ts). 링크 실패는
             // provider 미등록 / manual linking 비활성 / 충돌이 전부 같은 화면으로 보인다.
-            console.error('[AuthModal] linkIdentity failed:', e?.code, e?.message, e);
+            reportClientError('auth.link', e);
             // 이미 다른 유저에게 묶인 신원 → 충돌 분기. 이게 없으면 사용자는 무한 재시도에 갇힌다.
             const msg = String(e?.message ?? '').toLowerCase();
             if (isIdentityConflict(e)) setConflict(true);
@@ -173,7 +174,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             await onCredential(cred);
             // 성공하면 훅이 새로고침한다.
         } catch (e: any) {
-            console.error('[AuthModal] ID token auth failed:', e?.code, e?.message, e);
+            reportClientError('auth.idToken', e);
             if (isIdentityConflict(e)) setConflict(true);
             else setError(t.genericError);
             setBusy(false);
@@ -186,7 +187,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             await onKakao();
             // 성공하면 카카오로 리다이렉트된다. 충돌은 돌아온 URL 로 온다(App 의 consumeOAuthError).
         } catch (e: any) {
-            console.error('[AuthModal] Kakao OAuth failed:', e?.code, e?.message, e);
+            reportClientError('auth.kakao', e);
             if (isIdentityConflict(e)) setConflict(true);
             else setError(t.genericError);
             setBusy(false);
@@ -200,7 +201,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             if (lastCred.current) await onSignInWithCredential(lastCred.current);
             else await onSignIn();
         } catch (e: any) {
-            console.error('[AuthModal] signInWithOAuth failed:', e?.code, e?.message, e);
+            reportClientError('auth.signIn', e);
             setError(t.genericError); setBusy(false);
         }
     };

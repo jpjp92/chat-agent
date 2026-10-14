@@ -283,7 +283,7 @@ export const useChatStream = ({
           );
         }
       } catch (error: any) {
-        console.error('Upload error:', error);
+        // 원본은 uploadToStorage 가 서버 로그로 보냈다(client-error.ts). 사용자에겐 안내 문구만.
         onError(status.uploadFailed);
         setLoadingStatus(null);
         setIsTyping(false);

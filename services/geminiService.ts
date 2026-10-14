@@ -2,6 +2,7 @@ import { Role, Message, MessageAttachment, Language, GroundingSource } from "../
 import { getAccessToken } from "../lib/supabase/client";
 import { GUEST_LIMIT_ERROR } from "../lib/limits";
 import { DEFAULT_CHAT_MODEL } from "../src/lib/models";
+import { reportClientError } from "../src/lib/client-error";
 
 /** 게스트 메시지 한도 초과. 호출부가 토스트 대신 로그인 모달을 띄우도록 구분한다. */
 export class GuestLimitError extends Error {
@@ -78,15 +79,15 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
     });
 
     if (!uploadRes.ok) {
-      const errorText = await uploadRes.text();
-      console.error('[Frontend Upload] PUT failed:', errorText);
-      throw new Error('Direct upload to signed URL failed');
+      // 원본 응답 본문은 서버 로그로만 보낸다(client-error.ts) — 개발자 도구에 Storage 응답을 남기지 않는다.
+      const errorText = await uploadRes.text().catch(() => '');
+      throw Object.assign(new Error('Direct upload to signed URL failed'), { status: uploadRes.status, body: errorText });
     }
 
     return { url: publicUrl, filePath: filePath };
 
   } catch (error: any) {
-    console.error('[Frontend Upload] Error:', error);
+    reportClientError('upload', error, { status: error?.status, body: error?.body });
     throw new Error(error.message || 'Upload failed');
   }
 };
