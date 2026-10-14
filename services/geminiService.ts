@@ -144,7 +144,7 @@ export const updateSessionTitle = async (sessionId: string, title: string) => {
 /**
  * URL에서 직접 텍스트 또는 파일을 추출 (백엔드 프록시 이용)
  */
-export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string }> => {
+export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, content: string, pdfText?: string }> => {
   const controller = new AbortController();
   // 65초: Brunch direct 최대 10s + OpenAI URL 추출 최대 45s + 네트워크 여유.
   // 성공 결과는 url_cache에 저장되므로 이후 요청은 즉시 반환된다.
@@ -157,7 +157,7 @@ export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, cont
       signal: controller.signal,
     });
     const data = await response.json();
-    return { isPdf: data.isPdf, content: data.content || "" };
+    return { isPdf: data.isPdf, content: data.content || "", pdfText: data.pdfText || undefined };
   } catch (error) {
     console.warn("Direct scraping failed", error);
     return { isPdf: false, content: "" };

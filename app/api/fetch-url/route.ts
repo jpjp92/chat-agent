@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertPublicUrl, safeFetch, SsrfError } from '../../../server/ssrf';
+import { isPdfResponse, isPdfText } from '../../../server/pdf-sniff';
+import { extractPdfTextOnServer } from '../../../server/pdf-text-node';
+
+// 대체 스크래퍼가 PDF 바이너리를 글자로 돌려준 경우의 표지 — 캐시에 넣지 않고 isPdf 로 응답한다.
+const PDF_DETECTED = '\u0000PDF_DETECTED';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { fetchUrlContentWithOpenAI, isOpenAIUrlFallbackHost } from '../../../server/openai/url-fetch';
@@ -253,9 +258,21 @@ export async function POST(req: NextRequest) {
                         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
                     },
                 });
-                html = await response.text();
+                // 🔴 다운로드형 PDF(`callDownload.do` 등)는 확장자로 못 알아본다. KDI 는 Content-Type 도 없이
+                //    `Content-Disposition: attachment; filename="….pdf"` + `%PDF-` 본문만 준다(DEV_261014).
+                //    text() 로 읽으면 바이너리가 HTML 스크래핑으로 흘러 깨진 글자가 요약된다. PDF 면 본문 대신
+                //    isPdf 만 돌려주고 클라가 URL 을 PDF 링크로 붙인다 — 두 모델 모두 이 URL 을 직접 읽는다(실측).
+                const buf = new Uint8Array(await response.arrayBuffer());
+                if (response.ok && isPdfResponse(response.headers, buf)) {
+                    // 바이트를 이미 받았으니 텍스트층도 여기서 — 후속 턴 근거(lastActiveDoc.pdfText). 첫 턴은 URL 그대로 모델이 읽는다.
+                    const pdfText = await extractPdfTextOnServer(buf);
+                    console.info('[fetch-url] PDF download detected', { url: targetUrl, bytes: buf.length, pdfTextChars: pdfText.length });
+                    return NextResponse.json({ isPdf: true, content: '', pdfText });
+                }
+                html = new TextDecoder().decode(buf);
                 if (!response.ok || isSecurityBlock(html) || html.match(/<title[^>]*>\s*just a moment/i)) directFetchBlocked = true;
             } catch (e: any) {
+                console.warn('[fetch-url] direct fetch failed', { url: targetUrl, error: e?.message });
                 directFetchBlocked = true;
             } finally {
                 clearTimeout(t);
@@ -417,11 +434,14 @@ export async function POST(req: NextRequest) {
             // CF 상시 챌린지 호스트(wikidocs)는 static 을 건너뛴다 — 항상 챌린지라 순수 낭비다.
             if (!useCloudflareUnblock) {
                 const sbStatic = await scrapingBeeStaticFetch();
+                if (sbStatic && isPdfText(sbStatic)) return PDF_DETECTED;
                 if (sbStatic) { await setCached(cacheKey, sbStatic, 'scrapingbee-static'); return sbStatic; }
             }
             const sb = await scrapingBeeFetch();
+            if (sb && isPdfText(sb)) return PDF_DETECTED;
             if (sb) { await setCached(cacheKey, sb, 'scrapingbee'); return sb; }
             const bl = await browserlessFetch();
+            if (bl && isPdfText(bl)) return PDF_DETECTED;
             if (bl) { await setCached(cacheKey, bl, 'browserless'); return bl; }
             if (OPENAI_URL_FALLBACK_ENABLED && isOpenAIUrlFallbackHost(targetHostname)) {
                 const openAIText = await openAIUrlFallback();
@@ -433,6 +453,7 @@ export async function POST(req: NextRequest) {
 
         if (directFetchBlocked) {
             const text = await renderFallback();
+            if (text === PDF_DETECTED) return NextResponse.json({ isPdf: true, content: '' });
             if (text) return NextResponse.json({ content: text });
             return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }
@@ -442,6 +463,7 @@ export async function POST(req: NextRequest) {
 
         if (bodyText.length < 300 || isBoilerplateOnly(bodyText)) {
             const text = await renderFallback();
+            if (text === PDF_DETECTED) return NextResponse.json({ isPdf: true, content: '' });
             if (text) return NextResponse.json({ content: text });
             return NextResponse.json({ content: FETCH_FAILED_CONTENT }, { status: 502 });
         }

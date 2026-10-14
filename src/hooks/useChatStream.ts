@@ -372,6 +372,14 @@ export const useChatStream = ({
     });
 
     let youtubeContextUrl = '';
+    // 링크로 받은 PDF — 아래에서 세션 메시지·lastActiveDoc 에 기록해 후속 턴 근거로 쓴다(DEV_261014).
+    let urlPdf: MessageAttachment | undefined;
+    const pdfFileName = (u: string) => {
+      try {
+        const base = decodeURIComponent(new URL(u).pathname.split('/').pop() || '') || 'document';
+        return /\.pdf$/i.test(base) ? base : base.replace(/\.[a-z0-9]+$/i, '') + '.pdf';
+      } catch { return 'document.pdf'; }
+    };
 
     if (urls && urls.length > 0) {
       const rawUrl = urls[0].replace(/[.\)\]\!,?]+$/, '');
@@ -418,7 +426,12 @@ export const useChatStream = ({
         urlKind.youtube = true;
         youtubeContextUrl = url;
       } else if (isPdf) {
-        finalAttachments.push({ fileName: 'document.pdf', mimeType: 'application/pdf', data: url });
+        // 첫 턴은 모델이 URL 을 직접 읽는다. 텍스트층은 후속 턴 근거용으로 서버에서 받아 둔다(실패해도 진행).
+        setLoadingStatus(status.fetchingUrl);
+        const pdfText = await fetchUrlData(url).then(d => d.pdfText).catch(() => undefined);
+        setLoadingStatus(null);
+        urlPdf = { fileName: pdfFileName(url), mimeType: 'application/pdf', data: url, pdfText };
+        finalAttachments.push(urlPdf);
         webContext += '\n[URL_PDF_LINK_QUEUED]';
       } else if (!isValidUrl) {
         // URL 파싱 실패 — fetch 시도하지 않음
@@ -428,7 +441,12 @@ export const useChatStream = ({
           const urlData = await fetchUrlData(url);
           const { content } = urlData;
 
-          if (content && !content.startsWith('[FETCH_ERROR')) {
+          if (urlData.isPdf) {
+            // 확장자 없는 다운로드형 PDF — 서버가 응답으로 판별했다(fetch-url isPdfResponse). .pdf 링크와 같은 경로.
+            urlPdf = { fileName: pdfFileName(url), mimeType: 'application/pdf', data: url, pdfText: urlData.pdfText };
+            finalAttachments.push(urlPdf);
+            webContext += '\n[URL_PDF_LINK_QUEUED]';
+          } else if (content && !content.startsWith('[FETCH_ERROR')) {
             urlKind.urlFetched = true;
             webContext += `\n\n[URL_CONTENT: ${url}]\n${content}`;
           } else {
@@ -452,6 +470,19 @@ export const useChatStream = ({
 
       // URL fetch 실패 시 정확한 URL 요약을 포기하고 안내 메시지를 반환한다.
       // 검색 fallback은 비슷한 다른 문서를 요약할 수 있어 명시 URL 요약에서는 사용하지 않는다.
+    }
+
+    // 🔴 링크 PDF 는 위 업로드 반영(setSessions)보다 늦게 붙어 세션 메시지에 안 남았다 → 다음 턴 history 에
+    //    PDF 가 없고 텍스트 근거도 없어, 후속 질문을 웹 검색 기사로 답했다(KDI 링크 B2·B3, DEV_261014).
+    if (urlPdf) {
+      const pdf = urlPdf;
+      setSessions(prev => prev.map(session => session.id !== activeSessionId ? session : {
+        ...session,
+        messages: session.messages.map(msg => msg.id === userMessage.id
+          ? { ...msg, attachments: [...(msg.attachments ?? []), pdf], attachment: msg.attachment ?? pdf }
+          : msg),
+        lastActiveDoc: pdf.pdfText ? pdf : session.lastActiveDoc,
+      }));
     }
 
     // 모델을 기다리는 동안의 문구 — 첫 응답 조각에서 내린다(아래 onChunk).

@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   // kordoc은 nodejs 런타임에서 require로 동작. 번들링하면 webpack이 kordoc 내부의
   // pdfjs-dist worker(PDF 경로용·미설치) 정적 import를 해석하려다 빌드 실패 →
   // 외부 패키지로 지정해 번들 제외(HWP 경로만 사용하므로 런타임 정상). 설계: PLAN_KORDOC §2
-  serverExternalPackages: ['kordoc'],
+  // pdfjs-dist 도 같은 이유로 서버 번들에서 뺀다 — fetch-url 이 링크 PDF 텍스트를 노드에서 추출한다(DEV_261014).
+  // 브라우저 번들(lib/pdf-text.ts, 업로드 PDF)은 이 설정과 무관하다.
+  serverExternalPackages: ['kordoc', 'pdfjs-dist'],
   // 프로덕션 빌드에서 console.log/info/debug/warn 제거(브라우저 콘솔 내부 태그·구조 노출 최소화).
   //
   // ⚠️ 이 설정은 **클라이언트뿐 아니라 서버 코드에도 적용된다.** 그래서 `[SearchPolicy]`·

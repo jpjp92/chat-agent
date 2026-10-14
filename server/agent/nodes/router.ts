@@ -406,6 +406,16 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         console.log(`[LangGraph] Clinic guard: ${intent} → hospital_search (진료과명이 있고 약국이라는 말이 없다)`);
         intent = resolveClinicIntent(intent, ruleIntentForLaw);
     }
+    // 🔴 첨부 문서 후속 턴에서 LLM 이 문서 주제(예: 인공지능 기본법 해설 PDF)만 보고 law_* 를 고르면
+    //   문서 대신 법령 카드가 나간다(GPT B2 "계도기간은 얼마나 돼?", DEV_261014 §9).
+    //   사용자가 법령을 직접 언급(규칙 law_search)했거나 법령 카드가 이미 떠 있을 때만 법률 경로를 연다.
+    const docContentActive = !!state.webContent && (state.webContent.includes('[EXTRACTED_CONTENT:')
+        || state.webContent.includes('[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:'));
+    if (docContentActive && (intent === 'law_search' || intent === 'law_qa')
+        && ruleIntentForLaw !== 'law_search' && !lawCardShown) {
+        console.log(`[LangGraph] Doc guard: ${intent} → general (첨부 문서가 근거, 법령 언급 없음)`);
+        intent = 'general';
+    }
     // 🔴 진입 근거를 구분해서 넘긴다. 카드가 떠 있다는 것 **하나만**으로 들어온 턴은
     //   주제가 법률을 떠났을 수 있다 — 그 판정이 decideLawInteraction 의 'unrelated' 다.
     //   구분 없이 돌리던 시절, 법률 카드가 화면에 있으면 논문·날씨·약국 질의까지 전부
