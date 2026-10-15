@@ -34,6 +34,10 @@ fast-pass 라 모델 산문이 없다. 대신 [stream-dispatch](../../server/age
 - 상태 표기는 카드와 같은 표([lib/weather-labels.ts](../../lib/weather-labels.ts)). 한국어는 연결형(맑고·흐리고), 4개 언어
 - 오류 카드에는 붙이지 않는다. 하니스 `test-weather-summary`
 
+## 카드 팔레트 (2026-10-15)
+
+네이비/슬레이트 바탕 + 인디고 강조(앱 테마와 같은 계열). 상단 그라데이션은 상태별 — 맑은 낮 하늘색 · 밤(현지 18~6시) 인디고 · 흐림·안개 회색 · 강수 짙은 파랑(`skyClass`). 이전 웜 차콜·앰버 팔레트는 DEV_260706 §6-2. 상태별 모습은 dev 미리보기 `/dev/weather-preview` → [DEV_261015 §4](../logs/2026/10/DEV_261015.md)
+
 ## Tool Schema — `weatherTool`
 
 | 인자 | 값 | 설명 |
