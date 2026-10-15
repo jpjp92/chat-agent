@@ -22,6 +22,7 @@ check('ko — 현재·오늘 최저최고·강수확률', ko === '서울은 현�
 check('조언 없음(우산·챙기)', !/우산|챙기|umbrella/i.test(ko));
 check('ko 조사 — 받침 없으면 "는"', weatherSummaryLine({ ...seoul, location: { name: '도쿄' } }, 'ko').startsWith('도쿄는 현재'));
 check('en', weatherSummaryLine(seoul, 'en') === '서울 is clear at 16° right now. Today: 10–21°, 30% chance of precipitation.', weatherSummaryLine(seoul, 'en'));
+check('en — 명사 상태도 서술형(rain → rainy)', weatherSummaryLine({ ...seoul, current: { ...seoul.current, condition: 'rain' } }, 'en').startsWith('서울 is rainy at'), weatherSummaryLine({ ...seoul, current: { ...seoul.current, condition: 'rain' } }, 'en'));
 check('es·fr 도 문장이 나온다', weatherSummaryLine(seoul, 'es').includes('30%') && weatherSummaryLine(seoul, 'fr').includes('30 %'));
 check('상태 unknown 이면 상태 없이', weatherSummaryLine({ ...seoul, current: { temp: 16, condition: 'unknown' } }, 'ko').startsWith('서울은 현재 16°입니다.'));
 check('ko 연결형 — 흐림·비', weatherSummaryLine({ ...seoul, current: { temp: 12, condition: 'overcast' } }, 'ko').startsWith('서울은 현재 흐리고 12°') && weatherSummaryLine({ ...seoul, current: { temp: 12, condition: 'rain' } }, 'ko').startsWith('서울은 현재 비가 오고 12°'));

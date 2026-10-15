@@ -27,6 +27,13 @@ const KO_CONNECTIVE: Record<Exclude<WeatherConditionCode, 'unknown'>, string> = 
     snow: '눈이 오고', rainSnow: '비나 눈이 오고', flurry: '진눈깨비가 내리고', fog: '안개가 끼고',
 };
 
+/** 영어도 같은 문제 — 명사 표기를 그대로 넣으면 "Seoul is rain at 14°" 가 된다. "is ___" 에 맞는 서술형으로 둔다. */
+const EN_PHRASE: Record<Exclude<WeatherConditionCode, 'unknown'>, string> = {
+    clear: 'clear', mostlyClear: 'mostly clear', partlyCloudy: 'partly cloudy', cloudy: 'cloudy', overcast: 'overcast',
+    rain: 'rainy', shower: 'showery', drizzle: 'drizzly', thunder: 'stormy',
+    snow: 'snowy', rainSnow: 'wet with rain and snow', flurry: 'seeing flurries', fog: 'foggy',
+};
+
 /** 한국어 조사 — 받침이 있으면 "은", 없으면 "는"(서울은 / 부산은 / 도쿄는). 한글이 아니면 "은(는)" 대신 "는". */
 const koTopic = (name: string): string => {
     const last = name.trim().slice(-1);
@@ -47,9 +54,11 @@ export const weatherSummaryLine = (data: any, lang: WeatherLang = 'ko'): string 
     const city = String(data.location.name);
     const code = data.current.condition as WeatherConditionCode;
     const label = code && code !== 'unknown' ? COND_LABEL[code]?.[lang] : undefined;
-    // 한국어는 연결형(맑고), 그 외는 카드 표기를 문장 중간용 소문자로(Clear → is clear).
+    // 한국어는 연결형(맑고), 영어는 서술형(rainy), es/fr 는 "상태, 기온" 나열이라 카드 표기를 소문자로.
+    const known = code as Exclude<WeatherConditionCode, 'unknown'>;
     const cond = !label ? undefined
-        : lang === 'ko' ? KO_CONNECTIVE[code as Exclude<WeatherConditionCode, 'unknown'>]
+        : lang === 'ko' ? KO_CONNECTIVE[known]
+        : lang === 'en' ? EN_PHRASE[known]
         : label.charAt(0).toLowerCase() + label.slice(1);
 
     let now = fill(cond ? t.now : t.nowNoCond, { city, cond: cond ?? '', temp });
