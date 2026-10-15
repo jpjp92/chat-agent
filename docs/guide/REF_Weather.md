@@ -30,7 +30,7 @@
 ## 카드 위 한 줄 설명 (2026-10-15)
 
 fast-pass 라 모델 산문이 없다. 대신 [stream-dispatch](../../server/agent/stream-dispatch.ts) 가 각 카드 **바로 위**에 카드와 같은 데이터로 만든 한 줄을 둔다([weather-summary.ts](../../server/agent/weather-summary.ts), 모델 호출 없음).
-- 예: "서울은 현재 맑고 16°입니다. 오늘은 10~21°, 강수확률 30%예요." — 사실만, 조언(우산 등) 없음
+- 예: "서울은 현재 맑고 16°입니다. 오늘 기온은 10~21°, 강수확률은 30%입니다." — 사실만, 조언(우산 등) 없음
 - 상태 표기는 카드와 같은 표([lib/weather-labels.ts](../../lib/weather-labels.ts)). 한국어는 연결형(맑고·흐리고), 4개 언어
 - 오류 카드에는 붙이지 않는다. 하니스 `test-weather-summary`
 

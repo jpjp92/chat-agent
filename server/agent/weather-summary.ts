@@ -11,7 +11,7 @@
 import { COND_LABEL, type WeatherConditionCode, type WeatherLang } from '../../lib/weather-labels';
 
 const TEMPLATES: Record<WeatherLang, { now: string; nowNoCond: string; today: string }> = {
-    ko: { now: '{city}은 현재 {cond} {temp}°입니다.', nowNoCond: '{city}은 현재 {temp}°입니다.', today: '오늘은 {min}~{max}°, 강수확률 {pop}%예요.' },
+    ko: { now: '{city}은 현재 {cond} {temp}°입니다.', nowNoCond: '{city}은 현재 {temp}°입니다.', today: '오늘 기온은 {min}~{max}°, 강수확률은 {pop}%입니다.' },
     en: { now: '{city} is {cond} at {temp}° right now.', nowNoCond: '{city} is {temp}° right now.', today: 'Today: {min}–{max}°, {pop}% chance of precipitation.' },
     es: { now: 'En {city} ahora: {cond}, {temp}°.', nowNoCond: 'En {city} ahora: {temp}°.', today: 'Hoy: {min}–{max}°, {pop}% de probabilidad de precipitación.' },
     fr: { now: 'À {city} actuellement : {cond}, {temp}°.', nowNoCond: 'À {city} actuellement : {temp}°.', today: "Aujourd'hui : {min}–{max}°, {pop} % de risque de précipitations." },

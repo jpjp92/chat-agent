@@ -18,7 +18,7 @@ const seoul = {
 const block = (d: unknown) => '```json:weather\n' + JSON.stringify(d) + '\n```';
 
 const ko = weatherSummaryLine(seoul, 'ko');
-check('ko — 현재·오늘 최저최고·강수확률', ko === '서울은 현재 맑고 16°입니다. 오늘은 10~21°, 강수확률 30%예요.', ko);
+check('ko — 현재·오늘 최저최고·강수확률', ko === '서울은 현재 맑고 16°입니다. 오늘 기온은 10~21°, 강수확률은 30%입니다.', ko);
 check('조언 없음(우산·챙기)', !/우산|챙기|umbrella/i.test(ko));
 check('ko 조사 — 받침 없으면 "는"', weatherSummaryLine({ ...seoul, location: { name: '도쿄' } }, 'ko').startsWith('도쿄는 현재'));
 check('en', weatherSummaryLine(seoul, 'en') === '서울 is clear at 16° right now. Today: 10–21°, 30% chance of precipitation.', weatherSummaryLine(seoul, 'en'));
