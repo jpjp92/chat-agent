@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createSession, deleteSession, fetchSessionMessages, fetchSessions, updateSessionTitle } from '../../services/geminiService';
+import { deleteSession, fetchSessionMessages, fetchSessions, updateSessionTitle } from '../../services/geminiService';
 import { ChatSession, Message, Role } from '../../types';
 
 interface UseChatSessionsOptions {
@@ -208,30 +208,11 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
       return null;
     }
 
-    try {
-      const { session, error } = await createSession();
-      if (error || !session) {
-        throw new Error(error || 'create_session_failed');
-      }
-
-      const newSession: ChatSession = {
-        id: session.id,
-        title: session.title,
-        messages: [],
-        createdAt: new Date(session.created_at).getTime(),
-      };
-
-      setSessions(prev => {
-        const updated = [newSession, ...prev];
-        writeSessionsCache(updated, userId);
-        return updated;
-      });
-      setCurrentSessionId(newSession.id);
-      return newSession;
-    } catch (error) {
-      reportError('createSession');
-      return null;
-    }
+    // DB 세션은 만들지 않고 빈 화면(웰컴)으로만 돌린다 — 첫 메시지를 보낼 때 useChatStream 이 만든다.
+    // 미리 만들면 들어오기만 하고 안 쓴 세션, 메인 화면에서 바로 보낸 질문이 새 세션으로 가면서 남는 세션이
+    // 빈 "New Chat" 으로 쌓였다(2026-10-16).
+    setCurrentSessionId(null);
+    return true;
   };
 
   const loadUserSessions = async (targetUserId?: string) => {
