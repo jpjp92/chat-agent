@@ -48,7 +48,7 @@
     "server-only": "^0.0.1",
     "smiles-drawer": "^2.1.7",
     "thinking-orbs": "0.3.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",
