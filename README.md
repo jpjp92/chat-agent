@@ -145,6 +145,7 @@ For a new Supabase project, run every file in `docs/guide/db/` in this order. Al
 | 4 | `url-cache.sql` | URL prefetch cache |
 | 5 | `mfds-pills.sql` | Pill DB, then load it with `node docs/guide/db/sync-mfds-pills.mjs` |
 | 6 | `tts-quota.sql` | TTS daily quota |
+| 7 | `session-activity.sql` | Sidebar order by last message (trigger + one-time backfill) |
 
 > ⚠️ Run steps 3 and 6 **before** deploying the app. Without them, uploads are rejected and TTS returns 500.
 

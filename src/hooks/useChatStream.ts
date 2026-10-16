@@ -239,17 +239,18 @@ export const useChatStream = ({
         return;
       }
     } else {
-      setSessions(prev => prev.map(session => {
-        if (session.id === activeSessionId) {
-          latestHistory = [...session.messages, userMessage];
-          return {
-            ...session,
-            messages: latestHistory,
-            lastActiveDoc: lastDoc ? lastDoc : session.lastActiveDoc,
-          };
-        }
-        return session;
-      }));
+      // 보낸 세션을 맨 위로 — 사이드바는 마지막 대화 순이다(DB 는 session-activity.sql 트리거가 같은 순서를 만든다).
+      setSessions(prev => {
+        const current = prev.find(session => session.id === activeSessionId);
+        if (!current) return prev;
+        latestHistory = [...current.messages, userMessage];
+        const moved = {
+          ...current,
+          messages: latestHistory,
+          lastActiveDoc: lastDoc ? lastDoc : current.lastActiveDoc,
+        };
+        return [moved, ...prev.filter(session => session.id !== activeSessionId)];
+      });
     }
 
     setIsTyping(true);
