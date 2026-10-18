@@ -1,5 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { INTERNAL_LLM_TAG } from './internal-llm';
+import { resolveImprints } from './drug-imprint';
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GoogleGenAI } from "@google/genai";
 import { HumanMessage } from "@langchain/core/messages";
@@ -140,7 +142,7 @@ async function searchDrugReferences(drugName: string): Promise<DrugSearchOutcome
  * Uses Gemini Vision to read actual imprint text from an MFDS drug image.
  * Called when MFDS API returns "마크" (logo) instead of actual text.
  */
-async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back'): Promise<string | null> {
+async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' | 'marked'): Promise<string | null> {
     try {
         const apiKey = getNextApiKey();
         if (!apiKey) return null;
@@ -178,8 +180,10 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
             thinkingConfig: { thinkingBudget: 0 },
         });
 
-        const sideLabel = side === 'front' ? '앞면(왼쪽)' : '뒤면(오른쪽)';
-        const prompt = `이 의약품 식별 사진의 ${sideLabel} 알약에 새겨진 각인을 판독하세요.
+        // 'marked' — 각인이 한 면에만 있을 때. MFDS 의 앞/뒤 표기가 사진 배치(왼쪽=앞)와 어긋나는 경우가 있어
+        //   위치로 고르면 민무늬 알약을 읽는다(마그네스정: 로고가 "뒷면" 인데 사진 왼쪽). 각인 있는 알약을 직접 찾게 한다.
+        const target = side === 'marked' ? '두 알약 중 각인·로고가 새겨진' : side === 'front' ? '앞면(왼쪽)' : '뒤면(오른쪽)';
+        const prompt = `이 의약품 식별 사진에서 ${target} 알약의 각인을 판독하세요.
 
 규칙:
 - 명확하게 읽히는 숫자·알파벳·특수문자(-)만 보이는 그대로 대문자로 출력하세요.
@@ -194,7 +198,8 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back')
             ]
         });
 
-        const response = await model.invoke([message]);
+        // 내부 호출 — 이 출력이 사용자 스트림으로 새면 GPT 답이 통째로 버려진다(internal-llm.ts).
+        const response = await model.invoke([message], { tags: [INTERNAL_LLM_TAG] });
         const text = typeof response.content === "string" ? response.content.trim() : "";
 
         // "없음"(각인 없음)·"마크"(로고/애매한 기호)는 override하지 않고 DB placeholder 유지.
@@ -291,38 +296,27 @@ export const searchDrugInfoTool = tool(
                 return buildDrugFallbackInstruction(drug_name, searchUnavailable, query_kind);
             }
 
-            // For each item, if imprint is "마크" on front or back, use Gemini Vision to read it
-            const MARK_VALUES = ['마크', '마크(로고)', 'mark', 'MARK', '각인'];
-            const needsVision = items.some((item: any) => {
-                const front = typeof item.PRINT_FRONT === 'string' ? item.PRINT_FRONT.trim() : '';
-                const back = typeof item.PRINT_BACK === 'string' ? item.PRINT_BACK.trim() : '';
-                return MARK_VALUES.includes(front) || MARK_VALUES.includes(back);
-            });
-
-            if (needsVision) {
-                // Process items in parallel for speed
-                await Promise.all(items.map(async (item: any) => {
-                    if (!item.ITEM_IMAGE) return;
-                    const front = typeof item.PRINT_FRONT === 'string' ? item.PRINT_FRONT.trim() : '';
-                    const back = typeof item.PRINT_BACK === 'string' ? item.PRINT_BACK.trim() : '';
-                    const frontIsMark = MARK_VALUES.includes(front);
-                    const backIsMark = MARK_VALUES.includes(back);
-
-                    const [frontVision, backVision] = await Promise.all([
-                        frontIsMark ? extractImprintViaVision(item.ITEM_IMAGE, 'front') : Promise.resolve(null),
-                        backIsMark ? extractImprintViaVision(item.ITEM_IMAGE, 'back') : Promise.resolve(null),
-                    ]);
-
-                    if (frontVision) {
-                        console.log(`[Agent Tool] Vision override PRINT_FRONT: "마크" → "${frontVision}"`);
-                        item.PRINT_FRONT = frontVision;
-                    }
-                    if (backVision) {
-                        console.log(`[Agent Tool] Vision override PRINT_BACK: "마크" → "${backVision}"`);
-                        item.PRINT_BACK = backVision;
-                    }
-                }));
-            }
+            // 각인 정리 — "마크" 는 MFDS 의 로고 분석값(MARK_CODE_*_ANAL)으로 먼저 채운다(drug-imprint.ts).
+            // 분석값이 없을 때만 비전으로 사진을 읽는다. 각인이 한 면에만 있으면 위치를 가정하지 않는다.
+            await Promise.all(items.map(async (item: any) => {
+                const r = resolveImprints(item);
+                item.PRINT_FRONT = r.front;
+                item.PRINT_BACK = r.back;
+                if (!item.ITEM_IMAGE || (!r.visionNeeded.front && !r.visionNeeded.back)) return;
+                const sideFor = (s: 'front' | 'back') => (r.onlyOneSide ? 'marked' : s);
+                const [frontVision, backVision] = await Promise.all([
+                    r.visionNeeded.front ? extractImprintViaVision(item.ITEM_IMAGE, sideFor('front')) : Promise.resolve(null),
+                    r.visionNeeded.back ? extractImprintViaVision(item.ITEM_IMAGE, sideFor('back')) : Promise.resolve(null),
+                ]);
+                if (frontVision) {
+                    console.log(`[Agent Tool] Vision override PRINT_FRONT: "마크" → "${frontVision}"`);
+                    item.PRINT_FRONT = frontVision;
+                }
+                if (backVision) {
+                    console.log(`[Agent Tool] Vision override PRINT_BACK: "마크" → "${backVision}"`);
+                    item.PRINT_BACK = backVision;
+                }
+            }));
 
             // Format result block for the LLM to use in json:drug generation
             let result = `[MFDS_DRUG_DATA] 식약처 공식 데이터 (총 ${items.length}건)\n\n`;

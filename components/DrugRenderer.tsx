@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { authedFetch } from '../services/geminiService';
+import { reportClientError } from '../src/lib/client-error';
 
 interface PillVisual {
     shape: 'round' | 'oval' | 'capsule' | 'triangle' | 'pentagon' | 'hexagon' | 'diamond' | 'square' | 'octagon' | 'semicircle' | string;
@@ -31,9 +33,15 @@ interface DrugData {
 interface DrugRendererProps {
     data: DrugData;
     language?: 'ko' | 'en' | 'es' | 'fr';
+    /**
+     * 각인 면 표기 — 2026-10-18 비교 중(/dev/drug-preview).
+     * 'mfds': MFDS 의 앞/뒤 그대로. 'neutral': 각인이 한 면에만 있으면 앞/뒤를 단정하지 않고 "각인 / 반대면".
+     * MFDS 앞/뒤 표기가 사진 배치와 어긋나는 약이 있다(마그네스정: 로고가 "뒷면" 인데 사진 왼쪽 = 앞면 자리).
+     */
+    imprintSides?: 'mfds' | 'neutral';
 }
 
-export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko' }) => {
+export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko', imprintSides = 'mfds' }) => {
     const [imageError, setImageError] = useState(false);
     const [syncedUrl, setSyncedUrl] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(!!data.image_url);
@@ -181,6 +189,21 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         return imprint.replace(/분할선/g, ' | ');
     };
 
+    const rawFront = serverPillVisual?.imprint_front || data.pill_visual?.imprint_front;
+    const rawBack = serverPillVisual?.imprint_back || data.pill_visual?.imprint_back;
+    const ko = language === 'ko';
+    const noneLabel = ko ? '없음' : 'None';
+    const oneSided = !!rawFront !== !!rawBack;
+    const imprintTiles: { label: string; value: string; color: string }[] = imprintSides === 'neutral' && oneSided
+        ? [
+            { label: ko ? '각인' : 'Imprint', value: formatImprint(rawFront || rawBack, noneLabel), color: 'text-blue-500' },
+            { label: ko ? '반대면' : 'Other side', value: noneLabel, color: 'text-teal-500' },
+        ]
+        : [
+            { label: ko ? '앞면' : 'Front', value: formatImprint(rawFront, noneLabel), color: 'text-blue-500' },
+            { label: ko ? '뒷면' : 'Back', value: formatImprint(rawBack, noneLabel), color: 'text-teal-500' },
+        ];
+
     const isSearchOrEntryPage =
         data.image_url?.includes('search_result') ||
         data.image_url?.includes('terms.naver.com') ||
@@ -213,7 +236,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
         const syncImage = async () => {
             try {
-                const response = await fetch('/api/sync-drug-image', {
+                const response = await authedFetch('/api/sync-drug-image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -233,6 +256,8 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     }
                     setImageError(false);
                 } else {
+                    // ConnectDI 약품은 폴백 이미지가 없어 401 이면 이미지가 조용히 사라진다 → 서버 로그로.
+                    if (response.status === 401) reportClientError('auth.route', null, { status: 401, body: 'sync-drug-image' });
                     console.warn(`[DrugRenderer] sync failed: HTTP ${response.status} | url: ${data.image_url} | drug: ${data.name}`);
                 }
                 // sync 실패 시 imageError를 건드리지 않음:
@@ -394,26 +419,18 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.color || data.pill_visual?.color || '-'}</span>
                                 </div>
                             </div>
-                            {/* Front Imprint Badge */}
-                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-start gap-2 min-w-0">
-                                <i className="fa-solid fa-font text-[10px] text-blue-500 mt-1 flex-shrink-0"></i>
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '앞면' : 'Front'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
-                                        {formatImprint(serverPillVisual?.imprint_front || data.pill_visual?.imprint_front, language === 'ko' ? '없음' : 'None')}
-                                    </span>
+                            {/* Imprint Badges — 표기 방식은 imprintSides */}
+                            {imprintTiles.map(t => (
+                                <div key={t.label} className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-start gap-2 min-w-0">
+                                    <i className={`fa-solid fa-font text-[10px] ${t.color} mt-1 flex-shrink-0`}></i>
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{t.label}</span>
+                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
+                                            {t.value}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            {/* Back Imprint Badge */}
-                            <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-start gap-2 min-w-0">
-                                <i className="fa-solid fa-font text-[10px] text-teal-500 mt-1 flex-shrink-0"></i>
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '뒷면' : 'Back'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
-                                        {formatImprint(serverPillVisual?.imprint_back || data.pill_visual?.imprint_back, language === 'ko' ? '없음' : 'None')}
-                                    </span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
 

@@ -1,5 +1,6 @@
 import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
 import { interleaveWeatherSummaries } from './weather-summary';
+import { isInternalLlmEvent } from './internal-llm';
 import type { WeatherLang } from '../../lib/weather-labels';
 import { checkTodayClaim } from './today-guard';
 import { STATUS_EVENT, statusForRouter } from './status-event';
@@ -122,6 +123,8 @@ export function createStreamDispatch(
         // via searchDrugInfoTool) otherwise leak their output (e.g. "JP","W") into the
         // user-facing answer ahead of the real json:drug block.
         if (langGraphNode !== 'generator') return;
+        // GPT 경로는 도구가 generator 안에서 돈다 → 노드 이름만으로는 내부 호출을 못 거른다(internal-llm.ts).
+        if (isInternalLlmEvent(event)) return;
         const chunk = data?.chunk;
         const chunkText = chunk?.content;
         if (chunkText && typeof chunkText === 'string') {

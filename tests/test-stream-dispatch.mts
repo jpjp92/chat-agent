@@ -10,6 +10,7 @@
  * 여기서는 진짜 `createStreamDispatch` 를 태운다. 모델도 네트워크도 없다.
  */
 import { createStreamDispatch } from '../server/agent/stream-dispatch';
+import { INTERNAL_LLM_TAG } from '../server/agent/internal-llm';
 import { checkTodayClaim, todayInZone } from '../server/agent/today-guard';
 
 let passed = 0, failed = 0;
@@ -96,6 +97,18 @@ console.log('\n§6 generator 노드 밖의 LLM 출력은 새지 않는다');
     const leak = run([{ event: 'on_chat_model_stream', metadata: { langgraph_node: 'tools' },
                         data: { chunk: { content: 'JP' } } }]);
     check('generator 아닌 노드의 토큰은 버린다', leak.text === '', leak.text);
+
+    // 🔴 GPT 경로는 도구가 generator 노드 안에서 돈다 — 각인 OCR "없음" 이 generator 이름으로 새서
+    //    fullAiResponse 를 채웠고, GPT 최종 답(약 카드 포함)이 `!st.fullAiResponse` 에 걸려 버려졌다(2026-10-18).
+    const drug = block('drug', '{"name":"마그네스정"}');
+    const gpt = run([
+        routerEvent('drug_info'),
+        { event: 'on_chat_model_stream', metadata: { langgraph_node: 'generator' }, tags: [INTERNAL_LLM_TAG],
+          data: { chunk: { content: '없음' } } },
+        { event: 'on_chain_end', name: 'generator', data: { output: { provider: 'openai', messages: [{ content: drug + '\n\n설명' }] } } },
+    ]);
+    check('generator 안의 내부 호출(태그)은 새지 않는다', !gpt.text.startsWith('없음'), gpt.text.slice(0, 20));
+    check('그래서 GPT 최종 답(약 카드)이 버려지지 않는다', gpt.text.includes(drug), gpt.text.slice(0, 40) || '(빈 프레임)');
 }
 
 console.log('\n§7 인용 마커 — 청크 경계 보류와 범위 밖 제거');
