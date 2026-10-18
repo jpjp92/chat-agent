@@ -250,7 +250,7 @@ const GOLDEN: Record<string, { len: number; sha: string }> = {
     hospital_search: { len: 17561, sha: '538d5529a5e210ba' },
     vet_search:      { len: 17572, sha: '7754ec04888f2d19' },
     law_search:      { len: 18269, sha: '103ef202a0d980fc' },
-    law_qa:          { len: 18025, sha: '656d0b242cd68c68' },
+    law_qa:          { len: 18418, sha: '775379bbe4af647d' },
     movie_search:    { len: 17757, sha: '350f338d855fe513' },
     weather:         { len: 18576, sha: 'a924010ae38bd26d' },
     paper_search:    { len: 23772, sha: 'f9d8e371513293c2' },

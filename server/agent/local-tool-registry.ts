@@ -105,8 +105,8 @@ const tools: LocalFunctionTool[] = [
         description: '국가법령정보센터에서 현행 법령 목록, 본문 또는 특정 조문을 조회해 UI 카드 데이터를 반환한다.',
         parameters: strictObject({
             query: { type: 'string', description: '사용자 질의 원문 또는 법령 검색어' },
-            law_name: nullable({ type: 'string', description: '법령명 또는 공식 법령명 후보' }),
-            article_no: nullable({ type: 'string', description: '특정 조문 번호' }),
+            law_name: nullable({ type: 'string', description: '공식 법령명. 검색은 법령 이름으로만 되므로, 주제형 질문이면 대화 문맥에서 관련 법령명을 골라 넣는다' }),
+            article_no: nullable({ type: 'string', description: '조문 번호. 사용자가 번호를 말하지 않아도 질문에 답하는 조문을 확실히 알면 넣는다(예: 근로기준법 연차휴가 → 제60조, 민법 성년 → 제4조). 확실하지 않으면 비운다' }),
             mode: nullable({ type: 'string', enum: ['list', 'body', 'article'], description: '조회 모드' }),
         }),
         resultMode: 'fast-pass',
@@ -119,12 +119,12 @@ const tools: LocalFunctionTool[] = [
         description: '국가법령정보센터에서 현행 법령과 특정 조문을 조회하여 법률 설명의 근거를 제공한다.',
         parameters: strictObject({
             query: { type: 'string', description: '설명 또는 시나리오 질의를 포함한 사용자 원문' },
-            law_name: nullable({ type: 'string', description: '법령명 또는 공식 법령명 후보' }),
-            article_no: nullable({ type: 'string', description: '특정 조문 번호' }),
-            mode: nullable({ type: 'string', enum: ['list', 'body', 'article'], description: '조회 모드' }),
+            law_name: nullable({ type: 'string', description: '공식 법령명. 검색은 법령 이름으로만 되므로, 주제형 질문이면 대화 문맥에서 관련 법령명을 골라 넣는다. 예: 영화관 소음 → 소음ㆍ진동관리법, 음주운전 → 도로교통법' }),
+            article_no: nullable({ type: 'string', description: '조문 번호. 사용자가 번호를 말하지 않아도 질문에 답하는 조문을 확실히 알면 넣는다(예: 근로기준법 연차휴가 → 제60조, 민법 성년 → 제4조). 확실하지 않으면 비운다' }),
+            mode: nullable({ type: 'string', enum: ['list', 'body', 'article'], description: '조회 모드. 해설에는 조문이 필요하므로 보통 body' }),
         }),
         resultMode: 'synthesize',
-        execute: executeTool(lawTool, { interpret_with_gemini: false }),
+        execute: executeTool(lawTool, { interpret_with_gemini: false, default_mode: 'body' }),
     },
     {
         intent: 'movie_search',

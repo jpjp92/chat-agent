@@ -181,8 +181,8 @@ export const routerNode = async (state: AgentStateType) => {
 - "pharmacy_search" : finding a pharmacy location, operating hours, night/holiday pharmacy (in Seoul)
 - "hospital_search" : finding a hospital or clinic location, ER, operating hours, medical departments (in Seoul)
 - "vet_search"      : finding a veterinary hospital / animal clinic / pet hospital for pets or animals
-- "law_search"      : exact Korean statute lookup, article text, original provisions, or law lists
-- "law_qa"          : explanation, summary, comparison, scenario, or application of Korean law grounded in current statute data
+- "law_search"      : the user wants a Korean statute itself SHOWN — a law list, a law's articles, or the original text of a specific article ("도로교통법 제44조", "개인정보보호법 원문 보여줘", "관련 법령 목록"). The answer is the card.
+- "law_qa"          : the user asks a QUESTION that Korean law answers — an amount, a limit, an age, whether something is allowed, a penalty, what to do in a legal situation, or an explanation/comparison of a law ("김영란법 식사 한도 얼마야?", "위반하면 처벌은?", "전세 보증금 안 돌려주면 어떻게 해?", "음주운전 기준이 어떻게 돼?"). Includes everyday legal situations that name no statute. Judge by what they want back: the statute shown → law_search; an answer grounded in the statute → law_qa.
 - "paper_search"    : the user is asking for RESEARCH PAPERS / studies / academic evidence — 논문, 연구 결과, 임상시험, 근거 자료, "관련 논문 찾아줘", "연구된 게 있어?". Judge only whether they want papers; do NOT judge the field here. The field is decided separately by "paper_source" below, which also decides whether any database can serve it. A medical question that never asks for research ("고혈압에 좋은 음식 알려줘", "감기 걸렸는데 어떻게 해?") is "medical_qa" — but "연구 있어?", "연구된 거 있어?", "연구 결과 알려줘" ARE paper requests even without the word 논문. NEGATIVE ANCHOR — judge what the user wants DELIVERED, not what the subject is about. If they want a SOFTWARE ARTIFACT handed to them — code repositories, GitHub/GitLab repos (레포, 레포지토리, 저장소, 깃허브), open-source projects, libraries, packages, SDKs, frameworks, tools, or documentation — that is "general", NOT paper_search, even when the topic is academic and even when the message says 검색/찾아줘: "클로드 skills 관련된 레포 검색" and "rag 라이브러리 추천해줘" want software, so "general". But those same words may merely NAME THE SUBJECT of a study — "깃허브 코파일럿 생산성 논문 있나", "오픈소스 라이선스 연구 있어?" ask for literature ABOUT software, so they stay paper_search. The deciding question: would a repository satisfy them, or does only a paper?
 - "movie_search"    : movie showtimes / what's playing now at CGV, Lotte Cinema, Megabox theaters (상영시간표, 영화관, 무슨 영화 하는지)
 - "weather"         : current weather, temperature, rain/snow/precipitation, or short-term forecast for a place (오늘/내일 날씨, 기온, 비 와?, ○○ 날씨). Includes follow-ups asking about a DIFFERENT city or a DIFFERENT day/time than the weather already shown. BUT a follow-up that only INTERPRETS already-shown weather (why is it raining, do I need an umbrella, is the humidity high) is "general".
@@ -423,7 +423,12 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     const intentIsLaw = intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search';
     if (intentIsLaw || (lawCardShown && state.activeCards?.latest === 'law')) {
         const decision = decideLawInteraction(textContent, lawCardShown, intentIsLaw, lawCardHasArticles(state.cardContexts?.law));
-        if (decision === 'lookup') intent = 'law_search';
+        // 🔴 카드(조회)냐 답(해설)이냐는 LLM 이 문맥으로 고른 값을 존중한다. 규칙의 lookup 은 기본값이라
+        //   "김영란법 식사 한도 얼마야?" 처럼 정규식에 안 걸린 질문을 카드 전용으로 보내 답이 없었다(DEV_261018 §12).
+        //   규칙은 LLM 이 법령으로 안 봤을 때, 그리고 카드 후속(refine·acknowledge)·이탈(unrelated) 판정에만 쓴다.
+        const llmLawIntent = intent === 'law_search' || intent === 'law_qa' ? intent : null;
+        if (llmLawIntent && (decision === 'lookup' || decision === 'synthesize')) { /* LLM 판정 유지 */ }
+        else if (decision === 'lookup') intent = 'law_search';
         else if (decision === 'synthesize') intent = 'law_qa';
         // 주제가 카드를 떠났다 → 법률로 끌어오지 않는다. LLM 이 정한 의도를 그대로 둔다.
         else if (decision === 'unrelated') { /* intent 유지 */ }

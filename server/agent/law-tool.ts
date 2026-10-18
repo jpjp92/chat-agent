@@ -16,6 +16,8 @@ type LawToolInput = {
     article_no?: string;
     mode?: "list" | "body" | "article";
     interpret_with_gemini?: boolean;
+    /** mode 가 비었을 때 쓸 값. 해설(law_qa)은 조문이 필요해 "body" — list 는 법령 이름·시행일뿐이다(DEV_261018 §11). */
+    default_mode?: "list" | "body";
 };
 type LawQueryPlan = Required<Pick<LawToolInput, "query">> & {
     law_name?: string;
@@ -144,7 +146,9 @@ async function interpretLawQuery(input: LawToolInput): Promise<LawQueryPlan> {
 Return ONLY JSON. Do not answer the legal question.
 
 Task:
-- Extract the official Korean statute search candidate into law_name.
+- Extract the official Korean statute search candidate into law_name. Search matches statute NAMES only, so if the user
+  describes a topic or situation instead of naming a statute, put the most relevant official statute name in law_name
+  (e.g. 영화관·층간 소음 -> 소음ㆍ진동관리법, 음주운전 -> 도로교통법). Never leave law_name as the topic phrase itself.
 - Choose mode:
   - "list": the user asks for related laws, law list, candidates, 법안/법령 목록.
   - "article": the user asks for a specific article number such as 제44조, 44조, 제5조의2.
@@ -164,6 +168,8 @@ User: "소방법 관련법안 찾아줘"
 JSON: {"mode":"list","law_name":"소방기본법","article_no":"","query":"소방법 관련법안 찾아줘","confidence":0.8}
 User: "도로교통법 제44조 알려줘"
 JSON: {"mode":"article","law_name":"도로교통법","article_no":"제44조","query":"도로교통법 제44조","confidence":0.98}
+User: "영화관 소음 관련 법 있어?"
+JSON: {"mode":"body","law_name":"소음ㆍ진동관리법","article_no":"","query":"영화관 소음","confidence":0.6}
 User: "도로교통법 신호위반 조항"
 JSON: {"mode":"body","law_name":"도로교통법","article_no":"","query":"도로교통법 신호위반 조항","confidence":0.9}
 
@@ -184,8 +190,8 @@ ${JSON.stringify(input)}`
     }
 }
 
-function buildFallbackLawPlan(input: LawToolInput): LawQueryPlan {
-    const mode = input.article_no ? "article" : (input.mode || "list");
+export function buildFallbackLawPlan(input: LawToolInput): LawQueryPlan {
+    const mode = input.article_no ? "article" : (input.mode || input.default_mode || "list");
     return {
         query: input.query,
         law_name: input.law_name || "",
@@ -367,7 +373,7 @@ function articleNumberOrder(value: string): number {
     return Number(match[1]) + Number(match[2] || 0) / 100;
 }
 
-function tokenizeQuery(query: string, lawName?: string): string[] {
+export function tokenizeQuery(query: string, lawName?: string): string[] {
     const withoutLawName = lawName
         ? query
             .replace(lawName, " ")
@@ -380,6 +386,11 @@ function tokenizeQuery(query: string, lawName?: string): string[] {
         .filter((token) => token.length >= 2 && !STOP_WORDS.has(token));
 
     const expanded = new Set(rawTokens);
+    // "벌금은?" 처럼 조사가 붙은 토큰은 조문과 맞지 않는다 — 끝 조사를 뗀 형태도 넣는다(DEV_261018 §11).
+    for (const token of rawTokens) {
+        const stem = token.replace(/(으로|에서|에게|까지|부터|은|는|이|가|을|를|에|의|도|만|로|과|와)$/u, "");
+        if (stem !== token && stem.length >= 2 && !STOP_WORDS.has(stem)) expanded.add(stem);
+    }
     if (query.includes("신호위반")) {
         expanded.add("신호");
         expanded.add("지시");
@@ -414,9 +425,11 @@ function scoreArticles(articles: ReturnType<typeof normalizeArticle>[], query: s
     const scored = articles
         .map((article) => {
             const haystack = articleSearchText(article);
+            // 띄어쓰기 차이("연차휴가" ↔ "연차 휴가")로 놓치지 않게 공백을 뺀 본문도 본다.
+            const compactHaystack = haystack.replace(/\s+/g, "");
             let score = 0;
             for (const token of tokens) {
-                if (haystack.includes(token)) score += token.startsWith("제") ? 5 : 2;
+                if (haystack.includes(token) || compactHaystack.includes(token)) score += token.startsWith("제") ? 5 : 2;
                 if (article.title?.includes(token)) score += 3;
                 if (article.text?.includes(token)) score += 2;
             }
@@ -473,16 +486,25 @@ function buildToolResponse(payload: any): string {
 }
 
 export const lawTool = tool(
-    async ({ query, law_name, article_no, mode, interpret_with_gemini }: LawToolInput) => {
+    async ({ query, law_name, article_no, mode, interpret_with_gemini, default_mode }: LawToolInput) => {
         try {
-            const input = { query, law_name, article_no, mode };
-            const plan = interpret_with_gemini === false
+            const input = { query, law_name, article_no, mode, default_mode };
+            let plan = interpret_with_gemini === false
                 ? buildFallbackLawPlan(input)
                 : await interpretLawQuery(input);
+            let laws = await searchLawCandidates(plan.law_name || plan.query, plan.mode === "list" ? 10 : 5);
+            // 호출 모델이 주제("영화관 소음 관련 법")를 그대로 넘겨 0건이면, 해석기로 한 번 더 —
+            // 이름 검색 API 라 법령명으로 바꿔야 찾는다(DEV_261018 §11).
+            if (laws.length === 0 && interpret_with_gemini === false) {
+                const retry = await interpretLawQuery(input);
+                if ((retry.law_name || retry.query) !== (plan.law_name || plan.query)) {
+                    const retried = await searchLawCandidates(retry.law_name || retry.query, retry.mode === "list" ? 10 : 5);
+                    if (retried.length > 0) { plan = retry; laws = retried; }
+                }
+            }
             const resolvedMode = plan.mode;
             const searchQuery = plan.law_name || plan.query;
 
-            const laws = await searchLawCandidates(searchQuery, resolvedMode === "list" ? 10 : 5);
             if (laws.length === 0) {
                 return buildToolResponse({ query: searchQuery, mode: resolvedMode, count: 0, laws: [], notice: `${searchQuery} 관련 법령을 찾을 수 없습니다. 법령명을 더 구체적으로 입력해 주세요.` });
             }
@@ -529,9 +551,10 @@ export const lawTool = tool(
         schema: z.object({
             query: z.string().describe("사용자 질의 원문 또는 검색 키워드. 예: 도로교통법, 음주운전 기준, 개인정보보호법"),
             law_name: z.string().optional().describe("명확히 추출 가능한 법령명 또는 공식 법령명 후보. 예: 도로교통법, 민법, 개인정보 보호법, 소방기본법. 통칭 소방법은 소방기본법 또는 소방으로 검색합니다."),
-            article_no: z.string().optional().describe("특정 조문 번호. 예: 제44조, 44, 10조. 항/호가 있어도 조 번호만 입력합니다."),
+            article_no: z.string().optional().describe("특정 조문 번호. 예: 제44조, 44, 10조. 항/호가 있어도 조 번호만 입력합니다. 사용자가 번호를 말하지 않아도 질문에 답하는 조문을 확실히 알면 넣습니다(근로기준법 연차휴가 → 제60조). 확실하지 않으면 생략합니다."),
             mode: z.enum(["list", "body", "article"]).optional().describe("list=법령 목록, body=법령 본문/조문 목록, article=특정 조문. 조번호가 있으면 article을 사용합니다."),
             interpret_with_gemini: z.boolean().optional().describe("내부 질의 해석기 사용 여부. 일반 모델 호출에서는 생략합니다."),
+            default_mode: z.enum(["list", "body"]).optional().describe("내부용. 일반 모델 호출에서는 생략합니다."),
         }),
     }
 );
