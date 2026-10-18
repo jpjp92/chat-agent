@@ -1,6 +1,6 @@
 # PLAN_CODE_HYGIENE_261018 — 주석 언어·메모성 주석·데드코드 정리
 
-> 작성일: 2026-10-18 · 상태: 1~3·5·6단계 완료(10-18 — [DEV_261018 §14·§15](../logs/2026/10/DEV_261018.md#15-메모성-주석--로그-이전--이모지-제거)) · 4·7단계(규칙 명문화·재발 방지 도구) 미착수
+> 작성일: 2026-10-18 · 상태: 1~3·5~7단계 완료(10-18 — [DEV_261018 §14~§16](../logs/2026/10/DEV_261018.md#16-재발-방지--verify-에-strict-타입eslintknip)) · 4단계(규칙 명문화) 미착수
 > 범위: git 추적 소스 244개(`app` `components` `server` `src` `lib` `utils` `services` `tests` 등, `docs`·`public` 제외)
 > 선행 정리: [DEV_260829_DEADCODE](../logs/2026/08/DEV_260829_DEADCODE.md)(fetch-transcript·pill-search 삭제)
 
@@ -100,7 +100,7 @@
 | 4 | 주석 규칙(2-2)을 `CLAUDE.md`/기여 규칙에 명시 | — | — |
 | 5 | 주석 정리 — **파일 단위, 그 파일을 고칠 때 같이**. 먼저 메모 밀도 상위(`generator.ts` · `router.ts` · `intent-rules.ts` · `prompt-assembly.ts` · `card-followup.ts` · `stream-dispatch.ts` · `fetch-url`) | 낮음(동작 무관) | diff 에 코드 변경 없음 확인 |
 | 6 | 영어 주석 번역 — 렌더러·유틸 | 낮음 | 〃 |
-| 7 | 재발 방지: `knip` 설정(`tests/**` 진입점 포함) + `noUnusedLocals` 를 tsconfig 에 켜기 | 낮음 | CI/verify 에 추가 |
+| 7 | 재발 방지: `knip.json` + `tsconfig.strict.json`(`noUnusedLocals`·`noUnusedParameters`, verify 전용) + ESLint 오류 0 — **완료** | 낮음 | verify 에 추가 |
 
 주석 정리는 한 번에 몰아서 하면 diff 가 수천 줄이 돼 리뷰가 안 되고 다른 작업과 충돌한다. **1~3 은 한 번에, 5~6 은 "건드리는 파일부터"** 가 현실적이다.
 
@@ -108,4 +108,4 @@
 
 - ~~주석 언어~~ → **한국어 통일**(10-18 결정·적용). 주석은 "왜"만, 경위는 로그로(10-18 결정)
 - `tests/manual/gemini-3-8/` 보관(아카이브 폴더) vs 삭제
-- `noUnusedLocals` 를 tsconfig 에 켤지(켜면 이후 같은 잔재가 빌드에서 막힌다)
+- ~~`noUnusedLocals` 를 tsconfig 에 켤지~~ → 빌드용 tsconfig 는 그대로, verify 전용 `tsconfig.strict.json` 으로(10-18 결정)

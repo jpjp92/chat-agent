@@ -111,7 +111,7 @@
   - [ ] 프로브 A(도구 조합) — 되면 라우터의 존재 이유가 바뀐다. 단 thought signature 보존이 선행
   - [ ] `media_resolution` 을 PDF 에 적용 (BACKLOG D3 레버)
   - [ ] 공급자별 initial router 구현 — Gemini는 2.5 Flash Lite 유지, GPT는 5.6 Luna + strict JSON + reasoning none
-  - [ ] 3.7 `fastLongInput` 재측정 (503 이 잦아든 뒤)
+  - [ ] 3.8 `fastLongInput` 재측정 (503 이 잦아든 뒤) — 3.7 자리를 3.8 이 대체(10-18), 둘 다 `false` 로 핀
 - [x] ✅ **🔴 낡은 User-Agent 가 무료 경로를 막고 있었다 — `Chrome/120` → `Chrome/141`** (2026-08-22) — **URL 장애 조사의 진짜 수확.** GeekNews 403 을 "사이트가 우리를 막았다"로 읽었는데, 갈라 보니 **낡은 UA 를 봇 시그니처로 막은 것**이었다. 같은 URL·같은 나머지 헤더로 `Chrome/120 → 403 · 10바이트` / `Chrome/141 → 200 · 43,009바이트 · 13ms`. `Chrome/120` 은 **2023-12 릴리스**라 2년 넘게 묵어 있었다.
   - **결과**: GeekNews 가 direct fetch 만으로 **169ms · 본문 7,604자 · 유료 스크래퍼 불필요**. browserless 가 4.4초에 가져오던 것과 **글자 수까지 동일**하다 — 즉 **돈 주고 사던 것을 공짜로 얻을 수 있었다.**
   - **배치도 틀려 있었다**: UA 가 4곳에 하드코딩돼 값이 셋으로 갈려 있었다(`120`×3, `124`×1) → [`server/browser-ua.ts`](../server/browser-ua.ts) 한 곳으로. SSRF 정규식 중복([PLAN_HARDENING §2-A](plans/PLAN_HARDENING_260822.md))과 같은 형태다.
@@ -331,19 +331,13 @@
 
 ---
 
-### 3. lint 잔여 에러 38건(10-14 실측, 08-17 은 30건) 정리 후 `verify` 에 편입
+### 3. ~~lint 잔여 에러 정리 후 `verify` 에 편입~~ — 완료(2026-10-18, [DEV_261018 §16](logs/2026/10/DEV_261018.md#16-재발-방지--verify-에-strict-타입eslintknip))
 
-2026-08-17 에 `npm run lint` 를 복구했다(Next 16 이 `next lint` 를 제거해 깨져 있었다).
-`no-explicit-any` 를 경고로 낮추고 실제 신호 34건 중 4건(`rules-of-hooks` 1 + `prefer-const` 3)을
-처리했다. **`rules-of-hooks` 1건은 실제 버그였다** — 스트리밍 중 코드블록 Copy 상태가 초기화됐다.
+`verify` = strict 타입 → ESLint(오류만) → knip → 하니스. ESLint 오류 41 → 0.
+React Compiler 전제 규칙 4개(31건)는 의도된 패턴이라 **경고로 낮췄다** — 고친 게 아니라 낮춘 것이다.
 
-- [ ] `react-hooks/set-state-in-effect` 15건 — 대개 무해하지만 렌더 루프 위험이 있는 자리 확인
-- [ ] `react-hooks/purity` 12건 — 12건 중 11건이 `ConstellationRenderer.tsx` 한 파일에 몰려 있다
-- [ ] `react-hooks/refs` 1 · `react-hooks/immutability` 1 · `ban-ts-comment` 1
-- [ ] 위가 0이 되면 `verify` 를 `typecheck && lint && test` 로 확장
-
-> ⚠️ 지금 `lint` 를 `verify` 에 넣으면 **항상 빨간 명령**이 된다. 그건 `next lint` 가 깨진 채
-> 방치됐던 상태와 같은 실패라 일부러 분리해뒀다.
+- [ ] (선택) 경고로 낮춘 31건 개별 정리 — 그 컴포넌트를 고칠 때 같이. 11건이 `ConstellationRenderer.tsx` 에 몰려 있다. React Compiler 를 켤 때는 필수
+- [ ] **미사용 매개변수 예외 1건** — `services/geminiService.ts` `streamChatResponse` 의 `_contentType`(서버가 판정해 안 씀). 위치 인자라 지우면 호출부가 밀려 `_` 접두로 검사에서 뺐다. 이 시그니처를 옵션 객체로 바꿀 때 **인자째 제거**한다
 
 ### 4. `src/` 이주 완결 — **방향은 정해졌고 실행만 남았다**
 
@@ -476,7 +470,7 @@ PubMed 장애 턴(`error` + `count: 0`)을 조립해 보니 한 프롬프트에 
 - [ ] 실험 손잡이 `timeBlockAt` 은 아직 남아 있다(프로브 형틀). 후보 ①~③ 중 하나가 정해지면 지운다.
       `dateFormat` 은 2026-09-28 에 판정 후 제거했다
 
-### 5-b. 🔴 도구 의도 12개에는 `[ACTIVE_WEB_SEARCH]` 가 실리지 않는데 base 가 그걸 5곳에서 가리킨다 (2026-09-28 발견)
+### 5-b. 🔴 도구 의도 11개에는 `[ACTIVE_WEB_SEARCH]` 가 실리지 않는데 base 가 그걸 5곳에서 가리킨다 (2026-09-28 발견)
 
 9단계 문서 점검에서 나왔다. **코드 사실이고, 영향은 미측정이다.**
 
@@ -810,7 +804,7 @@ min 6.5s · p50 13.0s · max 20s · 상한 120s 대비 max 17%
 ### 코드 품질
 - [x] ESLint 설정 — `eslint.config.mjs` (2026-08-17 복구, Next 16 flat config). 잔여 에러(10-14 기준 38건) 정리는 §P1-3
 - [ ] Prettier 설정 — 아직 없다
-- [ ] 단위 테스트 (Vitest) — 현재는 `tests/` 회귀 하니스 13종(`npm test`)이 대신한다. 프레임워크 도입 여부는 별건
+- [ ] 단위 테스트 (Vitest) — 현재는 `tests/` 회귀 하니스 36종(`npm test`)이 대신한다. 프레임워크 도입 여부는 별건
 
 > `attachment`/`attachments` 단일화 · `ChatInput` 훅 분리는 §아키텍처 리팩토링 항목 참조 (중복 제거).
 
@@ -877,7 +871,7 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 
 | 단계 | 내용 |
 |---|---|
-| 모델 레지스트리·UI | ✅ Gemini 3.7/3.6/3.5/2.5 + GPT-5.4 mini/5.6 Luna, 공급자 그룹 UI |
+| 모델 레지스트리·UI | ✅ Gemini 3.8/3.6/3.5/2.5 + GPT-5.4 mini/5.6 Luna, 공급자 그룹 UI (3.7 저장값은 3.8 로) |
 | OpenAI 일반 생성 | ✅ Responses API 텍스트·URL·이미지·웹 검색, `store:false`, reasoning none |
 | 오류 계약 | ✅ 영구 쿼터/일시 429/인증 분리, raw code/message UI 비노출 |
 | 공급자 독립 router | 🔴 미구현 — Gemini 키 선행 의존 제거와 함께 P0 |

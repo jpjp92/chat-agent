@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-10-14
+> 최종 갱신: 2026-10-18
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -18,13 +18,14 @@
 | 검색 grounding | tier 로 판정(400 물리제약 > 300 사용자 명시 > 200 근거제공 > 100 분류기). **400 은 Gemini 전용** — OpenAI 는 이미지와 web_search 를 함께 보낼 수 있어 신호를 내지 않는다 | [2026-09-02 로그](logs/2026/09/DEV_260902.md), [검색 정책 계획](plans/PLAN_SEARCH_POLICY_260815.md) |
 | 함수 타임아웃 | 🔴 **60s 는 플랫폼 한계가 아니다** — Hobby 도 fluid 기본·최대 **300s** 다. `/api/chat` 은 `maxDuration=300`, Gemini 일반 25s·무거운 미디어 90s, OpenAI **120s(호출당)**. 새 경로를 만들 때 **60 을 베껴 오지 말 것** — 이 정정이 세 번 필요했다 | [2026-08-08 §9](logs/2026/08/DEV_260808.md), [2026-09-28 §11](logs/2026/09/DEV_260928.md) |
 | 오늘 날짜 | 주입된 `[CURRENT_SYSTEM_TIME]` 이 **유일한 출처**이고 블록은 base **맨 앞**(실측). 자정 직후 Gemini 2.5 가 기사 날짜로 "오늘" 을 재추론하는 실패는 **문구로 세 번 못 고쳤다** → 출력 사후 검증이 정정을 덧붙인다 | [2026-09-28 §13·§14](logs/2026/09/DEV_260928.md), [today-guard.ts](../server/agent/today-guard.ts) |
-| 자동 검증 | `npm test` 회귀 하니스 32종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 자동 검증 | `npm test` 회귀 하니스 36종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
 | 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). ✅ 10-10 `summarize-title` 인증 + **anon 키 Bearer 우회 차단**(chat 포함, 프로필 행 필수), SSRF 공용 판정 `server/ssrf.ts`(IPv6 대괄호·DNS·리다이렉트 hop 재검사) — [DEV_261010](logs/2026/10/DEV_261010.md). 🔴 **무인증 라우트 4개** 남음 — `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. SSRF 남은 공백은 DNS 재바인딩 | [TODO §보안](TODO.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md), [보안 검토 §3.4](logs/2026/09/DEV_260903.md) |
 
 ## 최근 문서
 
 - **2026-10-14** — [다운로드형 PDF 링크 · 문서 후속 법령 가드](logs/2026/10/DEV_261014.md) — KDI `callDownload.do` 처럼 Content-Type 없는 PDF 링크를 응답으로 판별하고, 서버에서 텍스트를 뽑아 후속 턴도 문서로 답한다. 문서 후속에서 법령 카드가 뜨던 오분류는 라우터 Doc guard 로 차단. 업로드·로그인 원본 오류는 서버 로그로. README·guide 현행화
 - **2026-10-13** — [멀티턴 검색·대용량 PDF 후속](logs/2026/10/DEV_261013.md) — 검색 직후 세부 후속은 검색 on(`followup-detail`), 대용량 PDF 후속 요청 413 선차단과 후속 턴 PDF 텍스트 근거(`pdfText`)
+- **2026-10-18** — [코드 위생 · verify 강화](logs/2026/10/DEV_261018.md#14-코드-위생-1차--데드코드-제거--틀린-60s-주석--주석-한국어-통일) — 데드코드·미사용 export 제거, 월드컵 도구 삭제(문서는 logs 보관), 주석 한국어 통일·메모성 주석 318블록 → 정의성(원문은 [보관 로그](logs/2026/10/DEV_261018_COMMENT_ARCHIVE.md)). `verify` 에 strict 타입·ESLint(오류 41 → 0)·knip 편입
 - **2026-10-12** — [REF_Auth](guide/REF_Auth.md) — 인증 단일 레퍼런스 신설: 게스트 → Google(GIS)·카카오 구조, link/signIn·충돌·해시 제거 규칙, **Google Cloud·Supabase·Kakao Developers 설정값**, 오류 진단표
 
 - **2026-10-04** — [REF_TTS](guide/REF_TTS.md) — TTS 단일 레퍼런스 신설: **1순위 Gemini 3.8 Flash Lite TTS → 폴백 OpenAI**, 가격(Lite $0.009/분, 2027 2배), 흐름·인증/한도·오류 처리. 🔴 OpenAI `gpt-4o-mini-tts` **2027-01-06 제거** → 폴백 교체 예정

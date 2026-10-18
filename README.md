@@ -161,13 +161,13 @@ npm run dev      # http://localhost:3000
 ### 4-4. Verify
 
 ```bash
-npm run verify   # typecheck + regression harnesses — run before every commit
+npm run verify   # strict typecheck + ESLint errors + knip + harnesses — run before every commit
 npm test         # 36 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)
 
-`npm run lint` is not part of `verify` yet: 38 existing errors would keep it permanently red. It joins once those are fixed.
+`verify` runs four gates in order: `typecheck:strict` (`tsconfig.strict.json`, unused locals and parameters), `lint --quiet` (errors only; warnings stay visible), `lint:dead` (knip: unused files and exports, undeclared dependencies), then the harnesses. Build config (`tsconfig.json`) is unchanged, so `next build` is not affected.
 
 ---
 

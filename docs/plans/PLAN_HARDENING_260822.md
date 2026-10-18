@@ -259,6 +259,8 @@ Pino JSON 부터. OTel/Sentry 는 필요해진 뒤에.
 ### P1-4. CI quality gate
 
 현재 `verify = typecheck && test` 로 **lint 와 build 가 빠져 있다.**
+
+> 2026-10-18: lint 는 편입(오류만 차단) — `verify` = strict 타입 → lint → knip → test([DEV_261018 §16](../logs/2026/10/DEV_261018.md#16-재발-방지--verify-에-strict-타입eslintknip)). build 와 CI 는 아직.
 PR gate: `npm ci` → `typecheck` → `lint` → `test` → `build` + §2-B 의 무인증 라우트 검사.
 
 ### P1-5. 외부 콘텐츠를 system instruction 밖으로
