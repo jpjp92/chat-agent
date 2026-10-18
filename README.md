@@ -2,7 +2,7 @@
 
 A multi-provider AI messenger built on Gemini and OpenAI. A LangGraph.js agent routes each message to web search, public-data tools, or one of 13 interactive renderers, and streams the answer back with numbered citations.
 
-- **Two providers, one chat**: Gemini 3.7 / 3.6 Flash and GPT-6 luna / GPT-5.6 luna, switchable per conversation
+- **Two providers, one chat**: Gemini 3.8 / 3.6 Flash and GPT-6 luna / GPT-5.6 luna, switchable per conversation
 - **Grounded answers**: web search with clickable `[N]` citations, decided per turn by a tiered search policy
 - **Reads what you give it**: images, PDFs (including download links), video, YouTube, Office files, HWP/HWPX
 - **Answers as cards**: drugs, pharmacies, hospitals, vets, laws, papers, movies, weather, chemistry, 3D proteins, charts and more
@@ -38,7 +38,7 @@ A multi-provider AI messenger built on Gemini and OpenAI. A LangGraph.js agent r
 
 | Feature | Description |
 | --- | --- |
-| Models | **Gemini 3.6 Flash (default)**, Gemini 3.7 Flash, GPT-6 luna, GPT-5.6 luna. Older models (Gemini 3.5 / 2.5, GPT-5.4 mini) stay accepted for existing sessions but are hidden from the picker |
+| Models | **Gemini 3.6 Flash (default)**, Gemini 3.8 Flash, GPT-6 luna, GPT-5.6 luna. Gemini 3.7 (retiring 2027-01-28) is sent to 3.8. Older models (Gemini 3.5 / 2.5, GPT-5.4 mini) stay accepted for existing sessions but are hidden from the picker |
 | Intent routing | A fast router model plus rule-based guards picks the path: web answer, tool card, renderer, or document Q&A |
 | Web search | Turned on or off per turn by declared priority tiers — e.g. an explicit "search this" beats "the attached document already answers it" → [REF_SearchRouting](docs/guide/REF_SearchRouting.md) |
 | Citations | Both providers' sources become clickable `[N]` markers and source chips. Unbacked `[N]` from the model is removed |
@@ -162,7 +162,7 @@ npm run dev      # http://localhost:3000
 
 ```bash
 npm run verify   # typecheck + regression harnesses — run before every commit
-npm test         # 32 harnesses, no network or secrets needed
+npm test         # 36 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)

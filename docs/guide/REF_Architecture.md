@@ -521,7 +521,7 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | 용도 | 모델 |
 |------|------|
 | 기본 채팅 | `gemini-3.6-flash` |
-| 선택 가능 모델 | **현행** — Gemini 3.7 / 3.6 / 3.5 / 2.5 Flash, **GPT-6 luna** / GPT-5.6 luna. **legacy** — GPT-5.4 mini(2026-09-23 강등). ⚠️ legacy 는 **목록에서만 내렸고 계속 동작한다** — `preferred_model` 에 그 값을 가진 세션이 올라오므로 서버 허용 목록에서는 빼지 않는다(빼면 그 사용자가 오류를 본다) |
+| 선택 가능 모델 | **현행** — Gemini 3.8 / 3.6 / 3.5 / 2.5 Flash(3.7 은 2027-01-28 퇴역 예정이라 2026-10-18 부터 요청을 3.8 로 바꿔 보낸다 — `resolveChatModel`), **GPT-6 luna** / GPT-5.6 luna. **legacy** — GPT-5.4 mini(2026-09-23 강등). ⚠️ legacy 는 **목록에서만 내렸고 계속 동작한다** — `preferred_model` 에 그 값을 가진 세션이 올라오므로 서버 허용 목록에서는 빼지 않는다(빼면 그 사용자가 오류를 본다) |
 | `gpt-6-luna` 주의 | 🔴 caps 가 **모델 카드 기재값이고 실호출로 재지 않았다**. `chatReasoningEffort: 'none'` 은 취향이 아니다 — 카드가 *"function calling only with reasoning_effort set to none"* 이라 못 박았고, 올리면 **도구 호출이 조용히 사라진다**. 실측 하니스는 `tests/manual/live-openai-chat-models.mts` |
 | GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
 | GPT + PDF (업로드·링크·arXiv·인라인) | **선택한 GPT 가 직접** — Responses `input_file`(`file_url`/`file_data`, [server/openai/media.ts](../../server/openai/media.ts)). OpenAI 가 링크를 못 받으면(400 download) **그 턴만** `gemini-2.5-flash` (2026-10-11, [DEV_261011 §1~3](../logs/2026/10/DEV_261011.md)) |

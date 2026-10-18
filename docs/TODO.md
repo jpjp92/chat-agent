@@ -49,6 +49,9 @@
 
 - [ ] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 폴백을 `gemini-3.8-flash-tts` 로 바꾼다 → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+  - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
+  - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
+  - ✅ 2026-10-17 인증 계약 완료 — 무인증·위조 토큰 통과 라우트 4개에 `requireProfile`, proxy-image 는 약품 호스트 허용목록, 하니스 `test-route-auth` 가 새 무인증 라우트를 막는다 → [PLAN_PUBLIC_ROUTE_AUTH_261017](plans/PLAN_PUBLIC_ROUTE_AUTH_261017.md) · [DEV_261017](logs/2026/10/DEV_261017.md). **남은 것: 호출 제한(쿼터)**, sync-drug-image `safeFetch`(MEDIUM-4)
   - ✅ **2026-10-10** — `summarize-title` 인증(프로필 행 필수) · 🔴 신규 발견 anon 키 Bearer 로 `/api/chat` 게스트 한도 우회 → 차단 · SSRF 공용 판정 [`server/ssrf.ts`](../server/ssrf.ts)(대괄호 IPv6·mapped·DNS·리다이렉트 hop 재검사) → [DEV_261010](logs/2026/10/DEV_261010.md). **남은 무인증 4개**: `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. 아래 기록은 당시 상태.
   - **현재 4개** (2026-10-10) — `fetch-url` · `proxy-image` · `showtimes` · `sync-drug-image`. `speech`(10-05)·`summarize-title`(10-10)은 인증이 붙었다. 08-29 기준은 6개였다.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).

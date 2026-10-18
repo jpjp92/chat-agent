@@ -202,6 +202,7 @@ npm run verify  # typecheck + test
 | `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
 | `test-google-id.mts` | **Google 로그인(GIS ID 토큰)** — nonce 원문/SHA-256 일치, 충돌 판정, link 는 게스트에게만, 계정 전환 버튼 없음, 충돌 시 토큰 재사용, 클라이언트 ID 없으면 리다이렉트 폴백, CSP · 카카오 link/signIn, 충돌 재시도는 시도한 공급자로 (DEV_261011 §5·§6) |
 | `test-openai-pdf.mts` | **GPT PDF 직접** — PDF part → Responses `input_file`(업로드·링크 `file_url`, 인라인 `file_data`, image_url 분기보다 먼저), 핀은 영상·오디오만, 링크 다운로드 400 만 2.5 재시도, generator 배선 (DEV_261011) |
+| `test-route-auth.mts` | **API 라우트 인증 소스 계약** — 공개 허용목록(`client-log`·`proxy-image`) 밖의 모든 라우트가 토큰을 실제로 검증하는지(`requireProfile` 또는 user-scoped DB/Storage), 인증이 본문 파싱·직행 분기보다 앞인지, proxy-image 가 약품 호스트 허용목록을 쓰는지(DEV_261017) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |
 | `test-pdf-sniff.mts` | **PDF 응답 판별** — Content-Type 없이 `Content-Disposition` 파일명·`%PDF-` 본문만으로 PDF 를 가려내는지(KDI `callDownload.do` 형), HTML·다른 첨부는 PDF 로 오인하지 않는지, 대체 스크래퍼가 돌려준 PDF 텍스트 판별(DEV_261014) |
 | `test-weather-summary.mts` | **날씨 카드 한 줄 설명** — 카드 데이터로 만든 문장 형식, 한국어 연결형·조사, 4개 언어, 오류 카드 제외, 여러 도시에서 각 카드 위에 짝지어 붙는지, 실제 SSE 루프에서 문장이 카드보다 앞인지(DEV_261015) |

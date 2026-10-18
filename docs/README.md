@@ -8,7 +8,7 @@
 
 | 영역 | 현재 정책 | 상세 |
 |---|---|---|
-| 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.7/3.5/2.5 및 **GPT-6 luna**/GPT-5.6 luna 선택 가능(GPT-5.4 mini 는 2026-09-23 legacy 강등 — 목록에서만 내렸고 계속 동작한다). **채팅 모델로서 3.8 은 계획만 있고 코드에 없다**(TTS 는 이미 3.8 Flash Lite TTS 사용) — 선택 옵션 공개는 하드닝 1·2 뒤 | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
+| 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.8/3.5/2.5 및(3.7 은 퇴역 예정 → 3.8 로 보냄, 2026-10-18) **GPT-6 luna**/GPT-5.6 luna 선택 가능(GPT-5.4 mini 는 2026-09-23 legacy 강등 — 목록에서만 내렸고 계속 동작한다). **채팅 모델로서 3.8 은 계획만 있고 코드에 없다**(TTS 는 이미 3.8 Flash Lite TTS 사용) — 선택 옵션 공개는 하드닝 1·2 뒤 | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
 | Gemini 키 등급 | **회원은 유료 키(`API_KEY_TIER1`) 우선** → 실패 시 무료 로테이션 + 2.5 강등, 게스트·무인증 라우트는 무료만. 10-05 운영 on(`GEMINI_PAID_FIRST=true`) | [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md), [DEV_261005](logs/2026/10/DEV_261005.md) |
 | 로그인 | 익명 게스트 → **Google(GIS ID 토큰, 앱 도메인으로 표시)·카카오(리다이렉트)**. 대화 있는 게스트는 link(같은 uuid), 아니면 로그인. 콘솔 설정(Google Cloud·Supabase dev/prod·Kakao Developers)까지 한곳에 | [REF_Auth](guide/REF_Auth.md), [DEV_261011 §5·§6](logs/2026/10/DEV_261011.md) |
 | GPT 라우팅 | 일반 텍스트·URL·이미지·검색과 로컬 도구 9종(법령은 `law_search`·`law_qa` 공용), **PDF(10-11, `input_file` 직접)**는 선택 GPT 유지. 영상·오디오와 알약 Vision만 Gemini 2.5 capability fallback | [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) |
