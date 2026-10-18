@@ -151,12 +151,14 @@ export const fetchUrlData = async (url: string): Promise<{ isPdf?: boolean, cont
   // 성공 결과는 url_cache에 저장되므로 이후 요청은 즉시 반환된다.
   const timeout = setTimeout(() => controller.abort(), 65000);
   try {
-    const response = await fetch('/api/fetch-url', {
+    const response = await authedFetch('/api/fetch-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
       signal: controller.signal,
     });
+    // 401 이면 링크 내용 없이 답하게 돼 화면에선 드러나지 않는다 → 서버 로그로 남긴다.
+    if (response.status === 401) reportClientError('auth.route', null, { status: 401, body: 'fetch-url' });
     const data = await response.json();
     return { isPdf: data.isPdf, content: data.content || "", pdfText: data.pdfText || undefined };
   } catch (error) {

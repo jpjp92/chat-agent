@@ -74,3 +74,33 @@ export function userIdFromToken(req: Request): string | null {
 export function unauthorized(): Response {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
 }
+
+/**
+ * 토큰이 **실제로 유효한지** 확인한다 — DB 를 거치지 않는 라우트용(2026-10-17).
+ *
+ * `createRouteClient`·`userIdFromToken` 은 서명을 검증하지 않는다. 보통은 뒤따르는 user-scoped
+ * 쿼리에서 PostgREST 가 검증하지만, service_role 로만 쓰거나(fetch-url·sync-drug-image)
+ * DB 없이 바로 처리하는(parse-document 직행·showtimes) 라우트는 검증이 한 번도 일어나지 않는다.
+ * → user-scoped 로 `profiles` 를 한 번 읽는다. 모든 auth 유저(익명 포함)는 가입 트리거로 행을 갖는다.
+ *   - 위조·만료 토큰 → PostgREST 오류 → 401
+ *   - anon 키를 Bearer 로 → 유효한 JWT(role=anon)라 오류 없이 0행 → 401
+ *   - 판단할 수 없는 오류도 401 — 인증 확인이 목적이라 모르면 거부한다(원문은 서버 로그)
+ *
+ * 반환한 userId 는 DB 가 검증한 `profiles.id` 라 인가에 써도 된다(userIdFromToken 과 다르다).
+ * 설계: docs/plans/PLAN_PUBLIC_ROUTE_AUTH_261017.md §4-1
+ */
+export async function requireProfile(
+    req: Request,
+    tag: string,
+): Promise<{ db: SupabaseClient; userId: string; isGuest: boolean; res?: undefined } | { res: Response }> {
+    const db = createRouteClient(req);
+    if (!db) return { res: unauthorized() };
+    const { data, error } = await db.from('profiles').select('id, is_guest').maybeSingle();
+    if (error) {
+        if (!isAuthError(error)) console.error(`[${tag}] auth check error:`, error.message);
+        return { res: unauthorized() };
+    }
+    if (!data?.id) return { res: unauthorized() };
+    // isGuest — 회원이면 유료 Gemini 키를 먼저 쓰게 하는 데 쓴다(server/key-tier.ts).
+    return { db, userId: data.id as string, isGuest: data.is_guest !== false };
+}

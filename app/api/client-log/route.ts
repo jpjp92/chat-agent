@@ -1,7 +1,7 @@
 // 브라우저 오류 원본 수신 — src/lib/client-error.ts 가 보낸다.
 // 인증 없이 열려 있으므로 범위는 허용 목록으로 묶고, 길이를 자르고, 줄바꿈을 지워 로그 위조·도배를 막는다.
 
-const SCOPES = new Set(['upload', 'auth.link', 'auth.idToken', 'auth.kakao', 'auth.signIn']);
+const SCOPES = new Set(['upload', 'auth.link', 'auth.idToken', 'auth.kakao', 'auth.signIn', 'auth.route']);
 const MAX_BODY = 2_000;
 
 const clean = (v: unknown, max: number) =>

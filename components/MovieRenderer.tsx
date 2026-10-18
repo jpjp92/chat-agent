@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CHAINS, flatBranches, branchUrl, type ChainKey, type Branch } from '../lib/theaters';
 import { setChainShowtimes } from '../lib/movie-context';
+import { authedFetch } from '../services/geminiService';
+import { reportClientError } from '../src/lib/client-error';
 
 /**
  * 영화 상영시간표 카드 — CGV·롯데시네마·메가박스.
@@ -245,7 +247,8 @@ const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; in
     const t0 = performance.now();
     (async () => {
       try {
-        const r = await fetch(`/api/showtimes?chain=${chainKey}&code=${encodeURIComponent(branch.code)}&nm=${encodeURIComponent(branch.nm)}`);
+        const r = await authedFetch(`/api/showtimes?chain=${chainKey}&code=${encodeURIComponent(branch.code)}&nm=${encodeURIComponent(branch.nm)}`);
+        if (r.status === 401) reportClientError('auth.route', null, { status: 401, body: 'showtimes' });
         const j: Payload = await r.json();
         const wait = MIN_SKELETON - (performance.now() - t0);
         if (wait > 0) await new Promise((res) => setTimeout(res, wait));

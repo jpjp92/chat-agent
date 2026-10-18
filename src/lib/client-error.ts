@@ -7,7 +7,9 @@ export type ClientErrorScope =
     | 'auth.link'
     | 'auth.idToken'
     | 'auth.kakao'
-    | 'auth.signIn';
+    | 'auth.signIn'
+    // 인증이 붙은 보조 라우트(fetch-url·sync-drug-image·showtimes)의 401 — 화면엔 조용히 폴백돼 여기서만 드러난다.
+    | 'auth.route';
 
 const pick = (err: unknown, extra?: { status?: number; body?: string }) => {
     const e = err as any;

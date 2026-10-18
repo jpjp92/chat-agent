@@ -6,6 +6,7 @@ import { extractPdfTextOnServer } from '../../../server/pdf-text-node';
 // 대체 스크래퍼가 PDF 바이너리를 글자로 돌려준 경우의 표지 — 캐시에 넣지 않고 isPdf 로 응답한다.
 const PDF_DETECTED = '\u0000PDF_DETECTED';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
+import { requireProfile } from '../../../lib/supabase/route';
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { fetchUrlContentWithOpenAI, isOpenAIUrlFallbackHost } from '../../../server/openai/url-fetch';
 
@@ -158,6 +159,11 @@ const extractReadableContent = (html: string) => {
 };
 
 export async function POST(req: NextRequest) {
+    // 🔴 유료 폴백(browserless·ScrapingBee·OpenAI)과 service_role 캐시 쓰기를 가진 라우트다 — 인증을 맨 앞에.
+    //    캐시 히트도 인증 뒤: 캐시 응답만으로도 공개 프록시처럼 쓸 수 있다(PLAN_PUBLIC_ROUTE_AUTH_261017).
+    const auth = await requireProfile(req, 'fetch-url');
+    if (auth.res) return auth.res;
+
     const { url } = await req.json();
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { assertPublicUrl, safeFetch } from '../../../server/ssrf';
+import { isDrugImageHost } from '../../../server/drug-image-hosts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,12 @@ export async function GET(req: NextRequest) {
         // 내부 주소 차단 — 리다이렉트 대상까지 safeFetch 가 hop 마다 다시 검사한다(server/ssrf.ts).
         try { await assertPublicUrl(targetUrl); }
         catch { return NextResponse.json({ error: 'URL not allowed' }, { status: 400 }); }
+        // <img src> 로 불려 토큰을 붙일 수 없다 → 인증 대신 약품 이미지 호스트로 묶어 오픈 프록시를 닫는다.
+        // `?src=` 를 푼 **최종 URL** 로 검사한다 — 처음 URL 만 보면 src 로 아무 호스트나 우회된다(2026-10-17).
+        if (!isDrugImageHost(targetUrl)) {
+            console.error('[proxy-image] host not allowed:', targetUrl.hostname);
+            return NextResponse.json({ error: 'Host not allowed' }, { status: 403 });
+        }
 
         let referer = targetUrl.origin + '/';
         if (targetUrl.hostname.includes('pstatic.net') || targetUrl.hostname.includes('naver.com')) {

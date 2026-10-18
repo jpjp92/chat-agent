@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteClient, userIdFromToken, unauthorized } from '../../../lib/supabase/route';
+import { requireProfile } from '../../../lib/supabase/route';
 
 /**
  * HWP 계열 문서 파싱 API — kordoc으로 구조 보존 마크다운(표 포함) 추출.
@@ -74,9 +74,11 @@ export async function POST(req: NextRequest) {
   try {
     // 🔴 2026-08-17 이전 무인증이었다. 두 경로 모두 인증을 요구한다 —
     //    ⓐ 직행도 파싱 연산을 소비하므로 열어둘 이유가 없다.
-    const db = createRouteClient(req);
-    const uid = userIdFromToken(req);
-    if (!db || !uid) return unauthorized();
+    //    ⓑ 는 Storage download 가 토큰을 검증하지만 ⓐ 는 DB 를 거치지 않아 **위조 토큰이 통과했다**
+    //    (userIdFromToken 은 서명을 안 본다, 2026-10-17) → 두 경로 모두 requireProfile 로 먼저 확인.
+    const auth = await requireProfile(req, 'parse-document');
+    if (auth.res) return auth.res;
+    const { db } = auth;
 
     const contentType = req.headers.get('content-type') || '';
 

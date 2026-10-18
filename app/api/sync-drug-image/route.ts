@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
+import { requireProfile } from '../../../lib/supabase/route';
+import { isDrugImageHost } from '../../../server/drug-image-hosts';
 import crypto from 'crypto';
 import { BROWSER_UA } from '../../../server/browser-ua';
 
@@ -29,6 +31,10 @@ export const maxDuration = 60;
 const inflightRequests = new Map<string, Promise<{ publicUrl: string; pillVisual: any } | null>>();
 
 export async function POST(req: NextRequest) {
+    // service_role 로 공개 버킷에 쓰는 라우트다 — 인증을 맨 앞에(PLAN_PUBLIC_ROUTE_AUTH_261017).
+    const auth = await requireProfile(req, 'sync-drug-image');
+    if (auth.res) return auth.res;
+
     let url: string, imprint_front: string, imprint_back: string, drug_name: string;
     try {
         ({ url, imprint_front, imprint_back, drug_name } = await req.json());
@@ -42,8 +48,11 @@ export async function POST(req: NextRequest) {
 
     let fileName: string | undefined;
     let resolveInflight: ((v: { publicUrl: string; pillVisual: any } | null) => void) | undefined;
+    // 이 요청이 맵에 넣은 항목만 정리한다 — 남의 진행 중 항목을 지우면 중복 다운로드가 다시 생긴다.
     const completeInflight = (value: { publicUrl: string; pillVisual: any } | null) => {
-        resolveInflight?.(value);
+        if (!resolveInflight) return;
+        resolveInflight(value);
+        resolveInflight = undefined;
         if (fileName) inflightRequests.delete(fileName);
     };
 
@@ -88,7 +97,9 @@ export async function POST(req: NextRequest) {
                         const html = await fetchConnectDIDetailHTML(repairedUrl);
                         if (html) pillVisual = extractPillVisual(html);
                     }
-                    return NextResponse.json({ publicUrl: publicUrlData.publicUrl, pillVisual });
+                    const cached = { publicUrl: publicUrlData.publicUrl, pillVisual };
+                    completeInflight(cached);
+                    return NextResponse.json(cached);
                 }
             } catch {}
         }
@@ -103,11 +114,8 @@ export async function POST(req: NextRequest) {
         }
 
         const targetUrl = new URL(finalUrl);
-        const ALLOWED_DRUG_HOSTS = ['nedrug.mfds.go.kr', 'pstatic.net', 'connectdi.com', 'terms.naver.com', 'health.kr'];
-        const isAllowedHost = ALLOWED_DRUG_HOSTS.some(h => targetUrl.hostname === h || targetUrl.hostname.endsWith('.' + h));
-        if (!isAllowedHost) {
-            resolveInflight!(null);
-            inflightRequests.delete(fileName!);
+        if (!isDrugImageHost(targetUrl)) {
+            completeInflight(null);
             return NextResponse.json({ error: 'URL not allowed' }, { status: 400 });
         }
 
@@ -233,8 +241,11 @@ export async function POST(req: NextRequest) {
                 if (fallbackResult) { completeInflight(fallbackResult); return NextResponse.json(fallbackResult); }
             } catch {}
         }
-        try { completeInflight(null); } catch {}
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } finally {
+        // 🔴 정리를 빠뜨린 return 이 있으면 같은 이미지의 다음 요청이 maxDuration 까지 매달린다.
+        //    캐시 히트 경로가 그랬다(2026-10-17). 경로가 늘어도 빠지지 않게 여기서 한 번 더 닫는다(이미 닫혔으면 무시).
+        completeInflight(null);
     }
 }
 
