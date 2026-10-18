@@ -88,7 +88,7 @@ TSX_TSCONFIG_PATH=tests/tsconfig.probe.json node --import tsx tests/manual/gemin
   3.8이고 응답 모델명도 확인되어야 한다. 다른 모델/모델명 미확인은 `OTHER_MODEL_OR_UNVERIFIED`.
 - 알약 이미지는 `drug_id` fast-path의 합성 메타데이터만 검사한다. 실제 이미지나 Vision 호출은 없다.
 - biology/chemistry/physics/astronomy의 JSON 블록 존재는 실제 렌더링·과학적 정확성의 증명이 아니다.
-- 연도가 들어간 월드컵 질문은 기존 router의 연도 필터 정책상 general이다. 현재 대회 sports 질의와 구분한다.
+- 월드컵 질문은 general 이다(sports 의도는 2026-10-04 제거).
 
 ### 판정기와 저장 결과 재검사
 

@@ -1,11 +1,13 @@
 # Sports (World Cup): Test Prompt Guide
 
+> 📦 **보관 기록** — 2026-10-18 코드 삭제 후 `docs/guide`·`docs/plans` 에서 옮겨 왔다. 현재 코드에 없는 기능이다. 경위: [DEV_260621](../DEV_260621.md) · [DEV_261004](../../10/DEV_261004.md) · [DEV_261018 §14](../../10/DEV_261018.md#14-코드-위생-1차--데드코드-제거--틀린-60s-주석--주석-한국어-통일)
+
 > 🔴 **2026-10-04 연결 해제 — 아래는 보존 기록.** 월드컵(2026-07 종료) 후 `sports` 의도가 프리미어리그 같은 리그 질문까지 가로채, Gemini 는 거절하고 GPT 는 학습 지식으로 출처 없는 순위표를 냈다. 라우터·도구 등록에서 뺐고 스포츠 질문은 `general` 검색으로 간다. `worldcup-tool.ts`·`lib/sports/football-data.ts` 는 다음 대회용으로 파일만 남겼다.
 
 `sports` intent와 `worldCupTool`(football-data.org 연동) 테스트용 레퍼런스. 현재 진행 중인 FIFA 월드컵의 조별 순위·대진/일정·득점왕을 실시간 조회한다.
 
-> 기술 상세(grounding 한계 진단·API 검증·구현): [`../logs/DEV_260620.md`](../logs/2026/06/DEV_260620.md) §5, [`../logs/DEV_260621.md`](../logs/2026/06/DEV_260621.md)
-> 설계/계획: [`../plans/PLAN_WORLDCUP_SPORTS_TOOL_260621.md`](../plans/PLAN_WORLDCUP_SPORTS_TOOL_260621.md), [`../plans/PLAN_WORLDCUP_IMPL_260621.md`](../plans/PLAN_WORLDCUP_IMPL_260621.md)
+> 기술 상세(grounding 한계 진단·API 검증·구현): [`../logs/DEV_260620.md`](../DEV_260620.md) §5, [`../logs/DEV_260621.md`](../DEV_260621.md)
+> 설계/계획: [`../plans/PLAN_WORLDCUP_SPORTS_TOOL_260621.md`](PLAN_WORLDCUP_SPORTS_TOOL_260621.md), [`../plans/PLAN_WORLDCUP_IMPL_260621.md`](PLAN_WORLDCUP_IMPL_260621.md)
 > ⚠️ `SPORTS_API_KEY`(football-data.org v4, TIER_ONE) 필요. rate limit **분당 6회** → 인메모리 캐시 필수.
 
 ---

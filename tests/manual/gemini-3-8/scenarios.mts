@@ -35,7 +35,6 @@ export const routing: Array<{ id: string; q: string; intents: IntentType[]; seed
     { id:'law_qa', q:'민법 제750조를 근거로 불법행위 손해배상 성립 요건을 사례로 설명해줘', intents:['law_qa'] },
     { id:'movie', q:'오늘 CGV 강남 영화 상영시간표 찾아줘', intents:['movie_search'] },
     { id:'sports-history', q:'2026 월드컵 득점왕 순위 찾아줘', intents:['general'] },
-    { id:'sports-current', q:'현재 진행 중인 월드컵 조별 순위 찾아줘', intents:['sports'] },
     { id:'medical_qa', q:'고혈압과 저혈압이 무엇인지 차이를 설명해줘', intents:['medical_qa'] },
     { id:'weather', q:'내일 서울 날씨 알려줘', intents:['weather'] },
     { id:'pubmed', q:'프로바이오틱스 감기 예방 무작위 대조시험 논문 찾아줘', intents:['paper_search'] },

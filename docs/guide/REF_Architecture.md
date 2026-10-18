@@ -136,7 +136,7 @@ flowchart TB
         Router{{"🧭 Semantic Router\n(16 Intents + needs_search + follow_up)"}}
         Vision["👁️ Vision Node\n(Pill image → imprint/color/shape)"]
         Generator["📝 Generator Node\n(SDK path or LangChain path)"]
-        Tools["🛠️ ToolNode\nMFDS / Pharmacy / Hospital / Vet\nLaw / Movie / Weather / WorldCup / DDG"]
+        Tools["🛠️ ToolNode\nMFDS / Pharmacy / Hospital / Vet\nLaw / Movie / Weather / Paper / DDG"]
     end
 
     Output([SSE Stream → Client])
@@ -197,7 +197,7 @@ flowchart TB
 - **URL 컨텐츠 있을 때**: `[URL_CONTENT]` 주입 시 별도 Google Search는 OFF하고 페이지 본문을 선택 모델이 처리. Gemini 3.x는 모델별 long-input capability 정책 적용
 - **문서 첨부 시**: `[EXTRACTED_CONTENT:]` 있으면 grounding 기본 OFF, 사용자 명시 요청 시만 ON
 - **Renderer intents**: Google Search 기본 OFF; 사용자가 "검색/최신/출처" 명시 시 ON
-- ~~`sports` intent~~ — **2026-10-04 제거.** 월드컵(7월 종료) 전용 도구가 리그 질문까지 가로채 거절하거나(Gemini) 학습 지식으로 출처 없는 표를 냈다(GPT). 스포츠는 `general` + 검색
+- ~~`sports` intent~~ — **2026-10-04 제거.** 월드컵(7월 종료) 전용 도구가 리그 질문까지 가로채 거절하거나(Gemini) 학습 지식으로 출처 없는 표를 냈다(GPT). 스포츠는 `general` + 검색. 월드컵 도구 기록은 [DEV_260621](../logs/2026/06/DEV_260621.md)
 
 ---
 
@@ -398,7 +398,7 @@ base 는 [route.ts](../../app/api/chat/route.ts) 가 `getSystemInstruction(langN
 | 경로 | 의도 | 맨 끝 |
 |---|---|---|
 | SDK(Gemini 직접) · OpenAI | `general` 등 비도구 | `+ [ACTIVE_WEB_SEARCH]` |
-| **LangChain** | **도구 의도 12개**(약품·약국·병원·동물병원·법령 2종·영화·논문 2종·스포츠·날씨) | 🔴 **안 붙는다** — `new SystemMessage(finalInstruction)` 그대로. `drug_id` 는 여기서 `[IDENTIFY_PILL_DATABASE_RESULT]` 등을 **더 덧붙인다** |
+| **LangChain** | **도구 의도 11개**(약품·약국·병원·동물병원·법령 2종·영화·논문 2종·날씨) | 🔴 **안 붙는다** — `new SystemMessage(finalInstruction)` 그대로. `drug_id` 는 여기서 `[IDENTIFY_PILL_DATABASE_RESULT]` 등을 **더 덧붙인다** |
 
 🔴 base 는 `[ACTIVE_WEB_SEARCH]` 를 **5곳에서 참조한다** — 최상위 절대 규칙
 (`NEVER_FABRICATE_SOURCES`)과 `[TOOL AVAILABILITY]`·`[ANTI-HALLUCINATION]` 을 포함해서다.
@@ -508,7 +508,6 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | `lawTool` | `server/agent/law-tool.ts` | 국가법령정보센터 법령 목록/본문/조항 조회 |
 | `movieTool` | `server/agent/movie-tool.ts` | 지역 → 3-chain 기본 지점 (`json:movie`); 상영시간 클라이언트 fetch |
 | `weatherTool` | `server/agent/weather-tool.ts` | 날씨 카드 (`json:weather`); KMA API Hub(국내, `dfsXyConv` 격자) + OpenWeather(해외·폴백), 다중 도시 |
-| ~~`worldCupTool`~~ | `server/agent/worldcup-tool.ts` | **연결 해제 2026-10-04** — 파일만 보존(다음 대회용) |
 
 **지점 매칭 (`lib/theaters.ts`)** — 서버 툴과 클라 렌더러가 공유한다. `resolveBranch()` 는 매칭 성공 여부를 `matched` 로 같이 돌려주고, 지역을 말했는데 그 체인에 지점이 없으면 `defaultsForRegion()` 이 **`null`** 을 넣어 카드가 "지점이 없습니다"로 표시한다. 예전엔 조용히 기본 지점(가산디지털)으로 폴백해, `강남 상영표` 질문에 다른 동네 회차가 카드와 `movieContext` 에 섞여 들어갔다(DEV_260801 §3-3).
 

@@ -7,10 +7,10 @@
  *   ② 인자를 제대로 채우는가        (`서울 강남구` → sido=서울 … 틀리면 엉뚱한 지역을 조회한다)
  *   ③ 결과를 규약대로 다루는가      (fast-pass 는 **그대로 통과**, synthesize 는 **데이터를 산문에 반영**)
  *
- * 🔴 **도구 정의는 프로덕션에서 import 하고 `execute` 만 스텁으로 갈아끼운다.**
+ * **도구 정의는 프로덕션에서 import 하고 `execute` 만 스텁으로 갈아끼운다.**
  * 정의를 복사하면 프로덕션 스키마가 바뀐 뒤에도 이 프로브는 계속 초록이다(tests/README §③).
  * 그리고 실행부를 스텁으로 바꾸는 이유는 격리다 — 진짜로 태우면 외부 API 11개(식약처·심평원·
- * 법제처·극장·football-data·PubMed·기상청…)의 **그날 건강 상태**가 모델 비교에 섞인다.
+ * 법제처·극장·PubMed·기상청…)의 **그날 건강 상태**가 모델 비교에 섞인다.
  * 지금 궁금한 변수는 모델 하나다. 두 변수를 함께 움직이면 무엇이 원인인지 말할 수 없다.
  *
  * 판정은 "6-luna 가 잘 한다"가 아니라 **"이미 쓰는 5.6-luna 와 같은가"** 다.
@@ -32,7 +32,7 @@ if (!process.env.OPENAI_API_KEY_TIER1) {
 const MODELS = ['gpt-5.6-luna', 'gpt-6-luna'] as const;
 const TIMEOUT_MS = 60_000;
 /**
- * 🔴 반복이 **선택이 아니다.** 초판은 셀당 1회였고, `arxiv_search` 에서 gpt-6-luna 만
+ * 반복이 **선택이 아니다.** 초판은 셀당 1회였고, `arxiv_search` 에서 gpt-6-luna 만
  * 실패한 것처럼 보였다. 3회씩 돌려 보니 **5.6-luna 가 2/3 으로 더 자주 실패**했다 —
  * 모델 차이가 아니라 그 케이스 자체가 흔들리는 것이었다. 1회 표본으로 모델을 판정하면 안 된다.
  */
@@ -109,12 +109,6 @@ const cases: Case[] = [
         text: mentions('0.08', '148'),
     },
     {
-        intent: 'sports', ask: '월드컵 득점왕 누구야?',
-        args: a => (typeof a.resource === 'string' && a.resource.length > 0) ? null : `resource=${a.resource}`,
-        result: '[WORLDCUP_DATA] 득점왕: Erling Haaland (노르웨이) 9골',
-        text: mentions('Haaland', '홀란', '9'),
-    },
-    {
         intent: 'paper_search', ask: '당뇨병 환자의 운동 효과에 대한 논문 찾아줘',
         args: a => (typeof a.query === 'string' && a.query.length > 0) ? null : `query=${a.query}`,
         result: '[PAPER_DATA]\nPMID 36521234 · "Exercise and glycemic control in type 2 diabetes"\nJ Diabetes Res · 2023 · 무작위배정 대조시험 · HbA1c 0.7%p 감소',
@@ -123,7 +117,7 @@ const cases: Case[] = [
     {
         intent: 'arxiv_search', ask: '그래프 신경망 최신 논문 찾아줘',
         args: a => (typeof a.query === 'string' && a.query.length > 0) ? null : `query=${a.query}`,
-        // 🔴 처음엔 `arXiv:2609.04417` 을 썼다가 **프로브가 스스로 실패를 만들었다.**
+        // 처음엔 `arXiv:2609.04417` 을 썼다가 **프로브가 스스로 실패를 만들었다.**
         //    2609 = 2026년 9월이라 모델이 "미래 날짜"로 읽고 결과를 통째로 버렸다
         //    (실제 응답: "arXiv 번호가 2609로 시작해 현재 시점보다 미래 날짜일 가능성이 있으므로").
         //    픽스처는 **그럴듯해야 한다** — 모델이 의심할 값을 주면 모델이 아니라 픽스처를 재게 된다.
@@ -181,7 +175,7 @@ console.log('\n── 의도별 대조 (OK 비율) ──');
 let diverged = 0, shaky = 0;
 for (const c of cases) {
     const rates = MODELS.map(m => okRate(table[m][c.intent]));
-    // 🔴 판정은 **비율 차이**로 한다. 한쪽만 흔들리는 게 아니라면 모델 차이가 아니다.
+    // 판정은 **비율 차이**로 한다. 한쪽만 흔들리는 게 아니라면 모델 차이가 아니다.
     //    임계 1/REPS 는 "한 번 더 실패한 정도는 차이로 세지 않는다" 는 뜻이다.
     const gap = Math.abs(rates[0] - rates[1]);
     const isDiverged = gap > 1 / REPS + 1e-9;
@@ -196,7 +190,7 @@ fs.writeFileSync(out, JSON.stringify({ models: MODELS, reps: REPS, table, finish
 console.log(`\n리포트 ${out}`);
 console.log(`반복 ${REPS}회 · 갈린 의도 ${diverged} · 두 모델이 함께 흔들린 의도 ${shaky} / 전체 ${cases.length}`);
 // 종료 코드는 **갈렸는가**로만 낸다. 둘이 같이 흔들리면 그건 모델 차이가 아니라
-// 우리 도구 계약이나 픽스처 문제이므로 ⚠️ 로 남기고 통과시킨다 — 이 프로브의 질문은 "같은가" 다.
+// 우리 도구 계약이나 픽스처 문제이므로 주의: 로 남기고 통과시킨다 — 이 프로브의 질문은 "같은가" 다.
 console.log(diverged === 0
     ? `\n✅ ${cases.length}개 의도 전부에서 두 모델의 OK 비율이 같은 수준이다.`
     : `\n❌ ${diverged}개 의도가 갈렸다 — gpt-6-luna 를 같은 자리에 두기 전에 해결해야 한다.`);
