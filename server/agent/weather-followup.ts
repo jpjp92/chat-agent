@@ -98,20 +98,24 @@ export const detectCityMention = (text: string, shownCities: string[] = []): Cit
     const alreadyShown = (t: string) =>
         shownCities.some(s => s && (s.includes(t) || t.includes(s)));
 
-    const candidates: string[] = [];
-    for (const m of text.matchAll(/([가-힣A-Za-z]{1,12})\s*날씨/g)) candidates.push(m[1]);
+    const candidates: { t: string; explicit: boolean }[] = [];
+    for (const m of text.matchAll(/([가-힣A-Za-z]{1,12})\s*날씨/g)) candidates.push({ t: m[1], explicit: true });
     // "부산은?"·"내일은?" 꼴의 단독 재질의 — 여기서도 같은 잣대를 쓴다
     const reask = text.trim().match(REASK);
-    if (reask) candidates.push(reask[1]);
+    if (reask) candidates.push({ t: reask[1], explicit: false });
 
     let sawUnknown = false;
-    for (const raw of candidates) {
+    for (const { t: raw, explicit } of candidates) {
         // "오늘의 날씨"·"앞으로의 날씨" — 조사를 떼고 본다
         const t = raw.replace(/의$/, "");
         if (isNonPlaceToken(t)) continue;
         // `X 날씨`는 명시적 카드 요청이다 — 이미 떠 있어도 새로고침으로 본다.
         if (isKnownCityName(t)) return "known";
-        sawUnknown = true;
+        // 🔴 "X은?" 단독 재질의는 **사전에 있는 도시만** 지명으로 본다(2026-10-18).
+        //    날씨 카드 → 약 카드 뒤의 "부작용은?" 이 "모르는 지명 + 은?" 으로 읽혀 날씨 카드를 다시 그렸다.
+        //    "X은?" 은 어떤 주제의 후속에도 쓰이는 꼴이라, 모르는 단어는 지명 근거가 못 된다 → LLM 판정에 맡긴다.
+        //    `X 날씨` 는 날씨를 명시했으니 모르는 지명도 새 조회 근거로 둔다(사전은 allowlist 가 아니다).
+        if (explicit) sawUnknown = true;
     }
     if (sawUnknown) return "unknown";
 
