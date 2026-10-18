@@ -1,5 +1,6 @@
 import { isOpenAIChatModel, openAIModelCapabilities } from './models';
 import { withSearchProviderInstruction } from '../agent/search-provider';
+import { repairOpenAIText } from './text-repair';
 import type { LocalFunctionTool } from '../agent/local-tool-registry';
 import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../agent/card-tool-output';
 import { buildEmptyCardRules } from '../agent/card-followup';
@@ -444,6 +445,8 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
             });
         }
         const normalized = normalizeOpenAIWebCitations(json, rawText);
+        // 드문 출력 흔들림 보정 — 울타리 없는 약 카드 JSON·사설 영역 인용 표지(text-repair.ts, 2026-10-18).
+        normalized.text = repairOpenAIText(normalized.text);
         // 합성 모드라도 카드가 있는 intent 는 카드를 도구 출력으로 고정한다(모델 재작성 금지).
         if (pinnedCardOutput && options.functionTool?.cardType) {
             normalized.text = pinCardToProse(normalized.text, pinnedCardOutput, options.functionTool.cardType);
