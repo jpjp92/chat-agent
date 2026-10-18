@@ -37,9 +37,9 @@ const GOLDEN_SECTIONS: Record<string, L10n> = {
 };
 
 const GOLDEN_MODELS: Record<string, { section: string; label: L10n; description: L10n }> = {
-    'gemini-3.7-flash': {
+    'gemini-3.8-flash': {
         section: 'gemini',
-        label: { ko: 'Gemini 3.7 Flash', en: 'Gemini 3.7 Flash', es: 'Gemini 3.7 Flash', fr: 'Gemini 3.7 Flash' },
+        label: { ko: 'Gemini 3.8 Flash', en: 'Gemini 3.8 Flash', es: 'Gemini 3.8 Flash', fr: 'Gemini 3.8 Flash' },
         description: {
             ko: '최신 Gemini Flash', en: 'Latest Gemini Flash',
             es: 'El Gemini Flash más reciente', fr: 'Le dernier Gemini Flash',
@@ -193,7 +193,7 @@ check('4. 조회  모든 값이 채워져 있다 (빈 칸 렌더 없음)', empty
 check('4. 조회  미지원 언어는 ko 폴백',
     pickLabel({ ko: '가', en: 'a', es: 'a', fr: 'a' }, 'de' as Language) === '가');
 check('4. 조회  제품명은 언어와 무관하게 그대로',
-    LANGS.every(l => pickLabel('Gemini 3.7 Flash', l) === 'Gemini 3.7 Flash'));
+    LANGS.every(l => pickLabel('Gemini 3.8 Flash', l) === 'Gemini 3.8 Flash'));
 
 // ────────────────────────────────────────────────────────────────────────────
 // 5. 배선 — 두 화면이 정말 레지스트리 값을 렌더하는가

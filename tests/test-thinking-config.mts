@@ -28,15 +28,16 @@ const cfg = (model: string, over: Partial<typeof baseCtx> = {}) =>
     resolveThinkingConfig({ model, ...baseCtx, ...over }) as any;
 
 // ── 1. 🔴 핵심 — 3.7 에 minimal 이 들어가면 안 된다 ────────────────────────────
-const M37 = 'gemini-3.7-flash';
-check('3.7 방어', 'minimal 을 지원 목록에 넣지 않는다',
+for (const M37 of ['gemini-3.7-flash', 'gemini-3.8-flash']) {  // 3.8 도 minimal 400(2026-10-18 프로브)
+const tag = M37.includes('3.8') ? '3.8' : '3.7';
+check(`${tag} 방어`, 'minimal 을 지원 목록에 넣지 않는다',
     supportsThinkingLevel(M37, 'minimal') === false);
-check('3.7 방어', '하한은 low 다',
+check(`${tag} 방어`, '하한은 low 다',
     lowestThinkingLevel(M37) === 'low', `실제: ${lowestThinkingLevel(M37)}`);
 
 // 프로덕션이 3.7 에 실제로 무엇을 넣는지 — **모든 경로**를 훑는다.
 // (렌더러·YouTube·URL·미디어가 과거에 서로 다른 값을 쓰던 자리라 한 경로만 보면 놓친다)
-const ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
+var ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
     ['general',   {}],
     ['renderer',  { intent: 'astronomy' }],
     ['data_viz',  { intent: 'data_viz' }],
@@ -47,17 +48,19 @@ const ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
 ];
 for (const [label, over] of ALL_PATHS) {
     const c = cfg(M37, over);
-    check('3.7 경로', `${label} → minimal 이 아니다`,
+    check(`${tag} 경로`, `${label} → minimal 이 아니다`,
         c?.thinkingLevel !== 'minimal', `실제: ${JSON.stringify(c)}`);
-    check('3.7 경로', `${label} → 지원하는 레벨만 쓴다`,
+    check(`${tag} 경로`, `${label} → 지원하는 레벨만 쓴다`,
         !c?.thinkingLevel || supportsThinkingLevel(M37, c.thinkingLevel), `실제: ${JSON.stringify(c)}`);
 }
 
 // 복구 사다리도 400 을 내면 안 된다
-check('3.7 복구', "medium 에서 재시도하면 low (minimal 아님)",
+check(`${tag} 복구`, "medium 에서 재시도하면 low (minimal 아님)",
     thinkingRetryLevel(M37, 'medium') === 'low', `실제: ${thinkingRetryLevel(M37, 'medium')}`);
-check('3.7 복구', '이미 하한이면 재시도하지 않는다',
+check(`${tag} 복구`, '이미 하한이면 재시도하지 않는다',
     thinkingRetryLevel(M37, 'low') === undefined);
+
+}
 
 // ── 2. 회귀 가드 — 현행 모델의 동작이 하나도 바뀌지 않았다 ──────────────────
 // 이 블록이 §5-1 의 "동작 변화 0" 주장을 검증한다.
@@ -97,7 +100,7 @@ const FALLBACK = 'gemini-2.5-flash';
 const action = (alreadyDowngraded: boolean, resolvedModel: string) =>
     heavyMediaTimeoutAction({ alreadyDowngraded, resolvedModel, fallbackModel: FALLBACK });
 
-for (const m of ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash']) {
+for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash']) {
     check('미디어 타임아웃', `${m} 첫 타임아웃 → 2.5 로 강등`, action(false, m) === 'downgrade', action(false, m));
     check('미디어 타임아웃', `${m} 강등 뒤 또 타임아웃 → 정지`, action(true, m) === 'stop', action(true, m));
 }

@@ -5,6 +5,8 @@ export { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinking
 export type { ThinkingLevel } from './model-thinking';
 
 export const SERVER_MODELS = {
+    FLASH_3_8: "gemini-3.8-flash",
+    // 3.7 은 2027-01-28 퇴역 — 요청이 오면 3.8 로 바꿔 보낸다(resolveChatModel). 허용 목록에는 남긴다(저장된 선택값).
     FLASH_3_7: "gemini-3.7-flash",
     FLASH_3_6: "gemini-3.6-flash",
     FLASH_3_5: "gemini-3.5-flash",
@@ -18,7 +20,7 @@ export const SERVER_MODELS = {
     GPT_6_LUNA: "gpt-6-luna",
 } as const;
 
-export type ChatModelId = typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA | typeof SERVER_MODELS.GPT_6_LUNA;
+export type ChatModelId = typeof SERVER_MODELS.FLASH_3_8 | typeof SERVER_MODELS.FLASH_3_7 | typeof SERVER_MODELS.FLASH_3_6 | typeof SERVER_MODELS.FLASH_3_5 | typeof SERVER_MODELS.FLASH | typeof SERVER_MODELS.FLASH_LITE | typeof SERVER_MODELS.GPT_5_4_MINI | typeof SERVER_MODELS.GPT_5_6_LUNA | typeof SERVER_MODELS.GPT_6_LUNA;
 
 // 기본 모델 = 3.6 (Phase A 실그래프 검증 통과, DEV_260723 §11). 3.5·2.5 는 옵션으로 유지.
 export const DEFAULT_CHAT_MODEL: ChatModelId = SERVER_MODELS.FLASH_3_6;
@@ -61,6 +63,9 @@ export const SUMMARY_MODELS = [
 //      · **유료 TIER1 키도 동일하게 429** — 티어를 올려도 안 풀린다
 //    업로드 영상은 항상, PDF 는 1MB 초과 시(useChatStream 임계값) 이 경로를 탄다.
 export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimodal: boolean; fastLongInput: boolean; urlFileData: boolean; groundingReliable: boolean }> = {
+    // 3.8 — 2026-10-18 유료 키 프로브(tests/manual/probe-gemini-38.mts): 검색 grounding·함수 호출·인라인 이미지 정상.
+    //   무료티어 실측 전이라 3.7 값을 보수적으로 따른다(긴 입력 핀 유지, urlFileData false).
+    "gemini-3.8-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: false, urlFileData: false, groundingReliable: true  },
     "gemini-3.7-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5; 긴 입력은 무료티어 혼잡 때문에 핀
     "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false, groundingReliable: true  },  // 2026-10-04 21/21 (검색 끄면 0/7 인 문항, PLAN_GEMINI_PAID_FIRST §7-1). 08-17 의 2/5 는 09-22·10-04 두 번 재현 안 됨
     "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5
@@ -74,10 +79,11 @@ export const modelCaps = (m: string) => MODEL_CAPS[m] ?? { freeTierSearch: false
 // ⚠️ thinkingLevel 결정에는 **쓰지 않는다** — 그건 `usesThinkingLevel`/`lowestThinkingLevel`(실측표) 몫이다.
 //    계열이 같아도 받는 레벨이 다르다(3.5·3.6 은 minimal 을 받고 **3.7 은 400 으로 거부**).
 // ⚠️ 접두사 판정(`/^gemini-3\./`)으로 바꾸지 않는다 — 3.7 을 목록에 추가할 때는 여기도 함께 고친다.
-export const isThreeXFlash = (m: string): boolean => m === SERVER_MODELS.FLASH_3_5 || m === SERVER_MODELS.FLASH_3_6 || m === SERVER_MODELS.FLASH_3_7;
+export const isThreeXFlash = (m: string): boolean => m === SERVER_MODELS.FLASH_3_5 || m === SERVER_MODELS.FLASH_3_6 || m === SERVER_MODELS.FLASH_3_7 || m === SERVER_MODELS.FLASH_3_8;
 
 export const isChatModelId = (m: unknown): m is ChatModelId =>
     typeof m === 'string' && [
+        SERVER_MODELS.FLASH_3_8,
         SERVER_MODELS.FLASH_3_7,
         SERVER_MODELS.FLASH_3_6,
         SERVER_MODELS.FLASH_3_5,
@@ -88,3 +94,18 @@ export const isChatModelId = (m: unknown): m is ChatModelId =>
         // 선택 UI 에서 legacy 로 내린 모델(5.4 mini)도 여기 남긴다 — 이유는 openai/models.ts 참조.
         SERVER_MODELS.GPT_6_LUNA,
     ].includes(m as ChatModelId);
+
+/**
+ * 퇴역 모델 → 후속 모델. 저장된 선택값·예전 클라이언트가 보낸 ID 를 여기서 바꾼다.
+ * 3.7 Flash 는 2027-01-28 퇴역(Google 공지) — 그 뒤엔 Google 이 3.8 로 자동 폴백하지만,
+ * 그 전에 우리가 먼저 3.8 로 보내 thinking·능력 표가 실제 모델과 어긋나지 않게 한다(2026-10-18).
+ */
+const RETIRED_CHAT_MODELS: Partial<Record<ChatModelId, ChatModelId>> = {
+    [SERVER_MODELS.FLASH_3_7]: SERVER_MODELS.FLASH_3_8,
+};
+
+/** 요청 모델 → 실제로 부를 모델. 허용 목록 밖이면 기본값, 퇴역 모델이면 후속 모델. */
+export const resolveChatModel = (m: unknown): ChatModelId => {
+    if (!isChatModelId(m)) return DEFAULT_CHAT_MODEL;
+    return RETIRED_CHAT_MODELS[m] ?? m;
+};

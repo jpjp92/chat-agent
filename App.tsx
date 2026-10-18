@@ -16,7 +16,7 @@ import { useAuthSession, lastOAuthProvider } from './src/hooks/useAuthSession';
 import { consumeOAuthError } from './lib/supabase/client';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
-import { DEFAULT_CHAT_MODEL, isChatModelId, type ChatModelId } from './src/lib/models';
+import { DEFAULT_CHAT_MODEL, resolveStoredModel, type ChatModelId } from './src/lib/models';
 // katex CSS is imported inside ChatMessage.tsx (lazy chunk) to avoid bloating the critical CSS
 
 const App: React.FC = () => {
@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ChatModelId>(() => {
     const storedModel = localStorage.getItem('preferred_model');
-    return isChatModelId(storedModel) ? storedModel : DEFAULT_CHAT_MODEL;
+    return resolveStoredModel(storedModel);
   });
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   // 추천 칩 클릭 → 입력창 채움 (ts로 같은 칩 재클릭도 재발화)

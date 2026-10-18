@@ -5,7 +5,7 @@ import { getSystemInstruction } from '../../../server/agent/prompt';
 import { hasVideoPart } from '../../../server/agent/video-turn';
 import { toLangName, pickByLang, type LangName } from '../../../server/agent/lang';
 import { compileAgentGraph } from '../../../server/agent/graph';
-import { DEFAULT_CHAT_MODEL, isChatModelId } from '../../../server/models';
+import { resolveChatModel } from '../../../server/models';
 import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/config';
 import { runWithKeyTier } from '../../../server/key-tier';
 import { HumanMessage } from '@langchain/core/messages';
@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const { prompt, history, language, attachment, attachments, webContent, session_id, model, timeZone, movieContext, activeCards, cardContexts } = await req.json();
   // 클라이언트 문자열을 그대로 공급자 API에 넘기지 않는다. 등록된 채팅 모델만 허용한다.
-  const finalModel = isChatModelId(model) ? model : DEFAULT_CHAT_MODEL;
+  // 허용 목록 밖 → 기본값, 퇴역 모델(3.7) → 후속 모델(3.8).
+  const finalModel = resolveChatModel(model);
   const publicLang = (['ko', 'en', 'es', 'fr'].includes(language)) ? language : 'ko';
 
   // 회원만 유료 키를 먼저 쓴다(PLAN_GEMINI_PAID_FIRST_261004 §2-1). 게스트는 무료 로테이션.

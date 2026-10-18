@@ -1,6 +1,8 @@
 import type { Language } from '../../types';
 
 export const CHAT_MODELS = {
+  FLASH_3_8: 'gemini-3.8-flash',
+  // 3.7 은 2027-01-28 퇴역 — 목록에서 내리고 저장된 선택값은 3.8 로 바꾼다(resolveStoredModel).
   FLASH_3_7: 'gemini-3.7-flash',
   FLASH_3_6: 'gemini-3.6-flash',
   FLASH_3_5: 'gemini-3.5-flash',
@@ -53,9 +55,9 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
   description: Localized;
 }> = [
   {
-    id: CHAT_MODELS.FLASH_3_7,
+    id: CHAT_MODELS.FLASH_3_8,
     section: 'gemini',
-    label: 'Gemini 3.7 Flash',
+    label: 'Gemini 3.8 Flash',
     description: {
       ko: '최신 Gemini Flash',
       en: 'Latest Gemini Flash',
@@ -137,3 +139,14 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
 
 export const isChatModelId = (value: string | null): value is ChatModelId =>
   Object.values(CHAT_MODELS).includes(value as ChatModelId);
+
+/** 퇴역 모델 → 후속 모델(서버 server/models.ts 의 RETIRED_CHAT_MODELS 와 같은 표). */
+const RETIRED_CHAT_MODELS: Partial<Record<ChatModelId, ChatModelId>> = {
+  [CHAT_MODELS.FLASH_3_7]: CHAT_MODELS.FLASH_3_8,
+};
+
+/** 로컬에 저장된 선택값 → 쓸 모델. 모르는 값은 기본값, 퇴역 모델은 후속 모델. */
+export const resolveStoredModel = (value: string | null): ChatModelId => {
+  if (!isChatModelId(value)) return DEFAULT_CHAT_MODEL;
+  return RETIRED_CHAT_MODELS[value] ?? value;
+};

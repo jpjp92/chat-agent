@@ -28,6 +28,8 @@ export const THINKING_MODE: Record<string, { levels: readonly ThinkingLevel[]; b
     "gemini-3.6-flash":      { levels: ["minimal", "low", "medium", "high"], budget: false },  // budget 거부
     // 3.7은 minimal을 거부하므로 선택 경로에서도 반드시 이 실측 표를 통해 low를 사용한다.
     "gemini-3.7-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
+    // 3.8 — 2026-10-18 프로브: minimal 400("not supported"), low·medium·high·thinkingBudget 수용. 3.7 과 같다.
+    "gemini-3.8-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
 };
 
 /** 그 모델이 받는 **가장 낮은** thinkingLevel. 우리는 거의 모든 경로에서 최저를 원한다(속도). */

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { applyGeminiCitations, stripFabricatedCitations } from '../server/agent/gemini-citations.js';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { CHAT_MODELS, CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, isChatModelId } from '../src/lib/models.js';
+import { CHAT_MODELS, CHAT_MODEL_OPTIONS, CHAT_MODEL_SECTIONS, isChatModelId, resolveStoredModel } from '../src/lib/models.js';
 import { buildOpenAIChatRequest, generateOpenAIChat, normalizeOpenAIWebCitations, OpenAIChatError } from '../server/openai/chat.js';
 import { isOpenAIChatModel, openAIModelCapabilities } from '../server/openai/models.js';
 import { classifyChatError, forGuest, OPENAI_QUOTA_ERROR_CODES } from '../server/chat-error-policy.js';
@@ -18,7 +18,7 @@ const check = (name: string, condition: boolean, detail = '') => {
     else { fail++; console.log(`❌ ${name}${detail ? `\n     ${detail}` : ''}`); }
 };
 
-const expectedIds = ['gemini-3.7-flash', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5.4-mini'];
+const expectedIds = ['gemini-3.8-flash', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5.4-mini'];
 for (const id of expectedIds) {
     check(`클라이언트 레지스트리  ${id}`, isChatModelId(id));
     check(`선택 목록  ${id}`, CHAT_MODEL_OPTIONS.some(option => option.id === id));
@@ -26,7 +26,12 @@ for (const id of expectedIds) {
 check('알 수 없는 모델 거부', !isChatModelId('gpt-future-user-input'));
 check('기본 모델은 기존 3.6 유지', CHAT_MODELS.FLASH_3_6 === 'gemini-3.6-flash');
 check('모델 선택 섹션 순서', CHAT_MODEL_SECTIONS.map(section => section.id).join(',') === 'gemini,openai,legacy');
-check('현재 Gemini 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'gemini').map(option => option.id).join(',') === 'gemini-3.7-flash,gemini-3.6-flash');
+check('현재 Gemini 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'gemini').map(option => option.id).join(',') === 'gemini-3.8-flash,gemini-3.6-flash');
+// 3.7 은 2027-01-28 퇴역 — 목록에서 내리고 저장된 선택값·요청 ID 는 3.8 로 바꾼다(2026-10-18).
+check('3.7 은 선택 목록에 없다', !CHAT_MODEL_OPTIONS.some(option => option.id === 'gemini-3.7-flash'));
+check('저장된 3.7 선택값 → 3.8', resolveStoredModel('gemini-3.7-flash') === 'gemini-3.8-flash');
+check('저장값이 모르는 모델이면 기본값', resolveStoredModel('gpt-future') === CHAT_MODELS.FLASH_3_6);
+check('다른 저장값은 그대로', resolveStoredModel('gpt-6-luna') === 'gpt-6-luna');
 // luna를 먼저 노출한다 — 카드 멀티턴 실측에서 5.4 mini보다 일관되게 정확했다(2026-08-23).
 // 2026-09-23: gpt-6-luna 추가, gpt-5.4-mini 는 legacy 로 내렸다.
 check('OpenAI 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'openai').map(option => option.id).join(',') === 'gpt-6-luna,gpt-5.6-luna');
@@ -44,7 +49,8 @@ for (const id of expectedIds) {
     check(`서버 허용 목록  ${id}`, serverModelsSource.includes(id));
 }
 check('서버 route에서 모델 문자열 검증',
-    fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8').includes('isChatModelId(model)'));
+    fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8').includes('resolveChatModel(model)'));
+check('서버도 3.7 → 3.8 로 바꾼다', /\[SERVER_MODELS\.FLASH_3_7\]: SERVER_MODELS\.FLASH_3_8/.test(serverModelsSource));
 const chatRouteSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
 
