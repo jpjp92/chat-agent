@@ -3,7 +3,8 @@
 - [x] **Gemini 유료 키 우선 (회원만)** — **10-05 운영 배포·스위치 on**(`GEMINI_PAID_FIRST=true`, b182ec4). 회원 4개 모델 환율 질문 출처 정상 → [DEV_261005](logs/2026/10/DEV_261005.md)
   - [ ] 🟡 런타임 로그 `key: paid`(회원)·`key: free`(게스트) 확인 · GCP 예산 알림 · 개인정보처리방침 회원 문구 수정 → [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md)
 - [x] ~~**검색 경로만 Gemini 3.8 로 — 프로브 선행**~~ → **10-04 측정: 보류.** 어려운 문항에서 3.6·3.7·3.8 정답 21/21 동률, 3.8 이 ~2.2s 느림 ([PLAN_GEMINI_PAID_FIRST §7-2](plans/PLAN_GEMINI_PAID_FIRST_261004.md)). 원문: (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
-- [ ] **Gemini 3.8 Flash 검증·도입** — [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md). 제한된 비교 후 하드닝 1·2와 공개 적용 순서를 조율한다. 선택 옵션 추가와 기본 승격은 분리하며, 현재 기본은 3.6이다.
+- [x] ✅ **Gemini 3.8 Flash 선택 옵션 도입** (2026-10-18) — 3.7 퇴역 공지(2027-01-28)로 3.7 자리를 3.8 로 대체, 3.7 저장값은 3.8 로 보낸다 → [DEV_261018 §7](logs/2026/10/DEV_261018.md#7-gemini-37--38) · [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
+  - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
 
@@ -53,10 +54,10 @@
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
   - ✅ 2026-10-17 인증 계약 완료 — 무인증·위조 토큰 통과 라우트 4개에 `requireProfile`, proxy-image 는 약품 호스트 허용목록, 하니스 `test-route-auth` 가 새 무인증 라우트를 막는다 → [PLAN_PUBLIC_ROUTE_AUTH_261017](plans/PLAN_PUBLIC_ROUTE_AUTH_261017.md) · [DEV_261017](logs/2026/10/DEV_261017.md). **남은 것: 호출 제한(쿼터)**, sync-drug-image `safeFetch`(MEDIUM-4)
   - ✅ **2026-10-10** — `summarize-title` 인증(프로필 행 필수) · 🔴 신규 발견 anon 키 Bearer 로 `/api/chat` 게스트 한도 우회 → 차단 · SSRF 공용 판정 [`server/ssrf.ts`](../server/ssrf.ts)(대괄호 IPv6·mapped·DNS·리다이렉트 hop 재검사) → [DEV_261010](logs/2026/10/DEV_261010.md). **남은 무인증 4개**: `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. 아래 기록은 당시 상태.
-  - **현재 4개** (2026-10-10) — `fetch-url` · `proxy-image` · `showtimes` · `sync-drug-image`. `speech`(10-05)·`summarize-title`(10-10)은 인증이 붙었다. 08-29 기준은 6개였다.
+  - ✅ **무인증 라우트 해소** (2026-10-17) — 10-10 기준 4개(`fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`) 중 3개에 `requireProfile`, `proxy-image` 는 약품 호스트 허용목록으로 공개 유지. 지금 무인증은 의도한 공개 라우트(`client-log`·`proxy-image`)뿐이다. 08-29 기준은 6개였다.
     ⚠️ 줄어든 2개(`fetch-transcript`·`pill-search`)는 **막은 게 아니라 지운 것**이다(데드코드 정리, [DEV_260829_DEADCODE §2.1](logs/2026/08/DEV_260829_DEADCODE.md)).
     - ⚖️ **`speech` — 코드는 운영 배포됨 (2026-10-03 구현 b1956ac, 10-05 운영 배포에 포함)**: 토큰 검증 + 게스트 403 + 회원 20,000자/일(RPC `consume_tts_quota`, [tts-quota.sql](guide/db/tts-quota.sql)). 무토큰·위조 → 401·공급자 0회 실측. 🔴 **운영 DB 에 SQL 이 적용됐는지 기록이 없다** — 미적용이면 회원 TTS 가 500(fail-closed). 운영에서 듣기 1회로 확인 → [DEV_261003](logs/2026/10/DEV_261003.md)
-    `speech` 를 뺀 5개의 계약은 그대로 미결이다(`speech` 는 운영 DB SQL·배포 전까지 열려 있다). 🔴 그중 `speech`·`summarize-title` 은 **인증 없이 호출 가능한 LLM 엔드포인트**라 위험 ①(유료 소진)과 같은 성격이다.
+    ✅ `speech`(10-05)·`summarize-title`(10-10) 도 인증이 붙었다 — 아래는 당시 기록. 남은 것은 호출 제한(쿼터)이다.
     - ✅ **재확인 (2026-09-04)** — 둘 다 `Authorization`·`getUser` **0건**이고 `GoogleGenAI` 를 직접 호출해 `API_KEYS` 풀을 쓴다. **이 앱의 실제 위협 모델(무료 키 RPD 소진 → 소유자 24시간 장애, `lib/limits.ts`)에 가장 직결되는 항목이 이 둘이다** — 게스트 한도를 아무리 조여도 옆으로 열려 있다. 🔴 **2026-09-03 보안 검토는 이 둘을 놓치고 `fetch-url`·`proxy-image` 만 보고 "SSRF 가 1순위"라 답했다가 철회했다**([§3.4](logs/2026/09/DEV_260903.md)) — **이 TODO 가 이미 6개로 세어둔 것을 읽지 않은 탓이다.**
   - **왜 빠졌나**: 8/17 점검이 *"Storage 에 쓰는 라우트"* 를 훑었고, 이 둘은 **Storage 가 주업이 아니라서** 검색에 안 걸렸다(`fetch-url` 은 스크래핑, `sync-drug-image` 는 이미지 프록시인데 부수적으로 Storage 에 쓴다). 🔴 **DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 와 같은 형태다** — 이번엔 코드가 아니라 **점검 범위**에 그 함정이 있었다. 다음 점검은 *"Storage 쓰는 곳"* 이 아니라 **"인증 없는 POST 라우트 전부"** 로 훑을 것
   - 🔴 **실질 위험 ① 유료 스크래퍼 소진** — `fetch-url` 은 임의 URL 을 받아 서버가 대신 가져온다. 캐시 미스면 browserless(**1000 units/월**, 회당 ~2)를 태운다. 아무나 새 URL 을 넣어 소진시킬 수 있고, **비용이 나가는데 로그로만 보인다.** 8/17 의 "열린 업로드"(용량·대역폭)보다 **단가가 높다**
@@ -82,7 +83,8 @@
     - [x] ~~`new URL()` **정규화 의존을 코드 주석에 적기** — 위 ✅ 항목이 지시해둔 것인데 아직 미반영. 파서를 안 거치도록 리팩터링하면 **정규식은 그대로인데 숫자 IP 방어가 사라진다**~~
     - [x] ~~**미검증**: ⓐ리다이렉트 추적(공개 URL → `169.254.169.254`) ⓑ내부 IP 로 해석되는 호스트명. 차단 목록 방식의 구조적 한계라 **해소하려면 응답 IP 검증이 필요**하다~~
     - [x] ~~**회귀 하니스** — 차단돼야 할 것(`[::1]`·`[fd00::1]`·`[::ffff:127.0.0.1]`)과 **이미 차단되는 것**(`2130706433` — 파서 의존이라 조용히 깨질 수 있다)을 함께 고정. 네트워크 미사용이라 `npm test` 편입 가능~~
-  - [ ] **실제 토큰 검증 + 호출 제한을 함께 적용** — `authedFetch`와 서버 검증을 연결한다. `createRouteClient` 생성만으로는 검증되지 않는다. 익명 토큰 하나로 반복 호출할 수 있어 인증만으로 비용 방어 완료로 보지 않는다. 구체적인 순서·완료 조건은 [PLAN §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)을 따른다.
+  - [x] ✅ **실제 토큰 검증** (2026-10-17) — `requireProfile` 로 위조 토큰·프로필 없는 토큰 거부, 하니스 `test-route-auth` → [DEV_261017](logs/2026/10/DEV_261017.md)
+  - [ ] **호출 제한(쿼터)** — `authedFetch`와 서버 검증을 연결한다. `createRouteClient` 생성만으로는 검증되지 않는다. 익명 토큰 하나로 반복 호출할 수 있어 인증만으로 비용 방어 완료로 보지 않는다. 구체적인 순서·완료 조건은 [PLAN §6](plans/PLAN_HARDENING_260822.md#6-작업-순서)을 따른다.
 
 - [~] **IDOR-3 → 실제로는 "열린 업로드"였다** (2026-08-17 재평가) — 이 항목의 기술이 실제보다 약했다. *"admin 클라이언트 + 형식 검증뿐"* 은 "인증은 되는데 소유권 검증이 없다"로 읽히지만, **세 라우트에 인증 코드가 0건**이었고 클라이언트도 `authedFetch` 가 아닌 평범한 `fetch` 였다. 누구나 공개 버킷에 파일을 쌓을 수 있었다(용량·대역폭 비용 + 이 서비스 도메인에서 서빙).
   - [x] **Phase 1** — `authedFetch` 전환 · JWT `sub` 로 `${uid}/` prefix · user-scoped 클라이언트 · `docs/guide/db/storage-user-prefix-rls.sql`. **버킷은 공개 유지.** 막는 것: 무인증 업로드 · 타인 파일 덮어쓰기 · 열거
@@ -128,7 +130,7 @@
 - [ ] **main `mfds_pills` 재적재** — 수정 전 스크립트로 적재해 약품 ~3,000건이 빠져 있다. ⚠️ `.env.local` 을 프로덕션 값으로 바꾸는 순간이 위험 지점이라 **컷오버와 함께** 할 것
 - [ ] **HWP 파싱 산출물의 죽은 `<img>` 약 40개** — `<img src="image_001.bmp">` 는 HWP 내부 리소스명이라 어디로도 해석되지 않는다. 파서에서 제거하거나 자리표시로 대체 (먼저 화면에서 깨진 아이콘으로 보이는지 확인)
 - [ ] **chat-docs 고아 파일 정리** — parse-document의 route-side `remove()` 제거로, Storage PUT 후 parse 호출 전 중단 시 잔존 가능 → 버킷 TTL 또는 스케줄 정리 (대용량 경로만 해당)
-- [ ] `xlsx` 대안 패키지 검토 (Prototype Pollution·ReDoS fix 없음)
+- [x] ✅ `xlsx` 취약점 (Prototype Pollution·ReDoS) — **2026-10-16 해결**: SheetJS 공식 CDN tarball 0.20.3 으로 교체(레지스트리엔 0.18.5 이후 버전이 없다) → [DEV_261016](logs/2026/10/DEV_261016.md). 아래는 당시 검토 기록
   - ✅ **2026-09-13 재확인** — `npm audit` 도 `fixAvailable: false` 다. SheetJS 가 npm 을 떠나 자체 CDN(0.20.x)으로 가서 **레지스트리에 수정판이 존재하지 않는다** → 버전 올리기로는 영원히 안 닫힌다.
   - ⚖️ **다만 등급이 시사하는 것보다 서비스 위험은 낮다** — 이 앱에서 `xlsx` 는 [ChatInput.tsx:312](../components/ChatInput.tsx#L312) 의 **클라이언트 사이드**에서만 돈다(사용자가 자기 브라우저에서 자기가 고른 파일을 파싱). **서버는 이 라이브러리를 안 쓴다.** Dependabot 의 `Direct`·`High` 표시를 서버 위험으로 읽지 말 것 → [DEV_260913_DEPS §5](logs/2026/09/DEV_260913_DEPS.md)
 - [ ] 🟡 **`@huggingface/transformers` 계열 High 12건** (2026-09-13) — `kordoc` 의 **OCR 용 선택적 의존**이고 이 앱은 OCR 을 안 쓴다. `range=*`·`fixAvailable:false` 라 **버전으로는 안 닫히고 설치에서 빼야(`omit=optional`) 한다.** 그런데 그러면 `next` 의 선택적 `sharp` 도 함께 빠져 **Vercel 빌드 동작이 바뀐다** → 별도 판단 ([DEV_260913_DEPS §4](logs/2026/09/DEV_260913_DEPS.md))
@@ -160,10 +162,9 @@
 - [x] GPT 약품 요청은 내부 Gemini 검색 대신 OpenAI `web_search`로 근거 보강
 - [ ] 약품·전문용어·특수명칭의 근거 기반 정규화 계약 구현(아래 `0-b`; 현재 소프트 프롬프트만 부분 적용)
 - [x] GPT-5.6 Luna 법령 fast-pass·월드컵 조별 순위/득점 순위 멀티턴 로컬 종단 확인
-- [ ] 월드컵 득점 동률을 FIFA 기준(득점→도움→적은 출전 시간)으로 정렬하고 도움/시간 근거가 없으면 공동 순위 처리
 - [x] 약국·병원·동물병원 카드 후속 코멘트를 새 조회와 분리하고 fast-pass 내부 지시문 노출 차단(아래 `0-c`)
 - [x] 법령 원문 조회와 조문 기반 설명을 분리해 시나리오·요약·비교 요청의 카드 반복 방지(아래 `0-d`)
-- [ ] dev UI에서 GPT 2종 × 카드 fast-pass(날씨/영화) × 합성(약품/스포츠) 종단 확인
+- [ ] dev UI에서 GPT 2종 × 카드 fast-pass(날씨/영화) × 합성(약품) 종단 확인
 - [x] OpenAI `url_citation`을 실제 인용 출처만 번호화해 본문 클릭 링크 `[N]`와 하단 동일 번호 배지로 렌더링
 - [x] Gemini도 `groundingSupports` 기반으로 동일한 번호 인용 적용(`server/agent/gemini-citations.ts`).
       실측 2026-08-24: `segment.startIndex/endIndex`는 **UTF-8 바이트 오프셋**(한글 응답에서
@@ -483,7 +484,7 @@ PubMed 장애 턴(`error` + `count: 0`)을 조립해 보니 한 프롬프트에 
   ([search-provider.ts](../server/agent/search-provider.ts) `withSearchProviderInstruction`).
 - SDK(Gemini 직접)·OpenAI 경로는 붙인다. **LangChain 경로는 안 붙인다** —
   [langchain-path.ts](../server/agent/nodes/langchain-path.ts) 가 `new SystemMessage(finalInstruction)` 을 그대로 쓴다.
-- 해당 의도 12개: 약품 2종·약국·병원·동물병원·법령 2종·영화·논문 2종·스포츠·날씨.
+- 해당 의도 11개: 약품 2종·약국·병원·동물병원·법령 2종·영화·논문 2종·날씨.
 - base 는 그 블록을 **5곳에서 참조한다** — `NEVER_FABRICATE_SOURCES`(최상위 절대 규칙),
   `[TOOL AVAILABILITY]`, `[ANTI-HALLUCINATION DIRECTIVE]`, 본문 폴백 조항, 인용 금지 조항.
 
@@ -644,10 +645,10 @@ min 6.5s · p50 13.0s · max 20s · 상한 120s 대비 max 17%
 - [ ] **임시 처리(구현 전 안전판)** — ⓐ/ⓑ 구현 전까지: 범위 밖 감지 시 **현재 카드 강행 대신** ① "현재 단기예보는 최대 N일까지 제공돼요" 안내 후 ② (과거/실시간성 질의면) grounding 폴백 or 학습지식 답. 즉, weather intent에서 **범위 초과 플래그**를 세워 툴 대신 general로 우회. 사용자에게 빈 카드/오해 없게.
 - [ ] **캐싱·쿼터** — 중기예보는 하루 2회(06:00/18:00 발표)라 캐시 수명 길게(수 시간). 과거자료는 불변이라 영구 캐시 가능.
 
-**① arXiv + PubMed 논문 검색** (★★★)
-- [ ] `server/agent/paper-tool.ts` — arXiv Atom XML + PubMed esearch→esummary→efetch 파이프라인
-- [ ] `components/PaperRenderer.tsx`
-- [ ] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
+**① arXiv + PubMed 논문 검색** (★★★) — ✅ **구현 완료** (`paper_search`·`arxiv_search` 의도) → [REF_Paper](guide/REF_Paper.md)
+- [x] `server/agent/paper-tool.ts`·`server/agent/arxiv-tool.ts` — PubMed·arXiv 파이프라인
+- [x] `components/PaperRenderer.tsx`
+- [x] `state.ts`, `router.ts`, `generator.ts`, `prompt.ts`, `ChatMessage.tsx` 공통 패턴 적용
 
 **② 서울 문화행사** (★★) — 키: `CULTURE_API_KEY`
 - [ ] `server/agent/culture-tool.ts` — 구 필터 + 오늘 이후 정렬 + 썸네일
@@ -661,14 +662,7 @@ min 6.5s · p50 13.0s · max 20s · 상한 120s 대비 max 17%
 
 > **④ 영화 상영정보 / 박스오피스 — 구현 완료** (`server/agent/movie-tool.ts`, `components/MovieRenderer.tsx`, `app/api/showtimes`, 멀티턴 후속질문 `lib/movie-context.ts`). 상세: DEV_260610~613.
 
-> **⑤ 스포츠(월드컵) — 구현 완료** (`lib/sports/football-data.ts`, `server/agent/worldcup-tool.ts`, `sports` intent). football-data.org 연동으로 WC 순위/대진/득점왕, grounding 우회. 상세: DEV_260621. 제약: 무료 티어 과거시즌 미지원·rate limit 분당 6회.
-
-**⑤-확장 — 다른 리그/대회 지원** (추후): 현 `SPORTS_API_KEY`(TIER_ONE)로 WC 외에도 호출 가능한 대회가 많음 — **CL(챔피언스리그)**, EPL(PL)·라리가(PD)·분데스리가(BL1)·세리에A(SA)·리그1(FL1)·유로(EC)·에레디비시(DED)·프리메이라리가(PPL)·브라질세리에A(BSA)·챔피언십(ELC)·코파리베르타도레스(CLI). reference `chat_w_AI/utils/query_analyzer.py`의 `LEAGUE_MAPPING`(epl→PL 등) + CL 멀티그룹 파서 패턴 그대로 이식 가능.
-- [ ] `worldCupTool`을 범용 `sportsTool`로 일반화 — `competition` 인자(WC/CL/PL/PD…) 추가, 리그명 키워드→코드 매핑
-- [ ] 단판 리그는 단일 테이블(`standings[0].table`), CL/WC는 멀티그룹 — 기존 분기 재사용
-- [ ] 라우터 키워드 확장(프리미어리그/챔스/라리가 등), intent명 재고(sports 유지 가능)
-- [ ] 캐시 키에 competition 포함, rate limit 분당 6회 → 대회 추가 시 캐시 TTL 재점검
-- [ ] (선택) 전용 카드 UI(crest 로고/하이라이트)
+> **⑤ 스포츠(월드컵)** — 2026-10-04 의도 제거 · 10-18 코드 삭제. 스포츠는 `general` + 검색. 기록: [DEV_260621](logs/2026/06/DEV_260621.md)
 
 > 주의사항: arXiv timeout → `AbortSignal.timeout(6000)` 필수 / PubMed `NCBI_KEY` 없으면 10 req/s / NEIS `schoolInfo[0].head[1].RESULT.CODE` 에러 체크 필수
 
@@ -845,7 +839,8 @@ nickname localStorage → **Supabase Auth + RLS**. 아래 L1~L4 로드맵 중 **
 - [~] **로그인 경로 정비** — [PLAN_AUTH_SIGNIN_PATHS_260715](plans/PLAN_AUTH_SIGNIN_PATHS_260715.md). **구현 완료·tsc 0**(3파일, SQL 무변경). 계정 선택창(`prompt=select_account`) · 대화 0개 게스트는 `signInWithOAuth` 직행(= 캐시 지운 사용자가 실패 없이 로그인) · 설정에 "다른 계정으로 로그인". **남음: 브라우저 3건**(선택창 뜨는지 / 0개 게스트 충돌 없이 로그인 / 계정 전환 시 사이드바 완전 교체)
 - [ ] **프로덕션 이관** — SQL 3종 적용(`docs/guide/db/auth-mvp-*.sql`) · 대시보드 3종(Anonymous Sign-ins / **Allow manual linking** / Google provider) · Google Cloud에 운영 콜백 URI + JS 원본 · Supabase Redirect URLs
 - [ ] 크로스 디바이스 승계 실기기 확인 (구조는 스테이징 §5-2와 동일, 미검증)
-- [ ] (post-MVP) Kakao · 이메일+비밀번호 — Google 연결 후엔 이메일이 검증된 상태라 `updateUser({ password })`가 깔끔하게 동작
+- [x] ✅ Kakao 로그인 (2026-10-11 구현, prod 반영은 P1 §0) → [DEV_261011 §6](logs/2026/10/DEV_261011.md)
+- [ ] (post-MVP) 이메일+비밀번호 — Google 연결 후엔 이메일이 검증된 상태라 `updateUser({ password })`가 깔끔하게 동작
 - [ ] (보류) Google 동의 화면에 앱 이름 대신 `*.supabase.co` 노출 — Supabase Custom Domain(유료) 외 방법 없음
 
 ### Trial / Playground

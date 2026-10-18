@@ -10,6 +10,8 @@
 
 > **2026-10-05 모션 UX · 추천 문구:** [PLAN_MOTION_UX_261005](PLAN_MOTION_UX_261005.md) — Codex 기획안을 코드와 대조. 🔴 `animate-in` 계열 49곳이 플러그인 미설치로 **무효** → 살리기가 0단계. 오브는 이미 있음. 단계형 Thinking 은 SSE 상태 이벤트가 선행. 추천 칩 재구성(약·Python 제외, 데스크톱 전용 유지). **추천 칩 구현(10-05)·Thinking Orb 구현(10-09)**, 0단계·나머지 1단계 미구현.
 
+> **2026-10-18 코드 위생(주석·데드코드):** [PLAN_CODE_HYGIENE_261018](PLAN_CODE_HYGIENE_261018.md) — 전수조사: 주석 한국어 81%·영어 18%, 혼합 파일 110개, 메모성 주석 1,251줄. 🔴 "Vercel 60s 캡" 틀린 주석 9곳(실제 300s). 데드 파일 2개(월드컵 도구 — 개인정보처리방침 문구도 잔재), 미사용 변수 30개. **10-18 적용**(데드코드·60s·한국어 통일·메모성 주석 318블록 → 정의성, 원문은 로그 보관·이모지 제거). 남은 것: knip·`noUnusedLocals` 상시 적용.
+
 > **2026-10-10 미디어 첨부 라우팅:** [PLAN_MEDIA_ROUTING_261010](PLAN_MEDIA_ROUTING_261010.md) — 재측정: 3.x 업로드 영상·PDF **429 0건**(08-08 결론 소멸), GPT 는 PDF 직접 처리 ✅(2~7s). 게스트 2.5·무료, 회원 3.x·유료(실패 2.5), GPT+PDF 직접, GPT+영상·오디오는 Gemini 분석 → GPT 정제. 미구현.
 
 > **2026-10-10 자료 요약 템플릿 통합:** [PLAN_SOURCE_SUMMARY_261010](PLAN_SOURCE_SUMMARY_261010.md) — 한 줄 요약은 **이 턴의 새 자료 + 요약 의도**일 때만(코드 판정), 같은 자료 후속 턴은 헤딩 없이 답(멀티턴 반복 제거). 템플릿 한 함수로 통합 — url·document·text·image·video·youtube. 전역 규칙 제거로 Gemini 일반 질문 요약도 구조적으로 해소. 미구현.
@@ -172,7 +174,6 @@ Recommended next order:
 | [PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md](PLAN_CHANGES_LATENCY_SEARCH_ROUTING.md) | Change summary. ⚠️ 검증표 수치 **스테일** — `verify-intentrules-search.mts`는 22/22가 아니라 현재 20/22 RED. |
 | [PLAN_DB_MIGRATION.md](PLAN_DB_MIGRATION.md) | Evergreen migration/reference doc. Use only when Supabase project migration is active. |
 | [PLAN_ERROR_HANDLING.md](PLAN_ERROR_HANDLING.md) | Architecture reference and backlog. |
-| [PLAN_WORLDCUP_SPORTS_TOOL_260621.md](PLAN_WORLDCUP_SPORTS_TOOL_260621.md) · [PLAN_WORLDCUP_IMPL_260621.md](PLAN_WORLDCUP_IMPL_260621.md) | **구현 완료 (2026-06-21)**. football-data.org `sports` intent tool (월드컵 순위/대진/득점왕), grounding 우회. 로그 [DEV_260621](../logs/2026/06/DEV_260621.md). 추후: WC 외 리그·전용 카드 UI. |
 | [PLAN_KORDOC_INTEGRATION_260620.md](PLAN_KORDOC_INTEGRATION_260620.md) | **구현 완료 (2026-06-21)**. HWP 4종(`.hwp/.hwpx/.hwp3/.hwpml`) kordoc 파싱(구조 보존 표) — `app/api/parse-document` 라우트(4MB 임계값: 직행 multipart / Storage 경유) + ChatInput 연동 + search-gate(첨부 문서 grounding off). 보안 IDOR 대응(경로검증·remove 제거). 로그 [DEV_260621 §6·§7](../logs/2026/06/DEV_260621.md). 백로그: 고아파일 TTL·앱 전역 인증/유저별 prefix. |
 | [PLAN_MODEL_API_REVIEW_260817.md](PLAN_MODEL_API_REVIEW_260817.md) | **측정 결과의 출처 문서.** `MODEL_CAPS` 실측 프로브 + Gemini 공식 가이드 6종 대조(2026-08-17). 후속 항목은 [TODO §보안 "모델·API 레퍼런스 검토 후속"](../TODO.md)에 열려 있다(Files API 전환 검토·프로브 A·공급자별 initial router). |
 | [PLAN_MODEL_3_7_MIGRATION_260817.md](PLAN_MODEL_3_7_MIGRATION_260817.md) | 기본 모델 3.6 → 3.7 전환 설계. §5-1·§5-2 진행 가능, 기본 전환(§5-3)은 **긴 히스토리 측정 1건 대기**. 🔴 검색 폴백은 2.5 유지(별개 축). 근거는 위 API_REVIEW. |

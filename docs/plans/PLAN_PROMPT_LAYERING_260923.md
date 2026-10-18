@@ -429,7 +429,7 @@ export const createGeneratorNode = (systemInstructionBase, …) => {
 §10-3 의 물음에 답하면 *"그 의도에서만 참인 규칙이 있나"* → **있다**:
 팀명 한국어 표기, `[NOT_DETERMINED]` 처리, 순위·숫자 변형 금지.
 
-그런데 그 규칙들은 **이미 존재한다** — [worldcup-tool.ts](../../server/agent/worldcup-tool.ts) 의
+그런데 그 규칙들은 **이미 존재한다** — `worldcup-tool.ts`(2026-10-18 삭제) 의
 `INSTRUCTION` 이 도구 결과 뒤에 붙여 보낸다. 프롬프트로 올리면:
 
 - **중복**이 된다 (도구 결과에도 그대로 남으므로)
