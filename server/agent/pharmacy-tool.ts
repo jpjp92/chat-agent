@@ -5,8 +5,8 @@ import { buildCardToolOutput } from "./card-tool-output";
 
 // 국립중앙의료원 전국약국정보조회서비스
 // Endpoint: getParmacyListInfoInqire (시도/시군구 기반 목록 조회)
-// Note: node fetch hangs on apis.data.go.kr TLS → use https module
-const PHARM_KEY = process.env.PHARM_KEY || '';  // Encoding key
+// 참고: node fetch 가 apis.data.go.kr TLS 에서 멈춘다 → https 모듈 사용
+const PHARM_KEY = process.env.PHARM_KEY || '';  // 인코딩 키
 
 /** Node https 모듈로 GET 요청 */
 function httpsGet(url: string): Promise<string> {
@@ -42,14 +42,14 @@ const fmt = (t: string) => t && t.length === 4 ? `${t.slice(0, 2)}:${t.slice(2)}
 const range = (s: string, c: string) => s ? `${fmt(s)}~${fmt(c)}` : '휴무';
 
 export const pharmacyTool = tool(
-    async ({ sido, sigungu, keyword, current_time_kst }: { sido: string; sigungu?: string; keyword?: string; current_time_kst?: string }) => {
+    async ({ sido, sigungu, keyword }: { sido: string; sigungu?: string; keyword?: string; current_time_kst?: string }) => {
         try {
             // 현재 시간 계산
             const now = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
             const checkedAt = new Intl.DateTimeFormat('sv-SE', {
                 timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'medium', hour12: false,
             }).format(new Date()).replace(' ', 'T') + '+09:00';
-            const weekday = now.getDay(); // 0=sun,1=mon..6=sat
+            const weekday = now.getDay(); // 0=일,1=월..6=토
             const dayMap: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 0: 7 };
             const todayIdx = dayMap[weekday];
             const curTime = parseInt(now.toTimeString().slice(0, 5).replace(':', ''));
@@ -72,9 +72,9 @@ export const pharmacyTool = tool(
             const url = `https://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire?serviceKey=${PHARM_KEY}&${new URLSearchParams(baseQs)}`;
 
             const xmlResponse = await httpsGet(url);
-            // 🔴 `<totalCount>`가 없으면 정상 응답이 아니다 — 0건이 아니라 **조회 실패**다.
-            //    병원 도구와 같은 결함이었다(2026-08-24 실측: 공공데이터 백엔드가 느려지며
-            //    200 + 빈 본문을 돌려줬다). 일시적 장애를 "그런 약국이 없다"로 보고하면 안 된다.
+            // `<totalCount>`가 없으면 정상 응답이 아니다 — 0건이 아니라 **조회 실패**다.
+            // 공공데이터 백엔드가 느려지면 200 + 빈 본문을 돌려준다(병원 도구와 같은 경우).
+            // 일시적 장애를 "그런 약국이 없다"로 보고하지 않는다.
             if (!xmlResponse.includes('<totalCount>')) {
                 console.warn('[PharmacyTool] API error or empty body: len=', xmlResponse.length);
                 return buildCardToolOutput('pharmacy', {

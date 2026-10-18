@@ -156,7 +156,7 @@ const tools: LocalFunctionTool[] = [
         name: 'search_arxiv',
         description: 'arXiv 에서 물리·수학·전산·통계·공학·계량경제 논문을 검색해 제목·저자·연도·분류·arXiv ID·인용 URL 을 UI 카드 데이터로 반환한다.',
         parameters: strictObject({
-            // 🔴 문안을 여기에 다시 쓰지 않는다 — 두 벌이던 시절 LangChain 쪽만 고쳐져
+            // 문안을 여기에 다시 쓰지 않는다 — 두 벌이던 시절 LangChain 쪽만 고쳐져
             //   이 경로가 범용어를 덧붙인 채 남았다(arxiv-tool.ts 의 상수 주석 참고).
             query: { type: 'string', description: ARXIV_QUERY_DESCRIPTION },
             limit: nullable({ type: 'number', description: '반환할 논문 수. 기본 5, 최대 8' }),

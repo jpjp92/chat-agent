@@ -1,16 +1,16 @@
 import { lowestThinkingLevel } from '../../model-thinking';
 
 /**
- * Generation config resolvers — pure helpers extracted from generator.ts.
- * Token budget and thinking config selection, kept side-effect free so the
- * generator can compute `effectiveMaxTokens`/`effectiveModel` (search-gate
- * dependent) around these results.
+ * 생성 설정 결정 — generator.ts 에서 쓰는 순수 헬퍼.
+ * 토큰 상한과 thinking 설정을 고른다. 부수효과가 없어 generator 가
+ * 결과를 받아 `effectiveMaxTokens`/`effectiveModel`(검색 게이트 의존)을
+ * 계산할 수 있다.
  */
 
 /**
- * Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s.
- * Note: the search-grounding floor (min 8192 when Google Search is on) is applied by the
- * caller via `effectiveMaxTokens`, since it depends on the search gate.
+ * 인텐트별 출력 토큰 상한 — 짧게 답하는 경로는 상한을 낮춰 생성 시간을 줄인다.
+ * 검색 grounding 하한(Google Search 켜지면 최소 8192)은 검색 게이트에 달려 있어 호출부가
+ * `effectiveMaxTokens` 로 적용한다.
  */
 export const resolveMaxTokens = (ctx: {
     hasDocumentContent: boolean;
@@ -33,27 +33,23 @@ export const resolveMaxTokens = (ctx: {
 };
 
 /**
- * Thinking config — **모델별 실측표**로 분기한다(계열 판정 아님).
+ * Thinking config — **모델별 측정표**로 분기한다(계열 판정 아님).
  *
- * thinkingLevel 경로(3.x): 우리는 전 경로에서 **그 모델의 최저 레벨**을 쓴다.
- *   - YouTube native video: 사고를 끄는 쪽이 Vercel 60s 안에 들어온다
+ * thinkingLevel 경로(3.x): 전 경로에서 **그 모델의 최저 레벨**을 쓴다.
+ *   - YouTube native video: 사고를 끄는 쪽이 영상 분석 시간이 짧다(정상 ~30~48s)
  *   - Renderer intents(astronomy/data_viz/…): structured JSON. 3.5·3.6 의 "low" 는
- *     JSON 추론에 예산이 소진돼 **빈 응답**이 났다 → 2026-06-23 minimal 로 전환
- *   - general(비검색 코드·작문·추론) 포함 그 외 전부: 같은 값
- *     검증: 코드/수학/추론 5케이스 품질 저하 0 + 평균 25%(코드 58%) 단축
- *     (tests 이전 `scripts/test-low-vs-minimal-reasoning.ts`, doc §3-3 연장)
+ *     JSON 추론에 예산이 소진돼 빈 응답이 난다
+ *   - general(비검색 코드·작문·추론) 포함 그 외 전부: 같은 값(품질 저하 없이 지연 단축)
  *
- * 🔴 **"minimal" 을 리터럴로 박지 않는다.** 3.7 의 하한은 `low` 이고 `minimal` 은 **400 으로 거부**한다.
- *    `lowestThinkingLevel(model)` 이 모델마다 다른 하한을 준다.
- *    (3.7 low 는 렌더러 45/45 통과 — PLAN_MODEL_3_7_MIGRATION_260817 §3. "low 예산 소진"은
- *     3.5·3.6 의 low 에서 났던 문제이고 3.7 의 low 는 그 모델 하한이라 다르게 동작한다.)
+ * "minimal" 을 리터럴로 박지 않는다 — 모델마다 하한이 다르다(3.7 은 `low`, `minimal` 은 400 거부).
+ * `lowestThinkingLevel(model)` 이 모델별 하한을 준다(PLAN_MODEL_3_7_MIGRATION_260817 §3).
  *
- * thinkingBudget 경로(2.5): thinkingLevel 은 **문서와 달리 400 으로 거부**된다(실측).
+ * thinkingBudget 경로(2.5): thinkingLevel 은 400 으로 거부된다.
  *   - YouTube: budget 0 (thinkingBudget>0 이면 fileData 와 함께 503)
- *   - URL 요약: budget 0 (추출성 작업 — 기본 thinking ON 시 무료티어 100s+ 지연. 2026-06-26)
- *   - 이미지/영상 미디어 턴: budget 0 (멀티모달 지연 최소화. 2026-06-26)
- *   - medical_qa: budget 3000 (cap)
- *   - Others: undefined (model default)
+ *   - URL 요약: budget 0 (추출성 작업 — 기본 thinking ON 이면 무료티어에서 100s+ 지연)
+ *   - 이미지/영상 미디어 턴: budget 0 (멀티모달 지연 최소화)
+ *   - medical_qa: budget 3000 (상한)
+ *   - 나머지: undefined (모델 기본값)
  */
 export const resolveThinkingConfig = (ctx: {
     model: string;
@@ -75,9 +71,8 @@ export const resolveThinkingConfig = (ctx: {
 /**
  * 빈 응답 복구 — **한 칸 더 낮출 수 있는가**.
  *
- * 🔴 예전 코드는 `thinkingLevel !== 'minimal'` 로 판정하고 `'minimal'` 로 재시도했다.
- *    3.7 에서는 그 재시도 자체가 **400**(minimal 미지원)이라 **복구 경로가 복구 불능**이 된다.
- *    지금은 그 모델의 하한과 비교하고, 하한으로 재시도한다.
+ * 그 모델의 하한과 비교하고 하한으로 재시도한다. `'minimal'` 로 고정 재시도하면 minimal 을 받지 않는
+ * 모델(3.7)에서 재시도 자체가 400 이 된다.
  */
 export const thinkingRetryLevel = (model: string, current: unknown): string | undefined => {
     const lowest = lowestThinkingLevel(model);
@@ -88,11 +83,7 @@ export const thinkingRetryLevel = (model: string, current: unknown): string | un
 /**
  * 무거운 미디어(YouTube·업로드 영상·대용량 PDF) 턴이 **데드라인 타임아웃**으로 끝났을 때 다음 수.
  *
- * 🔴 예전엔 무조건 `'stop'` 이었고 근거는 "또 다른 시도는 60s 캡 초과"였다. 그 60s 는 이미
- *    없다 — route.ts 는 `maxDuration = 300` 이고 `HEAVY_MEDIA_CALL_TIMEOUT_MS` 주석도
- *    "90×2=180s < 300s 로 예산 안에 든다"고 적는다(DEV_260808 §9). 상수는 새 근거로 고쳤는데
- *    분기만 옛 근거로 남아, **재시도하면 건질 수 있는 실패**를 에러 문구로 버리고 있었다
- *    (2026-08-29 실측: 3.7 은 같은 영상에 90s 타임아웃 2회·성공 2회, 2.5 는 17.3s 성공).
+ * maxDuration 300s 안에 heavy 상한 90s × 2 가 들어가므로 강등 재시도로 건질 수 있다 → DEV_260808 §9
  *
  * 키 로테이션은 답이 아니다 — 타임아웃은 키 쿼터가 아니라 모델 측 혼잡이라 키만 바꾸면 90s 를
  * 또 태운다. 바꿀 가치가 있는 건 **모델**이고, 그래서 강등은 **1회뿐**이다(누적 폭주 방지).

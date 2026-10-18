@@ -50,14 +50,14 @@ const useScreenWidth = () => {
 
 // 세련된 색상 팔레트
 const CHART_COLORS = [
-    '#6366f1', // Primary (Indigo)
-    '#8b5cf6', // Violet
-    '#ec4899', // Pink
-    '#10b981', // Emerald
-    '#f59e0b', // Amber
-    '#3b82f6', // Blue
-    '#f43f5e', // Rose
-    '#06b6d4', // Cyan
+    '#6366f1', // 기본 (인디고)
+    '#8b5cf6', // 바이올렛
+    '#ec4899', // 핑크
+    '#10b981', // 에메랄드
+    '#f59e0b', // 앰버
+    '#3b82f6', // 블루
+    '#f43f5e', // 로즈
+    '#06b6d4', // 시안
 ];
 
 const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko' }) => {
@@ -75,7 +75,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         fr: { title: 'Visualisation des Données', download: 'Télécharger PNG' }
     };
     const t = i18n[language] || i18n.en;
-    const { type, title, data } = chartData;
+    const { type, title } = chartData;
 
     // --- 데이터 정규화 (Normalization) ---
     const { series, categories, isPie, isRadar, isTreemap, isHeatmap } = useMemo(() => {
@@ -105,7 +105,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         } else if (isTreemapType) {
             const rawSeries = chartData.data.series;
             if (rawSeries.length > 1) {
-                // Multiple series format: each series = one treemap cell (name=label, data[0]=value)
+                // 다중 시리즈 형식: 시리즈 하나 = 트리맵 셀 하나 (name=라벨, data[0]=값)
                 normSeries = [{
                     data: rawSeries.map((s: any) => ({
                         x: s.name || 'Unnamed',
@@ -113,7 +113,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     }))
                 }];
             } else {
-                // Single series: data is [{x,y}] objects or numbers paired with categories
+                // 단일 시리즈: data 는 [{x,y}] 객체 또는 categories 와 짝을 이루는 숫자
                 normSeries = [{
                     data: (rawSeries[0].data || []).map((d: any, i: number) => {
                         if (typeof d === 'object' && d !== null && 'x' in d) {
@@ -124,9 +124,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 }];
             }
         } else if (isHeatmapType) {
-            // ApexCharts heatmap wants one series per ROW, each point {x: column, y: value}.
-            // Accept both shapes we already accept elsewhere: {x,y} objects, or a plain number
-            // array paired positionally with `categories` (the columns).
+            // ApexCharts 히트맵은 **행마다** 시리즈 하나, 각 점은 {x: 열, y: 값} 을 원한다.
+            // 다른 차트에서 이미 받는 두 모양을 모두 받는다: {x,y} 객체, 또는 `categories`(열)와
+            // 위치로 짝지어지는 숫자 배열.
             const toCell = (v: any): number | null => {
                 if (v === null || v === undefined || v === '') return null;
                 const n = Number(v);
@@ -140,24 +140,23 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                         : { x: normCategories[i] || `${i + 1}`, y: toCell(d) }
                 )),
             }));
-            // Apex stacks the first series at the BOTTOM. Reverse so the matrix reads top-down
-            // in the same order the model wrote it.
+            // Apex 는 첫 시리즈를 **맨 아래**에 쌓는다. 뒤집어서 모델이 쓴 순서대로 위에서 아래로
+            // 읽히게 한다.
             normSeries = [...rows].reverse();
-            // Columns drive the horizontal-scroll width below; derive them when not supplied.
+            // 열 수가 아래 가로 스크롤 폭을 정한다 — 주어지지 않으면 데이터에서 구한다.
             if (normCategories.length === 0) {
                 normCategories = [...new Set(rows.flatMap(r => r.data.map((c: any) => c.x)))] as string[];
             }
         } else {
-            // Bar/Line/Scatter/Radar/Area
+            // 막대/선/산점도/레이더/영역
             let rawSeries = chartData.data.series;
-            // Radar chart guard: cap at 3 series to prevent unreadable overlapping
+            // 레이더 가드: 겹쳐서 못 읽게 되지 않도록 시리즈 3개로 제한
             if (isRadarType && rawSeries.length > 3) {
                 rawSeries = rawSeries.slice(0, 3);
             }
-            // 결측(null/undefined/빈값/NaN)은 **0으로 바꾸지 않고 null 로 남긴다**.
-            // 예전엔 `Number(d) || 0` 이라 결측이 전부 0이 됐고, "GDP 성장률 0%" 같은 **없는 데이터가
-            // 그려졌다**(실측: 값 3개 + null 20개 → 0에 붙은 평평한 직선). ApexCharts 는 null 을 선 끊김
-            // (gap)으로 렌더하므로 "모르는 구간"이 그대로 보인다. 진짜 0 은 그대로 0 으로 남는다.
+            // 결측(null/undefined/빈값/NaN)은 0으로 바꾸지 않고 null 로 남긴다 — 0 으로 바꾸면 없는 데이터가
+            // "0%" 직선으로 그려진다. ApexCharts 는 null 을 선 끊김(gap)으로 렌더하므로 모르는 구간이 그대로
+            // 보인다. 진짜 0 은 그대로 0 이다.
             const toY = (v: any): number | null => {
                 if (v === null || v === undefined || v === '') return null;
                 const n = Number(v);
@@ -190,8 +189,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
 
         // 반응형 값 계산
         const baseHeight     = isMobile ? 200 : isTablet ? 250 : 300;
-        // Heatmap rows are fixed-height cells: with many rows the default canvas squashes them
-        // until the labels collide, so grow the canvas with the row count instead.
+        // 히트맵 행은 고정 높이 셀이다 — 행이 많으면 기본 캔버스가 라벨이 겹칠 때까지 셀을 눌러
+        // 버리므로, 행 수에 맞춰 캔버스를 키운다.
         const chartHeight    = isHeatmap
             ? Math.max(baseHeight, series.length * (isMobile ? 32 : 44) + 80)
             : baseHeight;
@@ -201,14 +200,14 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         const legendFontSize = isMobile ? '10px': '12px';
         const legendAlign    = (isMobile || series.length > 3) ? 'left' : 'center';
         const donutValueSize = isMobile ? '14px': isTablet ? '17px': '20px';
-        // Radar labels sit at polygon vertices and extend beyond the canvas edge.
-        // Large horizontal padding reserves space so labels are not clipped by overflow.
+        // 레이더 라벨은 다각형 꼭짓점에 놓여 캔버스 밖으로 나간다.
+        // 가로 패딩을 넉넉히 잡아 라벨이 잘리지 않게 한다.
         const gridPadding    = isRadar
             ? { top: 10, right: isMobile ? 50 : 80, bottom: 20, left: isMobile ? 50 : 80 }
             : isMobile
             ? { top: 0, right: 8, bottom: 0, left: 0 }
             : { top: 0, right: 20, bottom: 0, left: 10 };
-        // Radar polygon radius: smaller than before to keep labels inside grid padding bounds
+        // 레이더 다각형 반지름: 라벨이 그리드 패딩 안에 들어오도록 작게
         const radarSize      = isMobile ? 60 : isTablet ? 80 : 100;
 
         const options: any = {
@@ -229,36 +228,36 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 mode: isDark ? 'dark' : 'light',
                 palette: 'palette1'
             },
-            // A matrix needs ONE continuous scale, not a different hue per row — otherwise the
-            // colour encodes which row a cell is in rather than how large its value is.
+            // 행렬은 **연속 척도 하나**가 필요하다(행마다 다른 색이 아니라) — 그렇지 않으면 색이
+            // 값의 크기가 아니라 셀이 몇 번째 행인지를 나타낸다.
             colors: isHeatmap ? [CHART_COLORS[0]] : CHART_COLORS,
             series: series,
             xaxis: {
-                // Heatmap columns come from each point's `x`, so pass the EMPTY array rather than
-                // the labels. Never pass undefined here: ApexCharts reads `.categories.length`
-                // in several places without a guard, so an undefined kills the whole render and
-                // leaves an empty chart card behind.
+                // 히트맵 열은 각 점의 `x` 에서 오므로 라벨 대신 **빈 배열**을 넘긴다. 여기서 undefined 는
+                // 절대 넘기지 않는다: ApexCharts 가 여러 곳에서 가드 없이 `.categories.length` 를 읽어
+                // undefined 면 렌더 전체가 죽고 빈 차트 카드만
+                // 남는다.
                 categories: isHeatmap ? [] : categories,
                 labels: {
                     style: {
                         colors: isDark ? '#94a3b8' : '#64748b',
-                        // Radar labels sit at axis vertices — smaller font prevents overlap
+                        // 레이더 라벨은 축 꼭짓점에 놓인다 — 글꼴을 줄여 겹침 방지
                         fontSize: isRadar ? (isMobile ? '8px' : '10px') : xFontSize,
                     },
-                    // Radar labels must not rotate (they're positioned around the polygon)
+                    // 레이더 라벨은 회전하면 안 된다(다각형 둘레에 배치됨)
                     rotate: isRadar ? 0 : xRotate,
                     hideOverlappingLabels: true,
                 },
                 axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' }
             },
             yaxis: {
-                // Radar yaxis labels (concentric ring values) clutter the center — hide them
+                // 레이더 y축 라벨(동심원 값)은 가운데를 어지럽힌다 — 숨김
                 show: !isRadar,
                 labels: {
                     style: { colors: isDark ? '#94a3b8' : '#64748b', fontSize: yFontSize },
-                    // Heatmap y labels are ROW NAMES, not magnitudes — the 'k' shortening
-                    // would corrupt any row whose name happens to be numeric. Return the label
-                    // untouched instead of passing undefined (see the xaxis note above).
+                    // 히트맵 y 라벨은 크기가 아니라 **행 이름**이다 — 'k' 단축을 적용하면 이름이 숫자인
+                    // 행이 깨진다. undefined 를 넘기지 말고 라벨을 그대로
+                    // 돌려준다(위 xaxis 메모 참고).
                     formatter: (value: any) => {
                         if (isHeatmap) return value;
                         if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
@@ -297,8 +296,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 }
                 : { enabled: false },
             legend: {
-                // A single-hue heatmap legend would list row names next to identical swatches,
-                // which says nothing — the y-axis already names the rows.
+                // 단색 히트맵 범례는 같은 색 견본 옆에 행 이름만 늘어놓아
+                // 아무 정보가 없다 — 행 이름은 이미 y축에 있다.
                 show: !isHeatmap,
                 position: 'bottom',
                 horizontalAlign: legendAlign,
@@ -327,8 +326,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 },
                 heatmap: {
                     radius: 4,
-                    // Shade one hue by magnitude so the colour means "how much", and let Apex
-                    // derive the range from the data — the domain is unknown ahead of time.
+                    // 한 색을 값 크기로 음영 처리해 색이 "얼마나"를 뜻하게 하고, 범위는 Apex 가
+                    // 데이터에서 구하게 둔다 — 값의 범위를 미리 알 수 없다.
                     enableShades: true,
                     shadeIntensity: 0.6,
                     useFillColorAsStroke: false,
@@ -386,11 +385,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
-                {/* Header */}
-                {/* 좌우 여백은 카드 모서리(rounded-[2rem] = 32px) 곡선 안쪽으로 둔다.
-                    예전엔 아래 차트 영역 패딩(p-2 sm:p-4)에 맞춰 8~16px 였는데, 반지름 32px 카드에선
-                    점·다운로드 아이콘이 곡선 구간에 걸려 가장자리에 붙어 보였다(모바일 실측 10-11).
-                    다른 카드 헤더(Chemical px-4 sm:px-6 · Diagram px-5)와 같은 범위로 맞춘다. */}
+                {/* 헤더 */}
+                {/* 좌우 여백은 카드 모서리(rounded-[2rem] = 32px) 곡선 안쪽으로 둔다 — 그보다 좁으면 점·다운로드
+                    아이콘이 곡선 구간에 걸려 가장자리에 붙어 보인다. 다른 카드 헤더(Chemical px-4 sm:px-6 · Diagram px-5)와 같은 범위. */}
                 <div className="px-5 sm:px-6 py-2.5 border-b border-slate-50 dark:border-white/5 flex items-center justify-between gap-3 bg-slate-50/30 dark:bg-white/[0.04]">
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>
@@ -409,7 +406,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     </button>
                 </div>
 
-                {/* Chart Area */}
+                {/* 차트 영역 */}
                 <div className="p-2 sm:p-4 flex-1 relative min-h-[220px] sm:min-h-[270px] lg:min-h-[320px]">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 

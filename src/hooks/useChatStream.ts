@@ -129,8 +129,8 @@ interface UseChatStreamOptions {
 
 
 // 카드가 "아직 화면에 있다"고 볼 창 — 대화 10턴(=메시지 20개).
-// 12(6턴)로 잡았다가 실측에서 짧았다: 카드 뒤 잡담 몇 턴이면 창을 벗어나 후속 판정이 꺼졌다.
-// 스크롤하면 카드는 여전히 화면에 있고 사용자는 "아까 그거 다시"라고 말한다 — 그 체감에 맞춘다.
+// 더 짧으면 카드 뒤 잡담 몇 턴에 창을 벗어나 후속 판정이 꺼진다. 스크롤하면 카드는 여전히 화면에 있고
+// 사용자는 "아까 그거 다시"라고 말한다 — 그 체감에 맞춘다.
 const CARD_WINDOW = 20;
 const hasRecentCard = (messages: { role: Role; content?: string }[], fence: string): boolean =>
   messages.slice(-CARD_WINDOW).some(m => m.role === Role.MODEL && !!m.content?.includes(fence));
@@ -310,8 +310,8 @@ export const useChatStream = ({
       return message;
     });
 
-    // 🔴 업로드 URL 치환을 세션 상태에도 반영한다. 안 하면 세션엔 원본 base64 가 남아 다음 턴 히스토리로
-    //    재전송된다 — 3.9MB PDF 가 base64 5.2MB × (attachment + attachments) = 10.4MB 로 선차단(DEV_261013).
+    // 업로드 URL 치환을 세션 상태에도 반영한다. 안 하면 세션엔 원본 base64 가 남아 다음 턴 히스토리로
+    // 재전송된다(큰 PDF 는 base64 × (attachment + attachments) 로 본문 한도를 넘김) → DEV_261013
     if (attachments.length > 0) {
       setSessions(prev => prev.map(session => session.id !== activeSessionId ? session : {
         ...session,
@@ -364,8 +364,8 @@ export const useChatStream = ({
       .filter(cleanUrl => { try { new URL(cleanUrl); return true; } catch { return false; } })
       .map(cleanUrl => {
       const isYt = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
-      // Normalize YouTube URL to canonical form — backend sources use youtube.com/watch?v=ID,
-      // so dedup (Map keyed by uri) works correctly regardless of original URL format (youtu.be, shorts, etc.)
+      // YouTube URL 을 표준형으로 — 백엔드 출처는 youtube.com/watch?v=ID 를 쓰므로
+      // 원래 형식(youtu.be, shorts 등)과 무관하게 uri 키 Map 중복 제거가 맞게 동작한다
       let normalizedUrl = cleanUrl;
       if (isYt) {
         const ytIdMatch = cleanUrl.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
@@ -393,7 +393,6 @@ export const useChatStream = ({
       let isArxiv = false;
       let isPdf = false;
       let isYoutube = false;
-      let urlFetchError = false;
       let isValidUrl = false;
 
       try {
@@ -458,7 +457,6 @@ export const useChatStream = ({
           } else {
             const isSecurityBlock = content?.includes('보안 인증이 필요한');
             console.warn('[useChatStream] URL fetch failed —', isSecurityBlock ? 'security block' : 'empty/error');
-            urlFetchError = true;
             if (isSecurityBlock) {
               webContext += `\n\n[URL_SECURITY_BLOCKED: ${url}]\n이 URL은 보안 인증(CAPTCHA/Cloudflare 차단), 접속 제한 또는 사이트 정책으로 인해 서버에서 직접 접근할 수 없습니다. 사용자에게 이 사실을 간단히 알리세요. 다른 검색 결과로 대체하지 마세요.`;
             } else {
@@ -469,7 +467,6 @@ export const useChatStream = ({
         } catch (urlError: any) {
           console.error('[useChatStream] URL fetch error:', urlError);
           setLoadingStatus(null);
-          urlFetchError = true;
           webContext += `\n\n[URL_FETCH_FAILED: ${url}]\nExact URL content could not be retrieved. Do not summarize other search results or similarly titled pages as a substitute for this URL.`;
         }
       }
@@ -478,8 +475,8 @@ export const useChatStream = ({
       // 검색 fallback은 비슷한 다른 문서를 요약할 수 있어 명시 URL 요약에서는 사용하지 않는다.
     }
 
-    // 🔴 링크 PDF 는 위 업로드 반영(setSessions)보다 늦게 붙어 세션 메시지에 안 남았다 → 다음 턴 history 에
-    //    PDF 가 없고 텍스트 근거도 없어, 후속 질문을 웹 검색 기사로 답했다(KDI 링크 B2·B3, DEV_261014).
+    // 링크 PDF 는 위 업로드 반영(setSessions)보다 늦게 붙으므로 여기서 세션 메시지에 기록한다 — 안 남기면
+    // 다음 턴 history 에 PDF 도 텍스트 근거도 없어 후속 질문을 웹 검색으로 답한다 → DEV_261014
     if (urlPdf) {
       const pdf = urlPdf;
       setSessions(prev => prev.map(session => session.id !== activeSessionId ? session : {
@@ -505,8 +502,6 @@ export const useChatStream = ({
       : setTimeout(() => { if (!modelResponse) setLoadingStatus(status.preparing); }, SLOW_TURN_MS);
     const cancelSlowTimer = () => { if (slowTimer) { clearTimeout(slowTimer); slowTimer = undefined; } };
 
-    let hasError = false;
-
     const attemptStream = async (attempt: number) => {
       // 재시도 시 이전 부분 응답 초기화
       if (attempt > 0) {
@@ -530,8 +525,7 @@ export const useChatStream = ({
         activeSession?.messages || [],
         (chunk, isReset) => {
           if (isReset) modelResponse = '';
-          // 첫 조각이 오면 대기 표시(Thinking Orb + 상태 문구)를 내린다. 예전엔 이미지·첨부 분석 문구가
-          // 스트림 끝까지 남아 답변 아래에서 대기 표시가 계속 돌았다.
+          // 첫 조각이 오면 대기 표시(Thinking Orb + 상태 문구)를 내린다 — 남겨 두면 답변 아래에서 대기 표시가 계속 돈다.
           if (!modelResponse && chunk) { cancelSlowTimer(); setLoadingStatus(null); }
           modelResponse += chunk;
 
@@ -561,7 +555,7 @@ export const useChatStream = ({
         webContext,
         'text',
         (sources) => {
-          // Store sources to apply after streaming completes — avoids chips appearing mid-stream
+          // 출처는 스트리밍이 끝난 뒤 적용 — 칩이 중간에 나타나지 않게
           pendingSources = sources || [];
         },
         activeSessionId ?? undefined,
@@ -594,7 +588,7 @@ export const useChatStream = ({
             .filter(([, value]) => Boolean(value)));
           return {
             weather: hasRecentCard(messages, '```json:weather'),
-            // 🔴 논문 카드도 넣는다. 서버 창(10개)을 벗어나도 후속 질문("두번째 논문 설명해줘")이
+            // 논문 카드도 넣는다. 서버 창(10개)을 벗어나도 후속 질문("두번째 논문 설명해줘")이
             //   재조회로 떨어지지 않게 — 밀려난 건 서버의 창이지 사용자의 화면이 아니다.
             paper: hasRecentCard(messages, '```json:paper'),
             pharmacy: Boolean(contexts.pharmacy), hospital: Boolean(contexts.hospital),
@@ -685,7 +679,6 @@ export const useChatStream = ({
         }
       }
     } catch (error: any) {
-      hasError = true;
       // 한도 초과는 실패가 아니라 전환 지점이다. 에러 문구 대신 로그인 유도를 띄운다.
       if (error instanceof GuestLimitError) onGuestLimit?.();
       else if (error instanceof UserFacingChatError) onError(error.message);
@@ -694,7 +687,7 @@ export const useChatStream = ({
         onError(status.chatFailed);
       }
     } finally {
-      // Apply any pending sources after streaming completes — chips appear only after full response
+      // 스트리밍이 끝난 뒤 대기 중인 출처 적용 — 칩은 응답이 끝난 뒤에만
       if (pendingSources.length > 0) {
         setSessions(prev => prev.map(session => {
           if (session.id !== activeSessionId) return session;

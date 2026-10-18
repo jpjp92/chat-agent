@@ -34,7 +34,7 @@ const faviconDomain = (source: { uri: string; title?: string }): string => {
 
 
 
-// Lazy load visualization components for better performance
+// 시각화 컴포넌트는 지연 로드
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
 const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
 const BioRenderer = lazy(() => import('./BioRenderer'));
@@ -65,7 +65,7 @@ const copyTextToClipboard = async (text: string, setCopiedState: (v: boolean) =>
       console.error('Clipboard API failed', err);
     }
   }
-  // Fallback for non-secure environments
+  // 보안 컨텍스트가 아닌 환경용 폴백
   try {
     const textArea = document.createElement("textarea");
     textArea.value = text;
@@ -87,11 +87,8 @@ const copyTextToClipboard = async (text: string, setCopiedState: (v: boolean) =>
 /**
  * 코드블록 렌더러 — react-markdown 의 `pre` 슬롯.
  *
- * 🔴 원래 `ChatMessage` 안의 `MarkdownComponents` 객체에 인라인으로 있었다. 그 객체는 **매 렌더마다
- * 새로 만들어지므로** 함수 정체성이 계속 바뀌고, react-markdown 이 서브트리를 언마운트·재마운트해
- * `copied` 상태가 즉시 초기화됐다 — 스트리밍 중에는 리렌더가 잦아 **Copy 를 눌러도 "Copied" 가
- * 바로 사라진다.** `react-hooks/rules-of-hooks` 가 잡아낸 자리다(lint 복구, 2026-08-17).
- * 모듈 레벨로 올려 정체성을 고정한다.
+ * 모듈 레벨에 둔다: 렌더마다 새로 만드는 객체 안에 있으면 함수 정체성이 바뀌어 react-markdown 이
+ * 서브트리를 다시 마운트하고 `copied` 상태가 초기화된다(스트리밍 중 Copy 가 바로 풀림) → DEV_260817
  */
 const CodeBlock: React.FC<any> = ({ children }) => {
   // children.props.className에서 언어 추출 (예: language-python)
@@ -108,7 +105,7 @@ const CodeBlock: React.FC<any> = ({ children }) => {
 
   return (
     <div className="group relative my-8 rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/5 shadow-lg bg-[#0d1117]">
-      {/* Code Header */}
+      {/* 코드 헤더 */}
       <div className="flex items-center justify-between px-4 py-2 bg-[#161b22]/50 border-b border-white/5 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <i className="fa-solid fa-code text-[10px] text-slate-500"></i>
@@ -123,7 +120,7 @@ const CodeBlock: React.FC<any> = ({ children }) => {
         </button>
       </div>
 
-      {/* Code Body */}
+      {/* 코드 본문 */}
       <div className="text-[13px] sm:text-[14px] font-mono leading-relaxed selection:bg-blue-500/30">
         <SyntaxHighlighter
           language={language}
@@ -212,7 +209,7 @@ const TTS_ERROR_MESSAGES: Record<TtsErrorKind, Record<Language, string>> = {
   },
 };
 
-const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, language = 'ko', onEdit, isStreaming = false }) => {
+const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko', onEdit, isStreaming = false }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -238,9 +235,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const t = i18n[language] || i18n.ko;
 
-  const attachment = message.attachment;
-
-  // 언마운트 때만 멈춘다. 🔴 의존성에 isPlaying 을 두면 true→false 전환의 cleanup 이
+  // 언마운트 때만 멈춘다. 의존성에 isPlaying 을 두면 true→false 전환의 cleanup 이
   // 전역 stopAudio() 를 불러, 이 메시지를 끊고 시작한 **다른 메시지의 재생**까지 죽인다.
   const isVoiceActiveRef = useRef(false);
   isVoiceActiveRef.current = isPlaying || isGenerating;
@@ -308,22 +303,22 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const handleLongPress = (e: React.MouseEvent | React.TouchEvent, x: number, y: number) => {
-    // Prevent default context menu
+    // 기본 컨텍스트 메뉴 막기
     if (e.type === 'contextmenu') e.preventDefault();
 
     setContextMenu({ x, y, visible: true });
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
-    if (!isUser) return; // Restrict long-press to user prompts only
+    if (!isUser) return; // 길게 누르기는 사용자 프롬프트에만
     
-    // Clear existing timer to prevent leaks/accidental triggers
+    // 기존 타이머 정리 — 누수·오작동 방지
     if (longPressTimer) clearTimeout(longPressTimer);
     
     const touch = e.touches[0];
     const timer = setTimeout(() => {
       handleLongPress(e, touch.clientX, touch.clientY);
-    }, 500); // 500ms for long press
+    }, 500); // 500ms 길게 누르기
     setLongPressTimer(timer);
   };
 
@@ -342,7 +337,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const onContextMenu = (e: React.MouseEvent) => {
-    if (!isUser) return; // Restrict custom menu to user prompts
+    if (!isUser) return; // 커스텀 메뉴는 사용자 프롬프트에만
     e.preventDefault();
     handleLongPress(e, e.clientX, e.clientY);
   };
@@ -375,9 +370,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     p: ({ ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-[15px] sm:text-[16px]" style={{ overflowWrap: 'anywhere' }} {...props} />,
     ul: ({ ...props }) => <ul className="list-disc ml-5 mb-4 space-y-2" {...props} />,
     ol: ({ ...props }) => <ol className="list-decimal ml-5 mb-4 space-y-2" {...props} />,
-    // `break-all` 을 뺐다(2026-09-23). 그건 **줄이 넘치지 않아도** 아무 글자에서나 끊어서
-    // "가독성이…" 같은 단어가 한 글자씩 갈라졌다. 긴 URL·해시처럼 진짜 끊어야 하는 경우는
-    // 옆의 `overflowWrap: 'anywhere'` 가 이미 처리한다 — 넘칠 때만 끊는다는 점이 다르다.
+    // `break-all` 은 쓰지 않는다 — 넘치지 않아도 아무 글자에서나 끊어 단어가 한 글자씩 갈라진다.
+    // 긴 URL·해시처럼 진짜 끊어야 하는 경우는 옆의 `overflowWrap: 'anywhere'` 가 넘칠 때만 끊는다.
     li: ({ ...props }) => <li className="pl-1 text-slate-700 dark:text-slate-300" style={{ overflowWrap: 'anywhere' }} {...props} />,
     strong: ({ ...props }) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
     em: ({ ...props }) => <em className="italic text-slate-700 dark:text-slate-300" {...props} />,
@@ -422,19 +416,18 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     pre: CodeBlock,
     table: ({ children }: any) => (
       <div className="my-4 sm:my-8 rounded-2xl border border-slate-200/50 dark:border-white/5 shadow-sm table-scrollbar" style={{ maxHeight: '400px', overflowX: 'auto', overflowY: 'auto' }}>
-        {/* 🔴 keep-all(10-11): 한국어는 word-break:normal 에서 **음절마다** 줄을 바꿀 수 있어, 표가 열을
-            최소 폭으로 접으면서 "맨체스 / 터 시 / 티" 처럼 단어 중간이 끊겼다(순위표 실측). keep-all 은 공백에서만
-            끊는다 — 단어 하나가 칸보다 길면 열이 그만큼 넓어지고, 넘치면 바깥 div 가 가로 스크롤한다. */}
+        {/* keep-all: 한국어는 word-break:normal 에서 음절마다 줄을 바꿀 수 있어, 표가 열을 최소 폭으로
+            접으면 단어 중간이 끊긴다. keep-all 은 공백에서만 끊는다 — 단어 하나가 칸보다 길면 열이 그만큼
+            넓어지고, 넘치면 바깥 div 가 가로 스크롤한다. */}
         <table className="min-w-full text-left border-collapse" style={{ wordBreak: 'keep-all', overflowWrap: 'normal' }}>{children}</table>
       </div>
     ),
     thead: ({ children }: any) => <thead className="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-200/50 dark:border-white/5">{children}</thead>,
     th: ({ children }: any) => <th className="px-3 py-2 sm:px-4 sm:py-3.5 font-black text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-white/5 last:border-r-0 text-[10px] sm:text-[11px] uppercase tracking-widest bg-slate-50/50 dark:bg-white/[0.02] whitespace-nowrap">{children}</th>,
-    // 🔴 `td` 의 `whitespace-nowrap` 을 풀었다(2026-09-23). 셀이 절대 줄바꿈하지 않아
-    // **긴 셀 하나가 표 전체를 가로 스크롤**로 만들었다 — 모바일에서 나머지 열이 화면 밖으로
-    // 밀려난다. 프롬프트의 "셀 ≤12단어" 규칙이 이 제약을 떠받치고 있었지만, 모델이 한 번
-    // 어기면 그대로 깨지는 구조였다. `th` 는 nowrap 유지 — 헤더는 원래 짧고(같은 프롬프트 규칙),
-    // 헤더가 접히면 열 폭 기준이 흔들린다. 숫자 정렬은 `tabular-nums` 가 그대로 잡는다.
+    // `td` 는 줄바꿈을 허용한다 — nowrap 이면 긴 셀 하나가 표 전체를 가로 스크롤로 만들어
+    // 모바일에서 나머지 열이 화면 밖으로 밀린다(프롬프트의 "셀 ≤12단어" 규칙만으로는 못 막는다).
+    // `th` 는 nowrap 유지 — 헤더는 짧고, 헤더가 접히면 열 폭 기준이 흔들린다.
+    // 숫자 정렬은 `tabular-nums` 가 잡는다.
     td: ({ children }: any) => <td className="px-3 py-2 sm:px-4 sm:py-3.5 text-slate-600 dark:text-slate-300 border-b border-slate-50 dark:border-white/5 border-r border-slate-50 dark:border-white/5 last:border-r-0 group-last:border-b-0 text-[12px] sm:text-[14px] leading-snug sm:leading-relaxed align-middle tabular-nums">{children}</td>,
     tr: ({ children }: any) => <tr className="group border-b border-slate-50 dark:border-white/5 last:border-b-0 hover:bg-slate-50/30 dark:hover:bg-white/[0.01] transition-colors">{children}</tr>,
   };
@@ -528,7 +521,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
   const renderAttachments = () => {
     if (message.attachments && message.attachments.length > 0) {
-      // Multiple attachments
+      // 첨부 여러 개
       const images = message.attachments.filter(a => a.mimeType.startsWith('image/'));
       const others = message.attachments.filter(a => !a.mimeType.startsWith('image/'));
 
@@ -558,7 +551,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
   };
 
   const renderContent = (content: string) => {
-    // Split by Viz Blocks
+    // 시각화 블록 기준으로 나누기
     const parts: { type: 'text' | 'chart' | 'chemical' | 'bio' | 'constellation' | 'diagram' | 'drug' | 'pharmacy' | 'hospital' | 'vet' | 'law' | 'movie' | 'paper' | 'weather' | 'chart_loading'; content?: string; data?: any }[] = [];
     const blockRegex = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|paper|weather)\s*\n([\s\S]*?)\n```/gi;
     let lastIndex = 0;
@@ -567,18 +560,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     while ((match = blockRegex.exec(content)) !== null) {
       const blockType = match[1].toLowerCase();
 
-      // Add text before the block
+      // 블록 앞 텍스트 추가
       if (match.index > lastIndex) {
         let textPart = content.substring(lastIndex, match.index);
-        // Convert <br> tags to bullet separator — rehypeRaw not installed so <br> renders as text in table cells
+        // <br> 태그를 구분 기호로 — rehypeRaw 가 없어 표 셀 안의 <br> 이 글자로 보인다
         textPart = splitInlineDisplayMath(textPart.replace(/<br\s*\/?>/gi, ' · '));
-        // Process for numeric ranges (1~10 -> 1&#126;10)
+        // 숫자 범위 처리 (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
-        // (제거됨) 한글 조사 앞 `**` 보정용 정규식 2줄 — remarkCjkFriendly 가 파서 단에서 처리한다.
-        // 이 정규식은 **앞 강조의 닫는 `**` 와 뒤 강조의 여는 `**` 를 한 쌍으로 오인**해,
-        // `**다음 주(월~수):** 낮 최고기온이 **37℃**` 에서 `:` 를 시작 문자로 잡고 뒤쪽 여는 `**`
-        // 뒤에 공백을 넣었다 → `** 37℃**` 가 되어 강조가 아예 열리지 않았다(DEV_260801 §3-4-1).
-        // Close unclosed bold markers during streaming
+        // 한글 조사 앞 `**` 보정은 remarkCjkFriendly 가 파서 단에서 한다 — 정규식으로 하면 앞 강조의 닫는
+        // `**` 와 뒤 강조의 여는 `**` 를 한 쌍으로 오인해 강조가 깨진다 → DEV_260801 §3-4-1
+        // 스트리밍 중 닫히지 않은 굵게 표시 닫기
         if ((textPart.match(/\*\*/g) || []).length % 2 !== 0) {
           textPart += '**';
         }
@@ -588,15 +579,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         });
       }
 
-      // Add viz block
+      // 시각화 블록 추가
       try {
-        // Repair common AI JSON mistakes before parsing:
-        // 1. sparse arrays [, , ,] → remove empty slots
-        // 2. trailing commas before ] or }
+        // 파싱 전에 흔한 AI JSON 실수 보정:
+        // 1. 빈 칸 배열 [, , ,] → 빈 자리 제거
+        // 2. ] 나 } 앞 끝 쉼표
         const repaired = match[2]
-          .replace(/,\s*(?=[,\]\}])/g, '')   // trailing / consecutive commas
-          .replace(/\[\s*,/g, '[')            // leading comma in array
-          .replace(/,\s*\]/g, ']');           // trailing comma before ]
+          .replace(/,\s*(?=[,\]\}])/g, '')   // 끝·연속 쉼표
+          .replace(/\[\s*,/g, '[')            // 배열 첫 쉼표
+          .replace(/,\s*\]/g, ']');           // ] 앞 끝 쉼표
         const jsonData = JSON.parse(repaired);
         if (blockType === 'chart' || blockType === 'treemap') {
           parts.push({ type: 'chart', data: jsonData });
@@ -626,18 +617,18 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'weather', data: jsonData });
         }
       } catch (e) {
-        // Silently skip invalid viz blocks — don't dump raw JSON into the chat
+        // 잘못된 시각화 블록은 조용히 건너뛴다 — 원문 JSON 을 채팅에 쏟지 않는다
       }
 
       lastIndex = blockRegex.lastIndex;
     }
 
-    // Add remaining text
+    // 남은 텍스트 추가
     if (lastIndex < content.length) {
-      // Hide trailing in-progress table while streaming so it appears whole (PLAN §11-1)
+      // 스트리밍 중 작성 중인 마지막 표는 숨겨 한 번에 나타나게 한다 (PLAN §11-1)
       const remainingText = gateStreamingTables(content.substring(lastIndex), isStreaming);
 
-      // Check for incomplete viz block or unclosed math block (streaming)
+      // 미완성 시각화 블록·닫히지 않은 수식 블록 확인 (스트리밍)
       const hasIncompleteViz = /```json\s*:\s*(chart|treemap|smiles|bio|constellation|diagram|drug|pharmacy|hospital|vet|law|movie|weather)/i.test(remainingText);
       const hasUnclosedMath = (remainingText.match(/\$\$/g) || []).length % 2 !== 0;
 
@@ -650,16 +641,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         }
 
         if (visibleText.trim()) {
-          // Process for numeric ranges (1~10 -> 1&#126;10)
+          // 숫자 범위 처리 (1~10 -> 1&#126;10)
           let processedVisible = splitInlineDisplayMath(visibleText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
           // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
-          // Safely close dangling code blocks during streaming
+          // 스트리밍 중 닫히지 않은 코드 블록 닫기
           const backticks = processedVisible.match(/```/g);
           if (backticks && backticks.length % 2 !== 0) {
             processedVisible += '\n```';
           }
-          // Close unclosed bold markers during streaming
+          // 스트리밍 중 닫히지 않은 굵게 표시 닫기
           if ((processedVisible.match(/\*\*/g) || []).length % 2 !== 0) {
             processedVisible += '**';
           }
@@ -674,16 +665,16 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           parts.push({ type: 'chart_loading' } as any);
         }
       } else {
-        // Process for numeric ranges (1~10 -> 1&#126;10)
+        // 숫자 범위 처리 (1~10 -> 1&#126;10)
         let processedRemaining = splitInlineDisplayMath(remainingText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
         // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
-        // Safely close dangling code blocks during streaming
+        // 스트리밍 중 닫히지 않은 코드 블록 닫기
         const backticks = processedRemaining.match(/```/g);
         if (backticks && backticks.length % 2 !== 0) {
           processedRemaining += '\n```';
         }
-        // Close unclosed bold markers during streaming
+        // 스트리밍 중 닫히지 않은 굵게 표시 닫기
         if ((processedRemaining.match(/\*\*/g) || []).length % 2 !== 0) {
           processedRemaining += '**';
         }
@@ -698,7 +689,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     return (
       <>
         {parts.map((part, idx) => {
-          // Loading fallback for lazy components
+          // 지연 로드 컴포넌트용 로딩 폴백
           const LoadingFallback = () => (
             <div className="w-full my-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-white/5 animate-pulse">
               <div className="h-[280px] flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -851,11 +842,10 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
     );
   };
 
-  // Force a fixed-width container for pharmacy cards so width never varies with content length
-  // law 포함(10-10): 목록 카드(메타데이터만)는 좁고 본문 카드(긴 조문)는 넓어 같은 법률 카드 폭이 들쭉날쭉했다.
+  // 약국·법률 카드는 고정 폭 컨테이너 — 내용 길이(목록 vs 긴 조문)에 따라 폭이 바뀌지 않게
   const hasPharmacyBlock = !isUser && !!message.content?.match(/```json\s*:\s*(pharmacy|hospital|vet|law)/i);
   const hasChartBlock = !isUser && !!message.content?.match(/```json\s*:\s*chart/i);
-  // Movie cards: widen on desktop only (chips 2-col need the width); mobile keeps the default 95%
+  // 영화 카드: 데스크톱에서만 넓힌다(칩 2열에 폭 필요). 모바일은 기본 95%
   const hasMovieBlock = !isUser && !!message.content?.match(/```json\s*:\s*movie/i);
   // Weather cards: 카드 자체가 sm:max-w-[480px]로 상한을 갖는다. 말풍선이 좁으면 그 상한이
   // 발현 못 해 오히려 작아 보이므로, 데스크톱에서 말풍선을 넉넉히 열어 카드 상한이 폭을 결정하게 함.
@@ -882,7 +872,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
 
           {renderAttachments()}
 
-          {/* YouTube Embed Logic */}
+          {/* YouTube 임베드 */}
           {!isUser && message.groundingSources && message.groundingSources.length > 0 && (
             (() => {
               const youtubeSource = message.groundingSources.find(s => 
@@ -942,7 +932,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
           </div>
 
           {!isUser && (() => {
-            // Extract drug chips from content
+            // 본문에서 약 칩 추출
             const drugChips: { name: string; pharmUrl?: string }[] = [];
             if (message.content) {
               const drugRegex = /```json\s*:\s*drug\s*\n([\s\S]*?)\n```/gi;
@@ -1015,7 +1005,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, userProfile, lan
         </div>
       </div>
 
-      {/* Premium Custom Context Menu */}
+      {/* 커스텀 컨텍스트 메뉴 */}
       {contextMenu.visible && (
         <div 
           className="fixed z-[9999] min-w-[140px] overflow-hidden rounded-2xl bg-white/80 dark:bg-[#262626]/90 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 shadow-2xl animate-in zoom-in-95 duration-200"

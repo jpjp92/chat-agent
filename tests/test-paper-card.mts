@@ -27,7 +27,7 @@ const check = (label: string, ok: boolean, detail = '') => {
 const read = (p: string) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
 
 /**
- * 🔴 2026-09-24: 아래 검사들은 `prompt.ts` 를 **소스 텍스트로 읽고** 있었다. 정책 문구를
+ * 2026-09-24: 아래 검사들은 `prompt.ts` 를 **소스 텍스트로 읽고** 있었다. 정책 문구를
  * `intent-policy-paper.ts` 로 옮기자 **문구는 한 글자도 안 바뀌었는데 35건이 빨개졌다** —
  * 소스 grep 의 전형적 오작동이다(텍스트가 움직이면 거짓으로 깨지고, 조용히 바뀌면 통과한다).
  * 이제 **export 된 정책 문자열**을 본다. 파일을 어디로 옮기든 따라가고, 문구가 바뀌면 깨진다.
@@ -36,7 +36,7 @@ const POLICY = { paper: getIntentPolicy('paper_search'), arxiv: getIntentPolicy(
 const POLICY_TEXT = `${POLICY.paper}\n\n${POLICY.arxiv}`;
 
 /**
- * 🔴 `a.indexOf(x) < a.indexOf(y)` 는 **x 가 아예 없을 때도 통과한다**(-1 이 제일 작다).
+ * `a.indexOf(x) < a.indexOf(y)` 는 **x 가 아예 없을 때도 통과한다**(-1 이 제일 작다).
  *    순서를 지키려던 검사가 "블록이 통째로 사라짐"을 놓친다 — 실제로 2026-09-24 변조 시험에서
  *    `[RETRACTED PAPERS]` 를 지웠더니 순서 검사만 조용히 초록이었다. 존재를 먼저 요구한다.
  */
@@ -53,7 +53,7 @@ console.log('\n§1 근거 등급 판정 — pubtype 만 본다');
     check('Review → review', toEvidence(['Journal Article', 'Review']) === 'review');
     check('빈 배열 → null', toEvidence([]) === null);
 
-    // 🔴 핵심 계약. 제목이 무엇을 말하든 pubtype 이 이것뿐이면 등급을 붙이지 않는다.
+    // 핵심 계약. 제목이 무엇을 말하든 pubtype 이 이것뿐이면 등급을 붙이지 않는다.
     // PMID 23372900 은 제목에 "a meta-analysis" 라고 적혀 있지만 pubtype 은 이 하나다.
     check("['Journal Article'] 뿐이면 null — 제목으로 추정하지 않는다",
         toEvidence(['Journal Article']) === null,
@@ -91,14 +91,14 @@ console.log('\n§2 초록 파싱 — 라벨 있는 초록과 통짜 초록');
     check('통짜 초록은 kind=excerpt (추측이라고 밝힌다)',
         parsed.get('222')?.kind === 'excerpt', String(parsed.get('222')?.kind));
     check('초록이 없으면 빈 문자열', parsed.get('333')?.text === '', JSON.stringify(parsed.get('333')?.text));
-    // 🔴 null 이 아니라 'none' 이다. 빈 값은 모델이 "결론을 제시하지 않은 논문" 으로 옮겨 적었다.
+    // null 이 아니라 'none' 이다. 빈 값은 모델이 "결론을 제시하지 않은 논문" 으로 옮겨 적었다.
     check("초록이 없으면 kind='none' (발췌라고도, 빈 값이라고도 하지 않는다)",
         parsed.get('333')?.kind === 'none', String(parsed.get('333')?.kind));
 }
 
 console.log('\n§2a 결론이 아닌 꼬리 — 후속연구 권고·등록번호를 결론으로 내보내지 않는다');
 {
-    // 🔴 실제 결함(PMID 27055821): 1,933자 통짜 초록의 마지막 두 문장이 곁가지였고,
+    // 실제 결함(PMID 27055821): 1,933자 통짜 초록의 마지막 두 문장이 곁가지였고,
     //   프로바이오틱스 질의 카드에 그게 논문 결론인 양 박혔다.
     const wrap = (pmid: string, body: string) =>
         `<PubmedArticle><MedlineCitation><PMID Version="1">${pmid}</PMID><Article><Abstract>` +
@@ -133,7 +133,7 @@ console.log('\n§2a 결론이 아닌 꼬리 — 후속연구 권고·등록번�
 console.log('\n§2c 철회 논문 — pubtype 에 이미 들어 있는 사실이다');
 {
     check('Retracted Publication → 철회', isRetracted(['Journal Article', 'Retracted Publication']));
-    // 🔴 뜻이 정반대다. 철회 공고를 철회 논문으로 잡으면 정상 문헌을 깎는다.
+    // 뜻이 정반대다. 철회 공고를 철회 논문으로 잡으면 정상 문헌을 깎는다.
     check('Retraction of Publication(철회 공고)은 철회가 아니다',
         !isRetracted(['Journal Article', 'Retraction of Publication']));
     check('Expression of Concern(우려 표명)은 철회가 아니다',
@@ -147,7 +147,7 @@ console.log('\n§2c 철회 논문 — pubtype 에 이미 들어 있는 사실이
 
 console.log('\n§2b 검색어 붕괴 방어 — PubMed 는 용어를 AND 로 묶는다');
 {
-    // 🔴 실측: 짧은 검색어 398건 → 연구설계어까지 붙인 긴 검색어 1건. 한 단어 더면 0건이고,
+    // 실측: 짧은 검색어 398건 → 연구설계어까지 붙인 긴 검색어 1건. 한 단어 더면 0건이고,
     //   그러면 수백 건이 있는데도 "논문을 찾지 못했습니다" 가 나간다(조용히 틀리는 쪽).
     const LONG = 'probiotics prevention common cold upper respiratory tract infections randomized controlled trial';
     check('긴 검색어를 앞 4개 핵심어로 줄인다',
@@ -199,7 +199,7 @@ console.log('\n§4 렌더러 — 배지 3종 × 4개 언어');
             .every(phrase => src.includes(phrase)));
 
     // ── arXiv 출처 ── 같은 카드를 쓰되 배지의 의미가 다르다.
-    // 🔴 PubMed 의 근거 등급을 arXiv 에 재사용하면 안 된다 — arXiv 에는 그런 큐레이션이 없다.
+    // PubMed 의 근거 등급을 arXiv 에 재사용하면 안 된다 — arXiv 에는 그런 큐레이션이 없다.
     check('arXiv 에는 근거 등급 배지를 쓰지 않는다',
         /source === 'pubmed' && paper\.evidence \? EVIDENCE_STYLE/.test(src));
     check('arXiv 배지는 심사 여부만 말한다 (게재됨/프리프린트)',
@@ -237,9 +237,9 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
         ['근거 목록에서 빼두었습니다', 'kept out of the evidence list',
          'fuera de la lista de evidencia', 'écartés de la liste de preuves']
             .every(phrase => src.includes(phrase)));
-    // 🔴 프롬프트만으로는 라이브 3회 중 2회가 철회 논문을 근거로 인용했다.
+    // 프롬프트만으로는 라이브 3회 중 2회가 철회 논문을 근거로 인용했다.
     //   그래서 도구가 배열에서 빼낸다 — 인용 마커 [n] 이 papers 순번이므로 가리킬 수가 없다.
-    // 🔴 소스 grep 이 아니라 **행동**으로 본다. 예전엔 `papers: papers.filter(…).slice(0, limit)`
+    // 소스 grep 이 아니라 **행동**으로 본다. 예전엔 `papers: papers.filter(…).slice(0, limit)`
     //   라는 표현식을 정규식으로 봤는데, 관련도 필터를 넣느라 같은 계약을 유지한 채 표현식만
     //   바꿨더니 빨간불이 났다. 계약은 "철회·초록없음이 papers 에 없다" 이지 그 한 줄이 아니다.
     const fixture = [
@@ -266,7 +266,7 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
     check('철회 규칙이 PROSE RULES 목록보다 앞에 온다',
         comesBefore(prompt, '[RETRACTED PAPERS]', '[PROSE RULES — CRITICAL]'));
 
-    // 🔴 조회 실패를 0건으로 말하지 않는다 (심평원에서 이미 고쳤던 병)
+    // 조회 실패를 0건으로 말하지 않는다 (심평원에서 이미 고쳤던 병)
     check('렌더러가 error 를 실제로 읽는다', /const failed = Boolean\(data\?\.error\)/.test(src));
     check('두 도구 모두 실패를 카드에 실어 보낸다',
         /error: message/.test(tool) && /error: message/.test(read('../server/agent/arxiv-tool.ts')));
@@ -285,14 +285,14 @@ console.log('\n§4g 철회·요약 출처 — 카드가 사실이 아닌 걸 사
     // 8%: 초록 자체가 PubMed 에 없다. 빈칸으로 두면 "요약할 게 없는 논문"처럼 읽힌다.
     check('초록이 없으면 그렇다고 말한다', /tt\.noAbstract/.test(src));
     check('초록 없음 안내는 PubMed 카드에서만 뜬다', /: source === 'pubmed' \? \(/.test(src));
-    // 🔴 목록 속 한 줄로는 모델이 흘려 읽는다(철회에서 실측) — 전용 블록이어야 한다
+    // 목록 속 한 줄로는 모델이 흘려 읽는다(철회에서 실측) — 전용 블록이어야 한다
     check('프롬프트에 summaryKind 전용 블록이 있다',
         /\[WHAT `summary` IS — READ `summaryKind` BEFORE QUOTING IT\]/.test(prompt));
     check('블록이 PROSE RULES 목록보다 앞에 온다',
         comesBefore(prompt, 'READ `summaryKind` BEFORE QUOTING', '[PROSE RULES — CRITICAL]'));
     check('프롬프트가 발췌를 결론이라 쓰지 말라고 한다',
         /"excerpt"[\s\S]{0,200}never "concluded"/.test(prompt));
-    // 🔴 전용 블록으로도 3회 중 3회 실패했다 — 도구가 목록에서 빼야 끊긴다
+    // 전용 블록으로도 3회 중 3회 실패했다 — 도구가 목록에서 빼야 끊긴다
     check('도구가 초록 없는 논문을 papers 에서 빼낸다',
         part.citable.every(p => p.summaryKind !== 'none') && part.noAbstract.map(p => p.pmid).join(',') === '3');
     // 철회이면서 초록도 없는 논문이 두 칸에 겹쳐 들어가면 안 된다 — 철회가 우선이다
@@ -337,7 +337,7 @@ console.log('\n§4d arXiv Atom 파싱 — 프리프린트/게재 판별');
     check('연도는 published 에서 뽑는다', papers[0].year === '2024');
     // 초록은 앞 2문장 — PubMed 는 결론(뒤)이지만 arXiv 초록은 앞이 주제문이다
     check('초록 앞 2문장만 쓴다', papers[0].summary === 'First sentence here. Second one too.', papers[0].summary);
-    // 🔴 핵심 계약 — 심사 여부를 추측하지 않는다. journal_ref/doi 가 있을 때만 게재됨이다.
+    // 핵심 계약 — 심사 여부를 추측하지 않는다. journal_ref/doi 가 있을 때만 게재됨이다.
     check('journal_ref 도 doi 도 없으면 프리프린트', papers[0].published === false);
     check('journal_ref 가 있으면 게재됨', papers[1].published === true);
     check('한 문장짜리 초록도 살린다', papers[1].summary === 'Only one sentence.');
@@ -352,7 +352,7 @@ console.log('\n§4d arXiv Atom 파싱 — 프리프린트/게재 판별');
 
 console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR 로 묶는다');
 {
-    // 🔴 실측(2026-08-31) — `all:transformer attention optimization` 은 576,986건을 반환하고
+    // 실측(2026-08-31) — `all:transformer attention optimization` 은 576,986건을 반환하고
     // 상위 5건 중 2건이 "optimization" 하나만 걸린 무관 논문이었다(다항식 최적화·프레임 구조 설계).
     // AND 로 묶으면 2,776건에 상위 5건 전부 관련. bridge seismic design 은 더 극적이다 —
     // OR 상위 3건에 교량 논문이 아예 없고(334,543건), AND 는 10건 전부 교량이다.
@@ -371,7 +371,7 @@ console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR �
     check('필드 접두사는 통과', buildArxivSearchQuery('cat:cs.CV AND ti:attention') === 'cat:cs.CV AND ti:attention');
     check('불리언 연산자는 통과', buildArxivSearchQuery('quantum OR photonic') === 'quantum OR photonic');
 
-    // 🔴 2026-09-03. 여기서 **범용어(`neural network` 등)를 AND 에서 빼는 수정을 넣었다가 되돌렸다.**
+    // 2026-09-03. 여기서 **범용어(`neural network` 등)를 AND 에서 빼는 수정을 넣었다가 되돌렸다.**
     //   `transformer neural network` 는 1/5 → 5/5 로 나아졌지만, 같은 규칙이
     //   `graph neural network` 를 5/5 → **0/5**(그래프 이론), `convolutional neural network` 를
     //   5/5 → **1/5**(부호이론)로 무너뜨렸다. `neural network` 가 복합 개념의 일부일 때는
@@ -390,16 +390,16 @@ console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR �
         /graph neural network[\s\S]{0,120}하나의 개념이면 통째로/.test(read('../server/agent/arxiv-tool.ts')));
     check('따옴표 구문은 all: 만 씌운다', buildArxivSearchQuery('"neural painting"') === 'all:"neural painting"');
 
-    // 🔴 2026-09-03 실측: `Attention Is All You Need` 는 `is`·`all`·`you` 가 불용어라
+    // 2026-09-03 실측: `Attention Is All You Need` 는 `is`·`all`·`you` 가 불용어라
     //   `all:Attention AND all:Need`(7,982건) 로 줄고 **원 논문 1706.03762 가 상위 5건에 못 든다.**
     //   구절(`all:"…"`)로 치면 45건에 원 논문 2위다. 가르는 신호는 **버려지는 불용어의 존재** —
     //   평범한 검색어에는 불용어가 없고 제목·구절에는 있다.
-    //   ⚠️ 한 번에 합치는 `all:"…" OR (AND)` 는 실측상 원 논문을 여전히 못 올린다(관련도 정렬이
+    //   주의: 한 번에 합치는 `all:"…" OR (AND)` 는 실측상 원 논문을 여전히 못 올린다(관련도 정렬이
     //     구절 일치를 우대하지 않는다). 그래서 순차 폴백이다.
-    // 🔴 `ti:` 가 `all:"…"` 보다 먼저다. 실측: `all:"…"` 는 원 논문이 **2위**(1위는 2026년
+    // `ti:` 가 `all:"…"` 보다 먼저다. 실측: `all:"…"` 는 원 논문이 **2위**(1위는 2026년
     //   `Tool Attention Is All You Need`)라, 모델이 `limit:1` 로 부르면 카드에 엉뚱한 논문만
     //   남고 산문이 그걸 답으로 설명한다. `ti:` 는 1위다.
-    //   ⚖️ 가운데에 `all:"…"` 를 끼운 3단 계획은 뺐다 — 구절 6종에서 `ti:` 가 0이면 `all:"…"` 도
+    //   가운데에 `all:"…"` 를 끼운 3단 계획은 뺐다 — 구절 6종에서 `ti:` 가 0이면 `all:"…"` 도
     //     예외 없이 0이라 단독으로 건진 경우가 없는데 최악 지연만 두 배가 된다.
     check('불용어가 섞인 제목은 제목 필드를 먼저 친다',
         JSON.stringify(buildArxivQueryPlan('Attention Is All You Need'))
@@ -417,10 +417,11 @@ console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR �
     check('배선: arxivTool 이 buildArxivQueryPlan 을 순회한다',
         /buildArxivQueryPlan\(/.test(read('../server/agent/arxiv-tool.ts'))
         && /for \(const searchQuery of plan\)/.test(read('../server/agent/arxiv-tool.ts')));
-    check('따옴표 0건 주석이 정정돼 있다 — "구절은 못 쓴다"는 과일반화였다',
-        /과일반화/.test(read('../server/agent/arxiv-tool.ts')));
+    check('arxiv-tool 주석이 구절 조회 규칙을 바르게 적는다 — "따옴표는 못 쓴다"는 과일반화였다',
+        /진짜 구절/.test(read('../server/agent/arxiv-tool.ts'))
+        && !/0건이라 못 쓴다/.test(read('../server/agent/arxiv-tool.ts')));
 
-    // 🔴 2026-09-03. 같은 지시를 LangChain 스키마에만 넣었더니 **OpenAI 경로가 안 고쳐졌다** —
+    // 2026-09-03. 같은 지시를 LangChain 스키마에만 넣었더니 **OpenAI 경로가 안 고쳐졌다** —
     //   `local-tool-registry.ts` 가 `query` 설명의 자기 사본을 갖고 있었고, gpt-5.6-luna 가
     //   `Attention Is All You Need Transformer architecture self-attention` 으로 조회해
     //   원 논문 없는 카드를 냈다. 문안을 상수 하나로 합쳤으니 **두 벌로 갈라지는 걸** 막는다.
@@ -436,11 +437,11 @@ console.log('\n§4d2 arXiv 검색어 조립 — all:<질의> 는 단어를 OR �
     check('OpenAI 경로가 도구 **인자**를 로그에 남긴다',
         /local tool "\$\{options\.functionTool\.name\}" ← /.test(read('../server/openai/chat.ts')));
 
-    // 🔴 0건을 OR 로 넓히지 않는다 — 실측 `sourdough fermentation microbiome kinetics` 는
+    // 0건을 OR 로 넓히지 않는다 — 실측 `sourdough fermentation microbiome kinetics` 는
     // AND 0건이 정답이고(arXiv 에 없는 분야), 넓히면 "kinetics" 하나만 걸린 논문이 근거가 된다.
     // 무의미어 `zzqqxx nonexistent topic` 은 더 심해서 35,416건의 토픽모델링 논문을 물어 온다.
     const arxivToolSrc = read('../server/agent/arxiv-tool.ts');
-    // 🔴 이 검사는 원래 `await fetchArxiv(` 가 소스에 **한 번만** 나오는지 세고 있었다.
+    // 이 검사는 원래 `await fetchArxiv(` 가 소스에 **한 번만** 나오는지 세고 있었다.
     //   그런데 09-03 에 구절 폴백이 들어가면서 호출은 루프 안의 한 줄이 그대로라 **숫자는 안 변한다** —
     //   즉 계약이 바뀌었는데 검사는 초록을 유지했다. 세는 대상이 계약이 아니었던 것이다.
     //   실제 계약은 "**OR 로 넓히지 않는다**" 이므로 그걸 직접 본다.
@@ -493,7 +494,7 @@ console.log('\n§4c 비의생명 강등 — PubMed 밖 주제는 카드를 만�
     // 주 방어선. 블록리스트는 분야 공간이 무한해 못 막는다 — 라우터 JSON 에 불리언을 하나 더
     // 받아 결정적으로 강등한다(추가 LLM 호출 없음). 무오염 실측 21분야 × 3회 = 63/63 정확.
     check('라우터가 paper_source 를 요구한다', /"paper_source"/.test(routerSrc));
-    // 🔴 3분기다. "의생명이 아니면 arXiv" 가 아니다 — arXiv 도 어떤 질의에든 그럴듯한 결과를
+    // 3분기다. "의생명이 아니면 arXiv" 가 아니다 — arXiv 도 어떤 질의에든 그럴듯한 결과를
     // 돌려주므로(한국어 통사론 → astro-ph 전파망원경) 문학·역사·법학은 카드 없이 가야 한다.
     check('pubmed 는 PubMed 도구로 간다', /source === "arxiv"/.test(routerSrc));
     check('arxiv 는 arxiv_search 로 파생된다', /intent = "arxiv_search"/.test(routerSrc));
@@ -521,7 +522,7 @@ console.log('\n§4c 비의생명 강등 — PubMed 밖 주제는 카드를 만�
 
 console.log('\n§4e 카드 전송 — 만들어지는 것과 도달하는 것은 다르다');
 {
-    // 🔴 실제로 겪은 버그. Gemini 는 산문을 토큰 단위로 흘려 전송 버퍼를 먼저 채우고, 카드는
+    // 실제로 겪은 버그. Gemini 는 산문을 토큰 단위로 흘려 전송 버퍼를 먼저 채우고, 카드는
     //   그 뒤 최종 메시지에 붙는다. route.ts 가 "스트리밍이 없을 때만 최종 메시지를 보낸다" 라
     //   **카드만 화면에 도달하지 않았다.** OpenAI 는 이 경로로 스트리밍하지 않아 멀쩡했고,
     //   그래서 모델 품질 차이로 오인하기 쉬웠다.
@@ -539,7 +540,7 @@ console.log('\n§4e 카드 전송 — 만들어지는 것과 도달하는 것은
     check('카드가 없으면 보낼 것도 없다', pendingCardBlocks('산문뿐', '', 'paper_search').length === 0);
 
     // 인용 번호는 도구가 준 논문 순번이다 — Gemini 경로가 가짜 인용으로 보고 지우던 회귀.
-    // 🔴 아래 배선은 이제 **소스 정규식이 아니라 동작으로** 지킨다 — `test-stream-dispatch.mts`
+    // 아래 배선은 이제 **소스 정규식이 아니라 동작으로** 지킨다 — `test-stream-dispatch.mts`
     //   가 진짜 `createStreamDispatch` 에 가짜 이벤트를 먹여 나온 프레임을 본다.
     //   (이 자리에 있던 정규식 검사들은 내가 이미 아는 회귀만 잡았다. 실제 사고 —
     //    이름 없는 on_tool_end 가 카드 6종을 삼킨 건 — 은 소스가 아니라 순서의 문제였다.)
@@ -547,13 +548,13 @@ console.log('\n§4e 카드 전송 — 만들어지는 것과 도달하는 것은
     check('논문 건수를 도구 종료 이벤트에서 잡는다', /pinnedPaperCount/.test(dispatchSrc) && /on_tool_end/.test(dispatchSrc));
     check('논문 턴 스트림에 범위 규칙을 적용한다',
         /PINNED_CARD_INTENT_SET\.has\(st\.detectedIntent\)[\s\S]{0,120}dropMarkersOutsideRange/.test(dispatchSrc));
-    // 🔴 마커를 통째로 지우던 옛 규칙으로 돌아가면 산문과 카드를 잇는 끈이 끊긴다
+    // 마커를 통째로 지우던 옛 규칙으로 돌아가면 산문과 카드를 잇는 끈이 끊긴다
     check('논문 턴에서 마커를 통째로 지우지 않는다',
         !/PINNED_CARD_INTENT_SET\.has\(st\.detectedIntent\) \? stripFabricated/.test(dispatchSrc));
     // 루프가 route.ts 로 되돌아가면 하니스가 다시 눈이 먼다
     check('이벤트 루프가 route.ts 로 되돌아오지 않았다',
         !/else if \(event\.event === 'on_tool_end'/.test(read('../app/api/chat/route.ts')));
-    // 🔴 실측(2026-09-02): 빈 카드가 산문과 **같은 말을 두 번** 하게 만들었다
+    // 실측(2026-09-02): 빈 카드가 산문과 **같은 말을 두 번** 하게 만들었다
     //   ("관련 법령을 찾을 수 없습니다" 가 산문에도 카드에도). 화면에는 안 붙인다 —
     //   모델 컨텍스트에는 그대로 가서 "조회했으나 없었다" 를 알려준다.
     check('빈 논문 카드는 화면에 붙이지 않는다',
@@ -595,7 +596,7 @@ console.log('\n§4f 산문 모양 — 문장 수가 아니라 문단 구조를 �
 
 console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다시 검색하지 않는다');
 {
-    // 🔴 실측(gemini·luna 양쪽): 이 판정이 없어서 "세 번째 논문 설명해줘" 가 PubMed 를 다시
+    // 실측(gemini·luna 양쪽): 이 판정이 없어서 "세 번째 논문 설명해줘" 가 PubMed 를 다시
     //   검색해 **다른 목록의 새 카드**를 띄웠다. 순서가 밀리면 [3] 이 딴 논문을 가리킨다.
     for (const [text, want] of [
         // 카드 대화 — 재조회하면 안 된다
@@ -615,7 +616,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
         ['다른 논문도 찾아줘', 'new'],
         ['더 최신 논문으로 보여줘', 'new'],
         ['추가로 검색해줘', 'new'],
-        // 🔴 숫자가 지목이 아니라 **주제어**인 경우 — 조회 동사가 가른다
+        // 숫자가 지목이 아니라 **주제어**인 경우 — 조회 동사가 가른다
         ['3번 염색체 관련 논문 찾아줘', 'new'],
         ['1형 당뇨 논문 검색해줘', 'new'],
         ['관련 논문 검색해서 정리해줘', 'new'],
@@ -627,7 +628,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
     check('카드가 없으면 항상 new', decidePaperCardFollowup('세 번째 논문 설명해줘', false) === 'new');
 
     /**
-     * 🔴 실측(`tests/manual/live-card-suction.mts`, 2026-09-01, 168회).
+     * 실측(`tests/manual/live-card-suction.mts`, 2026-09-01, 168회).
      * 논문 카드가 떠 있을 때 **지시어가 하나도 없는 무관 질의**가 `discuss` 로 빨려 들어갔다:
      *   "리액트 훅 쉽게 설명해줘" → general/검색OFF/**paperFollowup**  (대조군: general/검색OFF)
      * 리액트 질문에 "화면 논문 카드가 근거다, 초록 밖을 사실로 쓰지 마라" 가 주입된다.
@@ -635,7 +636,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
      * 원인은 LLM 이 아니라 결정적 정규식이다 — `PAPER_REFORMAT` 이 `쉽게` 한 단어만 보고 걸렸다.
      * 어제 가드를 `general` 까지 넓히면서(§6.22) 이 정규식의 넓이가 그대로 노출됐다.
      *
-     * ⚖️ 경계는 **목적어 유무**다. 재구성 어휘를 걷어내고 남는 게 있으면 새 주제다:
+     * 경계는 **목적어 유무**다. 재구성 어휘를 걷어내고 남는 게 있으면 새 주제다:
      *   "표로 정리해줘"(남는 것 없음) → 카드 대화 · "서울 맛집 목록으로 보여줘"(서울 맛집) → 새 질의
      */
     for (const [text, want] of [
@@ -648,7 +649,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
         ['영어로 번역해줘', 'discuss'],
         ['이 내용 표로 정리해줘', 'discuss'],
         ['지금까지 나온 논문들 표로 정리해줘', 'discuss'],
-        // 🔴 목적어가 있다 — 새 질의다. 논문 카드가 근거일 이유가 없다
+        // 목적어가 있다 — 새 질의다. 논문 카드가 근거일 이유가 없다
         ['리액트 훅 쉽게 설명해줘', 'new'],
         ['파이썬 리스트 정렬 간단히 알려줘', 'new'],
         ['이 사진 쉽게 설명해줘', 'new'],
@@ -663,7 +664,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
     const routerSrc = read('../server/agent/nodes/router.ts');
     check('라우터가 창 안의 논문 카드를 감지한다', /json\\s\*:\\s\*paper/.test(routerSrc));
     check('라우터가 후속 판정을 호출한다', /decidePaperCardFollowup\(/.test(routerSrc));
-    // 🔴 실측(사용자 로컬, 2026-08-31): 라우터 LLM 이 "세 번째 논문 좀 더 설명해줘" 를
+    // 실측(사용자 로컬, 2026-08-31): 라우터 LLM 이 "세 번째 논문 좀 더 설명해줘" 를
     //   **`general`** 로 분류했다(paper_source=none → 두 DB 밖 강등). 가드가 paper_search 일 때만
     //   보고 있어 그냥 지나갔고, needsSearch 가 켜진 채 웹 검색으로 엉뚱한 답이 나갔다:
     //   "죄송합니다. 세 번째 논문은 찾을 수 없었습니다. arXiv 데이터베이스에 연결할 수 없었습니다."
@@ -675,16 +676,16 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
     check('카드 대화 턴은 검색을 끈다', /else if \(paperFollowup\)[\s\S]{0,200}needsSearch = false/.test(routerSrc));
 
     /**
-     * 🔴 실측(사용자 화면, 2026-09-01). 여러 턴을 테스트한 뒤 "두번째 논문 설명해줘" 를 물었더니
+     * 실측(사용자 화면, 2026-09-01). 여러 턴을 테스트한 뒤 "두번째 논문 설명해줘" 를 물었더니
      * **빈 arXiv 카드**("조건에 맞는 논문을 찾지 못했습니다")가 새로 붙었다. 판정 함수는 정상이고
      * (`decidePaperCardFollowup('두번째 논문 설명해줘', true) === 'discuss'`) 3턴 재현도 정상이라
      * 원인은 `paperCardShown` 이 false 였던 것으로 좁혀진다.
      *
-     * 🔴 **논문 카드만 `activeCards` 보호를 못 받고 있었다.** 서버가 받는 히스토리는 최근 10개인데
+     * **논문 카드만 `activeCards` 보호를 못 받고 있었다.** 서버가 받는 히스토리는 최근 10개인데
      * 클라이언트는 최근 20개(`CARD_WINDOW`)로 판정해 `activeCards` 로 보내 준다 — 그 간극을
      * 메우려고 만든 장치다(날씨·약국·병원·동물병원·법률이 전부 쓴다). 논문만 창 스캔뿐이었다.
      *
-     * ⚖️ router.ts 의 옛 주석은 "창을 벗어나면 재조회가 맞다(카드가 화면에서 밀려났으므로)" 였다.
+     * router.ts 의 옛 주석은 "창을 벗어나면 재조회가 맞다(카드가 화면에서 밀려났으므로)" 였다.
      * 틀렸다 — **밀려난 건 서버의 창이지 사용자의 화면이 아니다.** 사용자는 카드를 보면서
      * "두번째 논문" 이라고 물었다.
      */
@@ -703,7 +704,7 @@ console.log('\n§4h 멀티턴 후속 — 화면 카드를 두고 물으면 다�
 
 console.log('\n§4j 카드 대화 턴의 근거 고정 — 판정만으로는 아무 일도 안 일어난다');
 {
-    // 🔴 실측(사용자 화면, 2026-08-31). "세번째 논문 자세히 설명해줘" 에 카드가 가진 초록은
+    // 실측(사용자 화면, 2026-08-31). "세번째 논문 자세히 설명해줘" 에 카드가 가진 초록은
     //   `A two-strain probiotic combination given twice a day for 3 months was able to reduce
     //   the symptoms of the co…` 한 문장뿐인데, 답변은 연구가 측정한 결과지표 5개(감기 횟수·
     //   지속기간·발열/기침/콧물·학교 결석·이상반응)를 **"연구에서 확인하려 한 주요 결과"** 라고
@@ -716,7 +717,7 @@ console.log('\n§4j 카드 대화 턴의 근거 고정 — 판정만으로는 �
     // 지시문은 한국어 고정이다 — 이 레포는 **모델이 인용할 수 있는 값**만 다국어로 만든다
     //   (PHARMACY_FACT_LABELS 가 그 이유를 적어 뒀다). 규칙문은 값이 아니라 지시다.
     const rules = buildPaperFollowupRules();
-    // 🔴 이 검사들은 **문구를 직접** 본다. 초안에서는 `/지어내지|추측하지|만들지/` 처럼 느슨하게
+    // 이 검사들은 **문구를 직접** 본다. 초안에서는 `/지어내지|추측하지|만들지/` 처럼 느슨하게
     //   봤는데, 핵심 문장을 "그 논문의 사실로 **쓸 수 있습니다**" 로 뒤집어도 다른 줄의 "추측" 에
     //   걸려 초록으로 통과했다(실측). 규칙문은 계약이므로 계약 문장을 못 박는다 —
     //   문구를 바꾸려면 이 줄도 같이 바꾸게 해서, 바꾼 사실이 리뷰에 보이게 한다.
@@ -745,7 +746,7 @@ console.log('\n§4j 카드 대화 턴의 근거 고정 — 판정만으로는 �
     check('state 에 paperFollowup 이 있다', /paperFollowup:\s*Annotation/.test(stateSrc));
     check('🔴 라우터가 paperFollowup 을 반환한다', /return \{[^}]*paperFollowup/.test(routerSrc),
         '지역 변수로만 쓰이면 generator 는 이 턴이 카드 대화인 줄 모른다');
-    // 🔴 2026-09-24: 조립이 prompt-assembly.ts 로 빠졌다. 소스 정규식 대신 **결과**로 본다 —
+    // 2026-09-24: 조립이 prompt-assembly.ts 로 빠졌다. 소스 정규식 대신 **결과**로 본다 —
     //    `paperFollowup` 인 턴에만 규칙이 실제로 실리는가.
     const paperTurn = (paperFollowup: boolean): string => assemblePrompt({
         base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '세 번째 논문 설명해줘',
@@ -768,7 +769,7 @@ console.log('\n§4j 카드 대화 턴의 근거 고정 — 판정만으로는 �
 console.log('\n§4i 인용 번호는 이번 턴 카드만 가리킨다');
 {
     const prompt = POLICY_TEXT;
-    // 🔴 실측: 새 카드가 1건뿐인 턴에 모델이 "이전 검색 결과에서 … [5] 입니다" 로 답했다.
+    // 실측: 새 카드가 1건뿐인 턴에 모델이 "이전 검색 결과에서 … [5] 입니다" 로 답했다.
     //   [5] 는 지난 턴 카드의 번호다 — 화면의 카드에는 그 번호가 없다.
     check('이번 턴 카드만 가리킨다는 지시가 양쪽 의도에 있다',
         (prompt.match(/A marker points ONLY into the card attached to THIS message/g) ?? []).length === 2);
@@ -779,17 +780,17 @@ console.log('\n§4i 인용 번호는 이번 턴 카드만 가리킨다');
 console.log('\n§4k 주제 이탈 논문 — 커버리지로는 못 가른다, 주제어로 가른다');
 {
     /**
-     * 🔴 실측(사용자 화면 + `tests/manual/probe-paper-relevance.mts`, 2026-09-01).
+     * 실측(사용자 화면 + `tests/manual/probe-paper-relevance.mts`, 2026-09-01).
      * `프로바이오틱스 감기 논문` 카드 5건 중 2건에 probiotics 가 초록에 **한 번도** 안 나왔다
      * (비타민C·에키네시아 리뷰, "Earthing accelerates immune response" 종설). 산문도 그 둘만
      * 인용하지 않았다 — 모델의 인용이 관련도 판정을 이미 하고 있었다.
      *
-     * 🔴 **평면 커버리지로는 못 가른다.** 실측 커버리지가 뒤집힌다:
+     * **평면 커버리지로는 못 가른다.** 실측 커버리지가 뒤집힌다:
      *      #1 무관 75% · #3 관련 75% · #5 관련 50% · #4 무관 75%
      * "common cold prevention" 은 결과 전건이 공유한다 — PubMed 가 그걸로 매칭했으니 당연하다.
      * 프로브 50건에서도 75% 구간에 관련 13건과 무관 2건이 같이 들어 있었다.
      *
-     * 🔴 **결과 내 빈도로 주제어를 고르는 공짜 방법도 실패했다** — 10질의 중 일치 1·불일치 6.
+     * **결과 내 빈도로 주제어를 고르는 공짜 방법도 실패했다** — 10질의 중 일치 1·불일치 6.
      * `elderly`·`outcomes`·`clinical` 같은 맥락어를 골랐다. 그래서 코퍼스 수록량(esearch count)을
      * 쓴다. NCBI_KEY 가 있어 용어당 110ms 다.
      */
@@ -835,7 +836,7 @@ console.log('\n§4k 주제 이탈 논문 — 커버리지로는 못 가른다, �
         splitOffTopic(stemCase, 'probiotics').kept[0].title.startsWith('A probiotic'));
     const verbCase = [{ title: 'Preventing respiratory infections', summary: 'A trial.' }] as any[];
     check('prevention ↔ preventing 도 이어진다', splitOffTopic(verbCase, 'prevention').offTopic.length === 0);
-    // 🔴 과하게 깎으면 주제어가 무력화된다 — `lesion`→`les` 는 "unless" 에 걸린다
+    // 과하게 깎으면 주제어가 무력화된다 — `lesion`→`les` 는 "unless" 에 걸린다
     const overCut = [{ title: 'Unless treatment is given', summary: 'A series of observations.' }] as any[];
     check('짧은 어간으로 깎아 아무 데나 붙지 않는다', splitOffTopic(overCut, 'lesion').offTopic.length === 0
         ? splitOffTopic(overCut, 'lesion').kept.length === 1 : true);
@@ -857,11 +858,11 @@ console.log('\n§4k 주제 이탈 논문 — 커버리지로는 못 가른다, �
     check('주제어 없으면 미적용', splitOffTopic(papers, null).applied === false);
 
     /**
-     * 🔴 실측(사용자 화면, 2026-09-01). 감기 논문을 물었는데 **철회됨** 딱지가 붙은
+     * 실측(사용자 화면, 2026-09-01). 감기 논문을 물었는데 **철회됨** 딱지가 붙은
      * 위장 논문(34007566 `Alternative Treatments for Minor GI Ailments`)이 카드에 떴다.
      * 주제 필터가 `papers` 에만 걸려 있고 `retracted`·`noAbstract` 는 그대로 나갔다.
      *
-     * ⚖️ `noAbstract` 에는 걸지 않는다. `summary` 가 빈 문자열이라 **제목만** 남는데,
+     * `noAbstract` 에는 걸지 않는다. `summary` 가 빈 문자열이라 **제목만** 남는데,
      * 실측 3건 중 `Prevention and treatment of the common cold: making sense of the evidence`
      * 는 제목에 probiotics 가 없어도 질문과 관련 있는 논문이다. 판단 근거가 없으면 판단하지 않는다.
      */
@@ -881,7 +882,7 @@ console.log('\n§4k 주제 이탈 논문 — 커버리지로는 못 가른다, �
         keptRet.some(p => /no abstract/.test(p.title)));
     check('주제어가 없으면 손대지 않는다', filterOffTopicAside(retractedPapers, null).length === 3);
 
-    // ── 배선 ── 🔴 순수 함수만 검사했더니 무력화 실험에서 ①(곁칸 필터 미적용)과
+    // ── 배선 ── 순수 함수만 검사했더니 무력화 실험에서 ①(곁칸 필터 미적용)과
     //   ③(fail-open 무시)이 둘 다 초록이었다. 판정을 만들어 놓고 연결을 안 본 것 —
     //   §6.22 와 같은 실수다. `searchPapers` 는 네트워크를 타서 임포트할 수 없으므로
     //   **배선만** 소스로 본다(계약은 위에서 행동으로 봤다).
@@ -956,7 +957,7 @@ process.exit(failures === 0 ? 0 : 1);
 
 console.log('\n§4h 링크형 인용의 번호를 URL 로 교정한다 (2026-09-03)');
 {
-    // 🔴 실측(gpt-5.6-luna, `Attention Is All You Need 논문 찾아줘`): 카드 8건 중 원 논문은 2번인데
+    // 실측(gpt-5.6-luna, `Attention Is All You Need 논문 찾아줘`): 카드 8건 중 원 논문은 2번인데
     //   산문이 `[1](https://arxiv.org/abs/1706.03762)` 라고 썼다. URL 은 맞고 번호가 틀렸다.
     //   `dropMarkersOutsideRange` 로는 못 잡는다 — `[1]` 은 범위 **안**이다. 범위가 아니라
     //   가리키는 대상이 틀린 결함이라 판정 근거가 URL 이어야 한다.

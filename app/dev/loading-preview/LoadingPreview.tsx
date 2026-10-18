@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WaitingIndicator from '../../../components/WaitingIndicator';
 import { SLOW_TURN_MS } from '../../../src/lib/loading-status';
 

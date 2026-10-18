@@ -1,20 +1,14 @@
 /**
  * 논문 의도 정책 — `paper_search`(PubMed) · `arxiv_search`(arXiv).
  *
- * 왜 이 둘만 파일로 나왔나: 의도 정책 19개 중 이 둘이 **10,710자로 전체의 절반이 넘는다**
- * (paper 6,534 · arxiv 4,176). `prompt.ts` 의 `INTENT_POLICIES` 안에 리터럴로 있으면
- * 나머지 17개가 스크롤 아래로 밀려 읽히지 않는다.
+ * 이 둘은 의도 정책 중 가장 길어(합계 ~10,700자) `prompt.ts` 의 `INTENT_POLICIES` 리터럴에 두면
+ * 나머지 정책이 묻힌다. 그래서 파일로 뺐다.
  *
- * 🔴 **1,693자가 두 정책에 글자 그대로 중복되어 있었다** — 산문 3문단 규칙 + 인용 번호 규칙.
- *    `PAPER_PROSE_AND_CITATION` 으로 합쳤다. 합치는 것 자체는 **바이트를 바꾸지 않는다**
- *    (같은 자리에 같은 문자열을 보간할 뿐). `tests/test-prompt-assembly.mts` 의
- *    `paper_search`·`arxiv_search` 골든이 그걸 증명한다.
+ * 두 정책이 공유하는 산문 3문단 규칙 + 인용 번호 규칙은 `PAPER_PROSE_AND_CITATION` 하나로 둔다 —
+ * 두 벌로 두면 한쪽만 고치게 된다. 같은 자리에 같은 문자열을 보간하므로 바이트는 같다
+ * (`tests/test-prompt-assembly.mts` 의 `paper_search`·`arxiv_search` 골든).
  *
- *    중복이 위험한 이유는 자수가 아니라 **한쪽만 고치게 되는 것**이다. 실제로 인용 번호 규칙은
- *    "PubMed and arXiv sort by their own relevance" 처럼 이미 두 DB 를 함께 말하고 있어
- *    애초에 공유가 의도였다. 두 벌로 두면 다음 수정에서 갈라진다.
- *
- * ⚠️ 문구를 고치면 골든이 깨진다 — 의도한 변경이면 숫자를 갱신하고 커밋 메시지에 이유를 적는다.
+ * 주의: 문구를 고치면 골든이 깨진다 — 의도한 변경이면 숫자를 갱신하고 커밋 메시지에 이유를 적는다.
  */
 
 /**

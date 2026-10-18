@@ -8,12 +8,12 @@ export const maxDuration = 60;
 export const preferredRegion = 'icn1';
 
 export async function POST(req: NextRequest) {
-    // 🔴 2026-08-17 이전 무인증이었다(upload 라우트와 같은 결함).
+    // 인증 필수 — 업로드 서명 URL 을 아무나 받지 못하게.
     const db = createRouteClient(req);
     const uid = userIdFromToken(req);
     if (!db || !uid) return unauthorized();
 
-    const { fileName, bucket, mimeType } = await req.json();
+    const { fileName, bucket } = await req.json();
 
     if (!fileName || !bucket) {
         return NextResponse.json({ error: 'fileName and bucket are required' }, { status: 400 });

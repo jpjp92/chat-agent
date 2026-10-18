@@ -5,19 +5,18 @@
  *   - 재시도는 **그 조각의 첫 바이트 전까지만.** 오디오를 내보낸 뒤 다시 부르면 앞부분이 두 번 재생된다.
  *   - 영구 오류(400·401·403·404 등)는 재시도하지 않는다 — 키를 바꿔도 같은 답이다.
  *   - 호출자 취소(사용자가 멈춤)는 재시도하지 않는다.
- *   - 시도 횟수 상한 3. 🔴 초판 Gemini 루프는 키 12개를 전부 돌았다 — 조각당 60s 타임아웃 × 12 가
- *     라우트 maxDuration(120s)을 넘긴다.
+ *   - 시도 횟수 상한 3 — 키 풀 전체를 돌면 조각당 타임아웃 × 키 수가 라우트 maxDuration(120s)을 넘긴다.
  */
 
 export const TTS_MAX_ATTEMPTS = 3;
 /**
  * 첫 바이트 타임아웃. 정상 첫 소리는 0.6~1.9s(PLAN_TTS_STREAMING_261002 §4-4).
- * 🔴 로컬 실사용(2026-10-03): 응답 없이 걸린 시도 하나를 조각 전체 타임아웃(60s)까지 기다려
- *    **61초 뒤 500** 이 났다. 첫 바이트만 짧게 끊고 다음 시도로 넘긴다. 전체 타임아웃은 호출부가 따로 둔다.
+ * 응답 없이 걸린 시도를 조각 전체 타임아웃까지 기다리면 60초 넘게 멈춘다 — 첫 바이트만 짧게 끊고
+ * 다음 시도로 넘긴다. 전체 타임아웃은 호출부가 따로 둔다.
  */
-export const TTS_FIRST_BYTE_TIMEOUT_MS = 12_000;
+const TTS_FIRST_BYTE_TIMEOUT_MS = 12_000;
 
-export function ttsErrorStatus(error: any): number | undefined {
+function ttsErrorStatus(error: any): number | undefined {
     if (typeof error?.status === 'number') return error.status;
     const m = String(error?.message ?? '').match(/\b(4\d\d|5\d\d)\b/);
     return m ? Number(m[1]) : undefined;

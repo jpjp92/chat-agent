@@ -3,7 +3,7 @@
  *
  * 프로덕션을 **임포트**한다(표 복사 금지).
  *
- * 🔴 왜 있는가:
+ * 왜 있는가:
  *   `resolveThinkingConfig` 는 계열 이분법이었다 — `is3xModel ? minimal : budget`.
  *   3.5·3.6 에서만 **우연히** 맞았다. **3.7 은 `minimal` 을 400 으로 거부**하므로
  *   3.7 을 계열에 넣는 순간 **전 호출 400**, 안 넣으면 2.5용 sampling 이 딸려온다.
@@ -27,7 +27,7 @@ const baseCtx = { isYoutubeRequest: false, hasVideoData: false, hasUrlContent: f
 const cfg = (model: string, over: Partial<typeof baseCtx> = {}) =>
     resolveThinkingConfig({ model, ...baseCtx, ...over }) as any;
 
-// ── 1. 🔴 핵심 — 3.7 에 minimal 이 들어가면 안 된다 ────────────────────────────
+// ── 1. 핵심 — 3.7 에 minimal 이 들어가면 안 된다 ────────────────────────────
 for (const M37 of ['gemini-3.7-flash', 'gemini-3.8-flash']) {  // 3.8 도 minimal 400(2026-10-18 프로브)
 const tag = M37.includes('3.8') ? '3.8' : '3.7';
 check(`${tag} 방어`, 'minimal 을 지원 목록에 넣지 않는다',
@@ -92,7 +92,7 @@ check('표', 'budget 과 levels 를 둘 다 못 쓰는 모델은 없다',
     Object.values(THINKING_MODE).every(s => s.budget || s.levels.length > 0));
 
 // ── 4. 무거운 미디어 턴 타임아웃 — 강등 1회 ────────────────────────────────
-// 🔴 예전 코드는 무조건 stop 이었고 근거가 "60s 캡 초과"였는데 그 캡은 없어졌다
+// 예전 코드는 무조건 stop 이었고 근거가 "60s 캡 초과"였는데 그 캡은 없어졌다
 //    (route.ts maxDuration=300, 90×2=180s). 재시도하면 건질 수 있는 실패를 버리고 있었다
 //    — 2026-08-29 실측: 3.7 은 같은 영상에 90s 타임아웃 2회·성공 2회, 2.5 는 17.3s 성공.
 //    감시 대상은 둘이다: ⓐ 첫 타임아웃은 강등한다 ⓑ 강등 뒤에는 반드시 멈춘다(폭주 방지).

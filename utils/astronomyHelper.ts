@@ -1,29 +1,29 @@
 /**
- * Astronomy helper utilities using astronomy-engine
- * Provides real-time sky calculations for constellation visualization
+ * astronomy-engine 기반 천문 계산 유틸
+ * 별자리 시각화를 위한 실시간 하늘 계산
  */
 
 import * as Astronomy from 'astronomy-engine';
 
-export interface ObserverLocation {
+interface ObserverLocation {
     latitude: number;
     longitude: number;
-    elevation?: number; // meters above sea level
+    elevation?: number; // 해발 고도(m)
 }
 
-export interface HorizontalCoordinates {
-    altitude: number;  // degrees above horizon (-90 to +90)
-    azimuth: number;   // degrees clockwise from north (0 to 360)
-    visible: boolean;  // true if above horizon
+interface HorizontalCoordinates {
+    altitude: number;  // 지평선 위 각도 (-90 ~ +90)
+    azimuth: number;   // 북쪽에서 시계 방향 각도 (0 ~ 360)
+    visible: boolean;  // 지평선 위면 true
 }
 
 /**
- * Convert equatorial coordinates (RA/Dec) to horizontal coordinates (Alt/Az)
- * for a specific observer location and time
+ * 적도 좌표(RA/Dec)를 지평 좌표(Alt/Az)로 변환
+ * (관측 위치·시각 기준)
  */
 export function equatorialToHorizontal(
-    ra: number,        // Right Ascension in hours (0-24)
-    dec: number,       // Declination in degrees (-90 to +90)
+    ra: number,        // 적경(시, 0-24)
+    dec: number,       // 적위(도, -90 ~ +90)
     date: Date,
     location: ObserverLocation
 ): HorizontalCoordinates {
@@ -35,10 +35,10 @@ export function equatorialToHorizontal(
 
     const time = Astronomy.MakeTime(date);
 
-    // Convert RA from hours to degrees
+    // RA 를 시 → 도로 변환
     const raDegrees = ra * 15;
 
-    // Get horizontal coordinates
+    // 지평 좌표 구하기
     const hor = Astronomy.Horizon(time, observer, raDegrees, dec, 'normal');
 
     return {
@@ -49,8 +49,8 @@ export function equatorialToHorizontal(
 }
 
 /**
- * Project horizontal coordinates (Alt/Az) to canvas coordinates
- * Uses stereographic projection centered on zenith
+ * 지평 좌표(Alt/Az)를 캔버스 좌표로 투영
+ * 천정 중심 평사도법
  */
 export function horizontalToCanvas(
     altitude: number,
@@ -62,22 +62,22 @@ export function horizontalToCanvas(
     const centerX = canvasWidth / 2;
     const centerY = canvasHeight / 2;
 
-    // Convert to radians
+    // 라디안으로 변환
     const altRad = altitude * (Math.PI / 180);
     const azRad = azimuth * (Math.PI / 180);
 
-    // Stereographic projection from zenith
-    // Distance from center increases as altitude decreases
-    let r = Math.tan((Math.PI / 2 - altRad) / 2) * scale * 2.5; // Increased scale factor
+    // 천정 기준 평사도법
+    // 고도가 낮을수록 중심에서 멀어진다
+    let r = Math.tan((Math.PI / 2 - altRad) / 2) * scale * 2.5; // 배율 키움
 
-    // Apply distance compression for better visualization
-    // Similar to static mode, compress large distances
+    // 보기 좋게 먼 거리를 압축
+    // (정적 모드와 같은 방식)
     if (r > 100) {
         r = 100 + Math.log(1 + (r - 100) / 20) * 20;
     }
 
-    // Azimuth determines angle (0° = North = top, 90° = East = right)
-    // Rotate by -90° to make North point up
+    // 방위가 각도를 정한다 (0° = 북 = 위, 90° = 동 = 오른쪽)
+    // -90° 회전해 북쪽이 위로
     const angle = azRad - Math.PI / 2;
 
     const x = centerX + r * Math.cos(angle);
@@ -87,37 +87,9 @@ export function horizontalToCanvas(
 }
 
 /**
- * Get current location from browser geolocation API
+ * 낮/밤 판정용 태양 위치 계산
  */
-export async function getCurrentLocation(): Promise<ObserverLocation> {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-            // Default to Seoul
-            resolve({ latitude: 37.5665, longitude: 126.9780 });
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                resolve({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    elevation: position.coords.altitude || 0
-                });
-            },
-            (error) => {
-                console.warn('Geolocation error:', error);
-                // Default to Seoul
-                resolve({ latitude: 37.5665, longitude: 126.9780 });
-            }
-        );
-    });
-}
-
-/**
- * Calculate sun position to determine day/night
- */
-export function getSunAltitude(date: Date, location: ObserverLocation): number {
+function getSunAltitude(date: Date, location: ObserverLocation): number {
     const observer = new Astronomy.Observer(
         location.latitude,
         location.longitude,
@@ -132,9 +104,9 @@ export function getSunAltitude(date: Date, location: ObserverLocation): number {
 }
 
 /**
- * Check if it's nighttime (sun below -6° for astronomical twilight)
+ * 밤인지 확인 (천문박명: 태양 고도 -6° 미만)
  */
 export function isNighttime(date: Date, location: ObserverLocation): boolean {
     const sunAlt = getSunAltitude(date, location);
-    return sunAlt < -6; // Astronomical twilight
+    return sunAlt < -6; // 천문박명
 }

@@ -1,12 +1,12 @@
 /**
  * Google Identity Services(GIS) — 앱 안에서 Google ID 토큰을 받는다. 검증: `npx tsx tests/test-google-id.mts`
  *
- * 🔴 왜 리다이렉트(signInWithOAuth)를 바꾸나(2026-10-11): 리다이렉트 OAuth 는 콜백이 Supabase 이므로
- *   Google 계정 선택 화면에 "ghdpnuwbvlrxmxcazzci.supabase.co(으)로 이동" 이 뜬다. GIS 는 우리 도메인에서
- *   팝업/FedCM 으로 ID 토큰을 받아 `signInWithIdToken`·`linkIdentity({ token })` 로 넘긴다 → Supabase 주소 노출 없음.
+ * 리다이렉트 OAuth(signInWithOAuth)는 콜백이 Supabase 라 Google 계정 선택 화면에 "…supabase.co(으)로 이동" 이
+ * 뜬다. GIS 는 우리 도메인에서 팝업/FedCM 으로 ID 토큰을 받아 `signInWithIdToken`·`linkIdentity({ token })` 로
+ * 넘긴다 → Supabase 주소가 노출되지 않는다 → DEV_261011
  *
  * nonce: Google 에는 **SHA-256 해시**를, Supabase 에는 **원문**을 준다(Supabase 가 원문을 해시해 토큰의 nonce 와 비교).
- * 클라이언트 ID 가 없거나 스크립트가 막히면 호출부는 기존 리다이렉트 버튼으로 떨어진다(로그인이 깨지지 않게).
+ * 클라이언트 ID 가 없거나 스크립트가 막히면 호출부는 리다이렉트 버튼으로 떨어진다(로그인이 깨지지 않게).
  */
 export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';

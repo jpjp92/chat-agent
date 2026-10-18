@@ -8,25 +8,16 @@ import { toOpenAIFilePart } from './media';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /**
- * OpenAI Responses 호출 **1회당** 상한.
+ * OpenAI Responses 호출 **1회당** 상한 — 120s.
  *
- * 🔴 60_000 → 120_000 (2026-09-28). 60s 는 근거 없이 들어온 값이다 — 도입(9056a2a, 8/23)
- *    **2주 전에** 이미 `maxDuration 60→300` (e9435fa, 8/9) 으로 "60s 는 플랫폼 한계가 아니라
- *    우리가 건 값" 이 밝혀져 있었는데, 새로 만든 이 경로가 폐기된 전제를 그대로 물려받았다.
- *    Gemini 쪽은 같은 정정을 받아 57→90 으로 갔다(generator.ts HEAVY_MEDIA_CALL_TIMEOUT_MS).
+ * luna + hosted web_search 일반 검색 턴은 ~15s 지만, 조사형 질문은 web_search 가 검색→읽기→재검색을
+ * 여러 바퀴 돌아 60s 를 넘긴다(측정 61.6s). 그래서 60s 로는 끊긴다 → DEV_260928
  *
- * 실측(2026-09-28): luna + hosted web_search 일반 검색 턴은 ~14~15s. 그런데 조사형 질문
- *    ("실제로 이런 문제들 있는지 조사해줘")은 60s 를 넘겼다 — web_search 가 검색→읽기→재검색을
- *    여러 바퀴 돌기 때문이다. 프로덕션 실측 61.6s / Status 200 (무료티어에서 60s 초과 실행이
- *    이미 성공한다는 증거이기도 하다). 끊은 것은 버셀이 아니라 이 타이머였고, 사용자에겐
- *    504 → 'unavailable' → "서버가 일시적으로 불안정합니다" 로만 보였다.
+ * Gemini 와 같은 90 이 아닌 이유: 90 은 **재시도 예산**에서 나온 값이다(90×2=180 < 300).
+ * 이 경로에는 키 로테이션도 모델 강등도 폴백도 없어 단발 호출이 300s 예산을 혼자 쓴다.
+ * 꼬리가 어디서 끝나는지 모르므로 여유를 크게 둔다.
  *
- * 왜 Gemini 와 같은 90 이 아닌가: 90 은 **재시도 예산**에서 나온 값이다(90×2=180 < 300).
- *    이 경로에는 키 로테이션도 모델 강등도 폴백도 없다 — generator.ts 는 단발 `return await`
- *    이라 300s 예산을 혼자 쓴다. 꼬리가 60 을 넘은 것만 알고 어디서 끝나는지는 모르므로,
- *    60 에서 겨우 1.5배인 90 은 같은 절단을 되풀이할 위험이 있다(57 이 겪은 구조).
- *
- * ⚠️ 이 값도 여전히 추정이다. 아래 elapsed 로그가 쌓이면 **실측으로** 다시 정한다.
+ * 주의: 이 값도 추정이다. 아래 elapsed 로그가 쌓이면 측정값으로 다시 정한다.
  */
 const OPENAI_CHAT_TIMEOUT_MS = 120_000;
 
@@ -61,8 +52,8 @@ type OpenAIRequestState = {
     input?: JsonObject[];
     functionPhase?: 'initial' | 'followup';
     /**
-     * 이번 요청에만 얹는 지시. 🔴 조회가 빈손일 때 "카드만 남기지 말고 답하라" 를 붙인다 —
-     * 이 경로는 그래프 tool 노드를 거치지 않아 generator 의 주입이 닿지 않는다(§6.29).
+     * 이번 요청에만 얹는 지시. 조회가 빈손일 때 "카드만 남기지 말고 답하라" 를 붙인다 —
+     * 이 경로는 그래프 tool 노드를 거치지 않아 generator 의 주입이 닿지 않는다(DEV_260902 §6.29).
      */
     extraInstructions?: string;
     followupWebSearch?: boolean;
@@ -93,7 +84,7 @@ const toInputContent = (message: any, role: 'user' | 'assistant'): string | Json
         if (part?.type === 'text' || part?.type === 'input_text' || part?.type === 'output_text') {
             content.push({ type: 'input_text', text: String(part.text ?? '') });
         } else if (role === 'user' && toOpenAIFilePart(part)) {
-            // PDF(업로드·링크·인라인) → input_file. 🔴 image_url 분기보다 **먼저** 본다 —
+            // PDF(업로드·링크·인라인) → input_file. image_url 분기보다 **먼저** 본다 —
             //   인라인 PDF 도 history 에선 `image_url: data:application/pdf…` 모양이다(media.ts).
             content.push(toOpenAIFilePart(part)!);
         } else if (role === 'user' && part?.type === 'image_url' && typeof part.image_url?.url === 'string') {
@@ -296,11 +287,8 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
     const timeoutMs = options.timeoutMs ?? OPENAI_CHAT_TIMEOUT_MS;
     try {
         /**
-         * 🔴 타이머는 **호출마다 새로 건다.** 예전엔 `AbortController` 를 함수 바깥에서 한 번만
-         *    만들어 initial·followup 이 같은 signal 을 공유했다 — 즉 상한이 "호출당" 이 아니라
-         *    "턴 전체 예산" 이었고, 카드 턴은 둘이 나눠 썼다. 그러면 initial 이 느릴수록
-         *    followup 이 받는 잔액이 줄어 **먼저 끝난 호출이 뒤 호출을 굶기는** 구조가 된다.
-         *    상한만 올리고 이걸 두면 같은 절단이 followup 에서 계속 난다.
+         * 타이머는 **호출마다 새로 건다.** signal 을 initial·followup 이 공유하면 상한이 "호출당" 이 아니라
+         * "턴 전체 예산" 이 되어, initial 이 느릴수록 followup 이 받는 잔액이 줄어든다(먼저 끝난 호출이 뒤 호출을 굶김).
          */
         const request = async (body: JsonObject, phase: string) => {
             const controller = new AbortController();
@@ -319,8 +307,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                 });
             } finally {
                 clearTimeout(timer);
-                // 🔴 소요시간을 남긴다. 60→120 을 정할 때 붙잡을 실측이 **두 건뿐**이었다
-                //    (~15s 일반 검색, 60s 초과 1건). 관측점이 없으면 다음에도 추측한다.
+                // 소요시간을 남긴다 — 상한(120s)을 측정값으로 다시 정하기 위한 관측점이다.
                 console.log(`[OpenAI] ${phase} ${Date.now() - started}ms · websearch=${options.useWebSearch} · 상한 ${timeoutMs}ms`);
             }
             const json = await response.json().catch(() => ({})) as JsonObject;
@@ -388,19 +375,15 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
                         });
                     }
                     /**
-                     * 🔴 **빈 카드는 fast-pass 하지 않는다.** 카드 펜스만 보고 돌려보내면
-                     * 산문이 0줄인 막다른 길이 된다(실측: `이혼 소송 비용 얼마나 들어?` →
-                     * 법령 카드만, 답변 없음). langchain-path 와 같은 결함이 이 경로에도 있었다.
-                     * 비면 아래 synthesize 경로로 떨어뜨려 모델이 질문에 답하게 한다.
+                     * **빈 카드는 fast-pass 하지 않는다.** 카드 펜스만 보고 돌려보내면 산문이 0줄인 막다른 길이 된다
+                     * (langchain-path 와 같은 이유). 비면 아래 synthesize 경로로 떨어뜨려 모델이 질문에 답하게 한다.
                      */
                     const hasResults = cardHasResults(output);
                     if (!hasResults) emptyCardTurn = true;
-                    // 🔴 이 줄은 남겨 둔다. 카드 경로에서 값이 어디서 사라지는지 볼 수 있는
-                    // 유일한 관측점이다 — 없앴다가 화면만 보고 세 번 헛짚었다(§6.30).
+                    // 이 줄은 남겨 둔다 — 카드 경로에서 값이 어디서 사라지는지 볼 수 있는 유일한 관측점이다(§6.30).
                     // (followup 산문 길이는 안 찍는다 — 빈 응답이면 아래에서 예외가 난다.)
-                    // 🔴 **인자도 찍는다**(2026-09-03). 출력만 보던 탓에 `cardHasResults=false` 를
-                    //   보고도 "모델이 무엇으로 조회했는가"를 몰라 조회를 재현할 수 없었다.
-                    //   카드가 비는 원인은 대부분 도구가 아니라 **모델이 만든 검색어**에 있다.
+                    // **인자도 찍는다.** 카드가 비는 원인은 대부분 도구가 아니라 **모델이 만든 검색어**에 있어서,
+                    // 인자가 있어야 조회를 재현할 수 있다.
                     console.log(`[OpenAI] local tool "${options.functionTool.name}" ← ` +
                         `${JSON.stringify(argumentsValue).slice(0, 200)}`);
                     console.log(`[OpenAI] local tool "${options.functionTool.name}" → ` +
@@ -445,7 +428,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
             });
         }
         const normalized = normalizeOpenAIWebCitations(json, rawText);
-        // 드문 출력 흔들림 보정 — 울타리 없는 약 카드 JSON·사설 영역 인용 표지(text-repair.ts, 2026-10-18).
+        // 드문 출력 흔들림 보정 — 울타리 없는 약 카드 JSON·사설 영역 인용 표지(text-repair.ts).
         normalized.text = repairOpenAIText(normalized.text);
         // 합성 모드라도 카드가 있는 intent 는 카드를 도구 출력으로 고정한다(모델 재작성 금지).
         if (pinnedCardOutput && options.functionTool?.cardType) {

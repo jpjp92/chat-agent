@@ -1,14 +1,13 @@
 /**
  * base 의 **응답 형태 계층** — 길이·구조·서식·코드·언어.
  *
- * 무결성 계층([prompt-integrity.ts](./prompt-integrity.ts))과 가른 이유는 **변경 속도**다.
+ * 무결성 계층([prompt-integrity.ts](./prompt-integrity.ts))과 가르는 이유는 **변경 속도**다.
  * 여기는 가독성 실험(§11)이 반복해서 손대는 자리고, 저기는 함부로 못 건드리는 자리다.
  *
- * 🔴 순서는 [prompt.ts](./prompt.ts) 가 선언한다 — 이 파일은 조각만 갖는다.
- * ⚠️ 분리는 바이트를 바꾸지 않았다(4개 언어 base 골든).
+ * 순서는 [prompt.ts](./prompt.ts) 가 선언한다 — 이 파일은 조각만 갖는다(4개 언어 base 골든).
  */
 
-/** 기본은 산문이다 — 헤딩·불릿·표는 실제로 그 모양인 내용에만. 2026-09-23 신설. */
+/** 기본은 산문이다 — 헤딩·불릿·표는 실제로 그 모양인 내용에만. */
 export const RESPONSE_SHAPE = `[RESPONSE SHAPE — LENGTH & STRUCTURE]
 - **Default to plain prose.** Headings, bullets, and tables are for content that is genuinely structured — not a house style to apply to every answer. A question that has one answer gets one or two paragraphs with no heading.
 - Use a **bullet list** only when you have 3 or more genuinely parallel items. Two items belong in a sentence joined by "and"/"while"; one item is never a list.

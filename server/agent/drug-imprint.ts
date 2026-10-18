@@ -2,19 +2,17 @@
  * MFDS 각인 값 정리 — 순수 함수(네트워크 없음). 검증: `npx tsx tests/test-drug-imprint.mts`
  *
  * MFDS 알약식별 API 는 로고 각인을 `PRINT_FRONT/BACK = "마크"` 로만 주고, 로고에서 읽히는 글자는
- * `MARK_CODE_FRONT_ANAL / MARK_CODE_BACK_ANAL`("dHP,dP,d-P,cHP")에 따로 준다(2026-10-18 확인).
- * 예전엔 ANAL 을 버리고 사진을 비전 모델로 다시 읽었는데:
- *   · 비전이 **사진 위치**(왼쪽=앞, 오른쪽=뒤)로 면을 골랐다. 마그네스정은 MFDS 가 로고를 "뒷면" 으로
- *     적었지만 사진에선 왼쪽 알약에 있어, 비전이 민무늬 오른쪽을 읽고 "없음" → 보정 실패로 "마크" 만 남았다.
- *   · 그 비전 호출의 출력 "없음" 이 GPT 경로에서 답변으로 새 GPT 답을 통째로 막았다(DEV_261018).
- * → ANAL 이 있으면 그것으로 "마크(dHP)" 를 만들고 비전을 부르지 않는다. ANAL 이 없을 때만 비전.
+ * `MARK_CODE_FRONT_ANAL / MARK_CODE_BACK_ANAL`("dHP,dP,d-P,cHP")에 따로 준다.
+ * ANAL 이 있으면 그것으로 "마크(dHP)" 를 만들고 비전을 부르지 않는다. ANAL 이 없을 때만 비전.
+ * 비전은 면을 사진 위치(왼쪽=앞)로 골라 MFDS 앞/뒤와 어긋날 수 있고, 그 출력("없음")이 GPT 경로에서
+ * 답을 막은 적이 있다 → DEV_261018 §5
  */
 
-export const MARK_VALUES = ['마크', '마크(로고)', 'mark', 'MARK', '각인'];
+const MARK_VALUES = ['마크', '마크(로고)', 'mark', 'MARK', '각인'];
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
-export const isMarkImprint = (v: unknown): boolean => MARK_VALUES.includes(str(v));
+const isMarkImprint = (v: unknown): boolean => MARK_VALUES.includes(str(v));
 
 /** "dHP,dP,d-P,cHP" → "dHP". ANAL 은 가능한 판독 후보 목록이고 첫 값이 대표다. */
 export const firstMarkCode = (anal: unknown): string | null => {

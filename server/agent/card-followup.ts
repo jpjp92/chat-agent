@@ -1,8 +1,8 @@
 import { type LangName, DEFAULT_LANG_NAME, pickByLang } from './lang';
 
 export type LocationCardKind = 'pharmacy' | 'hospital' | 'vet';
-export type CardFollowupDecision = 'new' | 'refine' | 'acknowledge' | 'unrelated';
-export type RouterFollowupDecision = 'new' | 'refine' | 'unrelated' | undefined;
+type CardFollowupDecision = 'new' | 'refine' | 'acknowledge' | 'unrelated';
+type RouterFollowupDecision = 'new' | 'refine' | 'unrelated' | undefined;
 
 const ACKNOWLEDGEMENT = /(가야겠다|가볼게|갈게|여기로\s*가|여기\s*갈|정했어|선택했어|고마워|감사|알겠|확인했|그렇구나|좋네|괜찮네|뿐이네|뿐이군|됐어|오케이|okay|thanks?)/i;
 const CARD_DETAIL = /(몇\s*시|영업\s*시간|운영\s*시간|근무\s*시간|업무\s*시간|진료\s*시간|접수\s*시간|점심\s*시간|전화(?:번호)?|주소|휴무|문\s*(열|닫)|지금\s*(열|영업|진료)|오늘\s*(열|영업|진료)|열려\s*있|열었|열렸|닫혔|닫았|영업\s*(중|하나|해|한다|할까)|의사\s*수|어디가\s*더|어느\s*곳이|비교|가장\s*(늦게|일찍))/i;
@@ -20,21 +20,19 @@ const CLEARLY_OTHER_DOMAIN = /(날씨|기온|비\s*와|영화|상영|법률|법�
 
 const squash = (value: string) => value.replace(/\s+/g, '');
 
-// 🔴 어휘가 좁으면 조회 자체가 안 걸린다. 실측(2026-08-24): `늘좋은내과의원 근무시간은?`이
-// `진료시간`만 알던 이 패턴에 안 걸려 심평원 조회를 건너뛰고 "확인되지 않습니다"로 답했다.
+// 어휘가 좁으면 조회 자체가 안 걸린다 — `근무시간`·`영업시간` 등도 진료시간 질문으로 받는다 → DEV_260824 §7
 const LIVE_STATUS_QUESTION = /(열려\s*있|열었|열렸|닫혔|닫았|문\s*(열|닫)|영업\s*(중|하나|해|한다|할까|여부)|진료\s*(중|하나|해|하나요|여부|시간)|(근무|업무|운영|영업|접수|점심)\s*시간|몇\s*시(까지|부터)?|언제\s*(까지|열|여|닫)|오픈|마감|지금\s*(열|영업|진료)|오늘\s*(열|영업|진료)|야간|당직|응급)/i;
 
 /** 앞 턴에서 못 찾은 정보를 "다시 찾아봐 달라"는 재시도 요청. 대상 없이 방법만 말한다. */
 const RETRY_LOOKUP = /(검색(해|해서|으로)?|찾아\s*(볼|봐|줘|주세요)|알아\s*(봐|봐줘)|확인\s*(해|해줘)|다시\s*(찾|검색|확인))/i;
 
 /**
- * 동물병원 카드는 행안부 **인허가** 데이터라 진료시간 필드가 아예 없다. 그래서 "지금 진료하나"는
- * 카드만으로 답할 수 없고, 침묵하면 모델이 인허가 상태('영업/정상')를 현재 영업으로 오독한다
- * (실측 2026-08-23: "열려 있는 동물병원 10곳" 단정). 이 턴에 한해 웹 검색을 열어 근거를 찾게 하고,
- * 확정이 아니라는 것과 전화 확인을 함께 말하도록 generator가 규칙을 바꾼다.
+ * 동물병원 카드는 행안부 **인허가** 데이터라 진료시간 필드가 없다. "지금 진료하나"는 카드만으로
+ * 답할 수 없고, 침묵하면 모델이 인허가 상태('영업/정상')를 현재 영업으로 오독한다.
+ * 그래서 이 턴에 한해 웹 검색을 열어 근거를 찾게 하고, 확정이 아니라는 것과 전화 확인을
+ * 함께 말하도록 generator 가 규칙을 바꾼다 → DEV_260823
  *
- * 병원(hospital)은 심평원 세부정보 API에 요일별 진료시간이 구조화돼 있으므로 검색 추정 대상이
- * 아니다 — 그 키가 준비되면 약국과 같은 서버 계산 경로로 붙인다.
+ * 병원(hospital)은 심평원 세부정보 API에 요일별 진료시간이 구조화돼 있어 검색 추정 대상이 아니다.
  */
 export function needsLiveStatusSearch(
     kind: LocationCardKind | 'law' | '',
@@ -101,10 +99,9 @@ const HOSPITAL_HOURS_LABELS: Record<LangName, {
 /**
  * 검색으로 내려갈 때 "어느 기관인가"를 서버가 못 박는다.
  *
- * 실측(2026-08-24): `나루동물병원 진료시간`에 모델이 상호만으로 검색해 **종로의 동명 병원** 시간을
- * 가져왔다. 규칙에 "상호와 주소를 함께 검색하라"고 써도 검색어 구성은 모델에 달려 있어 신뢰할 수
- * 없다. 그래서 ⓐ 대상 주소를 값으로 주고 ⓑ **결과 주소가 다르면 버리라**는 검증을 함께 건다.
- * 검색어를 잘 만드는 것보다 잘못된 결과를 버리는 쪽이 확실하다.
+ * 상호만으로 검색하면 다른 지역의 동명 기관 시간을 가져온다. 검색어 구성은 모델에 달려 있어
+ * 신뢰할 수 없으므로 ⓐ 대상 주소를 값으로 주고 ⓑ **결과 주소가 다르면 버리라**는 검증을 함께 건다.
+ * 검색어를 잘 만드는 것보다 잘못된 결과를 버리는 쪽이 확실하다 → DEV_260824
  */
 const SEARCH_TARGET_LABELS: Record<LangName, { title: string; name: string; address: string; rule: string; verify: string }> = {
     Korean: {
@@ -223,14 +220,11 @@ export function decideLocationCardFollowup(input: {
     if (CARD_DETAIL.test(text)) return 'refine';
     // "다른 약국"·"새로"처럼 전환을 명시하면 대상이 없어도 새 조회다.
     if (EXPLICIT_NEW.test(text) && REQUEST_SHAPE.test(text)) return 'new';
-    // 🔴 조회 동사(검색·찾아)만으로 새 조회로 보면 안 된다. 실측(2026-08-24): 병원 카드가 떠 있는데
-    //    `검색해서 찾아볼 수 있음?`이 새 조회로 빠져 같은 병원 카드를 다시 그렸다. 새 지역·새 대상이
-    //    언급됐을 때만 새 조회이고, 대상 없는 요청은 화면 카드에 대한 후속이다.
+    // 조회 동사(검색·찾아)만으로 새 조회로 보지 않는다 — 새 지역·새 대상이 언급됐을 때만 새 조회이고,
+    // 대상 없는 요청("검색해서 찾아볼 수 있음?")은 화면 카드에 대한 후속이다 → DEV_260824 §7
     if (NEW_LOOKUP.test(text) && REQUEST_SHAPE.test(text) && AREA_TOKEN.test(text)) return 'new';
-    // 화면 카드에 있는 상호를 지목했으면 새 조회가 아니다. 실측(2026-08-23): "우리들 약국은
-    // 아직 열려있겠네?"가 어떤 규칙에도 안 걸려 라우터 LLM 판정으로 떨어졌고, 그게 'new'로
-    // 나온 턴에서 pharmacy_search가 재호출돼 0건 → 빈 카드가 나왔다(모델이 아니라 경로가
-    // 비결정적이었다). 카드에 이미 있는 이름은 결정적 근거이므로 여기서 고정한다.
+    // 화면 카드에 있는 상호를 지목했으면 새 조회가 아니다. 카드에 이미 있는 이름은 결정적 근거이므로
+    // 라우터 LLM 판정에 맡기지 않고 여기서 고정한다(LLM 이 'new' 로 보면 재조회 0건 → 빈 카드) → DEV_260823
     const squashedText = squash(text);
     if (input.cardNames?.some((name) => squashedText.includes(squash(name)))) return 'refine';
     if (ACKNOWLEDGEMENT.test(text)) return 'acknowledge';
@@ -239,8 +233,8 @@ export function decideLocationCardFollowup(input: {
         .some(name => !(input.cardNames ?? []).some(known => squash(known).includes(squash(name))));
     const looksLikeNewTarget = AREA_TOKEN.test(text) || EXPLICIT_NEW.test(text) || mentionsUnknownFacility;
 
-    // 🔴 라우터 LLM의 'new'도 대상이 있을 때만 받는다. 실측(2026-08-23): 대상 없는 발화가 LLM 판정
-    //    'new'로 넘어가 재조회 0건 → 빈 카드가 됐고, 같은 문장이 모델에 따라 뒤집혔다.
+    // 라우터 LLM 의 'new' 도 대상이 있을 때만 받는다 — 대상 없는 'new' 는 재조회 0건 → 빈 카드가 되고,
+    // 같은 문장이 모델에 따라 뒤집힌다 → DEV_260823
     if (input.llmFollowUp === 'new' && looksLikeNewTarget) return 'new';
     if (input.llmFollowUp === 'refine') return 'refine';
     if (input.llmFollowUp === 'unrelated') return 'unrelated';
@@ -256,9 +250,8 @@ const LAW_RAW_LOOKUP = /(원문|전문|조문\s*(보여|조회)|제\s*\d+\s*조.
 /**
  * 이 발화가 법률 주제이긴 한가 — 조문 번호·법령명·법률 어휘.
  *
- * 🔴 마지막 관문이다. 이게 없던 시절, 법률 카드가 떠 있으면 **무엇을 물어도** law_search 로
- * 갔다(실측 2026-08-31): "트랜스포머 어텐션 최적화 논문" → "관련 법령을 찾을 수 없습니다".
- * 날씨 후속 판정에는 'unrelated' 가 있는데 법률에만 없어서 생긴 비대칭이었다.
+ * 마지막 관문이다. 없으면 법률 카드가 떠 있을 때 무관한 질문까지 law_search 로 간다
+ * (날씨 후속의 'unrelated' 와 같은 역할) → DEV_260831
  */
 const LAW_SIGNAL = /(법령|법률|법조문|조문|시행령|시행규칙|제\s*\d+\s*조|판례|헌재|위헌|소송|고소|고발|과태료|벌금|형량|처벌|위반|해고|임금|연차|퇴직금|근로|계약서|약관|저작권|특허|상속|이혼|손해배상|[가-힣]{2,}(?<![방용요수기화작어창주서편비타문])법(?=[은는이가을를에과와의도로만,.?!\s]|$))/i;
 /** 화면 카드를 가리키는 말 — 주제가 안 바뀐 후속이다. */
@@ -266,9 +259,8 @@ const LAW_CARD_REF = /(이|그|해당|위|앞)\s*(조항|조문|법|규정|내�
 
 /**
  * 화면의 법률 카드에 **조문 본문**이 있는가. 목록 카드(`laws` 만)는 법령명·시행일 메타데이터뿐이라
- * "설명해줘" 를 카드로 답하면 "카드에 내용이 없습니다" 가 된다(실측 2026-10-10, Gemini 3.7:
- * `근로기준법 관련 법률` → 목록 카드 → `시행규칙 설명해줘` 가 공포일만 읊음).
- * 컨텍스트가 없거나 깨졌으면 true — 예전 동작(refine) 유지.
+ * "설명해줘" 를 카드로 답하면 공포일만 읊게 된다 → DEV_261010
+ * 컨텍스트가 없거나 깨졌으면 true — refine 으로 둔다.
  */
 export function lawCardHasArticles(cardContext?: string): boolean {
     if (!cardContext) return true;
@@ -281,18 +273,18 @@ export function lawCardHasArticles(cardContext?: string): boolean {
     }
 }
 
-export type LawInteractionDecision = 'lookup' | 'synthesize' | 'refine' | 'acknowledge' | 'unrelated';
+type LawInteractionDecision = 'lookup' | 'synthesize' | 'refine' | 'acknowledge' | 'unrelated';
 
 /**
  * @param cardHasArticles 화면 카드에 조문 본문이 있는가(`lawCardHasArticles`). 없으면 설명 요청은 synthesize.
- * @param intentIsLaw 라우터 LLM 이나 규칙이 이미 법률로 판정했는가. 참이면 예전처럼
- *   catch-all 조회가 옳다 — 판정 근거가 카드의 존재만이 아니기 때문이다.
+ * @param intentIsLaw 라우터 LLM 이나 규칙이 이미 법률로 판정했는가. 참이면 catch-all 조회가 옳다 —
+ *   판정 근거가 카드의 존재만이 아니기 때문이다.
  */
 export function decideLawInteraction(
     textValue: string, cardShown: boolean, intentIsLaw: boolean = true, cardHasArticles: boolean = true,
 ): LawInteractionDecision {
     const text = textValue.trim();
-    // 🔴 주제가 카드를 떠났는가를 **먼저** 본다. 아래 규칙들은 법률 문맥을 전제하므로,
+    // 주제가 카드를 떠났는가를 **먼저** 본다. 아래 규칙들은 법률 문맥을 전제하므로,
     //   "논문 설명해줘" 가 LAW_EXPLANATION 에 걸려 법률 후속이 되는 일을 막아야 한다.
     if (cardShown && !intentIsLaw && !LAW_SIGNAL.test(text) && !LAW_CARD_REF.test(text)
         && !ACKNOWLEDGEMENT.test(text)) return 'unrelated';
@@ -305,11 +297,9 @@ export function decideLawInteraction(
 }
 
 /**
- * 약국 사실 블록의 라벨. 실측(2026-08-23): GPT-5.4 mini가 이 블록을 그대로 인용해
- * 사용자에게 "is_open_now=true인 약국은 …"을 노출했다. 그래서 라벨에서 내부 필드명을
- * 없앴는데, 그러면 이번엔 **응답 언어**를 따라가야 한다 — 모델이 통째로 베낄 수 있는
- * 데이터이므로 English 세션에 한국어 라벨이 새어 나오면 같은 종류의 결함이 된다.
- * 지시문이 아니라 인용될 수 있는 값이라서 langName으로 분기한다.
+ * 약국 사실 블록의 라벨. 모델이 이 블록을 그대로 인용할 수 있으므로 내부 필드명(`is_open_now`)을
+ * 쓰지 않고, 라벨은 **응답 언어**를 따른다 — English 세션에 한국어 라벨이 새어 나오지 않게.
+ * 지시문이 아니라 인용될 수 있는 값이라서 langName 으로 분기한다 → DEV_260823
  */
 const PHARMACY_FACT_LABELS: Record<LangName, {
     title: string; checkedAt: string; openNow: string; closedNow: string; unknown: string;
@@ -380,7 +370,7 @@ export function buildCardFollowupFacts(kind: string, cardBlock: string, langName
 }
 
 // ============================================================
-// 논문 카드 후속 (2026-08-31)
+// 논문 카드 후속
 // ============================================================
 
 /**
@@ -398,16 +388,13 @@ const PAPER_REFORMAT =
     /(표로|목록으로|리스트로|정리해|요약해|간단(히|하게)|쉽게|풀어서|한\s*줄로|비교해|번역해|다시\s*(설명|정리))/;
 
 /**
- * 🔴 **재구성 어휘만으로는 부족하다.** 실측(`live-card-suction.mts`, 2026-09-01, 168회):
- * 논문 카드가 떠 있을 때 지시어가 하나도 없는 무관 질의가 카드 대화로 빨려 들어갔다 —
- * "리액트 훅 **쉽게** 설명해줘" 가 `쉽게` 한 단어로 걸려 `paperFollowup` 을 받았다.
- * 리액트 질문에 "화면 논문 카드가 근거다" 가 주입된다. "이 사진 쉽게 설명해줘" 는 더 나쁘다 —
- * 이미지를 첨부한 턴이 논문 카드에 물린다.
+ * 재구성 어휘만으로는 부족하다 — 지시어 없는 무관 질의("리액트 훅 쉽게 설명해줘")가 `쉽게` 한 단어로
+ * 논문 카드 대화에 빨려 들어간다. 이미지를 첨부한 턴이 논문 카드에 물리는 경우도 같다.
  *
- * ⚖️ 가르는 건 **목적어 유무**다. 재구성 지시어와 카드 지칭어를 걷어내고 남는 게 있으면 새 주제다:
+ * 가르는 건 **목적어 유무**다. 재구성 지시어와 카드 지칭어를 걷어내고 남는 게 있으면 새 주제다:
  *   "표로 정리해줘"(남는 것 없음) → 카드 대화 · "서울 맛집 목록으로 보여줘"(서울 맛집) → 새 질의
  *
- * 이 판정은 `PAPER_ENTRY_REF`(순번·지시어)가 이미 잡은 턴에는 쓰이지 않는다 — 거기서 먼저 끝난다.
+ * `PAPER_ENTRY_REF`(순번·지시어)가 이미 잡은 턴에는 쓰이지 않는다 — 거기서 먼저 끝난다 → DEV_260901
  */
 const REFORMAT_WORDS =
     /(표로|목록으로|리스트로|한\s*줄로|영어로|한국어로|영문으로|국문으로|정리|요약|간단(히|하게)?|쉽게|풀어서|비교|번역|설명|알려|보여|다시|줘|주세요|해\s*줘|해주세요|좀)/g;
@@ -416,7 +403,7 @@ const CARD_REF_WORDS =
     /(지금까지|여태까지|여태|나온|위에|위의|앞의|앞에|해당|방금|아까|이것|그것|저것|이거|그거|내용|논문|연구|결과|것들|들)/g;
 /**
  * `이 사진` 의 `이` 처럼 **관형사로 쓰인** 지시어만 지운다.
- * ⚖️ 전역 치환(`/(이|그|저)/g`)으로 바꿔도 이 판정의 결과는 같다 — 한 글자만 지우므로 2자 이상
+ * 전역 치환(`/(이|그|저)/g`)으로 바꿔도 이 판정의 결과는 같다 — 한 글자만 지우므로 2자 이상
  * 낱말이 비지 않고, 비는 건 낱말이 정확히 `이`/`그`/`저` 일 때뿐이라 어차피 지시어다.
  * 실제로 무력화 실험에서 둘을 구분하지 못했다. 그래도 경계형을 쓰는 건 **의도가 읽히기** 때문이다.
  */
@@ -437,53 +424,36 @@ const PAPER_NEW_LOOKUP =
 const PAPER_LOOKUP_VERB = /(찾아|검색|알아\s*봐|조사해)/;
 
 /**
- * 🔴 논문 카드가 떠 있을 때 이 턴이 **재조회인가 카드 대화인가**.
+ * 논문 카드가 떠 있을 때 이 턴이 **재조회인가 카드 대화인가**.
  *
- * 실측(2026-08-31, gemini-3.7·gpt-5.6-luna 양쪽 재현): 이 판정이 없어서 화면의 카드를 두고
- * "세 번째 논문 좀 더 설명해줘" 라고 물으면 **PubMed 를 다시 검색해 다른 목록의 새 카드**가 떴다.
- * "지금까지 나온 논문들 표로 정리해줘" 는 더 나빴다 — 재구성 요청인데 얘기한 적 없는 논문
- * 카드를 새로 붙였다. 약국·병원·동물병원·법률은 `decideLocationCardFollowup` 이 이 턴들을
- * `general` 로 보내 카드 원문만 근거로 답하게 하는데 **논문 카드만 어디에도 안 붙어 있었다.**
+ * 화면 카드를 두고 "세 번째 논문 좀 더 설명해줘"·"지금까지 나온 논문들 표로 정리해줘" 를 재조회로 보면
+ * 다른 목록의 새 카드가 떠서 `[3]` 이 딴 논문을 가리킨다 — 표시 문제가 아니라 **귀속 오류**다
+ * (DEV_260830 §6.9). 약국·병원·동물병원·법률의 `decideLocationCardFollowup` 과 같은 역할이다.
  *
- * 순서가 밀리면 `[3]` 이 딴 논문을 가리키므로, 이건 표시 문제가 아니라 **귀속 오류**의 경로다
- * (DEV_260830 §6.9 에서 없앤 것이 멀티턴으로 되돌아온다).
- *
- * ⚖️ `그럼 비타민D 논문은?` 은 **재조회가 맞다.** 그래서 "새로 찾아와" 신호를 먼저 보고,
- * 지목·재구성은 조회 동사가 없을 때만 카드 대화로 친다.
+ * `그럼 비타민D 논문은?` 은 재조회가 맞다. 그래서 "새로 찾아와" 신호를 먼저 보고,
+ * 지목·재구성은 조회 동사가 없을 때만 카드 대화로 친다 → DEV_260831
  */
 /**
  * 논문 카드 대화 턴에 generator 가 붙이는 근거 고정 규칙.
  *
- * 🔴 실측(사용자 화면, 2026-08-31). `decidePaperCardFollowup` 이 `discuss` 로 잘 판정했고
- * 재검색도 막혔는데, 답변은 이렇게 나갔다 — "세번째 논문 자세히 설명해줘" 에 대해
- * **연구가 측정한 결과지표 5개**(감기 횟수·지속기간·발열/기침/콧물·학교 결석·이상반응)를
- * "연구에서 확인하려 한 주요 결과는 다음과 같습니다" 라고 사실처럼 나열했다. 카드가 가진
- * 초록은 `A two-strain probiotic combination given twice a day for 3 months was able to
- * reduce the symptoms of the co…` **한 문장**뿐이다.
+ * 카드가 가진 초록은 한 문장일 수 있다. 근거 고정이 없으면 모델이 초록에 없는 결과지표를
+ * "연구에서 확인한 결과"처럼 나열한다. `paperFollowup` 은 state 로 넘겨야 generator 가
+ * 이 턴이 카드 대화인 줄 안다(날씨·영화·위치 카드와 같은 배선) → DEV_260831
  *
- * 원인은 판정이 아니라 **배선**이었다. `paperFollowup` 이 라우터의 지역 변수로 끝나
- * `needsSearch` 만 끄고 state 로 나가지 않았고, generator 는 이 턴이 카드 대화인 줄 몰랐다.
- * 날씨·영화·위치 카드가 전부 받는 근거 고정 규칙을 논문만 못 받고 있었다.
+ * 카드 밖 지식을 **금지하지는 않는다**("RCT 가 뭐야" 같은 배경 설명까지 막으면 답이 죽는다).
+ * 대신 초록에서 온 것과 일반 지식에서 온 것을 **문장 안에서 가르게** 한다.
  *
- * ⚖️ 카드 밖 지식을 **금지하지는 않는다.** "RCT 가 뭐야" 같은 배경 설명까지 막으면 답이 죽는다.
- * 대신 초록에서 온 것과 일반 지식에서 온 것을 **문장 안에서 가르게** 한다 — 실측에서 모델이
- * 맨 끝에 자발적으로 붙였던 고지("학습된 지식과 앞서 확인된 논문 요약을 기준으로")를
- * 우연이 아니라 규칙으로 만든다.
- *
- * 문구는 하니스가 **임포트해서 검사한다**(tests/test-paper-card.mts §4j). 소스 grep 으로
- * 두면 문구가 바뀌어도 조용히 통과한다 — 실제로 초안 하니스가 그렇게 통과했다.
+ * 문구는 하니스가 **임포트해서 검사한다**(tests/test-paper-card.mts §4j) — 소스 grep 이면
+ * 문구가 바뀌어도 조용히 통과한다.
  */
 /**
  * 조회가 빈손일 때 generator 에 붙이는 규칙 — **카드가 답을 삼키지 않게** 한다.
+ * 빈 카드에 fast-pass 하면 카드만 뜨고 산문이 0줄이므로(`cardHasResults` 로 막음) 모델을 부르고,
+ * 무엇을 말할지 준다 → DEV_260901·DEV_260902
  *
- * 🔴 실측(2026-09-01~02). `변호사 수임료는 보통 얼마나 될까?`·`이혼 소송 비용 얼마나 들어?`·
- * `강아지 사료 추천해줘` 에 카드만 뜨고 산문이 0줄이었다. fast-pass 가 카드 펜스만 보고 최종
- * 생성을 건너뛴 탓이다(`cardHasResults` 로 막았다). 이제 모델이 불리므로 **무엇을 말할지**를 준다.
- *
- * ⚖️ 빈 카드는 원인이 셋이고 정답이 다르다:
+ * 빈 카드는 원인이 셋이고 정답이 다르다:
  *   - **조회 인자가 없다**(`변호사 수임료`·`강아지 사료`) → 애초에 조회 요청이 아니었다.
- *     사용자의 질문 자체에 답한다. 지역을 입력하라고 되묻는 건 우리가 낸 오분류를 사용자에게
- *     떠넘기는 것이다.
+ *     사용자의 질문 자체에 답한다. 지역을 입력하라고 되묻는 건 우리 오분류를 사용자에게 떠넘기는 것이다.
  *   - **조회했는데 0건**(`울릉도 약국`) → 공식 등록부가 권위다. 없다고 말하고 다음 수를 안내한다.
  *     여기서 웹 검색 결과로 뒤집으면 검증된 부정을 블로그가 이긴다.
  *   - **백엔드 장애** → 모른다고 밝힌다. 아는 척하지 않는다.
@@ -522,7 +492,7 @@ export function decidePaperCardFollowup(text: string, paperCardShown: boolean): 
     if (PAPER_NEW_LOOKUP.test(t)) return 'new';
     const wantsLookup = PAPER_LOOKUP_VERB.test(t);
     if (PAPER_ENTRY_REF.test(t) && !wantsLookup) return 'discuss';
-    // 🔴 재구성 어휘 + **목적어 없음** 을 함께 요구한다. 어휘만 보면 "리액트 훅 쉽게 설명해줘" 가 샌다.
+    // 재구성 어휘 + **목적어 없음** 을 함께 요구한다. 어휘만 보면 "리액트 훅 쉽게 설명해줘" 가 샌다.
     if (PAPER_REFORMAT.test(t) && isBareReformat(t) && !wantsLookup) return 'discuss';
     return 'new';
 }
@@ -530,15 +500,14 @@ export function decidePaperCardFollowup(text: string, paperCardShown: boolean): 
 /**
  * 화면에 표시된 카드를 근거로 답하는 턴의 규칙 — 순수.
  *
- * 2026-09-24 에 `prompt-assembly.ts` 인라인에서 떼어냈다. 이 파일의 다른 빌더들과 같은 이유다 —
- * 인라인 리터럴은 **하니스가 문구를 직접 검사할 수 없다**(소스 grep 뿐이고, 그건 문구가 이사하면
- * 거짓으로 깨지고 문구가 바뀌어도 통과한다).
+ * 빌더로 두는 이유: 인라인 리터럴은 하니스가 문구를 직접 검사할 수 없다(소스 grep 은 문구가
+ * 옮겨지면 거짓으로 깨지고, 바뀌어도 통과한다).
  *
- * 🔴 `liveStatusSearch` 가 규칙을 통째로 갈아끼운다. 라우터가 이 턴에만 검색을 열어 준 경우
+ * `liveStatusSearch` 가 규칙을 통째로 갈아끼운다. 라우터가 이 턴에만 검색을 열어 준 경우
  * (동물병원 진료 여부)에는 "추측 금지"를 유지하면 답이 막히고, 그냥 풀면 인허가 상태를
  * 영업중으로 단정한다. 그래서 검색 근거로 답하되 **확정이 아님과 전화 확인**을 함께 말하게 한다.
  *
- * 문구는 옮기면서 한 글자도 바꾸지 않았다 — 골든 `turn/cardFollowup`·`turn/cardSearchTurn` 이 지킨다.
+ * 골든 `turn/cardFollowup`·`turn/cardSearchTurn` 이 문구를 지킨다.
  */
 export const buildDisplayedCardRules = (args: {
     kind: string; cardContext: string; cardFacts: string; liveStatusSearch: boolean;

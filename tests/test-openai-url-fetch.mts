@@ -131,7 +131,7 @@ check('배선  Wikidocs도 OpenAI 직행 없이 ScrapingBee 체인을 우선 사
         routeSource.indexOf('OPENAI_URL_FALLBACK_ENABLED && isOpenAIUrlFallbackHost(targetHostname)'));
 
 // ── 논문 카드 + 명시 검색 요청 → 종합 단계 웹 검색 (2026-09-02) ────────────────
-// 🔴 라우터가 "클로드 skills 관련된 레포 검색" 을 arxiv_search 로 보내자, generator 의
+// 라우터가 "클로드 skills 관련된 레포 검색" 을 arxiv_search 로 보내자, generator 의
 //   `useWebSearch = !localFunctionTool && ...` 가 로컬 함수가 있다는 이유만으로 사용자의
 //   명시 검색 요청(tier 300)을 버렸다. 논문 도구엔 followupWebSearch 도 없어서 답변 전체가
 //   엉뚱한 arXiv 근거만 달고 나갔다 — 웹으로 빠져나갈 구멍이 하나도 없었다.

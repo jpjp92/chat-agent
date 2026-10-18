@@ -145,7 +145,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {/* 모바일 오버레이 */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] md:hidden animate-in fade-in duration-300"
@@ -153,16 +153,16 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         ></div>
       )}
 
-      {/* Sidebar Aside */}
+      {/* 사이드바 */}
       <aside className={`fixed md:relative inset-y-0 left-0 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col md:p-3
         ${isOpen ? 'translate-x-0 p-0' : '-translate-x-full md:translate-x-0'} 
         ${isCollapsed ? 'md:w-[84px]' : 'w-[260px] sm:w-[272px]'}`}>
         <div className="h-full flex flex-col bg-white/60 dark:bg-white/[0.07] backdrop-blur-2xl border-r border-indigo-200/40 dark:border-white/0 md:border md:border-indigo-200/50 md:dark:border-white/[0.12] md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
 
-        {/* Header Action Part */}
+        {/* 헤더 동작 영역 */}
         <div className={`flex items-center pt-4 pb-2 shrink-0 ${isCollapsed ? 'flex-col items-center gap-4 px-0' : 'justify-between pl-4 pr-4'}`}>
           <div className={`flex items-center ${isCollapsed ? 'flex-col gap-4' : ''}`}>
-            {/* Toggle Button for Desktop */}
+            {/* 데스크톱 접기 버튼 */}
             <button
               onClick={toggleCollapse}
               className="hidden md:flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-200/60 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 transition-all"
@@ -183,10 +183,10 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           </div>
         </div>
 
-        {/* Dynamic Content Container */}
+        {/* 내용 컨테이너 */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-          {/* Action Part: New Chat & Search (Shown when expanded OR on mobile open) */}
+          {/* 동작 영역: 새 채팅·검색 (펼쳤을 때 또는 모바일에서 열었을 때) */}
           {(!isCollapsed || isOpen) && (
             <div className="px-3 pb-2 space-y-1 animate-in fade-in slide-in-from-left-2 duration-300">
               <button
@@ -219,14 +219,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
           {/* Action Part: Collapsed Icons (Only for Desktop) — 새채팅은 헤더로 이동했으므로 제거 */}
 
-          {/* Scrollable List Part: Hidden when collapsed */}
+          {/* 스크롤 목록: 접으면 숨김 */}
           {(!isCollapsed || isOpen) && (
             <div ref={scrollRef} onScroll={handleScroll} className="sidebar-scrollbar flex-1 overflow-y-auto px-4 space-y-1.5 pb-6 mt-4">
               <div className="flex items-center justify-between px-2 mb-2">
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest tabular-nums">{t.history}</h3>
               </div>
 
-              {/* Session skeleton while loading from DB */}
+              {/* DB 에서 불러오는 동안 세션 스켈레톤 */}
               {isLoadingSessions && sessions.length === 0 ? (
                 <div className="space-y-1 mt-1">
                   <style>{`
@@ -367,7 +367,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               ))
               )}
 
-              {/* Load more indicator */}
+              {/* 더 불러오기 표시 */}
               {isLoadingMore && (
                 <div className="flex items-center justify-center gap-2 py-3 text-slate-400 dark:text-slate-500">
                   <i className="fa-solid fa-spinner fa-spin text-[11px]"></i>
@@ -378,7 +378,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           )}
         </div>
 
-        {/* Static Bottom Language Selector */}
+        {/* 하단 고정 언어 선택 */}
         <div className={`p-3 ${(isCollapsed && !isOpen) ? 'md:flex md:justify-center' : ''}`}>
           {(!isCollapsed || isOpen) ? (
             <div className="relative" ref={dropdownRef}>

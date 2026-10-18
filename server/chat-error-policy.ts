@@ -1,4 +1,4 @@
-export type ChatErrorType =
+type ChatErrorType =
     | 'rateLimit'
     | 'dailyExhausted'
     | 'openAIQuota'
@@ -8,8 +8,8 @@ export type ChatErrorType =
     | 'guestCapacity'
     | 'generic';
 
-// OpenAI billing/quota failures are persistent until credits or account limits change.
-// Keep these internal codes for classification and logs only; never return them to the UI.
+// OpenAI 결제·쿼터 실패는 크레딧이나 계정 한도가 바뀔 때까지 계속된다.
+// 이 내부 코드는 분류·로그에만 쓰고 UI 로는 절대 돌려주지 않는다.
 export const OPENAI_QUOTA_ERROR_CODES = new Set([
     'insufficient_quota',
     'credit_balance_exhausted',
@@ -18,7 +18,7 @@ export const OPENAI_QUOTA_ERROR_CODES = new Set([
     'organization_usage_limit_exceeded',
 ]);
 
-export const isOpenAIQuotaError = (error: any): boolean =>
+const isOpenAIQuotaError = (error: any): boolean =>
     OPENAI_QUOTA_ERROR_CODES.has(String(error?.code ?? '')) ||
     String(error?.type ?? '') === 'insufficient_quota';
 
@@ -48,7 +48,7 @@ export const classifyChatError = (
 /**
  * 게스트는 무료 키 로테이션만 쓴다(PLAN_GEMINI_PAID_FIRST_261004 §2-1). 무료 등급이 막혀
  * 실패한 경우(429·일일 소진·503)엔 "잠시 후 다시"가 아니라 **로그인하면 계속 쓸 수 있다**고 안내한다 —
- * 회원은 유료 키가 먼저라 같은 순간에도 대부분 성공한다(10-10 측정: 무료 3.x 503·2.5 429, 유료 실패 0).
+ * 회원은 유료 키가 먼저라 같은 순간에도 대부분 성공한다(DEV_261010).
  * 안전 차단·인증·OpenAI 할당량·일반 오류는 로그인과 무관하므로 그대로 둔다.
  */
 const GUEST_CAPACITY_TYPES: ReadonlySet<ChatErrorType> = new Set(['rateLimit', 'dailyExhausted', 'unavailable']);

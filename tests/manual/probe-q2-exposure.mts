@@ -30,7 +30,7 @@ const build = (patch: Partial<AssemblyState>) => assemblePrompt({
 });
 
 /**
- * 🔴 표지를 **문자열 상수로 고르면 안 된다.** 처음엔 `'REFORMAT REQUEST'`·`'PAPER'` 로 잡았는데
+ * 표지를 **문자열 상수로 고르면 안 된다.** 처음엔 `'REFORMAT REQUEST'`·`'PAPER'` 로 잡았는데
  *    **base 에 이미 그 문자열이 있어** 모든 행이 참으로 나왔다(`일반` 조합까지). 골든이 아니라
  *    substring 매칭이라 조용히 통과한 것 — 길이·마커는 내용의 대리지표가 아니다(§10-2 계열).
  *    → **빌더의 실제 출력 첫 줄**을 표지로 쓰고, 그것이 **base 에는 없는지** 먼저 검증한다.
@@ -49,7 +49,7 @@ const TURN: Array<readonly [string, string]> = [
     ['재구성', head(buildReformatRules())],
 ];
 
-// 🔴 선행 검증: 표지가 base 에 이미 있으면 그 표지는 못 쓴다.
+// 선행 검증: 표지가 base 에 이미 있으면 그 표지는 못 쓴다.
 const contaminated = [...RUNTIME, ...TURN].filter(([, m]) => base.includes(m));
 if (contaminated.length > 0) {
     console.error('🔴 표지가 base 와 겹친다 — 이 표지로는 공존을 셀 수 없다:');

@@ -11,10 +11,10 @@ export interface MessageAttachment {
   data: string;
   mimeType: string;
   fileName?: string;
-  fileSize?: number; // bytes — for display in chat history cards
-  extractedText?: string; // Client-side extracted text (for docx, txt, etc.)
+  fileSize?: number; // 바이트 — 대화 기록 카드 표시용
+  extractedText?: string; // 클라이언트에서 추출한 텍스트 (docx, txt 등)
   pdfText?: string; // PDF 텍스트층 — 첫 턴엔 안 쓰고 후속 턴 lastActiveDoc 근거로만(lib/pdf-text.ts)
-  storageUrl?: string; // Uploaded URL for persistence while keeping inline data for current analysis
+  storageUrl?: string; // 저장용 업로드 URL (현재 분석은 인라인 데이터를 그대로 씀)
 }
 
 export type SourceType = 'web' | 'video' | 'pdf' | 'image' | 'text';
@@ -32,7 +32,7 @@ export interface Message {
   role: Role;
   content: string;
   timestamp: number;
-  attachments?: MessageAttachment[]; // New: Multiple attachments
+  attachments?: MessageAttachment[]; // 첨부 여러 개
   attachment?: MessageAttachment;
   sourceType?: SourceType;
   groundingSources?: GroundingSource[];

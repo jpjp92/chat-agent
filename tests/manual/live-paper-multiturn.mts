@@ -11,7 +11,7 @@
  *   4. 재구성 요청(표)은 3문단 규칙에 막히지 않는다
  *
  * 실키를 쓰는 수동 하니스라 `npm test` 에는 넣지 않는다.
- * 🔴 `TIER1=1` 을 권한다 — 무료 키가 마르면 라우터가 폴백해 판정이 오염된다.
+ * `TIER1=1` 을 권한다 — 무료 키가 마르면 라우터가 폴백해 판정이 오염된다.
  */
 import fs from 'node:fs';
 for (const file of ['.env.local', '.env']) {
@@ -39,7 +39,7 @@ const model = process.argv[2] || 'gemini-3.7-flash';
 let failures = 0;
 
 /**
- * 🔴 실패한 턴의 **전문**을 남긴다.
+ * 실패한 턴의 **전문**을 남긴다.
  *
  * 처음엔 판정 한 줄과 80자 미리보기만 찍었다. 그래서 `재구성 턴이 PMID 를 지어내지 않는다` 가
  * 3/6 으로 깨졌을 때 **무엇을 어떻게 썼는지 볼 수 없어 다시 호출해야 했다** — 그런데
@@ -63,7 +63,7 @@ async function turn(text: string): Promise<{ prose: string; card: any | null; in
     history.push(new HumanMessage({ content: [{ type: 'text', text }] }));
     let delivered = '', intent = '';
     /**
-     * 🔴 route.ts 는 논문 턴 스트림에 **카드 범위 밖 마커 제거**를 건다. 그걸 재현하지 않으면
+     * route.ts 는 논문 턴 스트림에 **카드 범위 밖 마커 제거**를 건다. 그걸 재현하지 않으면
      * 하니스는 사용자가 보지 않는 글을 검사하게 된다. route.ts 와 **같은 함수**를 쓴다 —
      * 복제하면 규칙이 갈라져도 하니스는 계속 초록이다(§tests/README ③).
      */
@@ -127,7 +127,7 @@ check('카드를 다시 그리지 않는다', t2.card === null,
     t2.card ? `카드가 또 나왔다 (의도=${t2.intent}, 목록 ${sameList(t1.card, t2.card) ? '동일' : '다름'}: ${(t2.card.papers ?? []).map((p: any) => p.pmid).join(',')})` : '산문만');
 console.log('     ' + t2.prose.slice(0, 200).replace(/\n+/g, ' '));
 /**
- * 🔴 번호가 대화 너머로 유지되는가 — **제목 어휘로 보면 안 된다.**
+ * 번호가 대화 너머로 유지되는가 — **제목 어휘로 보면 안 된다.**
  *
  * 두 번 놓쳤다. ⓐ `children` 이 `schoolchildren` 안에 들어 있어 멀쩡한 답을 오탐했고
  * ⓑ 한국어로 풀어 쓰는 모델(luna·gpt-5.4-mini)은 영어 제목을 아예 인용하지 않아 미탐했다.
@@ -174,13 +174,13 @@ if (judged === null || !judged.length) {
 }
 // 다른 논문 얘기로 새면 그것도 결함이다
 /**
- * 🔴 "다른 논문 제목 어휘가 나오면 샌 것" 은 무른 판정이다 — 같은 주제의 논문들은
+ * "다른 논문 제목 어휘가 나오면 샌 것" 은 무른 판정이다 — 같은 주제의 논문들은
  * `probiotics`·`common cold` 를 공유해서 정답도 걸린다(실측 오탐). **3번 제목에 없는**
  * 어휘만 남겨서 본다. 그래도 애매하면 저자·연도 같은 고유값이 더 정확하다.
  */
 const tokens = (t: string) => t.toLowerCase().split(/[^a-z0-9가-힣]+/).filter(Boolean);
 const targetWords = new Set(tokens(t3title));
-// 🔴 `includes` 로 보면 안 된다 — `children` 이 `schoolchildren` 안에 들어 있어서
+// `includes` 로 보면 안 된다 — `children` 이 `schoolchildren` 안에 들어 있어서
 //   3번 논문만 설명한 멀쩡한 답이 "5번으로 샜다" 로 잡혔다(실측 오탐). 토큰 단위로 본다.
 const proseWords = new Set(tokens(t2.prose));
 const others = first
@@ -199,7 +199,7 @@ const t3 = await turn('그럼 비타민D 논문은?');
 check('새 카드가 뜬다', Boolean(t3.card?.papers?.length), `${t3.card?.papers?.length ?? 0}건`);
 if (t3.card?.papers?.length) {
     /**
-     * ⚖️ 겹침은 결함이 아니다. 비타민D 검색이 프로바이오틱스 카드에도 있던 보충제
+     * 겹침은 결함이 아니다. 비타민D 검색이 프로바이오틱스 카드에도 있던 보충제
      * 네트워크 메타분석(40969681)을 정당하게 돌려준다 — 실측으로 확인하고 검사에서 뺐다.
      * 여기서 지킬 것은 겹침 여부가 아니라 **번호가 새 카드 기준인가**다(아래).
      */
@@ -211,7 +211,7 @@ if (t3.card?.papers?.length) {
         over.length ? `범위 밖 ${over.join(',')} — 새 카드는 ${t3.card.papers.length}건뿐 (이전 카드 번호가 남았다)`
                     : `${JSON.stringify(cited)} / 논문 ${t3.card.papers.length}건`);
     /**
-     * 🔴 실측: 새 카드가 1건뿐이던 턴에 모델이 "이전 검색 결과에서 … [5] 입니다" 로 답했다.
+     * 실측: 새 카드가 1건뿐이던 턴에 모델이 "이전 검색 결과에서 … [5] 입니다" 로 답했다.
      * [5] 는 지난 턴 카드의 번호다 — 화면 카드에는 그 번호가 없어 사용자는 빈 곳을 가리킨
      * 마커를 본다. 카드가 5건이면 범위 검사만으로는 안 잡힌다(우연히 범위 안이라서).
      */
@@ -232,7 +232,7 @@ check('재구성 턴은 카드를 다시 그리지 않는다', t4.card === null,
 /**
  * 표에 적힌 PMID 는 실제로 나온 것이어야 한다 — 재구성 턴이 논문을 지어내면 안 된다.
  *
- * 🔴 이 검사는 2026-09-23 까지 **두 가지로 오탐했다.** 6회 실행에서 3회 빨갛게 떴고
+ * 이 검사는 2026-09-23 까지 **두 가지로 오탐했다.** 6회 실행에서 3회 빨갛게 떴고
  *    모델 결함으로 읽힐 뻔했는데, 전문을 찍어 보니 둘 다 검사 쪽 문제였다:
  *
  *  ① **카드는 버킷이 셋인데 하나만 봤다.** `paper-tool.ts` 의 `partitionPapers` 가
@@ -261,7 +261,7 @@ console.log('\n5턴  "오늘 서울 날씨 어때?"  (논문 카드가 떠 있�
 const t5 = await turn('오늘 서울 날씨 어때?');
 check('논문 후속 가드가 날씨 질문을 납치하지 않는다', t5.intent === 'weather', `의도=${t5.intent}`);
 /**
- * ⚖️ 카드 유무는 **외부 API 상태**에 달렸다 — 실측에서 KMA 실패 → OpenWeather 폴백도
+ * 카드 유무는 **외부 API 상태**에 달렸다 — 실측에서 KMA 실패 → OpenWeather 폴백도
  * 타임아웃 나서 카드가 안 떴다. 이 하니스가 지키려는 건 "논문 가드가 날씨 턴을 납치했는가"
  * 하나뿐이고 그건 위 의도 검사가 본다. 카드는 참고로만 찍고 실패로 세지 않는다.
  */
@@ -280,7 +280,7 @@ if (t6.card?.papers?.length) {
 }
 
 // ── 7턴: 결과가 적은 새 주제 — 이전 카드 번호가 흘러들어오는지 ──
-//   🔴 카드가 5건이면 지난 턴 번호를 써도 우연히 범위 안이라 안 잡힌다. 일부러 좁은 주제로 묻는다.
+//   카드가 5건이면 지난 턴 번호를 써도 우연히 범위 안이라 안 잡힌다. 일부러 좁은 주제로 묻는다.
 console.log('\n7턴  "칼프로텍틴 대변검사 크론병 감별 논문은?"  (결과가 적은 주제)');
 const t7 = await turn('칼프로텍틴 대변검사로 크론병 감별하는 논문은?');
 if (t7.card?.papers?.length) {

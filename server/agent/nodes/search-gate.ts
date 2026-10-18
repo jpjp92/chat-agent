@@ -3,21 +3,18 @@ import { TIER, decideSearch, formatSearchTrace, type SearchSignal } from "../sea
 import { collectTextSearchSignals, wantsExternalVerification } from "../search-signals";
 
 /**
- * Google Search gate — decides whether to enable grounding for the SDK path.
+ * Google Search 게이트 — SDK 경로에서 grounding 을 켤지 정한다.
  *
  * 구조: 증거(Signal) → 정책(Policy) 2단 분리. 기획 docs/plans/PLAN_SEARCH_POLICY_260815.md
  *
- * 이전에는 게이트들이 `useGoogleSearch` boolean을 순차적으로 덮어썼고, 우선순위가
- * if문의 물리적 배치 순서로만 존재했다. 그래서 휴리스틱 추측(멀티턴 가드)이 사용자의
- * 명시적 검색 요청을 이길 수 있었다(DEV_260815).
- *
- * 지금은 아무도 덮어쓰지 않는다. 각 게이트는 근거를 담은 **신호를 제출**하고,
+ * 아무 게이트도 `useGoogleSearch` 를 덮어쓰지 않는다(덮어쓰기 순서가 우선순위가 되면 휴리스틱 추측이
+ * 사용자의 명시적 검색 요청을 이긴다). 각 게이트는 근거를 담은 **신호를 제출**하고,
  * decideSearch()가 선언된 tier로 승자를 정한다:
  *   400 물리제약(멀티모달) > 300 사용자 명시 > 200 근거 제공됨(URL·문서·영상·렌더러)
  *   > 100 분류기(라우터·멀티턴 가드) > 0 기본값
  *
- * Returns `useGoogleSearch` plus the side-values the caller consumes downstream
- * (token budget / diagnostic logs): hasUrlContent, rendererIntents, explicitSearchRequested.
+ * `useGoogleSearch` 와 호출부가 아래에서 쓰는 부가 값(토큰 상한·진단 로그)을
+ * 돌려준다: hasUrlContent, rendererIntents, explicitSearchRequested.
  */
 export const decideGoogleSearch = (ctx: {
     webContent: string;
@@ -25,7 +22,6 @@ export const decideGoogleSearch = (ctx: {
     intent: string;
     needsSearch: boolean;
     hasMultimodalContent: boolean;
-    dropImageForSearch: boolean;
     isYoutubeRequest: boolean;
     hasVideoData: boolean;
     latestUserText: string;
@@ -34,16 +30,14 @@ export const decideGoogleSearch = (ctx: {
     /**
      * 어느 공급자로 이 턴을 생성하는가. **TIER 400 의 적용 여부를 가른다.**
      *
-     * 🔴 실사용 결함(2026-09-02, GPT-5.4 mini): 앞 턴에 이미지를 붙인 대화에서
-     *   "저기 저장소 검색해서 확인해봐" 에 검색이 안 붙어 *"지금은 실시간 검색 없이 학습된
-     *   지식 기준으로만 답할 수 있어요"* 가 나갔다. TIER 400 은 정책이 아니라 **물리 사실**
-     *   ("Gemini 는 이미지와 grounding 을 한 요청에 못 담는다")인데, OpenAI Responses 는
-     *   input_image 와 web_search 를 함께 보낸다 — 없는 제약이 사용자의 명시 요청(300)을 눌렀다.
+     * TIER 400 은 정책이 아니라 **물리 사실**("Gemini 는 이미지와 grounding 을 한 요청에 못 담는다")이다.
+     * OpenAI Responses 는 input_image 와 web_search 를 함께 보내므로, 이 제약을 OpenAI 에 걸면
+     * 이미지 첨부 뒤의 명시 검색 요청(300)이 눌린다 → DEV_260902
      *
-     * ⚠️ 걷어내는 건 400 뿐이다. 200(URL·문서·영상 본문이 근거)·100 은 공급자와 무관한
-     *   판단이므로 그대로 적용된다.
+     * 주의: 걷어내는 건 400 뿐이다. 200(URL·문서·영상 본문이 근거)·100 은 공급자와 무관한
+     * 판단이므로 그대로 적용된다.
      *
-     * 기본값 'gemini' — 기존 호출부의 동작을 한 글자도 바꾸지 않기 위해서다.
+     * 기본값 'gemini'.
      */
     provider?: 'gemini' | 'openai';
 }): {
@@ -52,7 +46,7 @@ export const decideGoogleSearch = (ctx: {
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
 } => {
-    const { webContent, messages, intent, needsSearch, hasMultimodalContent, dropImageForSearch, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched, provider = 'gemini' } = ctx;
+    const { webContent, messages, intent, needsSearch, hasMultimodalContent, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched, provider = 'gemini' } = ctx;
 
     const signals: SearchSignal[] = [];
 
@@ -65,8 +59,8 @@ export const decideGoogleSearch = (ctx: {
     // 전혀 다른 기사를 요약하는 문제가 발생. URL이 제공된 이상 해당 URL 기반으로만 요약해야 함.
     const hasUrlContent = webContent.includes('[URL_CONTENT:');
 
-    // Multi-turn YouTube: 1st response is stored as [VIDEO_ANALYSIS_SUMMARY]
-    // in webContent. Treat it the same as native video data — no Search needed.
+    // 멀티턴 YouTube: 첫 응답은 webContent 에 [VIDEO_ANALYSIS_SUMMARY] 로 저장된다.
+    // 기본 영상 데이터와 똑같이 취급 — 검색 불필요.
     const hasVideoSummary = webContent.includes('[VIDEO_ANALYSIS_SUMMARY');
 
     // 첨부 문서: 추출 텍스트(hwp/docx/xlsx/txt…)는 그 자체가 답변 근거다.
@@ -82,13 +76,9 @@ export const decideGoogleSearch = (ctx: {
     // OpenAI 에는 이 제약이 없다(input_image + web_search 동시 전송 가능) → 신호 자체를 내지 않는다.
     // 여기서 켜는 게 아니라 **끄지 않는 것**이다 — 아래 300/100 이 평소대로 판정한다.
     //
-    // 🔴 예전엔 `history-image` 신호가 하나 더 있었는데 **데드코드였다**(DEV_260902 §9.4).
-    //   술어가 `p.inlineData` 를 봤지만 `buildHistoryMessages` 는 인라인 이미지를
-    //   `type:'image_url'` 로 만든다 — 어떤 입력으로도 발동하지 않았다. `fileData` 케이스는
-    //   `hasMultimodalContent` 가 이미 잡으므로, 살려 놔도 중복 신호였다. 지웠다.
-    //   ⚠️ `hasMultimodalContent` 는 **서버가 받은 히스토리**(최근 10개, 첨부는 최근
-    //      mediaWindow 개까지만 미디어) 기준이다. 그래서 이미지가 꺼는 범위는 "대화 내내"가
-    //      아니라 **첨부 직후 턴**이다 — 그 경계는 history.ts 가 로그로 남긴다(§9.5).
+    // 주의: `hasMultimodalContent` 는 **서버가 받은 히스토리**(최근 10개, 첨부는 최근 mediaWindow 개까지만
+    // 미디어) 기준이다. 그래서 이미지가 검색을 끄는 범위는 "대화 내내"가 아니라 **첨부 직후 턴**이다 —
+    // 그 경계는 history.ts 가 로그로 남긴다(DEV_260902 §9.5).
     if (provider === 'gemini' && hasMultimodalContent) {
         signals.push({ tier: TIER.HARD_CONSTRAINT, verdict: 'off', source: 'multimodal', reason: '멀티모달 — API가 grounding 거부' });
     }
@@ -145,9 +135,9 @@ export const decideGoogleSearch = (ctx: {
         signals.push({ tier: TIER.CONTEXT_GROUNDED, verdict: 'off', source: 'doc-content', reason: '첨부 문서 본문이 근거' });
     }
 
-    // Renderer intents should produce structured JSON directly. If Google Search is
-    // left on for 3.5, the two-track path turns the request into Stage1 search notes
-    // followed by Stage2 summary, which can drop the visualization block entirely.
+    // 렌더러 인텐트는 구조화 JSON 을 바로 만들어야 한다. Google Search 를 켜 두면
+    // 검색 메모 → 요약 두 단계로 흘러 시각화 블록이 통째로 빠질 수 있다
+    // (3.5 two-track 에서 실제로 났다).
     if (rendererIntents.has(intent) && !explicitSearchRequested) {
         signals.push({ tier: TIER.CONTEXT_GROUNDED, verdict: 'off', source: 'renderer', reason: '구조화 출력 보존' });
     }
@@ -162,9 +152,8 @@ export const decideGoogleSearch = (ctx: {
 
     // ── tier 300/100: 최신 발화 텍스트 신호 (명시 요청 · 라우터 · 멀티턴 가드) ──
     // prevSearched: state.lastTurnSearched(실제 grounding 출처 유무) 우선, 없으면 정규식 근사 폴백.
-    // 근사는 룰로 켜진 검색만 잡는다 — medical_qa·카드처럼 intent로 강제된 검색을 놓쳐서
-    // 가드가 아예 서지 못했다(DEV_260815_DEPLOY_CHECK). `activeCards`와 동일한 폴백 구조라
-    // 구버전 클라이언트(groundingSources 미전송)도 기존 동작을 유지한다.
+    // 근사는 룰로 켜진 검색만 잡아 medical_qa·카드처럼 intent 로 강제된 검색을 놓친다(DEV_260815_DEPLOY_CHECK).
+    // `activeCards`와 같은 폴백 구조라 구버전 클라이언트(groundingSources 미전송)도 동작한다.
     const prevSearchedApprox = (() => {
         const humanMsgs = messages.filter((m: any) => m._getType() === 'human');
         const prevHuman = humanMsgs.length >= 2 ? humanMsgs[humanMsgs.length - 2] : undefined;

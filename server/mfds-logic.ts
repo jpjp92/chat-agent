@@ -42,7 +42,7 @@ const COLOR_ALIASES: Record<string, string[]> = {
 
 function normalizeColor(color: string): string[] {
     const c = (color || '').trim();
-    for (const [key, aliases] of Object.entries(COLOR_ALIASES)) {
+    for (const aliases of Object.values(COLOR_ALIASES)) {
         if (aliases.some(a => c.includes(a))) return aliases;
     }
     return [c];
@@ -69,12 +69,12 @@ function normalizeShape(shape: string): string[] {
     return [s];
 }
 
-export interface MfdsResult {
+interface MfdsResult {
     match_type: 'exact' | 'imprint_only' | 'similar' | 'none';
     results: MfdsDrug[];
 }
 
-export interface MfdsDrug {
+interface MfdsDrug {
     item_seq: string;
     item_name: string;
     entp_name: string;
@@ -88,15 +88,13 @@ export interface MfdsDrug {
 }
 
 /**
- * 🔴 쿼리 실패를 **삼키지 않는다.** (2026-08-18)
+ * 쿼리 실패를 **삼키지 않는다.**
  *
- * 2026-08-17 사고: dev 에 `mfds_pills` 테이블이 아예 없었는데 아무도 몰랐다.
- * `const { data } = await …` 로 `error` 를 버리면 **테이블 없음이 "결과 0건"과 같은 값**이 되어,
- * 조용히 `match_type:'none'` → 2순위 스크래핑 폴백으로 내려간다. 그마저 실패하면 모델이
- * *"시각적 유사성을 기반으로…"* 를 지어낸다(H그룹에서 잡았던 날조 자리).
+ * `const { data } = await …` 로 `error` 를 버리면 **테이블 없음이 "결과 0건"과 같은 값**이 되어
+ * 조용히 `match_type:'none'` → 2순위 스크래핑 폴백으로 내려가고, 그마저 실패하면 모델이 지어낸다 → DEV_260817
  *
  * 실패를 로그로 드러내되 **동작은 바꾸지 않는다** — 폴백은 그대로 타는 게 맞다.
- * 여기서 throw 하면 DB 장애가 곧 기능 장애가 된다. 우리가 원하는 건 **보이는 폴백**이다.
+ * 여기서 throw 하면 DB 장애가 곧 기능 장애가 된다. 원하는 건 **보이는 폴백**이다.
  */
 const rows = <T>(stage: string, res: { data: T[] | null; error: { message: string; code?: string } | null }): T[] => {
     if (res.error) {

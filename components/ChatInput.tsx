@@ -195,13 +195,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         } else if (event.error === 'network') {
           showToast(language === 'ko' ? '네트워크 연결 상태가 불안정합니다.' : 'Network connection error.', "error");
         } else if (event.error === 'no-speech') {
-          // just ignore no-speech as it's fairly common when pausing
+          // no-speech 는 말을 잠깐 멈출 때 흔하므로 무시
           console.warn("Speech recognition paused (no-speech)");
         } else {
           showToast(language === 'ko' ? '음성 인식 도중 오류가 발생했습니다.' : 'Speech recognition error occurred.', "error");
         }
 
-        // abort if UI is stuck
+        // UI 가 멈췄으면 중단
         if (event.error !== 'no-speech') {
           setIsListening(false);
           recognition.abort();
@@ -246,8 +246,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
     e?.preventDefault();
     if ((input.trim() || selectedAttachments.length > 0) && !disabled) {
       if (isListening) recognitionRef.current.stop();
-      // onSend handles multiple attachments: passing first for compat, but we'll change App.tsx later
-      // Actually, let's update ChatInputProps first or handle it here
+      // 첨부 여러 개는 세 번째 인자(selectedAttachments)로 넘긴다. 두 번째 인자는 단일 첨부 호환용.
       (onSend as any)(input, selectedAttachments.length > 0 ? selectedAttachments[0] : undefined, selectedAttachments);
       setInput('');
       setSelectedAttachments([]);

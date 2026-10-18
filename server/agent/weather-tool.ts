@@ -5,15 +5,15 @@ import { buildWeatherData } from "../lib/weather";
 /**
  * 날씨 카드 도구 — KMA(한국 정밀) + OpenWeather(해외·폴백) 하이브리드.
  *
- * grounding 우회 구조: "날씨"를 general+search로 흘려보내면 Google Search 왕복 + LLM
- * 마크다운 표 생성으로 15s+·부정확·비구조였다(PLAN_WEATHER_TOOL §1). 이 도구는 KMA/OWM를
- * **서버에서 직접 호출**해 ~1s 결정론 데이터를 만들고, 언어 중립 구조를 `json:weather` 블록으로
- * 반환한다. 카드 렌더러(WeatherRenderer)가 i18n·이모지·요일을 클라이언트에서 매핑.
+ * grounding 우회 구조: "날씨"를 general+search 로 흘리면 Google Search 왕복 + LLM 마크다운 표 생성으로
+ * 느리고 부정확하다(PLAN_WEATHER_TOOL §1). 이 도구는 KMA/OWM를 **서버에서 직접 호출**해 ~1s 결정론
+ * 데이터를 만들고, 언어 중립 구조를 `json:weather` 블록으로 반환한다. 카드 렌더러(WeatherRenderer)가
+ * i18n·이모지·요일을 클라이언트에서 매핑.
  *
  * 멀티 도시: cities 배열을 받아 병렬 조회 → 도시별 json:weather 블록을 이어 붙여 반환
  * (예: "전주, 서울 날씨" → 카드 2개). route.ts on_tool_end가 각 블록을 스트리밍.
  *
- * 설계·검증: PLAN_WEATHER_TOOL_260706 / DEV_260705 / scripts/test-weather-hybrid.ts.
+ * 설계: PLAN_WEATHER_TOOL_260706 / DEV_260705.
  */
 export const weatherTool = tool(
   async ({ cities }: { cities?: string[] }) => {

@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ChatSidebar from './components/ChatSidebar';
-import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Dialog from './components/Dialog';
 import AuthModal from './components/AuthModal';
@@ -16,8 +15,8 @@ import { useAuthSession, lastOAuthProvider } from './src/hooks/useAuthSession';
 import { consumeOAuthError } from './lib/supabase/client';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
-import { DEFAULT_CHAT_MODEL, resolveStoredModel, type ChatModelId } from './src/lib/models';
-// katex CSS is imported inside ChatMessage.tsx (lazy chunk) to avoid bloating the critical CSS
+import { resolveStoredModel, type ChatModelId } from './src/lib/models';
+// katex CSS 는 ChatMessage.tsx(지연 로드 청크) 안에서 import 한다 — 초기 CSS 를 키우지 않으려고
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('ko');
@@ -39,7 +38,7 @@ const App: React.FC = () => {
     return () => observer.disconnect();
   }, []);
 
-  // Dialog & Toast State
+  // 다이얼로그·토스트 상태
   const [dialogConfig, setDialogConfig] = useState<{
     isOpen: boolean;
     title: string;
@@ -68,7 +67,7 @@ const App: React.FC = () => {
   // null 이면 닫힘. 'limit' = 한도 도달 자동 유도, 'save' = 설정에서 사용자가 직접 연 경우.
   const [authModalReason, setAuthModalReason] = useState<'save' | 'limit' | null>(null);
   // OAuth 리다이렉트 **후** 거절은 예외가 아니라 URL 로 온다. 읽지 않으면 사용자는
-  // 아무 설명 없이 돌아와 같은 버튼을 다시 누른다(실측: 무한 재시도).
+  // 아무 설명 없이 돌아와 같은 버튼을 다시 누르게 된다.
   const [linkConflict, setLinkConflict] = useState(false);
 
   useEffect(() => {
@@ -108,8 +107,8 @@ const App: React.FC = () => {
   // 값이라 대화 직후엔 stale → 그걸 쓰면 대화한 게스트가 고아가 된다).
   // 빈 New Chat 은 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라 개수로는 못 센다.
   const guestHasData = sessions.some(s => !(s.title === 'New Chat' && s.messages.length === 0));
-  // 🔴 link 는 **게스트**에게만. guestHasData 는 정식 사용자에게도 참이다(자기 대화) — 정식 사용자가
-  //   이 모달에 오는 경로가 생기면 지금 계정에 다른 Google 신원을 **붙여 버린다**(DEV_261011 §5).
+  // link 는 **게스트**에게만. guestHasData 는 정식 사용자에게도 참이다(자기 대화) — 정식 사용자가
+  // 이 모달에 오면 지금 계정에 다른 Google 신원이 붙는다 → DEV_261011 §5
   const shouldLinkGuest = (currentUser?.is_guest ?? true) && guestHasData;
 
 
@@ -276,7 +275,7 @@ const App: React.FC = () => {
         : 'linear-gradient(135deg, #f0f2ff 0%, #eef2ff 40%, #e6fff7 100%)'
       }}
     >
-      {/* Ambient orbs */}
+      {/* 배경 오브 */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
         {isDark ? (
           <>
@@ -331,10 +330,10 @@ const App: React.FC = () => {
         <main className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar flex flex-col">
           <div className="flex-1 min-h-0 max-w-4xl w-full mx-auto flex flex-col relative">
 
-            {/* Loading overlay — dims welcome msg & past messages, shows spinner */}
+            {/* 로딩 오버레이 — 환영 문구·지난 메시지를 흐리게 하고 스피너 표시 */}
             {isLoadingMessages && (
               <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none animate-in fade-in duration-300">
-                {/* Spinner */}
+                {/* 스피너 */}
                 <div className="flex flex-col items-center gap-3">
                   <div
                     className="w-9 h-9 rounded-full"
@@ -349,7 +348,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Content — dims when loading */}
+            {/* 본문 — 로딩 중엔 흐리게 */}
             <div className={`flex-1 flex flex-col transition-all duration-300 ${isLoadingMessages ? 'opacity-25 blur-[1.5px] pointer-events-none select-none' : 'opacity-100 blur-0'}`}>
               {isWelcome ? (
                 /* 웰컴: 그리팅 → (데스크톱)입력창 중앙 → 칩. 모바일은 입력창을 하단(footer)에 둠 */
@@ -411,7 +410,7 @@ const App: React.FC = () => {
         </footer>
       </div>
 
-      {/* Global Dialog */}
+      {/* 전역 다이얼로그 */}
       <Dialog
         isOpen={dialogConfig.isOpen}
         title={dialogConfig.title}
@@ -428,16 +427,15 @@ const App: React.FC = () => {
         onClose={() => { setAuthModalReason(null); setLinkConflict(false); }}
         guestName={userProfile.name}
         guestAvatarUrl={userProfile.avatarUrl}
-        // 🔴 "승계할 실데이터가 있나"는 세션 개수가 아니라 message_count 로 판정한다.
-        //    빈 New Chat 세션이 로드 시 자동 생성돼 sessions.length 는 항상 ≥1이라
-        //    `=== 0` 은 영영 거짓 → 빈 게스트도 linkIdentity 를 타 충돌하던 버그(DEV_260719).
+        // "승계할 실데이터가 있나"는 세션 개수가 아니라 message_count 로 판정한다.
+        // 빈 New Chat 세션이 로드 시 자동 생성돼 sessions.length 는 항상 ≥1 이다 → DEV_260719
         sessionCount={guestHasData ? sessions.length : 0}
         // 승계할 게 없으면 연결이 아니라 로그인이다. 빈 게스트(= 캐시를 지운 사용자)에게
         // linkIdentity 를 태우면, 이미 쓰던 계정을 고른 순간 충돌로 튕겨나갔다가
         // "기존 계정으로 로그인"을 한 번 더 눌러야 한다. 잃을 게 없을 땐 처음부터 로그인으로.
         onLink={shouldLinkGuest ? linkGoogle : signInWithGoogle}
         // 충돌 재시도 — 방금 계정을 골라 돌아왔으니 select_account 를 빼 자동 통과시킨다(두 번 고르는 체감 제거).
-        // 🔴 리다이렉트 충돌은 **시도한 공급자**로 다시 로그인한다 — 카카오로 시도했는데 Google 로 보내면 엉뚱한 계정이 된다.
+        // 리다이렉트 충돌은 **시도한 공급자**로 다시 로그인한다 — 카카오로 시도했는데 Google 로 보내면 엉뚱한 계정이 된다.
         onSignIn={() => lastOAuthProvider() === 'kakao' ? signInWithKakao() : signInWithGoogle({ chooseAccount: false })}
         // ID 토큰 경로(GIS) — link/signIn 기준은 onLink 와 같다.
         onCredential={shouldLinkGuest ? linkGoogleIdToken : signInGoogleIdToken}
@@ -448,7 +446,7 @@ const App: React.FC = () => {
         language={language}
       />
 
-      {/* Global Toast */}
+      {/* 전역 토스트 */}
       {toast && (
         <Toast
           message={toast.message}

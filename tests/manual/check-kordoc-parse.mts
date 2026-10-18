@@ -11,7 +11,7 @@
  * 확인했지만, **HWP 5.x 바이너리·hwp3·hwpml 은 픽스처가 없어 못 봤다** —
  * [DEV_260913_DEPS §3](../../docs/logs/2026/09/DEV_260913_DEPS.md).
  *
- * 🔴 kordoc 을 직접 부르지 않고 **라우트가 하는 것과 같은 순서**로 본다. 라이브러리가
+ * kordoc 을 직접 부르지 않고 **라우트가 하는 것과 같은 순서**로 본다. 라이브러리가
  * 돌아가는 것과 우리 라우트가 답을 내는 것은 다른 주장이다 — 확장자 게이트·4MB 라우팅 결정·
  * `MARKDOWN_MAX` 트렁케이트·응답 필드 6종까지 같이 재현한다.
  */
@@ -65,7 +65,7 @@ for (const file of files) {
     try {
         result = await parse(buffer);
     } catch (err: any) {
-        // 🔴 라우트는 parse() 가 던지는 걸 잡지 않는다 — 던지면 500 이다(422 가 아니라).
+        // 라우트는 parse() 가 던지는 걸 잡지 않는다 — 던지면 500 이다(422 가 아니라).
         fail++;
         console.log(`  ❌ parse() 가 예외를 던졌다 — 라우트라면 500. ${err?.message}`);
         continue;

@@ -22,7 +22,7 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
  * 새 토큰을 추가할 때는 "이 단어가 이 분야 밖에서 쓰이는가"를 먼저 따질 것.
  * 한국어는 공백 없이 결합해 `\b`가 안 먹는다 — 단독 명사는 대개 문맥 동반을 요구해야 한다.
  *
- * ## ⚠️ 배열 순서 = 우선순위 (first-match-wins)
+ * ## 주의: 배열 순서 = 우선순위 (first-match-wins)
  * 위에 있을수록 이긴다. 의도적으로 이 순서다:
  *   1. `movie_search`·`law_search` — 고유명사·조문번호라 다른 분야와 겹치지 않는다
  *      (`sports` 는 2026-10-04 제거 — 월드컵 종료 후 리그 질문까지 가로채 거절·무출처 답을 냈다. 스포츠는 general 검색)
@@ -38,21 +38,20 @@ const MULTILINGUAL_MEDICAL_PATTERN = /(^|[^\p{L}\p{N}_])(pill|tablet|capsule|dru
  */
 const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info" | "general">; pattern: RegExp }> = [
     {
-        // ⚠️ `영화관` 단독은 뺐다. `영화관 데이트 코스 글 써줘`처럼 작문 소재로 쓰이면
+        // 주의: `영화관` 단독은 뺐다. `영화관 데이트 코스 글 써줘`처럼 작문 소재로 쓰이면
         //    상영시간 카드가 뜬다. 이 규칙은 **구제 경로**(router.ts 영화 의도 구제)라
         //    라우터 LLM이 성공해도 발동하므로 오탐 비용이 특히 크다.
         //    → 위치·상영 질의어를 동반할 때만. (PLAN_INTENT_RULES_PRECISION_260816 Step 2)
         intent: "movie_search",
-        // 🔴 제목이 앞에 오는 모양을 못 잡았다(실측 2026-08-31). `영화 + 정보/상영/예매` 를
-        //    요구해서 "오디세이 영화"·"영화 오디세이 정보" 가 general 로 떨어졌고, 날씨 카드가
-        //    떠 있던 탓에 LLM 이 weather 를 골라 **"도시를 찾지 못했어요 '오디세이'"** 가 떴다.
-        //    (규칙이 movie_search 를 확언해야 resolveWeatherStickiness 가 발동한다 — 둘이 물려 있다)
-        //    ⚠️ 오탐 비용이 크므로(검색 OFF + 렌더러 주입) **제목처럼 생긴 짧은 질의만** 잡는다:
-        //    토큰 2개 이하 + 일반 수식어 제외("인생 영화"·"무서운 영화"·"영화 산업"은 잡담이다).
+        // 제목이 앞에 오는 모양("오디세이 영화"·"영화 오디세이 정보")도 잡는다 — 못 잡으면 general 로 떨어지고,
+        // 날씨 카드가 떠 있으면 LLM 이 weather 를 골라 "도시를 찾지 못했어요" 가 뜬다
+        // (규칙이 movie_search 를 확언해야 resolveWeatherStickiness 가 발동한다 — 둘이 물려 있다).
+        // 주의: 오탐 비용이 크므로(검색 OFF + 렌더러 주입) **제목처럼 생긴 짧은 질의만** 잡는다:
+        // 토큰 2개 이하 + 일반 수식어 제외("인생 영화"·"무서운 영화"·"영화 산업"은 잡담이다) → DEV_260831
         pattern: /(^(?!.*(?:인생|무서운|무서|재밌|재미있|재미없|한국|외국|공포|로맨스|액션|스릴러|최신|요즘|옛날|같은|산업|역사|추천|보고\s*싶))(?:영화\s+\S{1,15}(?:\s+\S{1,15})?|\S{1,15}(?:\s+\S{1,15})?\s*영화)\s*(?:정보|알려줘?|어때|평점|줄거리)?\s*[?!.]?$|영화\s*(상영|시간|표|예매|정보|일정|스케줄|뭐)|상영\s*(시간|표|관|정보|중|작)|상영시간표|무슨\s*영화|볼만한\s*영화|개봉\s*영화|(근처|주변|가까운|인근)\s*영화관|영화관\s*(어디|위치|찾|추천|상영|예매|시간|정보|알려|목록)|멀티플렉스|cgv|롯데\s*시네마|롯데시네마|메가박스|씨지브이|showtime|movie\s*time|now\s*showing|cinema\s*schedule)/i,
     },
     {
-        // ⚠️ `조항`·`고시` 단독은 뺐다. `이 조항 좀 다듬어줘`(문서 편집)·`계약서 조항 작성해줘`
+        // 주의: `조항`·`고시` 단독은 뺐다. `이 조항 좀 다듬어줘`(문서 편집)·`계약서 조항 작성해줘`
         //    (작문)·`공무원 고시 준비`(시험)가 법령 조회로 갔다. 조문 조회는 `제\d+조`·`몇 조`·
         //    법률명이 이미 받는다. (PLAN_INTENT_RULES_PRECISION_260816 Step 5)
         intent: "law_search",
@@ -60,9 +59,9 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
     },
     {
         // 라우터 LLM 이 429/503 으로 죽으면 이 폴백만 남는다. 규칙이 없으면 논문 질의가
-        // 통째로 general 로 떨어져 카드가 조용히 사라진다(실측: 쿼터 소진 시 15/15 누락).
-        // ⚠️ `연구`·`논문` 단독은 뺐다 — "논문 써줘"(작문)·"연구 계획서"가 걸린다.
-        //    의학·생명과학 주제어를 동반할 때만 잡는다.
+        // general 로 떨어져 카드가 조용히 사라진다.
+        // 주의: `연구`·`논문` 단독은 잡지 않는다 — "논문 써줘"(작문)·"연구 계획서"가 걸린다.
+        // 의학·생명과학 주제어를 동반할 때만 잡는다.
         intent: "paper_search",
         // 조회 의도어를 반드시 동반하게 한다. `논문` 단독을 받으면 "논문 써줘"(작문)가 걸린다.
         pattern: /((논문|연구|문헌|paper|study|studies)\s*\S{0,6}\s*(찾|검색|알려|보여|있어|있나|결과|자료|근거|추천|search|find)|임상\s*시험\s*(결과|자료|있|알려|찾)|메타\s*분석|체계적\s*문헌|clinical trial (result|evidence)|meta-?analysis|systematic review)/i,
@@ -76,7 +75,7 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         pattern: /(동물병원|동물 병원|동물의원|동물 의료|동물의료|수의사|수의과|veterinary|veterinarian|animal hospital|pet hospital|vet clinic|vétérinaire|veterinaire|clinique vétérinaire|clinique veterinaire|hôpital pour animaux|hopital pour animaux|veterinario|clínica veterinaria|clinica veterinaria|hospital de animales)/i,
     },
     {
-        // ⚠️ `병원`·`의원` 단독은 뺐다. `병원 예약하는 법`(방법 질의)·`병원비 세액공제`(세무)·
+        // 주의: `병원`·`의원` 단독은 뺐다. `병원 예약하는 법`(방법 질의)·`병원비 세액공제`(세무)·
         //    `국회의원 정수`(議員)가 병원 검색으로 갔다. 위치 질의어나 진료과명을 요구한다.
         //    (PLAN_INTENT_RULES_PRECISION_260816 Step 5)
         intent: "hospital_search",
@@ -84,11 +83,11 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
     },
     {
         // 날씨 — 라우터 LLM 실패(무료티어 503/timeout) 시 이 폴백이 general+grounding 대신 weather로 보낸다.
-        // ⚠️ 카드 툴은 "특정 지역 현재날씨 + 단기예보"만 답한다. 장마 시작 시기·폭염 전망·미세먼지 농도
+        // 주의: 카드 툴은 "특정 지역 현재날씨 + 단기예보"만 답한다. 장마 시작 시기·폭염 전망·미세먼지 농도
         //    같은 계절/현상 질의는 카드가 못 답하므로 여기서 제외 → general+search가 처리("장마일정 조사").
         //    오발 방지 위해 명확한 '현재 날씨' 토큰만(모호한 '기상'(기상=wake)·'tiempo' 단독 제외).
         //
-        // ⚠️ `날씨`·`기온` **단독**은 뺐다. `날씨 좋은 날 뭐하지`·`분위기가 기온처럼 오르내려`
+        // 주의: `날씨`·`기온` **단독**은 뺐다. `날씨 좋은 날 뭐하지`·`분위기가 기온처럼 오르내려`
         //    처럼 배경·비유로 쓰이면 카드가 뜬다. 이 규칙은 **구제 경로**(router.ts 날씨 의도
         //    구제)라 라우터 LLM이 성공해도 발동하므로 오탐 비용이 특히 크다.
         //    → 질의어를 동반하거나 문장 끝(`부산 날씨`)일 때만.
@@ -97,16 +96,14 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         pattern: /((날씨|기온|기후)\s*(어때|어떄|어떻|어떤|알려|말해|보여|확인|예보|정보|좋아|추워|더워|나빠|는\?|은\?)|(날씨|기온)\s*[?？]?\s*$|기상청|기상\s*(특보|예보)|몇\s*도(예|야|니|인가|일까)?|체감\s*온도|소나기|비\s*(와|올|오|온|내리|많이\s*와)|눈\s*(와|올|오|온|내리)|weather|forecast|temperature|how\s*(hot|cold|warm)|m[eé]t[eé]o|pron[oó]stico\s*(del\s*)?(tiempo|clima)|clima\s*de)/i,
     },
     {
-        // ⚠️ 이 패턴은 한때 오탐 최다였다. `별\s|별$|달|태양` + 영문 12궁 단독명이 원인:
-        //      · `분기별 매출을 차트로` → `별\s`가 ~별 접미사를 물고, first-match-wins라
-        //        뒤에 있는 data_viz에 닿지도 못했다
-        //      · `이번 달 일정` `목표 달성` `달러 환율` → `달`
-        //      · `태양광 발전 수익률` → `태양`
-        //      · `Gemini 모델 비교` `cancer 치료제` `libra 라이브러리` → 영문 12궁 단독명
-        //   폴백은 LLM이 죽었을 때 쓰는 최후 수단이다. 놓치면 general+검색이 받아주지만,
-        //   잘못 잡으면 렌더러 스펙 주입 + 검색 OFF라 받아줄 곳이 없다.
-        //   → 재현율보다 정밀도. 애매한 단독어는 전부 문맥 동반을 요구한다.
-        //   (PLAN_INTENT_RULES_PRECISION_260816 Step 1, 검증 tests/test-intent-rules.mts)
+        // 주의: 천문 어휘는 오탐이 많다 — `별\s|별$|달|태양`·영문 12궁 단독명은 단독으로 잡지 않는다:
+        //   · `분기별 매출을 차트로` → `별\s` 가 ~별 접미사를 문다(first-match-wins 라 data_viz 에 닿지 못함)
+        //   · `이번 달 일정` `목표 달성` `달러 환율` → `달`
+        //   · `태양광 발전 수익률` → `태양`
+        //   · `Gemini 모델 비교` `cancer 치료제` `libra 라이브러리` → 영문 12궁 단독명
+        // 놓치면 general+검색이 받아주지만, 잘못 잡으면 렌더러 스펙 주입 + 검색 OFF라 받아줄 곳이 없다.
+        // → 재현율보다 정밀도. 애매한 단독어는 전부 문맥 동반을 요구한다.
+        // (PLAN_INTENT_RULES_PRECISION_260816 Step 1, 검증 tests/test-intent-rules.mts)
         intent: "astronomy",
         pattern: new RegExp([
             // 단독으로 천문 이외의 뜻이 거의 없는 것들
@@ -135,7 +132,7 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
     },
     {
         intent: "biology",
-        // ⚠️ `유전자 알고리즘`(코드)·영문 `cell` 단독(스프레드시트 셀)은 제외.
+        // 주의: `유전자 알고리즘`(코드)·영문 `cell` 단독(스프레드시트 셀)은 제외.
         //    (PLAN_INTENT_RULES_PRECISION_260816 Step 5)
         pattern: /(단백질|유전자(?!\s?알고리즘)|DNA|RNA|세포|효소|아미노산|염기서열|protein|gene|genetics|enzyme|(stem\s*)?cell\s*(biology|membrane|division|structure|cycle)|stem\s*cell|pdb|amino acid|sequence|biology|ADN|ARN|proteína|proteina|genética|genetica|enzima|célula|celula|aminoácido|aminoacido|secuencia|biología|biologia|protéine|proteine|génétique|genetique|cellule|acide aminé|acide amine|séquence|sequence|biologie)/i,
     },
@@ -144,18 +141,16 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
         pattern: /(분자|화합물|원소|화학(?!적|과)|반응식|구조식|SMILES|molecule|compound|chemical|reaction|element|molecular structure|chemical structure|molécula|molecula|compuesto|química|quimica|reacción|reaccion|elemento|estructura molecular|molécule|molecule|composé|compose|chimie|réaction|reaction|élément|element|structure moléculaire|structure moleculaire)/i,
     },
     {
-        // ⚠️ `힘`·`속도` 단독은 뺐다. `힘내라고 응원 메시지`·`힘든 하루`·`인터넷 속도`·
+        // 주의: `힘`·`속도` 단독은 뺐다. `힘내라고 응원 메시지`·`힘든 하루`·`인터넷 속도`·
         //    `업무 속도`가 물리 렌더러로 갔다. 한국어는 공백 없이 결합해 `\b`로 못 가른다
         //    → 물리 문맥이 붙은 복합어만 받는다. (PLAN_INTENT_RULES_PRECISION_260816 Step 4)
         intent: "physics",
         pattern: /(물리|역학|중력|가속도|등속|자유\s?낙하|합력|알짜\s*힘|수직항력|장력|부력|탄성력|마찰력|작용\s*반작용|운동\s*에너지|위치\s*에너지|힘\s*의\s*(평형|분해|합성)|(상대|평균|종단)\s*속도|속도\s*(벡터|변화율)|운동량|충돌|마찰|경사면|포물선|전기장|자기장|physics|force|gravity|collision|projectile|free body|inclined plane|friction|momentum|electric field|magnetic field|física|fisica|fuerza|gravedad|colisión|colision|proyectil|fricción|friccion|momento|plano inclinado|campo eléctrico|campo electrico|campo magnético|campo magnetico|physique|gravité|gravite|collision|projectile|frottement|quantité de mouvement|quantite de mouvement|plan incliné|plan incline|champ électrique|champ electrique|champ magnétique|champ magnetique)/i,
     },
     {
-        // ⚠️ `통계|추이|분포|비교`(+ statistics/trend/distribution/comparison)는 뺐다.
-        //    `이 두 제품 비교해줘`·`통계학 공부 어떻게 시작해?`처럼 시각화와 무관한 일상 요청을
-        //    차트 렌더러로 끌고 갔다. 게다가 이 토큰들은 **아무것도 더 잡지 못한다** —
-        //    `비교 차트 그려줘`는 이미 `차트`가 받는다. 오탐만 남는 순손실이었다.
-        //    (PLAN_INTENT_RULES_PRECISION_260816 Step 3)
+        // 주의: `통계|추이|분포|비교`(+ statistics/trend/distribution/comparison)는 잡지 않는다 —
+        // `이 두 제품 비교해줘`·`통계학 공부 어떻게 시작해?` 같은 일상 요청이 차트 렌더러로 가고,
+        // `비교 차트 그려줘` 는 이미 `차트` 가 받는다(PLAN_INTENT_RULES_PRECISION_260816 Step 3).
         intent: "data_viz",
         pattern: /(차트|그래프|시각화|도표|chart|graph|plot|visuali[sz]e|dashboard|gráfico|grafico|visualizar|visualización|visualizacion|graphique|visualiser|visualisation)/i,
     },
@@ -169,18 +164,17 @@ const FALLBACK_RULES: Array<{ intent: Exclude<IntentType, "drug_id" | "drug_info
  * `"이 마케팅 전략 효과 있어?"` 같은 발화가 drug_info로 끌려간다.
  *
  * 여기 있는 것들은 약학 문맥에서만 쓰이는 제형 명칭이라 오탐 여지가 거의 없다.
- * 계기: `인공 타액제 알려줘`가 어떤 의약 신호에도 안 걸려 general로 새면서
- * `search_drug_info`(MFDS 실데이터) 경로를 통째로 우회했다 — 모델이 제품명을 지어냈다.
- * (DEV_260815_DEPLOY_CHECK)
+ * `인공 타액제 알려줘` 같은 질의가 general 로 새면 `search_drug_info`(MFDS 실데이터)를
+ * 우회해 모델이 제품명을 지어낸다 → DEV_260815_DEPLOY_CHECK
  *
- * ⚠️ 추가할 때는 "이 단어가 약이 아닌 문맥에서 쓰이는가"를 먼저 따질 것. 실제로 걸러낸 것들:
- *    · `정제`(refine/purify) · `캡슐`(캡슐호텔) · `산제`("산제 발표 자료") — 제외
- *    · `연고`는 緣故(연고지·연고자·연고권)와 충돌 → 그 접미만 lookahead로 배제
- *    · `타액` 단독은 생리 현상 질문("타액 분비가 왜 줄지?")이라 제형이 아님 → `인공 타액`만
+ * 주의: 추가할 때는 "이 단어가 약이 아닌 문맥에서 쓰이는가"를 먼저 따질 것. 걸러낸 것들:
+ *   · `정제`(refine/purify) · `캡슐`(캡슐호텔) · `산제`("산제 발표 자료") — 제외
+ *   · `연고`는 緣故(연고지·연고자·연고권)와 충돌 → 그 접미만 lookahead로 배제
+ *   · `타액` 단독은 생리 현상 질문("타액 분비가 왜 줄지?")이라 제형이 아님 → `인공 타액`만
  *
  * 남은 위험: "그 지역에 연고가 있어?"(緣故)는 여전히 걸린다. 접미로 구분되지 않는 용법이라
- * 정규식으로는 못 가른다. 오탐 시 결과는 general → drug_info 오라우팅 하나뿐이고,
- * 이 앱의 질의 분포에서 빈도가 낮다고 보고 감수한다. 문제가 관측되면 `연고제`만 남길 것.
+ * 정규식으로는 못 가른다. 오탐 결과는 general → drug_info 오라우팅 하나뿐이고 빈도가 낮아 감수한다.
+ * 문제가 관측되면 `연고제`만 남길 것.
  */
 const DOSAGE_FORM_PATTERN =
     /(타액제|인공\s?타액|연고제|연고(?![지자권])|좌제|점안액|점안제|점비액|시럽제|현탁액|과립제|주사제|패치제|첩부제|가글액|구강\s?스프레이|분무제|외용액|ointment|suppositor(y|ies)|eye\s?drops?|oral\s?spray|artificial\s?saliva)/i;
@@ -195,8 +189,8 @@ export const hasMedicalIntentKeyword = (text: string): boolean => {
 };
 
 /**
- * Deterministic fallback for product-critical intents.
- * This is used only when semantic routing is unavailable or inconclusive.
+ * 제품 핵심 인텐트의 결정론 폴백.
+ * 의미 기반 라우팅을 쓸 수 없거나 판정이 애매할 때만 쓴다.
  */
 export const classifyIntentByRules = (text: string, hasImage: boolean): IntentType => {
     for (const rule of FALLBACK_RULES) {
@@ -212,15 +206,14 @@ export const classifyIntentByRules = (text: string, hasImage: boolean): IntentTy
 };
 
 // ============================================================
-// Search-need classification (general intent only)
+// 검색 필요 판정 (general 인텐트만)
 //   기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (4-1, 4-2, 6-3, 9-2)
-//   검증: scripts/test-search-rules.mjs (단일턴 22/22, OFF→ON FP 0, 멀티턴 가드 4/4)
-//   ※ 아래 정규식은 위 테스트 프로토타입과 동일하게 유지할 것 (변경 시 테스트 동기화).
-//   ※ rule은 lite(router LLM) fallback·fast-path용. 다국어 회색지대는 lite가 처리하므로
+//   검증: tests/test-search-policy.mts
+//   ※ rule 은 lite(router LLM) fallback·fast-path 용. 다국어 회색지대는 lite 가 처리하므로
 //      여기 키워드는 ko 중심 + 핵심 en. 필요 시 es/fr 보강 (기획 9-5).
 // ============================================================
 
-export type SearchDecision = "on" | "off" | "gray";
+type SearchDecision = "on" | "off" | "gray";
 
 // 강한 OFF 신호 (검색 불필요): 코드·번역·창작·계산
 // 주의: "설명해/차이/원리/개념/어떻게 작동"은 강한 OFF에서 제외 → gray로 위임.
@@ -269,14 +262,11 @@ export const isFollowupReference = (text: string): boolean => FOLLOWUP_REF_PATTE
 
 
 // ============================================================
-// 명시적 검색 요청 탐지 — 단일 출처 (기획 PLAN_SEARCH_POLICY_260815 §2)
-//   이전에는 같은 개념이 두 곳에 다른 정규식으로 존재했다:
-//     · intentRules SEARCH_ON_PATTERNS.explicit (좁음) — "찾아서/찾아줘/조사/알아보자"를 놓침
-//     · search-gate.ts explicitSearchRequested (넓음) — 시의성 어휘까지 섞여 있음
-//   좁은 쪽이 멀티턴 가드의 관문 역할을 하면서 "검색해서 정리해줘"조차 억제됐다(DEV_260815).
-//   → 넓은 쪽 기준으로 통합하되, 시의성(최신·최근·실시간·뉴스)은 여기서 제외한다.
-//     "검색해줘"(사용자 의사, tier 300)와 "최신 정보"(시의성 신호, tier 100)는 다른 개념이고
-//     권한 계층이 다르다. 섞으면 tier 300이 남발되어 계층이 무의미해진다.
+// 명시적 검색 요청 탐지 — 단일 출처 (PLAN_SEARCH_POLICY_260815 §2)
+//   멀티턴 가드와 검색 게이트가 같은 정의를 쓴다(두 곳에 다른 정규식을 두면 "검색해서 정리해줘"
+//   같은 요청이 한쪽에서 억제된다 → DEV_260815).
+//   시의성(최신·최근·실시간·뉴스)은 여기서 제외한다 — "검색해줘"(사용자 의사, tier 300)와
+//   "최신 정보"(시의성 신호, tier 100)는 권한 계층이 다르다. 섞으면 tier 300이 남발된다.
 // ============================================================
 const EXPLICIT_SEARCH_PATTERN =
     /(검색|구글링|구글|google|서치|웹에서|웹\s?검색|인터넷|찾아|조사(해|하|를|해서)|알아보|알아봐|출처|근거(는|를| |$)|레퍼런스|cite|search|look\s?up)/i;
@@ -290,9 +280,9 @@ export const detectExplicitSearchRequest = (text: string): boolean =>
     EXPLICIT_SEARCH_PATTERN.test(text) && !PAST_REF_PATTERN.test(text);
 
 /**
- * 직전 검색 답변 위에서 **세부나 다른 항목**을 묻는 후속(DEV_261013).
+ * 직전 검색 답변 위에서 **세부나 다른 항목**을 묻는 후속 → DEV_261013
  * "구체적으로 알려줘"·"화학상은?"·"다시 검증해줘" — 직전 답변에 없는 사실이 필요하다.
- * 라우터 LLM 은 프롬프트로 유도해도 off 를 유지했다(실측) → 규칙으로 켠다.
+ * 라우터 LLM 은 프롬프트로 유도해도 off 를 유지하므로 규칙으로 켠다.
  * 순수 재구성("표로 정리")은 shouldSuppressSearchForFollowup 이 먼저 잡는다.
  */
 const DETAIL_FOLLOWUP_PATTERN = /(구체적|자세히|자세하게|상세|더\s*(알려|설명)|검증|확인해)|^\s*\S{1,12}(은|는)\s*\??\s*$/;
@@ -304,7 +294,7 @@ export const wantsGroundedDetail = (currentText: string, prevSearched: boolean):
  * 멀티턴 가드 (기획 6-3): 직전 턴에 검색이 일어났고 현재 메시지가 follow-up 가공형이면,
  * 새 최신요구(temporal/domain ON & not past-ref)가 아닌 한 재검색을 억제(off)한다.
  * @param currentText 현재 사용자 메시지
- * @param prevSearched 직전 턴 검색 발생 여부 (9-B 권장: 직전 human 메시지의 classifySearchNeed==="on" 근사)
+ * @param prevSearched 직전 턴 검색 발생 여부(history.ts `lastTurnSearched`, 판단 불가면 근사)
  * @returns true면 needsSearch를 false로 무력화해야 함
  */
 export const shouldSuppressSearchForFollowup = (currentText: string, prevSearched: boolean): boolean => {
@@ -318,12 +308,11 @@ export const shouldSuppressSearchForFollowup = (currentText: string, prevSearche
 /**
  * PubMed 가 다루지 않는 분야의 표지어.
  *
- * 라우터 LLM 은 분야를 가리지 않고 논문 요청을 전부 `paper_search` 로 보낸다
- * (TIER1 무오염 실측: CS·공학 9/9 누수). 프롬프트로는 안 잡혀 결정적으로 막는다.
- * PubMed 는 이런 질의에 **빈손으로 실패하지 않고** 그 주제의 의생명 응용을 돌려주므로
- * (트랜스포머 → 단일세포 오믹스) 조용히 엉뚱한 근거가 나간다.
+ * 라우터 LLM 은 분야를 가리지 않고 논문 요청을 `paper_search` 로 보내는 경향이 있고(CS·공학),
+ * 프롬프트로는 안 잡혀 결정적으로 막는다. PubMed 는 이런 질의에 빈손으로 실패하지 않고 그 주제의
+ * 의생명 응용을 돌려주므로(트랜스포머 → 단일세포 오믹스) 조용히 엉뚱한 근거가 나간다.
  *
- * ⚠️ 보건과 겹치는 말은 넣지 않는다 — `AI 진단`·`의료영상`은 진짜 의생명 문헌이 있다.
+ * 주의: 보건과 겹치는 말은 넣지 않는다 — `AI 진단`·`의료영상`은 진짜 의생명 문헌이 있다.
  */
 const NON_BIOMEDICAL_FIELD = /(머신\s*러닝|딥\s*러닝|기계\s*학습|트랜스포머|어텐션|신경망|알고리즘|프로그래밍|소프트웨어|컴파일러|암호화폐|블록체인|반도체|공정\s*장비|웨이퍼|디스플레이|배터리\s*소재|토목|건축\s*구조|machine learning|deep learning|transformer|attention mechanism|neural network|algorithm|compiler|blockchain|semiconductor|wafer)/i;
 
@@ -333,18 +322,15 @@ export const isNonBiomedicalPaperTopic = (text: string): boolean => NON_BIOMEDIC
 /**
  * 라우터 LLM 의 약국↔병원 오분류를 규칙으로 되돌린다.
  *
- * 🔴 실측(2026-08-31, TIER1 3회씩): LLM 이 "서초구 소아과"·"강남 이비인후과"·"분당 피부과"·
- * "근처 치과" 를 **3/3 전부 `pharmacy_search`** 로 보냈다. 확률적 흔들림이 아니라 고정된
- * 오분류이고, 화면에는 빈 약국 카드가 떴다. 동사가 붙으면("서초구 내과 알려줘") 맞는 걸 보면
- * "지역 + 진료과" 라는 **모양**에 걸리는 것으로 보인다.
+ * LLM 은 "서초구 소아과"·"근처 치과" 처럼 "지역 + 진료과" 모양을 `pharmacy_search` 로 고정 오분류한다
+ * (동사가 붙으면 맞는다) → DEV_260831
  *
- * ⚖️ 왜 프롬프트가 아니라 코드인가. 약국 규칙은 `약국`/`pharmacy` 라는 **말 자체**를 요구하고
- * (`/(약국|pharmacy|…)/`), 병원 규칙은 진료과명을 명시 열거한다. 즉 이 충돌에서는 규칙이
- * LLM 보다 정밀하다 — 규칙이 병원이라고 말하는 순간 텍스트에 약국이라는 말이 **없다**는 뜻이다.
- * 이번 주에 프롬프트로 세 번 밀어봤고 세 번 다 졌다(철회 논문·초록 없음·마커 범위).
+ * 코드로 막는 이유: 약국 규칙은 `약국`/`pharmacy` 라는 **말 자체**를 요구하고, 병원 규칙은 진료과명을
+ * 명시 열거한다. 이 충돌에서는 규칙이 LLM 보다 정밀하다 — 규칙이 병원이라고 말하는 순간 텍스트에
+ * 약국이라는 말이 없다는 뜻이다. 프롬프트 수정으로는 고쳐지지 않았다.
  *
- * 이 가드는 약국→병원 **한 방향**만 본다. 반대 방향(LLM 병원 · 규칙 약국)은 실측에서 나오지
- * 않았고, 넓히면 LLM 이 맥락으로 옳게 고른 경우까지 되돌릴 위험이 있다.
+ * 약국→병원 **한 방향**만 본다. 반대 방향은 관측되지 않았고, 넓히면 LLM 이 맥락으로 옳게 고른
+ * 경우까지 되돌릴 위험이 있다.
  */
 export const resolveClinicIntent = (llmIntent: IntentType, ruleIntent: IntentType): IntentType =>
     llmIntent === 'pharmacy_search' && ruleIntent === 'hospital_search' ? 'hospital_search' : llmIntent;
@@ -352,17 +338,14 @@ export const resolveClinicIntent = (llmIntent: IntentType, ruleIntent: IntentTyp
 /**
  * 화면의 날씨 카드가 무관한 질의를 빨아들이는 것을 막는다.
  *
- * 🔴 실측(2026-08-31, 사용자 로컬 + TIER1 재현): 날씨 카드가 떠 있으면 라우터 LLM 이
- * "서초구 소아과"·"오디세이 영화정보 알려줘" 를 `weather` 로 보냈다(llmFollowUp=new).
- * **대조군(카드 없음)에서는 각각 hospital_search·movie_search 로 정상**이다 — 카드의
- * 존재 자체가 원인이다. 라우터 프롬프트가 "화면에 날씨 카드가 있다" 를 알려주니 문장 속
- * 지명을 새 도시 요청으로 읽는다. `decideWeatherFollowup` 은 날씨 어휘가 없어 'none' 을
- * 돌려주고 아무 교정도 하지 않았다(그 함수의 관심사가 아니다).
+ * 날씨 카드가 떠 있으면 라우터 LLM 이 문장 속 지명을 새 도시 요청으로 읽어 "서초구 소아과"·
+ * "오디세이 영화정보 알려줘" 를 `weather` 로 보낸다(카드가 없으면 정상 분류) → DEV_260831
+ * `decideWeatherFollowup` 은 날씨 어휘가 없어 'none' 을 돌려줄 뿐 교정하지 않는다(그 함수의 관심사가 아니다).
  *
- * ⚖️ **규칙이 다른 카드 의도를 확언할 때만** 뒤집는다. `general` 이면 판단 근거가 없다는
+ * **규칙이 다른 카드 의도를 확언할 때만** 뒤집는다. `general` 이면 판단 근거가 없다는
  * 뜻이므로 LLM 을 믿는다 — "내일은?"·"부산은?" 같은 진짜 후속이 여기 속하고, 이걸 뒤집으면
- * 날씨 멀티턴이 통째로 깨진다. 날씨 규칙 자체가 날씨 어휘를 요구하므로, 규칙이 다른 카드
- * 의도를 냈다는 건 그 문장에 날씨 어휘가 **없다**는 뜻이기도 하다.
+ * 날씨 멀티턴이 깨진다. 날씨 규칙 자체가 날씨 어휘를 요구하므로, 규칙이 다른 카드 의도를 냈다는 건
+ * 그 문장에 날씨 어휘가 없다는 뜻이기도 하다.
  */
 const CARD_INTENTS = new Set<IntentType>([
     'hospital_search', 'pharmacy_search', 'vet_search', 'movie_search', 'law_search',
@@ -375,20 +358,16 @@ export const resolveWeatherStickiness = (
 /**
  * 논문이 아니라 **소프트웨어 산출물**(레포·라이브러리·패키지)을 찾는 요청의 표지어.
  *
- * 🔴 실측(2026-09-02, 라우터 프롬프트 그대로 · temperature 0 · 2/2 동일):
- *   `클로드 skills 관련된 레포 검색` → `paper_search` + `paper_source=arxiv`.
- *   같은 문장을 `레포지토리`·`repo`·`깃허브 저장소` 로 풀어 쓰면 전부 `general` 이다.
- *   즉 특정 토큰의 문제가 아니라 **조합**이다 — 축약형 `레포` 가 해소되지 않은 자리에서
- *   `관련된 … 검색` 이 프롬프트 예시 `"관련 논문 찾아줘"` 와 같은 모양이 되고, 주제(AI)가
- *   `paper_source` 의 arxiv 정의("algorithms and computing, machine learning")로 떨어진다.
+ * `클로드 skills 관련된 레포 검색` 은 라우터가 `paper_search` + arxiv 로 보낸다(같은 문장을 `레포지토리`·
+ * `repo` 로 쓰면 general). 축약형 `레포` 가 해소되지 않은 자리에서 `관련된 … 검색` 이 "관련 논문 찾아줘"
+ * 모양이 되고, 주제(AI)가 arxiv 정의로 떨어지는 **조합** 문제다 → DEV_260902
  *
- * ⚖️ 왜 프롬프트가 아니라 코드도 필요한가. `isNonBiomedicalPaperTopic` 은 `arxiv_search` 에
- *   **의도적으로 적용하지 않는다**(CS 어휘는 arXiv 에서 정상) — 그래서 arXiv 쪽에는 안전망이
- *   아예 없었다. 게다가 arXiv 는 PubMed 처럼 빈손으로 실패하지 않고 그럴듯한 논문을 돌려주므로
- *   오라우팅이 조용히 통과한다. 프롬프트(§2)는 재현율을 올리고, 이 규칙은 바닥을 만든다.
+ * 코드도 필요한 이유: `isNonBiomedicalPaperTopic` 은 `arxiv_search` 에 의도적으로 적용하지 않으므로
+ * (CS 어휘는 arXiv 에서 정상) arXiv 쪽 안전망이 따로 있어야 한다. arXiv 는 빈손으로 실패하지 않고
+ * 그럴듯한 논문을 돌려주므로 오라우팅이 조용히 통과한다. 프롬프트는 재현율을, 이 규칙은 바닥을 맡는다.
  *
- * ⚠️ 오탐 비용은 낮다 — `general` 로 내려가면 검색 붙은 산문이 받는다. 반대로 놓치면
- *   무관한 논문 카드가 출처처럼 나간다. 그래서 여기서는 재현율 쪽으로 기운다.
+ * 주의: 오탐 비용은 낮다 — `general` 로 내려가면 검색 붙은 산문이 받는다. 놓치면 무관한 논문 카드가
+ * 출처처럼 나간다. 그래서 재현율 쪽으로 기운다.
  */
 const SOFTWARE_ARTIFACT_PATTERN =
     /(레포지토리|리포지토리|레포|저장소|깃허브|깃헙|github|gitlab|(?<![A-Za-z0-9])repos?(?:itor(?:y|ies))?(?![A-Za-z0-9])|오픈\s?소스|open\s?source|라이브러리|(?<![A-Za-z0-9])librar(?:y|ies)(?![A-Za-z0-9])|패키지|(?<![A-Za-z0-9])package(?![A-Za-z0-9])|npm|pypi|(?<![A-Za-z0-9])sdk(?![A-Za-z0-9])|프레임워크|framework|소스\s?코드|source\s?code)/i;
@@ -402,7 +381,7 @@ const PAPER_WORD_PATTERN =
     /(논문|학술|저널|문헌|초록|연구|arxiv|pubmed|preprint|thesis|dissertation|(?<![A-Za-z0-9])papers?(?![A-Za-z0-9])|(?<![A-Za-z0-9])journal(?![A-Za-z0-9])|peer.?review)/i;
 
 /** 논문이 아니라 소프트웨어 산출물을 찾는 요청인가. */
-export const wantsSoftwareArtifact = (text: string): boolean =>
+const wantsSoftwareArtifact = (text: string): boolean =>
     SOFTWARE_ARTIFACT_PATTERN.test(text) && !PAPER_WORD_PATTERN.test(text);
 
 /**

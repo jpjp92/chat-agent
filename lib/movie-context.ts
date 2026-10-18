@@ -9,9 +9,9 @@
  * 스파이크/통합: DEV_260611 §6, DEV_260612.
  */
 
-export interface MovieCtxShow { start: string; screen: string; left: number; total: number }
-export interface MovieCtxEntry { movie: string; rating: string; format: string; showtimes: MovieCtxShow[] }
-export interface MovieCtxChain { chainName: string; cinema: string; movies: MovieCtxEntry[] }
+interface MovieCtxShow { start: string; screen: string; left: number; total: number }
+interface MovieCtxEntry { movie: string; rating: string; format: string; showtimes: MovieCtxShow[] }
+interface MovieCtxChain { chainName: string; cinema: string; movies: MovieCtxEntry[] }
 
 const store: Record<string, MovieCtxChain> = {};
 

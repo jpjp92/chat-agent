@@ -7,7 +7,6 @@
  * 도착 또는 스트림 종료)될 때 통째로 출현하게 한다.
  *
  * 안전성: isStreaming=false(최종 렌더)면 원본을 그대로 반환 → 출력 1바이트 불변.
- * scripts/test-table-streaming.ts 가 동일 함수로 RAW 14프레임 → 0 검증.
  */
 export function gateStreamingTables(text: string, isStreaming: boolean): string {
     if (!isStreaming) return text;

@@ -23,17 +23,17 @@ export type IntentType =
     | "general";     // 나머지 모든 것
 
 /**
- * AgentState definition for LangGraph.js
- * Tracks conversation history, user attachments, extraction results, and routing flow.
+ * LangGraph.js AgentState 정의
+ * 대화 기록·사용자 첨부·추출 결과·라우팅 흐름을 담는다.
  */
 export const GraphState = Annotation.Root({
-    // The conversation history including user inputs, AI responses, and Tool messages.
+    // 사용자 입력·AI 응답·Tool 메시지를 포함한 대화 기록.
     messages: Annotation<BaseMessage[]>({
         reducer: messagesStateReducer,
         default: () => [],
     }),
 
-    // Text content extracted from uploaded documents/web pages by the frontend.
+    // 프론트엔드가 업로드 문서/웹 페이지에서 추출한 텍스트.
     webContent: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => "",
@@ -72,11 +72,8 @@ export const GraphState = Annotation.Root({
     }),
     /**
      * 이번 턴이 영화 카드 위에서 **웹 검색으로** 답하는 턴인가(줄거리·평점 등 상영표에 없는 정보).
-     *
-     * 🔴 이 플래그가 없던 시절, 검색 턴에는 화면 상영작이 모델에게 전달되지 않았다
-     * (generator 가 `movieFollowup` 만 봤는데 검색 턴은 그 값이 false 다). 그래서 모델이
-     * **화면과 정면으로 모순되는 답**을 했다 — 오디세이가 CGV 강남에 걸려 있는데
-     * "'오디세이'라는 제목의 영화는 찾기 어렵지만" 하며 마션 줄거리를 답했다(실측 2026-08-31).
+     * 검색 턴에도 화면 상영작을 넘겨야 한다 — `movieFollowup` 만 보면 검색 턴엔 상영작이 빠져 모델이
+     * 화면과 모순되는 답(상영 중인 영화를 "찾기 어렵다")을 한다 → DEV_260831
      */
     movieSearchTurn: Annotation<boolean>({
         reducer: (_prev, next) => next,
@@ -85,9 +82,8 @@ export const GraphState = Annotation.Root({
 
     // 이번 턴이 직전 답변의 **재구성 요청**인지(라우터 follow_up === "refine").
     // "표로 정리해줘"·"요약해줘"·"비교해줘" 같은 턴은 툴도 검색도 없이 도는 경우가 많아,
-    // 모델이 추가한 항목을 검증할 장치가 하나도 없다. 실제로 직전 턴이 **빈 응답**이었는데도
-    // 제품 4개짜리 표를 만들어낸 사례가 있다(DEV_260815_DEPLOY_CHECK).
-    // 라우터는 이미 "refine"으로 판정하고 있었지만 state로 넘기지 않아 generator가 모르고 있었다.
+    // 모델이 추가한 항목을 검증할 장치가 없다 — generator 가 이 턴에 재구성 규칙을 붙이도록 state 로 넘긴다
+    // → DEV_260815_DEPLOY_CHECK
     reformatTurn: Annotation<boolean>({
         reducer: (x, y) => y ?? x,
         default: () => false,
@@ -101,70 +97,69 @@ export const GraphState = Annotation.Root({
     }),
 
     // 이번 턴이 "화면에 떠 있는 논문 카드"에 대한 후속 대화인지(라우터 판정).
-    // 🔴 라우터는 이 판정을 하고 있었는데 **지역 변수로 끝나** generator 가 몰랐다. 그래서
-    // 검색은 꺼졌지만 근거 고정 규칙이 안 붙었고, 초록에 없는 연구 결과지표가 사실처럼 나갔다
-    // (DEV_260830 §6.22). reformatTurn 과 같은 종류의 정보 손실이다.
+    // generator 가 근거 고정 규칙을 붙이도록 state 로 넘긴다 — 없으면 초록에 없는 연구 결과가 사실처럼
+    // 나간다 → DEV_260830 §6.22
     paperFollowup: Annotation<boolean>({
         reducer: (x, y) => y ?? x,
         default: () => false,
     }),
 
-    // Any files, images, or media attached by the user.
+    // 사용자가 첨부한 파일·이미지·미디어.
     attachments: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? [...x, ...y] : x),
         default: () => [],
     }),
 
-    // Accumulated textual context to inject into the system prompt (e.g. from Tool calls).
+    // 시스템 프롬프트에 넣을 누적 문맥 (예: 도구 호출 결과).
     contextInfo: Annotation<string>({
         reducer: (x, y) => (y ? x + "\n\n" + y : x),
         default: () => "",
     }),
 
-    // Identified or extracted data for pill images (set by Vision Preprocessor).
+    // 약 이미지에서 식별·추출한 데이터 (Vision 전처리기가 설정).
     pillData: Annotation<any>({
         reducer: (x, y) => y ?? x,
         default: () => null,
     }),
 
-    // Current session ID for DB persistence.
+    // DB 저장용 현재 세션 ID.
     sessionId: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => "",
     }),
 
-    // Used by the Router to determine the next destination node in the graph.
+    // Router 가 그래프의 다음 노드를 정할 때 쓴다.
     nextNode: Annotation<string>({
         reducer: (x, y) => y ?? x,
-        default: () => "generator", // Default fallback
+        default: () => "generator", // 기본 폴백
     }),
 
-    // The selected language model to be used by the generator node
+    // generator 노드가 쓸 선택 모델
     model: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => DEFAULT_CHAT_MODEL,
     }),
 
-    // The client's local timezone to display the correct time.
+    // 올바른 시각을 보여주기 위한 클라이언트 현지 시간대.
     timeZone: Annotation<string>({
         reducer: (x, y) => y ?? x,
         default: () => "Asia/Seoul",
     }),
 
-    // Determines which set of tools to bind and which prompt sections to inject
+    // 바인딩할 도구 묶음과 주입할 프롬프트 섹션을 정한다
     intent: Annotation<IntentType>({
         reducer: (x, y) => y ?? x,
         default: () => "general",
     }),
 
-    // Grounding sources extracted from the Google Search response (populated by generator node).
+    // Google Search 응답에서 추출한 grounding 출처 (generator 노드가 채움).
     groundingSources: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? y : x),
         default: () => [],
     }),
 
-    // Whether the current general-intent request needs Google Search grounding.
-    // Set by the router (rule + lite LLM); read by the generator's search gate.
+    // 이번 general 인텐트 요청이 Google Search grounding 이 필요한지.
+    // router(규칙 + lite LLM)가 설정하고 generator 의 검색 게이트가 읽는다.
     // 기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (6-4)
     // reducer는 반드시 `?? `를 사용 — boolean이라 `||`를 쓰면 false가 default(true)로 덮인다.
     // default는 on(true) — 회색지대/판정 누락 시 검색누락 방어를 우선 (기획 9 안전판).

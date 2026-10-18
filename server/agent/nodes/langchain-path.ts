@@ -19,22 +19,22 @@ import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillC
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import { shouldAddWebSearchToPaperFollowup } from "../search-signals";
 
-// LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. Vercel 60s 캡 아래에서 빠른 실패.
+// LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. 25s 넘게 무응답이면 끊고 키 로테이션으로 넘긴다.
 const LC_CALL_TIMEOUT_MS = 25_000;
 
 /**
- * LangChain generation path (extracted from generator.ts, 3-A — move-only).
+ * LangChain 생성 경로.
  *
- * Reached either when the intent needs local tools (useLangChain=true) or as an
- * unstreamed fallback after the SDK path fully fails (sdkSuccess=false). Handles:
- * the SDK-failure YouTube guard, fast-pass card bypass, direct pill lookup, tool
- * binding + invoke, and key-rotation retry.
+ * 로컬 도구가 필요한 인텐트(useLangChain=true)이거나, SDK 경로가 완전히 실패한 뒤의
+ * 비스트리밍 폴백(sdkSuccess=false)일 때 들어온다. 처리하는 것:
+ * SDK 실패 시 YouTube 가드, fast-pass 카드 우회, 약 직접 조회, 도구
+ * 바인딩 + 호출, 키 로테이션 재시도.
  *
- * Control flow is fully terminal: every branch returns `{ messages }` or throws,
- * so the caller does `return await runLangChainPath(...)`.
+ * 제어 흐름은 전부 종단이다: 모든 분기가 `{ messages }` 를 반환하거나 throw 하므로
+ * 호출부는 `return await runLangChainPath(...)` 로 부른다.
  *
- * `finalInstruction` is mutated locally (direct pill lookup appends DB result);
- * the caller does not read it after this point, so nothing is returned for it.
+ * `finalInstruction` 은 여기서만 바뀐다(약 직접 조회가 DB 결과를 붙임).
+ * 호출부는 이후 읽지 않으므로 따로 반환하지 않는다.
  */
 export const runLangChainPath = async (args: {
     state: AgentStateType;
@@ -48,19 +48,18 @@ export const runLangChainPath = async (args: {
     hasVideoData: boolean;
     langName: LangName;
 }): Promise<{ messages: any[] }> => {
-    const { state, resolvedModel, apiKey, systemInstructionBase, useLangChain, sdkSuccess, isYoutubeRequest, hasVideoData, langName } = args;
+    const { state, resolvedModel, apiKey, useLangChain, sdkSuccess, isYoutubeRequest, hasVideoData, langName } = args;
     let finalInstruction = args.finalInstruction;
 
-    // LangChain path: drug_id and drug_info intents need custom DB/identification tools.
-    // Note: for non-drug intents, this path acts as an unstreamed fallback when SDK fully fails.
+    // LangChain 경로: drug_id·drug_info 인텐트는 커스텀 DB/식별 도구가 필요하다.
+    // 참고: 약 외 인텐트에선 SDK 가 완전히 실패했을 때의 비스트리밍 폴백이다.
     if (!useLangChain && !sdkSuccess) {
         console.error('[LangGraph] SDK path failed for intent:', state.intent, '— falling back to LangChain (no streaming)');
-        // YouTube native video analysis uses fileData which LangChain does not support.
-        // Falling through would produce hallucinated content instead of the actual video summary.
-        // Return a clear error message so the user knows to retry rather than seeing wrong content.
+        // YouTube 영상 분석은 LangChain 이 지원하지 않는 fileData 를 쓴다.
+        // 그대로 내려가면 실제 영상 요약이 아니라 지어낸 내용이 나온다.
+        // 잘못된 내용 대신 다시 시도하라는 분명한 오류 문구를 돌려준다.
         if (isYoutubeRequest && hasVideoData) {
-            // 예전엔 시스템 프롬프트 본문을 정규식으로 역추출해 언어를 알아냈다(프롬프트 첫 문장을
-            // 고치면 조용히 영어로 폴백되는 구조). 이제 langName을 직접 받는다 — server/agent/lang.ts.
+            // 언어는 langName 으로 직접 받는다(server/agent/lang.ts) — 시스템 프롬프트 본문에서 역추출하지 않는다.
             const YT_ERR: Record<LangName, string> = {
                 Korean:  'YouTube 영상 분석 서비스가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.',
                 English: 'YouTube video analysis is temporarily unavailable. Please try again in a moment.',
@@ -76,12 +75,11 @@ export const runLangChainPath = async (args: {
     while (lcAttempt < API_KEYS.length) {
         try {
             // 모델 선택 원칙: LangChain 경로 인텐트는 전부 외부 API 도구 기반(MFDS·약국·병원·동물병원·
-            // 법령·영화·football-data)이라 핵심은 API 데이터지 모델 추론이 아님 → 빠른 2.5-flash 사용.
-            // 일반 대화(SDK 경로)만 3.5 유지. 기본 모델 3.5 전환(1cd48c2, 2026-05-30) 전엔 이 경로가
-            // 전부 2.5였고 빨랐음 → 그 상태로 복원(이 전환이 도구 응답 전반을 느리게 한 회귀의 원인).
+            // 법령·영화)이라 핵심은 API 데이터지 모델 추론이 아니다 → 빠른 2.5-flash 를 쓴다.
+            // (느린 기본 모델로 돌리면 도구 응답 전반이 느려진다 → DEV_260530)
             //   · fast-pass(출력 폐기, 카드=툴 JSON): thinking 완전 off(budget 0) — 순수 tool-router.
-            //   · drug_info/drug_id(카드·산문 합성): 2.5 기본 thinking 유지(5/30 이전 검증 동작).
-            //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.5면 thinking LOW 캡.
+            //   · drug_info/drug_id(카드·산문 합성): 2.5 기본 thinking 유지.
+            //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.x 면 thinking LOW 캡.
             const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
             const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "law_qa", "paper_search", "arxiv_search"]);
             // 산문은 모델이, 카드는 도구 출력이 그대로 간다.
@@ -96,12 +94,12 @@ export const runLangChainPath = async (args: {
                 ...(is3xLcModel
                     ? { thinkingConfig: { thinkingLevel: "LOW" as const } }
                     : { temperature: 0.2, topP: 0.8, topK: 40, ...(FAST_PASS_INTENTS.has(state.intent) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) }),
-                // Drug card JSON is compact — 8192 is sufficient and reduces Vercel 60s timeout risk
+                // 약 카드 JSON 은 짧다 — 8192 면 충분하고 생성 시간도 줄인다
                 maxOutputTokens: 8192,
                 maxRetries: 0,
             });
 
-            // Fast-pass: Bypass final LLM generation if pharmacyTool / hospitalTool has successfully executed
+            // Fast-pass: 약국·병원 도구 등이 성공했으면 최종 LLM 생성을 건너뛴다
             const lastMsg = state.messages[state.messages.length - 1];
             // 논문 종합 단계 웹검색 판정용 — 최신 human 발화. ToolMessage 이후에는 lastMsg 가
             // 도구 결과라 마지막 메시지로는 사용자의 요청을 알 수 없다.
@@ -185,7 +183,7 @@ export const runLangChainPath = async (args: {
                 });
                 const pillLookupText = (() => {
                     if (typeof pillLookupResult === 'string') return pillLookupResult;
-                    // LangChain may return a ToolMessage object — extract .content
+                    // LangChain 이 ToolMessage 객체를 돌려줄 수 있다 — .content 추출
                     const c = (pillLookupResult as any)?.content;
                     if (typeof c === 'string') return c;
                     if (Array.isArray(c)) return c.map((p: any) => (typeof p === 'string' ? p : (p?.text ?? ''))).join('');
@@ -208,11 +206,11 @@ export const runLangChainPath = async (args: {
                     // 제공하지만 웹(약학정보원·드러그인포)은 각인으로 색인돼 있다 →
                     // **그 필드에 한해 더 나은 소스**로 간다. pill-messages.ts 상단 주석 참조.
                     //
-                    // 🔴 모델에 검색 **도구**를 주지 않는다. `allTools` 가 `directPillLookupDone`
+                    // 모델에 검색 **도구**를 주지 않는다. `allTools` 가 `directPillLookupDone`
                     //    일 때 `[]` 인 이유가 generator → search → generator 재귀 방지이므로,
                     //    검색은 여기서 **결정론적으로** 한 번 돌리고 결과만 넘긴다.
                     let pillWebText = '';
-                    // 🔴 각 경계마다 로그를 남긴다 — 게이트에서 막힌 건지 검색이 빈 건지
+                    // 각 경계마다 로그를 남긴다 — 게이트에서 막힌 건지 검색이 빈 건지
                     //    구분되지 않으면 "웹 폴백이 안 된다"는 관측만 남고 원인을 못 좁힌다.
                     const willSearch = shouldTryPillWebFallback(pillMatchType, state.pillData);
                     console.log('[LangGraph] Pill web fallback gate:', JSON.stringify({
@@ -244,7 +242,7 @@ export const runLangChainPath = async (args: {
                     }
 
                     // 웹 결과가 있으면 즉시 반환하지 않고 모델이 종합하게 한다.
-                    // 🔴 ①(문구 정직성)이 여기서 무너지지 않도록 **말해야 할 사실을 규칙으로 못 박는다.**
+                    // ①(문구 정직성)이 여기서 무너지지 않도록 **말해야 할 사실을 규칙으로 못 박는다.**
                     console.log('[LangGraph] Pill web fallback engaged:', pillMatchType);
                     finalInstruction += `\n\n[MFDS_IMPRINT_NOT_FOUND]\n`
                         + `사용자 알약의 각인은 "${(state.pillData?.imprint_front ?? '').trim()}" 이고, 식품의약품안전처 DB 에서 이 각인으로 등록된 약품을 찾지 못했다.\n`
@@ -267,9 +265,9 @@ export const runLangChainPath = async (args: {
 
             let allTools: any[] = [];
             if (state.intent === "drug_id") {
-                // Pill image identification already performed deterministic DB lookup
-                // above. Do not expose additional tools here; otherwise the model can
-                // enter generator → search/identify tool → generator recursion.
+                // 약 이미지 식별은 위에서 이미 결정론 DB 조회를 했다.
+                // 여기서 도구를 더 노출하지 않는다 — 그러면 모델이
+                // generator → 검색/식별 도구 → generator 재귀에 빠질 수 있다.
                 allTools = directPillLookupDone ? [] : [identifyPillTool, searchWebTool];
             } else if (state.intent === "drug_info") {
                 allTools = [searchDrugInfoTool, searchWebTool];
@@ -284,11 +282,10 @@ export const runLangChainPath = async (args: {
             } else if (state.intent === "movie_search") {
                 allTools = [movieTool];
             } else if (state.intent === "paper_search" || state.intent === "arxiv_search") {
-                // 🔴 조회는 논문 도구 **단독·강제**로 끝내고, ToolMessage 이후 종합 단계에서만
-                //    웹 검색을 더한다. 1차에 둘 주면 아래 forceDomainTool(allTools.length===1)이
-                //    풀려 모델이 논문 도구를 아예 안 부를 수 있다(DEV_260902 §9.3).
-                //    OpenAI 의 withExplicitSearchFollowup 과 같은 구조 — 라우터가 미끄러져도
-                //    사용자의 명시 검색 요청이 통째로 사라지지 않게 하는 2차 방어다.
+                // 조회는 논문 도구 **단독·강제**로 끝내고, ToolMessage 이후 종합 단계에서만 웹 검색을 더한다.
+                // 1차에 둘 다 주면 아래 forceDomainTool(allTools.length===1)이 풀려 모델이 논문 도구를 안 부를 수 있다.
+                // OpenAI 의 withExplicitSearchFollowup 과 같은 구조 — 라우터가 미끄러져도 사용자의 명시 검색 요청이
+                // 사라지지 않게 하는 2차 방어다 → DEV_260902 §9.3
                 const paperCardTool = state.intent === "paper_search" ? paperTool : arxivTool;
                 allTools = shouldAddWebSearchToPaperFollowup(state.intent, lastMsg._getType() === 'tool', latestUserTextForTools)
                     ? [paperCardTool, searchWebTool]
@@ -307,9 +304,9 @@ export const runLangChainPath = async (args: {
                     ? { tool_choice: allTools[0].name, allowedFunctionNames: [allTools[0].name] }
                     : undefined);
 
-            // Drug image requests are pre-processed by the vision node. Do not pass the
-            // original image into the LangChain tool path again: 3.5 may re-run visual
-            // extraction and stream raw JSON instead of calling identify_pill.
+            // 약 이미지 요청은 vision 노드가 전처리한다. 원본 이미지를 LangChain 도구 경로에
+            // 다시 넘기지 않는다: 3.x 가 시각 추출을 다시 돌려 identify_pill 을 부르는 대신
+            // 원문 JSON 을 스트리밍할 수 있다.
             const safeMessages = state.messages.map((msg: any) => {
                 if (msg._getType() === 'human' && Array.isArray(msg.content)) {
                     const safeParts = (msg.content as any[]).filter((p: any) =>
@@ -321,33 +318,23 @@ export const runLangChainPath = async (args: {
                 return msg;
             });
 
-            // 🔴 **`[ACTIVE_WEB_SEARCH]` 를 여기 붙이지 마라 — 붙이면 결함이 생긴다.**
+            // `[ACTIVE_WEB_SEARCH]` 를 여기 붙이지 않는다 — 붙이면 지시가 정면으로 반대가 된다.
             //
-            // SDK(Gemini 직접)·OpenAI 경로는 `withSearchProviderInstruction()` 으로 그 블록을
-            // 덧붙이지만 이 경로는 `finalInstruction` 을 그대로 쓴다. base 가 그 블록을 5곳에서
-            // 참조하므로("없는 블록을 가리킨다") 붙이는 게 맞아 보이는데, **아니다**:
+            // SDK(Gemini 직접)·OpenAI 경로는 `withSearchProviderInstruction()` 으로 그 블록을 덧붙이지만,
+            // 이 경로의 검색은 hosted 기능이 아니라 **바인딩된 함수 `search_web`**(DuckDuckGo)다.
+            // `SEARCH_PROVIDER_PROFILES` 에 그 프로필이 없어 고르면 `'none'` → `enabled=false` 가 되고,
+            // base 의 `[TOOL AVAILABILITY]` 가 "도구 호출을 하지 마라"가 되는데 이 경로는 바로 그 도구를
+            // 부르라고 바인딩된(단일 도구 1차 턴은 `tool_choice` 로 강제) 경로다.
             //
-            //   이 경로의 검색은 hosted 기능이 아니라 **바인딩된 함수 `search_web`**(DuckDuckGo)다.
-            //   `SEARCH_PROVIDER_PROFILES` 에 그 프로필이 없어 순진하게 고르면 `'none'` 이 되고,
-            //   `'none'` 은 `enabled=false` 를 찍는다. 그러면 base 의 `[TOOL AVAILABILITY]` 가
-            //   *"you MUST NOT emit or simulate a search/tool call"* 이라고 말하는데 **이 경로는
-            //   바로 그 도구를 부르라고 바인딩된**(단일 도구 1차 턴은 `tool_choice` 로 **강제**)
-            //   경로다. 지시가 정면으로 반대가 된다.
-            //
-            // 블록이 없는 지금이 안전한 이유는 실측으로 확인됐다(DEV_260928 §9-1):
-            //   · 논문 턴에서 두 공급자 모두 인용 마커를 정상 출력한다(DEV_260830 §6.9 —
-            //     3.7 `[5][4][2]`, luna `[1][2]`). "없음"을 `enabled=false` 로 읽지 않는다
-            //   · 0건·장애 턴에서 마커·식별자 날조 0/7(DEV_260925 §1)
-            //
-            // 정말 붙이려면 **먼저** `SearchProvider` 에 바인딩 함수용 프로필을 추가해
-            // `enabled=true` + `tool=search_web` 로 선언해야 한다. 그건 응답이 바뀌는 변경이라
-            // 전후 측정을 동반한다(TODO §5-b).
+            // 블록 없이도 인용 마커 출력·0건 턴 무날조가 정상임을 확인했다 → DEV_260928 §9-1
+            // 붙이려면 **먼저** `SearchProvider` 에 바인딩 함수용 프로필(`enabled=true` + `tool=search_web`)을
+            // 추가해야 하고, 응답이 바뀌는 변경이라 전후 측정을 동반한다(TODO §5-b).
             const messages = [
                 new SystemMessage(finalInstruction),
                 ...safeMessages,
             ];
 
-            // 행 방지: fetch 끊김/혼잡 시 ~5분 매달림 대신 25s에 abort(Vercel 60s 캡 아래). DEV_260627 §3.
+            // 행 방지: fetch 끊김/혼잡 시 ~5분 매달림 대신 25s에 abort. DEV_260627 §3.
             const response = await llmWithTools.invoke(messages, { signal: AbortSignal.timeout(LC_CALL_TIMEOUT_MS) });
 
             // 카드형 합성 intent 의 최종 답변에서는 카드를 도구 출력으로 고정한다.
@@ -365,7 +352,7 @@ export const runLangChainPath = async (args: {
 
         } catch (err: any) {
             const isRateLimit = err?.status === 429 || err?.statusText === 'Too Many Requests';
-            // Failed to parse stream: transient Gemini API error — retry with next key
+            // Failed to parse stream: 일시적 Gemini API 오류 — 다음 키로 재시도
             const isStreamError = typeof err?.message === 'string' && (
                 err.message.includes('Failed to parse stream') ||
                 err.message.includes('INTERNAL') ||

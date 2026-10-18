@@ -25,7 +25,7 @@ const prompt = `${videoUrl} 이 영상 요약해줘`;
 const t0 = Date.now();
 const graph = compileAgentGraph(getSystemInstruction('Korean'), true, () => {}, 'Korean');
 const out: any = await graph.invoke({
-    // 🔴 route.ts:106 과 동일하게 fileData 파트를 넣어야 **실제 영상 분석 경로**를 탄다.
+    // route.ts:106 과 동일하게 fileData 파트를 넣어야 **실제 영상 분석 경로**를 탄다.
     //    빼면 그냥 검색 grounding 으로 답해 버려서(내용은 그럴듯하다) 진단이 안 된다.
     messages: [new HumanMessage({
         content: [

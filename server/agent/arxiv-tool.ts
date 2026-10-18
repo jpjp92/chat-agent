@@ -5,26 +5,22 @@ import { buildCardToolOutput } from "./card-tool-output";
 /**
  * arXiv API 논문 조회 → `json:paper` 카드(`source: 'arxiv'`).
  *
- * PubMed 를 붙이고 나니 비의생명 논문 요청이 전부 `general` 로 떨어져 근거 없이 답하고 있었다.
- * arXiv 는 그 공백의 절반을 정확히 메운다 — 실측(2026-08-30): 강화학습·로봇제어·통화정책·
- * 반도체·내진설계 질의에서 전부 해당 분야 논문이 1위로 나왔다(DEV_260830 §6.5).
+ * PubMed 가 못 덮는 비의생명 분야(강화학습·로봇제어·통화정책·반도체·내진설계 등)를 맡는다 → DEV_260830 §6.5
  *
- * 🔴 **나머지 절반은 메우지 못한다.** arXiv 도 PubMed 처럼 빈손으로 실패하지 않는다:
- *   "한국어 통사론" → `astro-ph` **Korean VLBI Network**(전파망원경) 770,886건
- *   "조선시대 신분제" → `cs.SI` 소셜 추천시스템 · "인상주의 회화" → `cs.CV` Neural Painting
- * 문학·예술사·역사·법학·고고학·정치학은 **어느 쪽에도 없다.** 그래서 라우터의 판정은
- * 2분기가 아니라 3분기다(pubmed / arxiv / none) — `none` 은 카드 없이 산문으로 답한다.
+ * 나머지는 메우지 못한다. arXiv 도 빈손으로 실패하지 않고 무관한 논문을 돌려준다
+ * (예: "한국어 통사론" → 전파망원경 논문). 문학·예술사·역사·법학·고고학·정치학은 어느 쪽에도 없으므로
+ * 라우터 판정은 3분기다(pubmed / arxiv / none) — `none` 은 카드 없이 산문으로 답한다.
  *
- * 🔴 **arXiv 는 프리프린트다.** 동료심사를 거치지 않은 글이 섞여 있으므로 PubMed 의 근거 등급
- * 배지(종합분석·임상시험·논문리뷰)를 그대로 쓰면 안 된다. `journal_ref`/`doi` 가 있으면
- * 저널에 실린 판본이 있다는 뜻이라 "게재됨", 없으면 "프리프린트"로 **심사 여부만** 밝힌다.
+ * arXiv 는 프리프린트다. 동료심사를 거치지 않은 글이 섞여 있으므로 PubMed 의 근거 등급
+ * 배지(종합분석·임상시험·논문리뷰)를 쓰지 않는다. `journal_ref`/`doi` 가 있으면
+ * 저널 판본이 있다는 뜻이라 "게재됨", 없으면 "프리프린트"로 **심사 여부만** 밝힌다.
  */
 
 const ARXIV_API = 'https://export.arxiv.org/api/query';
 
 /** arXiv 는 요청 간 3초를 권고한다(문서 명시). 지키지 않으면 임시 차단된다. */
 const MIN_GAP_MS = 3_000;
-/** 검색 API 응답이 PubMed 보다 느리다 — 실측 2~6초. per-call 값은 이 도구 전용이다. */
+/** 검색 API 응답이 PubMed 보다 느리다(2~6초). per-call 값은 이 도구 전용이다. */
 const CALL_TIMEOUT_MS = 15_000;
 const MAX_RESULTS = 8;
 
@@ -33,16 +29,11 @@ let lastCallAt = 0;
 /**
  * 질의 → arXiv `search_query`.
  *
- * 🔴 `all:transformer attention optimization` 은 세 단어를 **OR** 로 묶는다. 실측(2026-08-31):
- * 576,986건이 걸리고 상위 5건 중 2건이 "optimization" 하나만 맞은 무관 논문이었다
- * (다항식 최적화·프레임 구조 설계가 트랜스포머 질문의 근거 카드에 올라왔다).
- * AND 로 묶으면 2,776건에 상위 5건 전부 관련이다. `bridge seismic design` 은 더 심하다 —
- * OR 상위 3건에 교량 논문이 아예 없고, AND 10건은 전부 교량이다.
+ * `all:a b c` 는 세 단어를 **OR** 로 묶어 한 단어만 맞은 무관 논문이 상위에 오른다
+ * (예: "transformer attention optimization" 에 다항식 최적화 논문). AND 로 묶으면 상위가 전부 관련 논문이다.
  *
- * ⚖️ **"따옴표는 0건이라 못 쓴다"고 적었던 건 과일반화였다**(2026-09-03 정정).
- * `all:"transformer attention optimization"` 이 0건인 건 **그게 진짜 구절이 아니어서**다.
- * 진짜 구절 — 논문 제목 — 은 걸린다: `all:"Attention Is All You Need"` 45건, 원 논문 2위.
- * 그래서 구절 조회를 폐기하지 않고 `buildArxivQueryPlan` 의 1순위로 남겼다.
+ * 따옴표 구절 조회는 진짜 구절(논문 제목)일 때만 걸린다 — `all:"Attention Is All You Need"` 는
+ * 원 논문을 찾는다. 그래서 `buildArxivQueryPlan` 의 1순위로 둔다 → DEV_260831·DEV_260903
  */
 const ARXIV_FIELD = /\b(?:ti|au|abs|cat|jr|all|co|rn|id):/;
 const ARXIV_BOOL = /\b(?:AND|OR|ANDNOT)\b/;
@@ -68,17 +59,12 @@ export const buildArxivSearchQuery = (query: string): string => {
 /**
  * 조회 계획 — 앞에서부터 시도하고 **결과가 나오는 첫 항목**을 쓴다.
  *
- * 🔴 실측(2026-09-03): `Attention Is All You Need` 는 다섯 단어 중 `is`·`all`·`you` 가
- * 불용어라 `all:Attention AND all:Need`(7,982건) 로 줄고, **원 논문 1706.03762 가 상위 5건에
- * 들지 못한다.** 제목을 그대로 물었는데 그 제목의 논문이 안 나온다.
+ * 제목처럼 불용어가 섞인 질의는 불용어가 버려지면 AND 조립이 원 논문을 놓친다
+ * (`Attention Is All You Need` → `all:Attention AND all:Need`). 평범한 검색어에는 불용어가 없고
+ * 제목·구절에는 있으므로, 불용어가 섞였을 때만 구절(`all:"…"`)을 먼저 치고 0건이면 AND 조립으로 내려온다.
  *
- * 가르는 신호는 **버려지는 불용어의 존재**다. 평범한 검색어(`graph neural network`,
- * `probiotics depression`, `bridge seismic design`)에는 불용어가 하나도 없고, 제목·구절에는 있다.
- * 그래서 불용어가 섞였을 때만 구절(`all:"…"`)을 먼저 치고, 0건이면 기존 AND 조립으로 내려온다.
- *
- * ⚠️ 한 번의 호출로 합치는 `all:"…" OR (all:a AND all:b)` 는 **안 된다** — 실측상 관련도 정렬이
- * 구절 일치를 우대하지 않아 원 논문이 여전히 상위 5건 밖이었다. 그래서 순차 폴백이다.
- * 폴백은 arXiv 간격 규칙(`MIN_GAP_MS`) 때문에 공짜가 아니라, 불용어가 있는 질의로 범위를 좁혔다.
+ * 주의: 한 번의 호출로 합치는 `all:"…" OR (all:a AND all:b)` 는 안 된다 — 관련도 정렬이 구절 일치를
+ * 우대하지 않는다. 그래서 순차 폴백이고, arXiv 간격 규칙(`MIN_GAP_MS`) 때문에 불용어가 있는 질의로만 좁힌다 → DEV_260903
  */
 export const buildArxivQueryPlan = (query: string): string[] => {
     const term = (query ?? '').trim().replace(/\s+/g, ' ');
@@ -90,14 +76,10 @@ export const buildArxivQueryPlan = (query: string): string[] => {
     const kept = words.filter(w => w.length > 1 && !STOPWORDS.has(w.toLowerCase()));
     // 3단어 미만은 구절이라 부를 게 못 된다(`based on` 같은 조각이 걸린다).
     if (words.length < 3 || kept.length === words.length) return [and];
-    // 🔴 `ti:` 가 먼저다. 실측(2026-09-03): `Attention Is All You Need` 는
-    //   `all:"…"` 에서 **2위**(1위는 2026년 `Tool Attention Is All You Need`)인데
-    //   `ti:"…"` 에서는 **1위**다. 그 한 칸이 화면을 가른다 — 모델이 `limit:1` 로 부르면
-    //   카드에 남는 건 1위 하나뿐이고, 산문이 **엉뚱한 논문을 답으로 설명한다**(실측).
-    //   제목을 물었으면 제목 필드를 본다.
-    // ⚖️ `all:"<구절>"` 을 가운데에 두는 3단 계획도 만들어 봤다가 뺐다 — 구절 6종 실측에서
-    //   **`ti:` 가 0이면 `all:"…"` 도 예외 없이 0이었다**(35/45 · 2/3 · 0/0 · 47/214 · 12/13 ·
-    //   129/741). 단독으로 건진 경우가 없는데 최악 지연만 3초에서 6초로 늘린다.
+    // `ti:` 가 먼저다 — 제목을 물었으면 제목 필드를 본다. `all:"…"` 에서는 비슷한 제목의 다른 논문이
+    // 1위가 될 수 있고, 모델이 `limit:1` 로 부르면 카드에 남는 1위 하나를 산문이 답으로 설명한다.
+    // `all:"<구절>"` 을 가운데 두는 3단 계획은 쓰지 않는다 — `ti:` 가 0건이면 `all:"…"` 도 0건이었고
+    // 최악 지연만 늘린다 → DEV_260903
     return [`ti:"${term}"`, and];
 };
 
@@ -137,7 +119,7 @@ const tag = (xml: string, name: string): string => {
     return m ? unescapeXml(m[1].replace(/\s+/g, ' ').trim()) : '';
 };
 
-export interface ArxivPaper {
+interface ArxivPaper {
     arxivId: string;
     title: string;
     authors: string[];
@@ -194,18 +176,13 @@ export function parseArxivFeed(xml: string): { total: number; papers: ArxivPaper
 /**
  * `query` 파라미터 설명 — **두 공급자 경로가 이 한 문장을 공유한다.**
  *
- * 🔴 실측(2026-09-03): `트랜스포머 논문 찾아줘` 에 모델이 `transformer neural network` 를 보냈고,
- * 상위 5건 중 관련 1건짜리 카드가 나갔다(원 논문 없음, 베이즈 필터·음향 인식이 올라옴).
- * `transformer` 만 보냈으면 5/5 였다. 검색어는 AND 로 묶이므로 덧붙인 범용어가 교집합의
- * 순위를 자기 쪽으로 끌어당긴다.
+ * 검색어는 AND 로 묶이므로 덧붙인 범용어("neural network" 등)가 교집합 순위를 자기 쪽으로 끌어당긴다
+ * (`트랜스포머 논문` 에 `transformer neural network` 를 보내면 원 논문이 빠진다).
+ * 코드로 범용어를 거르면 `graph neural network` 처럼 그게 복합 개념의 일부인 질의를 무너뜨린다 —
+ * 가르는 건 문맥이고 문맥은 모델만 알므로 도구 설명에서 막는다.
  *
- * ⚠️ 코드로 범용어를 걸러내 봤지만 되돌렸다 — `graph neural network` 처럼 그게 복합 개념의
- * 일부인 질의를 무너뜨린다. 가르는 건 문맥이고 문맥은 모델만 안다. 그래서 **여기서** 막는다.
- *
- * 🔴 **상수로 뺀 이유가 결함이다.** 같은 지시를 LangChain 스키마에만 넣었더니 OpenAI 경로는
- * `local-tool-registry.ts` 에 **자기 사본**을 갖고 있어 고쳐지지 않았고, gpt-5.6-luna 가
- * `Attention Is All You Need Transformer architecture self-attention` 으로 조회해 원 논문 없는
- * 카드를 냈다(2026-09-03 재현). 두 벌을 두면 한쪽만 고친다.
+ * 상수로 두는 이유: LangChain 스키마와 OpenAI 레지스트리(`local-tool-registry.ts`)가 각자 사본을 가지면
+ * 한쪽만 고쳐진다 → DEV_260903
  */
 export const ARXIV_QUERY_DESCRIPTION =
     "arXiv 검색어. 한국어 질문이라도 학술 용어는 영어로 변환해서 넣는다. " +
@@ -221,12 +198,9 @@ export const arxivTool = tool(
         if (!term) return buildCardToolOutput('paper', { query: '', source: 'arxiv', total: 0, papers: [] });
 
         try {
-            // 🔴 0건이면 0건이다 — OR 로 넓히지 않는다. 실측: `sourdough fermentation microbiome
-            // kinetics` 는 AND 0건인데 이게 정답이다(arXiv 에 없는 분야). OR 로 넓히면
-            // "kinetics" 하나만 걸린 논문이 근거로 올라온다. 무의미어(`zzqqxx nonexistent topic`)
-            // 는 더 심해서 35,416건의 토픽모델링 논문을 물어 온다. 빈손으로 실패하는 편이 낫다.
-            // 계획을 앞에서부터 시도하고 **결과가 나오는 첫 항목**을 쓴다. 마지막 항목까지 0건이면
-            // 그 0건이 답이다(위 주석 — OR 로 넓히지 않는다).
+            // 0건이면 0건이다 — OR 로 넓히지 않는다. arXiv 에 없는 분야는 AND 0건이 정답이고,
+            // OR 로 넓히면 단어 하나만 걸린 논문(무의미어면 수만 건)이 근거로 올라온다. 빈손으로 실패하는 편이 낫다.
+            // 계획을 앞에서부터 시도하고 **결과가 나오는 첫 항목**을 쓴다. 마지막 항목까지 0건이면 그 0건이 답이다.
             const plan = buildArxivQueryPlan(term);
             let result = { total: 0, papers: [] as ArxivPaper[] };
             for (const searchQuery of plan) {

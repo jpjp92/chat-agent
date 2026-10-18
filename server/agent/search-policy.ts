@@ -4,13 +4,9 @@
  * 기획: docs/plans/PLAN_SEARCH_POLICY_260815.md
  * 진단: docs/logs/2026/08/DEV_260815.md
  *
- * 왜 이게 필요한가:
- *   이전 구조는 각 게이트가 `useGoogleSearch` boolean을 **순차적으로 덮어썼다**.
- *   우선순위가 if문의 물리적 배치 순서로만 존재했고, 그래서 휴리스틱 추측(멀티턴 가드)이
- *   사용자의 명시적 검색 요청을 이길 수 있었다 — "검색해서 정리해줘"에 검색이 안 붙던 결함.
- *
- *   여기서는 아무도 덮어쓰지 않는다. 각 주체는 근거를 담은 **신호를 제출**하고,
- *   승자는 선언된 **계층(tier)**이 정한다. 우선순위가 코드가 아니라 데이터다.
+ * 아무도 `useGoogleSearch` 를 덮어쓰지 않는다. 각 주체는 근거를 담은 **신호를 제출**하고,
+ * 승자는 선언된 **계층(tier)**이 정한다 — 우선순위가 코드 배치 순서가 아니라 데이터다.
+ * (덮어쓰기 구조에서는 휴리스틱 추측이 사용자의 명시적 검색 요청을 이길 수 있다.)
  */
 
 /**
@@ -40,7 +36,7 @@ export type SearchSignal = {
     reason?: string;
 };
 
-export type SearchDecisionResult = {
+type SearchDecisionResult = {
     useGoogleSearch: boolean;
     winner: SearchSignal;
     trace: SearchSignal[];
@@ -51,7 +47,7 @@ export type SearchDecisionResult = {
  *
  * `followup-guard`가 `rule`보다 앞인 것이 핵심이다. "최근 검색한 내용 요약해줘"는
  * "최근" 때문에 rule이 temporal ON을 내지만 실제로는 과거참조다. 가드가 rule을 정정하지
- * 못하면 가드 자체가 무의미해진다. (이번 결함을 막는 것은 이 순서가 아니라 TIER 300이다.)
+ * 못하면 가드 자체가 무의미해진다. (명시 검색 요청을 지키는 건 이 순서가 아니라 TIER 300이다.)
  *
  * 목록에 없는 source는 가장 약하게 취급한다.
  */
@@ -106,7 +102,7 @@ export const decideSearch = (signals: SearchSignal[]): SearchDecisionResult => {
     };
 };
 
-/** 로그 한 줄로 전체 근거를 남긴다 — 게이트별로 흩어진 로그로는 조합을 추적할 수 없었다. */
+/** 로그 한 줄로 전체 근거를 남긴다 — 게이트별로 흩어진 로그로는 조합을 추적할 수 없다. */
 export const formatSearchTrace = (result: SearchDecisionResult): string => {
     const { winner, trace, useGoogleSearch } = result;
     const others = trace

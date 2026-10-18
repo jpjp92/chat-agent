@@ -65,7 +65,7 @@ check('1턴: 이미지가 모델에 간다', rows[0].imageSentToModel);
 check('1턴: "이번 턴 새 이미지" 로 식별된다', rows[0].newImageThisTurn);
 check('2턴: 이미지가 히스토리로 다시 간다(후속 질문 가능)', rows[1].imageSentToModel);
 check('2턴: 새 이미지가 아니다(현재 메시지엔 없음)', !rows[1].newImageThisTurn);
-// 🔴 판정 함정: hasMultimodalContent 는 히스토리 이미지에도 true — "새 자료" 판정에 쓰면 매 턴 한 줄 요약
+// 판정 함정: hasMultimodalContent 는 히스토리 이미지에도 true — "새 자료" 판정에 쓰면 매 턴 한 줄 요약
 check('2턴: hasMultimodalContent 는 true — 새 자료 신호로 쓰면 안 된다(관측)', rows[1].hasMultimodal);
 
 // mediaWindow=3 은 **메시지 3개**(사용자+모델 섞임) — 3턴째엔 1턴 사용자 메시지가 창 밖

@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Inter font */}
+        {/* Inter 폰트 */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -52,11 +52,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="bg-white dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] antialiased">
-        {/* Dark mode init — runs before paint to prevent FOUC */}
+        {/* 다크 모드 초기화 — 페인트 전에 실행해 FOUC 방지 */}
         <Script id="theme-init" strategy="beforeInteractive">
           {`try{if(localStorage.theme==='dark'||(!('theme' in localStorage)&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(_){}`}
         </Script>
-        {/* process polyfill for browser-side packages that check process.env */}
+        {/* process.env 를 확인하는 브라우저 패키지용 process 폴리필 */}
         <Script id="process-polyfill" strategy="beforeInteractive">
           {`window.process={env:{}};`}
         </Script>

@@ -5,8 +5,8 @@ import { searchMfdsPills } from "../mfds-logic";
 import { searchPill } from "../pill-logic";
 
 /**
- * Tool for searching the web using DuckDuckGo Html.
- * Useful for finding specific missing information like drug usage, dosage, or ingredients.
+ * DuckDuckGo HTML 로 웹을 검색하는 도구.
+ * 약 용법·용량·성분처럼 빠진 정보를 찾을 때 쓴다.
  */
 export const searchWebTool = tool(
     async ({ query }) => {
@@ -28,7 +28,7 @@ export const searchWebTool = tool(
                 clearTimeout(timeoutId);
             }
             const html = await res.text();
-            // 🔴 파싱은 `server/agent/ddg-parse.ts` 로 분리했다 — 여기 정규식이 박혀 있던 탓에
+            // 파싱은 `server/agent/ddg-parse.ts` 로 분리했다 — 여기 정규식이 박혀 있던 탓에
             //    DDG 가 HTML 을 바꿔도(속성 순서 변경 + uddg 리디렉션 폐지) 아무도 몰랐고,
             //    **전 검색에서 출처 URL 이 0건**이 됐다. 순수 함수라 하니스로 고정된다.
             const results = parseDdgHtml(html);
@@ -51,8 +51,8 @@ export const searchWebTool = tool(
 );
 
 /**
- * Tool for identifying pills using the pharm.or.kr database.
- * The model will use this when it visually extracts attributes from an image.
+ * pharm.or.kr DB 로 약을 식별하는 도구.
+ * 모델이 이미지에서 외형 속성을 뽑았을 때 쓴다.
  */
 export const identifyPillTool = tool(
     async ({ imprint_front, imprint_back, color, shape }) => {

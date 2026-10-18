@@ -13,7 +13,7 @@ interface PillVisual {
 
 interface Efficacy {
     label: string;
-    icon?: string; // FontAwesome icon class
+    icon?: string; // FontAwesome 아이콘 클래스
 }
 
 interface DrugData {
@@ -34,9 +34,9 @@ interface DrugRendererProps {
     data: DrugData;
     language?: 'ko' | 'en' | 'es' | 'fr';
     /**
-     * 각인 면 표기 — 2026-10-18 비교 중(/dev/drug-preview).
+     * 각인 면 표기(/dev/drug-preview 에서 비교 중).
      * 'mfds': MFDS 의 앞/뒤 그대로. 'neutral': 각인이 한 면에만 있으면 앞/뒤를 단정하지 않고 "각인 / 반대면".
-     * MFDS 앞/뒤 표기가 사진 배치와 어긋나는 약이 있다(마그네스정: 로고가 "뒷면" 인데 사진 왼쪽 = 앞면 자리).
+     * MFDS 앞/뒤 표기가 사진 배치와 어긋나는 약이 있다(예: 마그네스정 — 로고가 "뒷면"인데 사진 왼쪽 = 앞면 자리).
      */
     imprintSides?: 'mfds' | 'neutral';
 }
@@ -90,10 +90,10 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
     };
     const t = i18n[language as keyof typeof i18n] || i18n.ko;
 
-    // Helper: Map efficacy label to FontAwesome icon
+    // 헬퍼: 효능 라벨 → FontAwesome 아이콘
     const getEfficacyIcon = (label: string, providedIcon?: string): string => {
         const iconMap: Record<string, string> = {
-            // Respiratory & Cold (Free icons)
+            // 호흡기·감기 (무료 아이콘)
             '콧물': 'fa-wind',
             '코막힘': 'fa-wind',
             '비염': 'fa-wind',
@@ -104,7 +104,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '목구멍': 'fa-lungs',
             '감기': 'fa-head-side-mask', // General cold symptom
 
-            // Pain & Fever (Free icons)
+            // 통증·발열 (무료 아이콘)
             '해열': 'fa-temperature-arrow-down',
             '발열': 'fa-temperature-high', // Keeping this as it's a valid FA icon
             '오한': 'fa-temperature-low', // Keeping this as it's a valid FA icon
@@ -115,7 +115,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '근육통': 'fa-bone',
             '관절통': 'fa-bone',
 
-            // Digestive (Free icons - fa-stomach is Pro)
+            // 소화기 (무료 아이콘 — fa-stomach 는 Pro)
             '복통': 'fa-pills',
             '위장': 'fa-pills',
             '소화': 'fa-pills',
@@ -124,7 +124,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '구역': 'fa-pills',
             '구토': 'fa-pills',
 
-            // Systemic (Free icons)
+            // 전신 (무료 아이콘)
             '면역': 'fa-shield-halved',
             '예방': 'fa-shield-halved',
             '고지혈': 'fa-droplet',
@@ -133,12 +133,12 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '심장': 'fa-heart-pulse',
             '피로': 'fa-battery-quarter',
 
-            // Eye & Others (Free icons)
+            // 눈·기타 (무료 아이콘)
             '눈': 'fa-eye',
             '시력': 'fa-eye',
             '야맹증': 'fa-eye-low-vision',
 
-            // Metabolism (Free icons)
+            // 대사 (무료 아이콘)
             '식욕': 'fa-utensils',
             '비만': 'fa-weight-scale',
             '체중': 'fa-weight-scale',
@@ -146,17 +146,17 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             '지방': 'fa-fire'
         };
 
-        // Priority 1: Curated Keyword Map
+        // 1순위: 키워드 매핑
         for (const [key, value] of Object.entries(iconMap)) {
             if (label.includes(key)) return value;
         }
 
-        // Priority 2: AI Provided Icon (if valid and not default)
+        // 2순위: AI 가 준 아이콘 (유효하고 기본값이 아닐 때)
         if (providedIcon && providedIcon.startsWith('fa-') && providedIcon !== 'fa-circle-check' && providedIcon !== 'fa-pills') {
             return providedIcon;
         }
 
-        // Final Fallback
+        // 최종 폴백
         return 'fa-pills';
     };
 
@@ -168,18 +168,6 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         } catch {
             return false;
         }
-    };
-
-    // Normalize drug name for ConnectDI URL:
-    // 1. Strip parenthetical generic name suffix: "타파진정10밀리그램(다파글리플로진...)" → "타파진정10밀리그램"
-    // 2. Convert Korean unit suffixes to English: 밀리그램 → mg
-    const normalizeDrugName = (name: string): string => {
-        return name
-            .replace(/\(.*?\)/g, '')       // strip parenthetical generic name
-            .replace(/밀리그램/g, 'mg')
-            .replace(/마이크로그램/g, 'mcg')
-            .replace(/그램/g, 'g')
-            .trim();
     };
 
     // Helper: Format imprint display text (MFDS uses "마크" for logo-type imprints)
@@ -218,7 +206,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             : null;
 
     useEffect(() => {
-        // Reset state whenever the drug changes
+        // 약이 바뀔 때마다 상태 초기화
         setSyncedUrl(null);
         setImageError(false);
         setServerPillVisual(null);
@@ -288,11 +276,11 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
         <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
-                {/* Hero Section: Integrated Title & Image */}
+                {/* 히어로: 제목 + 이미지 */}
                 <div className="relative bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 dark:from-transparent dark:to-transparent border-b border-slate-100 dark:border-white/5">
                     <div className="p-8 pb-6">
                         <div className="flex flex-col gap-6">
-                            {/* Title & Badge */}
+                            {/* 제목·배지 */}
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-1">
                                     {(data.category || '').split(/[,/()]+/).filter(Boolean).map((cat, idx) => (
@@ -309,7 +297,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 </h2>
                             </div>
 
-                            {/* Main Image Viewport in Hero */}
+                            {/* 히어로 메인 이미지 */}
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 px-1">
                                     <i className="fa-solid fa-camera text-[10px] text-indigo-500/70"></i>
@@ -318,7 +306,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     </span>
                                 </div>
                                 <div className="relative group w-full">
-                                    {/* Digital Specimen Slide Look: Unified dark background */}
+                                    {/* 표본 슬라이드 느낌: 통일된 어두운 배경 */}
                                     <div
                                         className={`w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500 ${proxiedImageUrl && !imageError ? 'cursor-zoom-in' : ''}`}
                                         onClick={() => { if (proxiedImageUrl && !imageError) setLightboxOpen(true); }}
@@ -378,7 +366,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                             )}
                                         </AnimatePresence>
                                     </div>
-                                    {/* Action Hint */}
+                                    {/* 조작 안내 */}
                                     {proxiedImageUrl && !imageError && (
                                         <div
                                             className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-zoom-in"
@@ -396,14 +384,14 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 </div>
 
                 <div className="p-8 space-y-8">
-                    {/* Identification Section */}
+                    {/* 식별 정보 */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <span className="text-[11px] font-black text-slate-400 dark:text-indigo-400 uppercase tracking-widest">{t.features}</span>
                             <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {/* Shape Badge */}
+                            {/* 모양 배지 */}
                             <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
                                 <i className="fa-solid fa-shapes text-[10px] text-indigo-500"></i>
                                 <div className="flex flex-col">
@@ -411,7 +399,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.shape || data.pill_visual?.shape || '-'}</span>
                                 </div>
                             </div>
-                            {/* Color Badge */}
+                            {/* 색 배지 */}
                             <div className="px-3 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl flex items-center gap-2">
                                 <i className="fa-solid fa-palette text-[10px] text-purple-500"></i>
                                 <div className="flex flex-col">
@@ -434,9 +422,9 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         </div>
                     </div>
 
-                    {/* Unified Info Section (Ingredients & Dosage) */}
+                    {/* 정보 (성분·용법) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Ingredients */}
+                        {/* 성분 */}
                         <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
@@ -449,7 +437,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                             </p>
                         </div>
 
-                        {/* Dosage */}
+                        {/* 용법 */}
                         <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
@@ -463,7 +451,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                         </div>
                     </div>
 
-                    {/* Efficacy Section */}
+                    {/* 효능 */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <span className="text-[11px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">{t.efficacy}</span>
@@ -487,7 +475,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     </div>
                 </div>
 
-                {/* Refined Footer */}
+                {/* 하단 */}
                 <div className="px-6 sm:px-8 py-4 sm:py-5 bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-col flex-shrink-0">
                         <span className="text-[9px] font-black tracking-[0.2em] uppercase whitespace-nowrap bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MED INDEX</span>
@@ -508,7 +496,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
             </div>
         </div>
 
-            {/* Lightbox Portal */}
+            {/* 라이트박스 포털 */}
             {typeof document !== 'undefined' && createPortal(
                 <AnimatePresence>
                     {lightboxOpen && (
@@ -530,7 +518,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 className="relative max-w-2xl w-full"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                {/* Close button */}
+                                {/* 닫기 버튼 */}
                                 <button
                                     onClick={() => setLightboxOpen(false)}
                                     className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
@@ -538,7 +526,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     <i className="fa-solid fa-xmark text-sm"></i>
                                 </button>
 
-                                {/* Image */}
+                                {/* 이미지 */}
                                 <div className="rounded-2xl overflow-hidden bg-white/5 border border-white/10 shadow-2xl">
                                     <img
                                         src={proxiedImageUrl!}
@@ -548,7 +536,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     />
                                 </div>
 
-                                {/* Drug name caption */}
+                                {/* 약 이름 캡션 */}
                                 <div className="mt-3 text-center">
                                     <span className="text-xs font-bold text-white/50 tracking-wide">{data.name}</span>
                                 </div>

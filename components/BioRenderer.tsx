@@ -21,15 +21,15 @@ interface BioRendererProps {
 
 // 아미노산 색상 테마 (Hydrophobicity/Chemistry)
 const AMINO_ACID_COLORS: Record<string, string> = {
-    // Non-polar (Slate/Grey)
+    // 비극성 (슬레이트/회색)
     'A': '#94a3b8', 'V': '#94a3b8', 'L': '#94a3b8', 'I': '#94a3b8', 'P': '#94a3b8', 'F': '#94a3b8', 'W': '#94a3b8', 'M': '#94a3b8',
-    // Polar uncharged (Emerald/Green)
+    // 극성 비전하 (에메랄드/초록)
     'G': '#10b981', 'S': '#10b981', 'T': '#10b981', 'C': '#10b981', 'Y': '#10b981', 'N': '#10b981', 'Q': '#10b981',
-    // Positive charge (Blue)
+    // 양전하 (파랑)
     'K': '#3b82f6', 'R': '#3b82f6', 'H': '#3b82f6',
-    // Negative charge (Red)
+    // 음전하 (빨강)
     'D': '#ef4444', 'E': '#ef4444',
-    // Default
+    // 기본값
     'default': '#cbd5e1'
 };
 
@@ -152,7 +152,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
         }
     }, [isDark]);
 
-    // 3D PDB View Logic
+    // 3D PDB 뷰 로직
     useEffect(() => {
         if (type !== 'pdb' || !data.pdbId || !stageRef.current) return;
 
@@ -338,9 +338,9 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
             <div className={`rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden flex flex-col group transition-all duration-500`}>
 
                 {type === 'pdb' ? (
-                    /* Immersive 3D Layout */
+                    /* 몰입형 3D 레이아웃 */
                     <div className="relative">
-                        {/* Floating Header */}
+                        {/* 떠 있는 헤더 */}
                         <div className="absolute top-4 left-4 right-4 z-20 flex items-start justify-between pointer-events-none">
                             <div className="flex flex-col gap-1 pointer-events-auto">
                                 <div className="flex items-center gap-2 bg-white/70 dark:bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 dark:border-white/5 shadow-sm max-w-[200px] sm:max-w-md">
@@ -362,7 +362,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                             </button>
                         </div>
 
-                        {/* Immersive Canvas Area */}
+                        {/* 몰입형 캔버스 영역 */}
                         <div className="aspect-[4/3] sm:aspect-video min-h-[300px] sm:min-h-[350px] relative w-full overflow-hidden bg-[#f8fafc] dark:bg-[#111112]">
                             {isLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f8fafc]/80 dark:bg-[#111112]/80 z-10 backdrop-blur-md">
@@ -426,7 +426,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                             document.body
                         )}
 
-                        {/* Floating Footer Badges */}
+                        {/* 떠 있는 하단 배지 */}
                         <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between pointer-events-none">
                             <div className="flex items-center gap-2 bg-slate-900/5 dark:bg-white/5 backdrop-blur-[2px] px-3 py-1 rounded-full text-[9px] font-bold text-slate-400 tracking-tighter uppercase">
                                 <i className="fa-solid fa-database opacity-50"></i> RCSB.ORG
@@ -437,7 +437,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
                         </div>
                     </div>
                 ) : (
-                    /* Clean Sequence Layout */
+                    /* 서열 레이아웃 */
                     <>
                         <div className="px-6 py-4 border-b border-slate-50 dark:border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-3">

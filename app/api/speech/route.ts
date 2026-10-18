@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-    // 🔴 유료 키를 쓰는 라우트다(하드닝 §6-1 1순위). 토큰 없음 → 401, 위조·만료는 아래 RPC 에서 PostgREST 가 401.
+    // 유료 키를 쓰는 라우트다. 토큰 없음 → 401, 위조·만료는 아래 RPC 에서 PostgREST 가 401.
     const db = createRouteClient(req);
     if (!db) return unauthorized();
 

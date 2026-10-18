@@ -24,7 +24,7 @@ interface VetRendererProps {
 const PAGE_SIZE = 5;
 
 /**
- * 🔴 API 계약값 — 행안부 동물병원 API 가 주는 상태 문자열. **번역 금지.**
+ * API 계약값 — 행안부 동물병원 API 가 주는 상태 문자열. **번역 금지.**
  * 비교에 쓰이므로 이 값을 언어별로 바꾸면 영업/폐업 판정이 통째로 깨진다.
  * 화면 표시는 STATUS_LABEL 로 따로 옮긴다.
  */
@@ -87,7 +87,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
 
   return (
     <div className="my-4 w-full">
-      {/* Header */}
+      {/* 헤더 */}
       <div className="mb-4 flex items-center gap-2">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
           <i className="fa-solid fa-paw text-white text-xs" />
@@ -108,7 +108,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
         </div>
       )}
 
-      {/* Cards */}
+      {/* 카드 */}
       <div className="flex flex-col gap-2 w-full">
         {pageItems.map((v, i) => {
           const isOpen = v.status === API_OPEN || v.status === API_OPEN_NOW;
@@ -119,16 +119,16 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
               key={`${v.name}-${i}`}
               className="relative w-full rounded-2xl border border-white/10 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl overflow-hidden"
             >
-              {/* Left accent stripe */}
+              {/* 왼쪽 강조 띠 */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
                 isClosed ? 'bg-slate-400' : isOpen ? 'bg-teal-500' : 'bg-amber-400'
               }`} />
 
               <div className="pl-4 pr-3 sm:pl-5 sm:pr-4 py-3 sm:py-4">
                 <div className="flex items-start justify-between gap-2 w-full min-w-0">
-                  {/* Left: info */}
+                  {/* 왼쪽: 정보 */}
                   <div className="min-w-0 flex-1">
-                    {/* Name + status badge */}
+                    {/* 이름 + 상태 배지 */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       <span className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate max-w-[160px] sm:max-w-[320px] lg:max-w-[540px]">
                         {v.name}
@@ -146,12 +146,12 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
                       )}
                     </div>
 
-                    {/* Address */}
+                    {/* 주소 */}
                     <p className="text-[11px] sm:text-[12px] text-slate-500 dark:text-slate-400 truncate leading-snug">
                       {v.address}
                     </p>
 
-                    {/* License date */}
+                    {/* 인허가일 */}
                     {v.license_date && (
                       <div className="mt-1 flex items-center gap-1">
                         <i className="fa-regular fa-calendar text-[9px] sm:text-[10px] text-slate-400" />
@@ -162,7 +162,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
                     )}
                   </div>
 
-                  {/* Right: action buttons */}
+                  {/* 오른쪽: 동작 버튼 */}
                   <div className="flex flex-col gap-1 shrink-0">
                     {v.phone && (
                       <a
@@ -193,7 +193,7 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
         })}
       </div>
 
-      {/* Pagination */}
+      {/* 페이지네이션 */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2">
           <button
@@ -232,5 +232,3 @@ export const VetRenderer: React.FC<VetRendererProps> = ({ data, language = 'ko' 
     </div>
   );
 };
-
-export default VetRenderer;

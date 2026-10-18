@@ -3,7 +3,7 @@
  *
  * dev 서버 없이 `POST` 를 직접 부른다. 응답 스트림을 읽으며 첫 바이트·전체 시간·오디오 길이를 잰다.
  * 클라이언트 재생과 같은 규칙으로 **스트리밍 재생을 흉내내** 끊김(재생 시계가 도착보다 앞선 횟수)을 센다.
- * 🔴 라우트가 회원 토큰을 요구한다(2026-10-03) — 회원 access token 을 TTS_PROBE_BEARER 로 넘긴다
+ * 라우트가 회원 토큰을 요구한다(2026-10-03) — 회원 access token 을 TTS_PROBE_BEARER 로 넘긴다
  *    (브라우저 devtools: Supabase 세션의 access_token). 회원 일일 한도도 함께 소비된다.
  * 유료 호출. 실행:
  *   TTS_PROVIDER=openai npx tsx --conditions=react-server tests/manual/probe-speech-route.mts [outDir]
@@ -41,7 +41,7 @@ const ONLY = process.env.CASES?.split(',');
 const CASES = Object.fromEntries(Object.entries(ALL_CASES).filter(([k]) => !ONLY || ONLY.includes(k)));
 
 /**
- * 문장 누락 판정 — 🔴 오디오 길이(초/100자)로는 **한 문장 누락을 못 잡는다**: 2000자에서 한 문장은 ~1.5%,
+ * 문장 누락 판정 — 오디오 길이(초/100자)로는 **한 문장 누락을 못 잡는다**: 2000자에서 한 문장은 ~1.5%,
  * 측정 잡음(±3%) 안이다. Gemini 가 medium 의 마지막 문장을 빠뜨린 것을 전사로 처음 확인했다(2026-10-03).
  * 각 원문 문장의 앞 6글자(공백 제외)가 전사에 있는지 본다. 숫자 읽기("이십삼"→"23")를 피해 앞부분만 쓴다.
  * 긴 오디오는 STT 가 끝까지 적지 못하므로(§4-2c, 72%) medium 이하에서만 판정한다.

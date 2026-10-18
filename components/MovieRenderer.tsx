@@ -19,10 +19,10 @@ interface MovieData { region?: string; defaults?: Partial<Record<ChainKey, Branc
 
 const MOVIE_CAP = 3;   // 체인당 최초 노출 영화 수 (나머지는 더보기)
 
-export type Lang = 'ko' | 'en' | 'es' | 'fr';
+type Lang = 'ko' | 'en' | 'es' | 'fr';
 
 /**
- * 🔴 번역 대상은 **UI 라벨과 상태 문구**뿐이다. 극장 체인명·지점명·영화 제목은
+ * 번역 대상은 **UI 라벨과 상태 문구**뿐이다. 극장 체인명·지점명·영화 제목은
  * 고유명사라 원문을 유지한다 — 한국에 있는 비한국어 사용자가 현장 간판을 찾고
  * 지도 앱에 입력하는 데 쓰는 값이다(PLAN_LANG_COVERAGE_260805 §조치 A).
  *
@@ -221,8 +221,8 @@ const SkeletonCard: React.FC = () => (
 
 // ── 체인 섹션 ────────────────────────────────────────────────
 // initial === null 은 "사용자가 말한 지역에 이 체인 지점이 없다"는 신호다(defaultsForRegion).
-// 예전엔 이때도 기본 지점(가산디지털)을 조회해 **다른 동네 시간표를 그 지역 것처럼** 보여줬다.
-// 이제는 조회를 건너뛰고 그 사실을 표시한다 — 드롭다운은 남겨 사용자가 직접 고를 수 있다.
+// 조회를 건너뛰고 그 사실을 표시한다 — 다른 동네 기본 지점을 조회하면 그 지역 시간표처럼 읽힌다.
+// 드롭다운은 남겨 사용자가 직접 고를 수 있다.
 const ChainSection: React.FC<{ chainKey: ChainKey; nm: string; color: string; initial?: Branch | null; region?: string; tt: Record<string, string> }> = ({ chainKey, nm, color, initial, region, tt }) => {
   const list = useMemo(() => flatBranches(chainKey), [chainKey]);
   const noBranchForRegion = initial === null;
@@ -334,5 +334,3 @@ export const MovieRenderer: React.FC<{ data: MovieData; language?: Lang }> = ({ 
     </div>
   );
 };
-
-export default MovieRenderer;

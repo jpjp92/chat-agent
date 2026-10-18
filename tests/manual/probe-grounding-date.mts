@@ -76,7 +76,7 @@ console.log('─'.repeat(70));
 for (const needsSearch of [false, true]) {
     for (let i = 1; i <= 3; i++) {
         const q = needsSearch
-            // 🔴 검색을 **실제로** 붙여야 조건이 성립한다. 첫 시도는 순수 날짜 질문이라
+            // 검색을 **실제로** 붙여야 조건이 성립한다. 첫 시도는 순수 날짜 질문이라
             //    needsSearch=true 여도 src=0 이었다 — ON 팔이 사실상 OFF 였다.
             ? '오늘 나온 AI 뉴스를 검색해서 알려줘. 맨 앞에 오늘 날짜부터 적어줘.'
             : '오늘 날짜가 며칠이야? 날짜만 알려줘.';

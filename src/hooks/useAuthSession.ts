@@ -34,12 +34,12 @@ const buildUserProfile = (user: SupabaseUser): UserProfile => ({
  */
 /**
  * 새로고침하되 **주소의 인증 해시(#access_token=…)를 버린다.**
- * 🔴 카카오(리다이렉트, implicit) 로그인 뒤 주소에 `#access_token…` 이 남는다. 그 상태에서 로그아웃·GIS 로그인이
- *   `reload()` 하면 **끝난 세션의 토큰을 다시 싣고** 열려 detectSessionInUrl 이 그 토큰으로 세션을 되살리거나
- *   새 세션과 엇갈렸다(10-11 실측: 카카오 → 로그아웃 → Google 로그인이 안 들어감).
+ * 카카오(리다이렉트, implicit) 로그인 뒤 주소에 `#access_token…` 이 남는다. 그 상태로 `reload()` 하면
+ * 끝난 세션의 토큰을 다시 싣고 열려 detectSessionInUrl 이 그 토큰으로 세션을 되살리거나 새 세션과
+ * 엇갈린다(카카오 → 로그아웃 → Google 로그인 실패) → DEV_261011
  */
 const AUTH_HASH = /(^|&)(access_token|refresh_token|provider_token|expires_at|token_type|error_code)=/;
-export const stripAuthHash = () => {
+const stripAuthHash = () => {
   if (typeof window === 'undefined') return;
   if (AUTH_HASH.test(window.location.hash.replace(/^#/, ''))) {
     window.history.replaceState({}, '', window.location.pathname + window.location.search);
@@ -54,15 +54,15 @@ const reloadWithoutAuthHash = () => {
  * sessionStorage: 탭 단위·리다이렉트 왕복에는 살아남는다. 실패해도 기본(google)으로 동작한다.
  */
 const OAUTH_PROVIDER_KEY = 'chatagent.oauthProvider';
-export type OAuthProviderId = 'google' | 'kakao';
+type OAuthProviderId = 'google' | 'kakao';
 const rememberOAuthProvider = (p: OAuthProviderId) => { try { sessionStorage.setItem(OAUTH_PROVIDER_KEY, p); } catch { /* 저장 불가 */ } };
 export const lastOAuthProvider = (): OAuthProviderId => {
   try { return sessionStorage.getItem(OAUTH_PROVIDER_KEY) === 'kakao' ? 'kakao' : 'google'; } catch { return 'google'; }
 };
 
 /**
- * 카카오 OAuth 옵션. 🔴 scopes 를 **명시한다**(2026-10-11 실측): 동의 화면엔 프로필 사진이 보였는데
- *   Supabase identity_data 에 `avatar_url`·`picture` 가 없었다(사진 있는 계정). 동의항목 ID 그대로 요청한다.
+ * 카카오 OAuth 옵션. scopes 를 **명시한다** — 명시하지 않으면 Supabase identity_data 에
+ * `avatar_url`·`picture` 가 오지 않는다(동의 화면엔 사진이 보여도). 동의항목 ID 그대로 요청한다.
  */
 const KAKAO_OAUTH_OPTIONS = () => ({
   redirectTo: window.location.origin,
@@ -169,16 +169,14 @@ export const useAuthSession = () => {
     setCurrentUser(data as SupabaseUser);
   }, [currentUser]);
 
-  // ── 🔴 link 냐 signIn 이냐 ────────────────────────────────────────────────
+  // ── link 냐 signIn 이냐 ────────────────────────────────────────────────
   // 무엇을 부를지는 **호출부가 정한다.** 기준은 딱 하나: 승계할 게스트 데이터가 있는가.
   //
   //   있다 → linkIdentity     같은 uuid 에 신원을 붙여 대화를 살린다
   //   없다 → signInWithOAuth  고아가 될 게 없다. 그냥 로그인이 맞다
   //
-  // 예전 주석은 "활성 세션이 있으면 signInWithOAuth 금지"였는데, 그건 목적을 잘못
-  // 일반화한 문장이다. 막으려던 건 세션의 존재가 아니라 **게스트 대화가 주인 없이
-  // 남는 것**이다. 대화 0개 게스트(= 캐시를 지운 사용자)나 이미 정식인 사용자에겐
-  // 잃을 게 없으므로 signInWithOAuth 는 금지가 아니라 정답이다.
+  // 막으려는 건 세션의 존재가 아니라 **게스트 대화가 주인 없이 남는 것**이다. 대화 0개 게스트
+  // (= 캐시를 지운 사용자)나 이미 정식인 사용자에겐 잃을 게 없으므로 signInWithOAuth 가 정답이다.
   // 이 구분을 지우면 App.tsx 의 분기가 버그처럼 보여 되돌려진다.
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -221,7 +219,7 @@ export const useAuthSession = () => {
     if (error) throw error;
   }, []);
 
-  // ── 카카오 — 리다이렉트 OAuth(2026-10-11, DEV_261011 §6) ─────────────────────────────
+  // ── 카카오 — 리다이렉트 OAuth (DEV_261011 §6) ─────────────────────────────
   // Google 과 달리 리다이렉트로 둔다: 카카오 동의 화면에는 Supabase 주소가 아니라 **앱 이름**("Chat Agent")이 뜬다.
   // link/signIn 기준은 Google 과 같다(호출부 shouldLinkGuest). 충돌은 돌아온 URL 의 error_code 로 오므로
   // 어느 공급자로 시도했는지 남겨 둔다 → 충돌 화면의 "기존 계정으로 로그인" 이 같은 공급자로 간다.
@@ -270,8 +268,8 @@ export const useAuthSession = () => {
     } catch (e) {
       console.error('signOut error:', e);
     } finally {
-      // 🔴 대화 캐시를 반드시 지운다. 안 지우면 새 게스트가 이전 유저의 **대화 제목을**
-      //    그대로 본다(실측). RLS 는 DB 를 지키지만 localStorage 는 못 지킨다.
+      // 대화 캐시를 반드시 지운다 — 안 지우면 새 게스트가 이전 유저의 대화 제목을 본다.
+      // RLS 는 DB 를 지키지만 localStorage 는 못 지킨다.
       clearSessionsCache();
       // 네트워크 signOut 이 실패해도 로컬 세션은 지워졌으니 리로드로 마무리한다.
       // 새로고침하면 ensureSession()이 새 게스트를 만든다.

@@ -223,7 +223,7 @@ export async function fetchUrlContentWithOpenAI(
         try {
             json = asObject(await response.json()) ?? {};
         } catch {
-            // Non-JSON provider failures are handled by status below.
+            // JSON 이 아닌 공급자 실패는 아래 status 로 처리한다.
         }
         const error = asObject(json.error);
         const errorCode = asString(error?.code);

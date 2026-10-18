@@ -4,11 +4,11 @@
  * 라우터 모델을 바꿀 때 **전후를 같은 자로 재기 위한** 하니스다. 모델은 `server/models.ts` 의
  * `ROUTER_MODEL` 을 그대로 쓴다 — 여기서 프롬프트를 다시 쓰지 않는다(tests/README ⓒ).
  *
- * 🔴 계기(2026-09-01): `강아지 사료 추천해줘` 가 `vet_search`, `변호사 비용 얼마나 들어?` 가
+ * 계기(2026-09-01): `강아지 사료 추천해줘` 가 `vet_search`, `변호사 비용 얼마나 들어?` 가
  * `law_search` 로 갔다. 규칙 분류기는 둘 다 `general` 로 정확히 판정한다 — 틀린 건 라우터 LLM 이다.
  * `temperature: 0` 이라 3/3 일관되게 틀렸다. 흔들림이 아니라 그 모델의 고정된 답이다.
  *
- * ⚠️ **지연을 함께 잰다.** 라우터는 매 턴 serial-blocking 이라 모델을 올리면 모든 응답이 그만큼
+ * 주의: **지연을 함께 잰다.** 라우터는 매 턴 serial-blocking 이라 모델을 올리면 모든 응답이 그만큼
  * 늦어진다. 정확도만 보고 올리면 안 된다.
  */
 import fs from 'node:fs';
@@ -37,7 +37,7 @@ const { HumanMessage } = await import('@langchain/core/messages');
 const RUNS = Number(process.argv[2] ?? 3);
 
 interface Case { q: string; want: string; note: string }
-/** 🔴 실측 오분류 — 카드 어휘가 들어 있지만 조회 요청이 아니다. */
+/** 실측 오분류 — 카드 어휘가 들어 있지만 조회 요청이 아니다. */
 const MISROUTED: Case[] = [
     { q: '강아지 사료 추천해줘', want: 'general', note: '실측 → vet_search' },
     { q: '변호사 비용 얼마나 들어?', want: 'general', note: '실측 → law_search' },

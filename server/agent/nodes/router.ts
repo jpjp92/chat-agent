@@ -28,10 +28,10 @@ const SEARCH_OFFER_MARKER = /검색해\s*(드릴까요|드릴게요|볼까요)|�
 const AFFIRM = /^\s*(응+|어+|네+|예+|그래요?|좋아요?|부탁(해|드릴)?|해\s*줘|찾아\s*줘|ㅇㅇ+|ㅇㅋ|오케이|ok|okay|yes|y|그렇게\s*해|해\s*봐)(?=[\s!.~?,…]|$)/i;
 
 /**
- * Router Node
- * Uses a lightweight LLM to classify user intent into the supported intent categories.
- * Injects last assistant message as context for follow-up intent continuity.
- * Falls back to keyword heuristics if the LLM fails.
+ * Router 노드
+ * 가벼운 LLM 으로 사용자 의도를 지원 인텐트 중 하나로 분류한다.
+ * 후속 질문의 의도 연속성을 위해 직전 assistant 메시지를 문맥으로 넣는다.
+ * LLM 이 실패하면 키워드 규칙으로 폴백한다.
  */
 
 export const routerNode = async (state: AgentStateType) => {
@@ -48,20 +48,17 @@ export const routerNode = async (state: AgentStateType) => {
         }
     }
 
-    // Inject last assistant message for follow-up intent continuity
+    // 후속 의도 연속성을 위해 직전 assistant 메시지 주입
     const lastAssistantMsg = [...state.messages].reverse().find(m => m._getType() === 'ai') as AIMessage | undefined;
 
     // 최근 assistant 응답에 날씨 카드(json:weather)가 있으면 = 화면에 카드가 떠 있는 상태.
-    // 후속 발화가 "카드 코멘트/해석"인지 "새 조회"인지 가르는 신호(멀티턴 카드 재생성 오작동 방지).
-    // 직전 1개만 보면 해석형 답변이 한 번 끼는 순간 카드 맥락이 사라져("가장 더운 요일은?" → 산문 답),
-    // 그 다음 턴부터 날씨 어휘가 조금만 섞여도 weather로 재승격돼 카드가 반복 생성됐다.
-    // → state.messages(= route.ts가 최근 10개로 잘라 보낸 창) 안의 assistant 메시지를 전부 스캔한다.
-    //   창을 벗어나면 자연히 false가 되고, 그 안에서는 "카드가 화면에 있다"가 유지된다.
-    //   새 조회(다른 도시·시점)는 아래 newFetch 신호가 그대로 승격시키므로 갇히지 않는다.
+    // 후속 발화가 "카드 코멘트/해석"인지 "새 조회"인지 가르는 신호(멀티턴 카드 재생성 방지).
+    // 직전 1개만 보면 해석형 답변이 한 번 끼는 순간 카드 맥락이 사라지므로
+    // state.messages(= route.ts가 최근 10개로 잘라 보낸 창) 안의 assistant 메시지를 전부 스캔한다.
+    // 새 조회(다른 도시·시점)는 아래 newFetch 신호가 그대로 승격시키므로 갇히지 않는다.
     // (LLM 프롬프트에 카드 상태를 알려주려고 라우터 호출 前에 계산한다.)
     // 클라이언트가 전체 히스토리로 판정해 보내주면 그걸 우선한다 — 서버가 받는 창(최근 10개)은
-    // 대화가 5턴만 지나도 카드를 놓친다(영어 멀티턴에서 카드 이후 6턴째부터 후속 판정이 통째로
-    // 꺼지는 걸 실측). 구버전 클라·테스트 하니스처럼 플래그가 없으면 기존 창 스캔으로 폴백.
+    // 대화가 5턴만 지나도 카드를 놓친다. 구버전 클라·테스트 하니스처럼 플래그가 없으면 창 스캔으로 폴백.
     const weatherCardInWindow = state.messages.some((m: any) =>
         m._getType?.() === 'ai' && /```json\s*:\s*weather/.test(String(m.content ?? '')));
     const weatherCardShown = state.activeCards?.weather ?? weatherCardInWindow;
@@ -74,13 +71,10 @@ export const routerNode = async (state: AgentStateType) => {
     };
     const lawCardShown = state.activeCards?.law ?? cardInWindow('law');
     /**
-     * 🔴 예전엔 창 스캔만 했고 주석에 "창을 벗어나면 재조회가 맞다(카드가 화면에서 밀려났으므로)"
-     * 라고 적어 뒀다. **틀렸다.** 밀려난 건 서버가 받는 창(최근 10개)이지 사용자의 화면이 아니다.
-     * 실측(2026-09-01): 여러 턴을 테스트한 뒤 "두번째 논문 설명해줘" 에 **빈 arXiv 카드**
-     * ("조건에 맞는 논문을 찾지 못했습니다")가 붙었다 — 사용자는 카드를 보면서 물었는데.
-     *
-     * 클라이언트는 최근 20개(`CARD_WINDOW`)로 판정해 `activeCards` 로 보내 준다. 날씨·약국·병원·
-     * 동물병원·법률이 전부 쓰는 장치인데 논문만 빠져 있었다. 구버전 클라는 창 스캔으로 폴백한다.
+     * 서버 창(최근 10개)에서 밀려난 카드도 사용자 화면에는 남아 있다 — 창 스캔만으로 판정하면
+     * 화면 카드를 두고 묻는 후속에 빈 카드가 붙는다 → DEV_260901
+     * 클라이언트는 최근 20개(`CARD_WINDOW`)로 판정해 `activeCards` 로 보내 준다(날씨·약국·병원·
+     * 동물병원·법률·논문 공통). 구버전 클라는 창 스캔으로 폴백한다.
      */
     const paperCardInWindow = state.messages.some((m: any) =>
         m._getType?.() === 'ai' && /```json\s*:\s*paper/.test(String(m.content ?? '')));
@@ -141,28 +135,15 @@ export const routerNode = async (state: AgentStateType) => {
     }
 
     // Fast-path: **이번 턴에 새로 붙인** 이미지 + 명시적 약/알약 신호 → vision (알약 식별).
-    // IMPORTANT: only a genuine medical/pill keyword (약, 알약, 약품, 식별, pill, tablet, ...) triggers this.
-    // A plain image with a generic caption ("이거 뭐야?", "이 사진 분석해줘") or no caption is NOT a pill
-    // request — it must fall through to the LLM router / general multimodal generator, which can describe
-    // any image. Routing every image to pill identification was the previous misclassification bug.
+    // 명확한 약 신호(약, 알약, 약품, 식별, pill, tablet, ...)만 걸린다. 일반 캡션("이거 뭐야?",
+    // "이 사진 분석해줘")이나 캡션 없는 이미지는 LLM 라우터 / 일반 멀티모달 generator 로 내려가야
+    // 어떤 이미지든 설명할 수 있다.
     //
-    // 🔴 **`hasImage` 가 아니라 `attachmentHasImage` 다.** (2026-08-18)
-    //   `hasImage` 는 `messages` **전체**를 훑으므로(:93) 1턴에 붙인 알약 사진이 2턴에도 true 다.
-    //   거기에 "약품" 같은 단어만 있으면 이 fast-path 가 **또** 걸려서 같은 vision → 같은 DB 조회 →
-    //   **글자 하나 안 틀리고 같은 답**이 나왔다. 실측(2026-08-18): 사용자가
-    //   *"이미지 특징 기반으로 검색해서 찾아볼래?"* 라고 명시적으로 요청했는데 이전 답이 그대로 반복됐다.
-    //   **라우터 LLM 이 호출조차 되지 않아** 그 요청이 전달될 통로가 없었다.
-    //   이미지가 있는 대화에서 약 관련 단어를 쓰는 한 **영원히 빠져나올 수 없는 구조**였다.
-    //
-    //   기준선: **이번 턴에 이미지를 새로 붙였으면** 알약 식별이 거의 확실하다 → 결정론적으로 간다.
-    //   붙이지 않았으면 **후속 발화**이므로 라우터 LLM 이 판단하게 둔다. 그래도 알약 식별이면
-    //   LLM 이 drug_id 를 고르고, 아래 :373 이 `hasImage`(히스토리 포함)로 vision 을 태운다 —
-    //   **넓은 판정은 그 자리에 남겨두고, 지름길만 좁힌다.**
-    //
-    //   ⚠️ DEV_260808 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 의 재발이다
-    //   (pinYoutube · YOUTUBE_CALL_TIMEOUT_MS · fastLongInput 에 이어 네 번째).
-    //   이 fast-path 는 "이미지+약 키워드"라는 **첫 턴의 모양**으로 이름 붙었고, 후속 턴이 같은 모양을
-    //   갖는다는 걸 고려하지 않았다.
+    // `hasImage`(히스토리 전체)가 아니라 `attachmentHasImage`(이번 턴)를 본다 — 히스토리로 보면
+    // 2턴에도 이 fast-path 가 걸려 라우터 LLM 이 호출되지 않고 같은 답이 반복된다.
+    // 이번 턴에 붙이지 않았으면 후속 발화이므로 라우터 LLM 이 판단한다. 그래도 알약 식별이면
+    // LLM 이 drug_id 를 고르고, 아래 vision 라우팅이 `hasImage`(히스토리 포함)로 vision 을 태운다 —
+    // 넓은 판정은 그 자리에 두고 지름길만 좁힌다 → DEV_260818
     if (shouldFastPathPillId(state.attachments, hasMedicalKeyword)) {
         console.log('[LangGraph] Router fast-path: 신규 첨부 이미지 + drug keyword → drug_id vision');
         return { nextNode: "vision", intent: "drug_id" };
@@ -234,20 +215,15 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                     intent = parsed.intent as IntentType;
                 }
                 if (parsed.intent === "paper_search") {
-                    // 라우터는 분야를 가리지 않고 논문 요청을 전부 paper_search 로 보낸다(무오염 실측
-                    // 차단 대상 30/30 누수). 블록리스트로는 분야 공간이 무한해 못 막으므로, 같은
-                    // 호출에서 두 칸을 더 받아 결정적으로 가른다(추가 LLM 호출 없음).
+                    // 라우터는 분야를 가리지 않고 논문 요청을 paper_search 로 보내는 경향이 있다. 블록리스트로는
+                    // 분야 공간이 무한해 못 막으므로, 같은 호출에서 두 칸을 더 받아 결정적으로 가른다(추가 LLM 호출 없음).
                     //
-                    // 🔴 판정은 **분야 목록이 아니라 규칙**이다. 예전엔 "문학·예술사·경제는 false" 처럼
-                    //   열거했는데, 그러면 내가 적어둔 분야만 맞고 고고학·언어학·건축학처럼 안 적은
-                    //   분야는 그대로 샌다 — 블록리스트가 실패한 것과 같은 이유(분야 공간이 무한).
-                    //   그래서 순서를 둘로 나눴다: ① topic_field 로 주제를 학문 분야로 먼저 명명하고
-                    //   ② "그 분야가 무엇을 연구하는가" 로 데이터베이스를 고른다.
-                    //   음악치료/음악학처럼 같은 단어가 양쪽에 걸릴 때 대상이 가르도록 하는 게 핵심.
+                    // 판정은 분야 목록이 아니라 규칙이다 — 열거하면 적어 둔 분야만 맞는다.
+                    // ① topic_field 로 주제를 학문 분야로 먼저 명명하고 ② "그 분야가 무엇을 연구하는가" 로
+                    // 데이터베이스를 고른다. 음악치료/음악학처럼 같은 단어가 양쪽에 걸릴 때 대상이 가른다.
                     //
-                    // 🔴 **3분기다.** "의생명이 아니면 arXiv" 가 아니다 — arXiv 도 PubMed 처럼 빈손으로
-                    //   실패하지 않는다(실측: "한국어 통사론" → astro-ph *Korean VLBI Network*).
-                    //   문학·역사·법학·예술은 어느 쪽에도 없으므로 카드 없이 산문으로 답한다.
+                    // 3분기다(pubmed / arxiv / none). arXiv 도 빈손으로 실패하지 않으므로 문학·역사·법학·예술은
+                    // 카드 없이 산문으로 답한다.
                     const source = parsed.paper_source;
                     if (source === "arxiv") {
                         // arxiv_search 는 모델이 고르는 의도가 아니다 — paper_source 에서 파생시킨다.
@@ -265,19 +241,16 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                 if (parsed.follow_up === "refine" || parsed.follow_up === "new" || parsed.follow_up === "unrelated") {
                     llmFollowUp = parsed.follow_up;
                 }
-                // Recover only when the LLM missed an explicit drug/pill signal on an image.
-                // Do NOT override "general" for arbitrary images — generic photos stay general.
-                // 🔴 여기도 `attachmentHasImage` 다 (2026-08-18) — 위 fast-path 와 같은 이유.
-                //   히스토리 이미지까지 보면 후속 발화("직접 검색해줘")가 general 로 분류됐을 때
-                //   이 복구가 **다시 drug_id 로 되돌려** 위 수정이 무력화된다.
-                //   이번 턴에 새로 붙인 경우에만 복구한다 — 그게 이 안전판이 원래 막으려던 상황이다.
+                // 이미지에서 LLM 이 명시적 약 신호를 놓쳤을 때만 복구한다.
+                // 임의 이미지의 "general" 은 덮어쓰지 않는다 — 일반 사진은 general 로 둔다.
+                // 여기도 `attachmentHasImage`(이번 턴)다 — 히스토리 이미지까지 보면 후속 발화("직접 검색해줘")를
+                // 다시 drug_id 로 되돌려 위 fast-path 수정이 무력화된다.
                 if (intent === "general" && attachmentHasImage && hasMedicalKeyword) {
                     intent = "drug_id";
                 }
                 // 텍스트 경로의 같은 복구 — 제형 명칭(타액제·연고·좌제·점안액…)이 있는데 general이면
-                // drug_info로 되돌린다. general로 새면 search_drug_info(MFDS 실데이터) 경로와
-                // 프롬프트의 약 정보 방어(L280 "학습 지식으로 채우지 마라"·L282 "각인은 환자 안전")가
-                // 통째로 빠져서, 모델이 제품명을 지어낸다(DEV_260815_DEPLOY_CHECK).
+                // drug_info로 되돌린다. general로 새면 search_drug_info(MFDS 실데이터) 경로와 프롬프트의
+                // 약 정보 방어가 통째로 빠져 모델이 제품명을 지어낸다 → DEV_260815_DEPLOY_CHECK
                 // hasMedicalKeyword(효과·성분 등 범용어 포함)가 아니라 **고정밀 제형 어휘**로만 뒤집는다.
                 if (intent === "general" && !hasImage && hasDosageFormKeyword(textContent)) {
                     console.log('[LangGraph] Router recovery: dosage-form keyword → general → drug_info');
@@ -321,20 +294,17 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         intent = "movie_search";
     }
 
-    // 논문 의도인데 주제가 PubMed 밖이면 general 로 강등한다. 라우터 LLM 은 분야를 가리지
-    // 않고 논문 요청을 전부 paper_search 로 보내며(무오염 실측 CS·공학 9/9 누수), PubMed 는
-    // 빈손 대신 그 주제의 의생명 응용을 돌려줘 조용히 엉뚱한 근거가 나간다.
-    // ⚠️ `arxiv_search` 에는 적용하지 않는다 — 이 가드가 잡는 CS·공학 어휘가 arXiv 에서는
-    //   정답이다. 여기서 걸러야 할 건 "PubMed 로 가려는 비의생명 주제" 뿐이다.
+    // 논문 의도인데 주제가 PubMed 밖이면 general 로 강등한다 — PubMed 는 빈손 대신 그 주제의
+    // 의생명 응용을 돌려줘 조용히 엉뚱한 근거가 나간다.
+    // 주의: `arxiv_search` 에는 적용하지 않는다 — 이 가드가 잡는 CS·공학 어휘가 arXiv 에서는 정답이다.
     if (intent === "paper_search" && isNonBiomedicalPaperTopic(textContent)) {
         console.log('[LangGraph] Paper intent downgrade (paper_search→general): non-biomedical field');
         intent = "general";
     }
 
     // 논문이 아니라 **소프트웨어 산출물**(레포·라이브러리·패키지)을 찾는 요청이면 강등한다.
-    // 🔴 실측(2026-09-02): "클로드 skills 관련된 레포 검색" → paper_search + arxiv → arXiv 카드.
-    //   위 가드는 `arxiv_search` 를 일부러 건너뛰므로 arXiv 쪽엔 안전망이 없었다 — 여기가 그 자리다.
-    //   판정은 `resolvePaperArtifactIntent` 로 나가 있다(하니스가 임포트해야 하기 때문).
+    // 위 가드는 `arxiv_search` 를 건너뛰므로 arXiv 쪽 안전망이 여기다 → DEV_260902
+    // 판정은 `resolvePaperArtifactIntent` 로 나가 있다(하니스가 임포트해야 하기 때문).
     {
         const artifactResolved = resolvePaperArtifactIntent(intent, textContent);
         if (artifactResolved !== intent) {
@@ -345,22 +315,14 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
 
     /**
      * 논문 카드 후속 — 화면 카드를 두고 묻는 턴은 재조회하지 않는다.
-     *
-     * 🔴 실측(2026-08-31, gemini-3.7·gpt-5.6-luna 양쪽): 이 가드가 없어서 "세 번째 논문 좀 더
-     * 설명해줘" 가 PubMed 를 다시 검색해 **다른 목록의 새 카드**를 띄웠고, "표로 정리해줘" 는
-     * 얘기한 적도 없는 논문 카드를 새로 붙였다. 순서가 밀리면 `[3]` 이 딴 논문을 가리키므로
-     * §6.9 에서 없앤 귀속 오류가 멀티턴으로 되돌아오는 경로다.
-     *
+     * 재조회하면 다른 목록의 새 카드가 떠 `[3]` 이 딴 논문을 가리키는 귀속 오류가 된다 → DEV_260831
      * 판정은 `decidePaperCardFollowup` 로 나가 있다 — 하니스가 임포트해야 하기 때문이다.
      *
-     * 🔴 **`general` 도 봐야 한다.** 처음엔 논문 의도일 때만 봤는데, 라우터 LLM 이 같은 발화를
-     * `general` 로 분류하는 일이 있다(실측: "세 번째 논문 좀 더 설명해줘" → `paper_source: none`
-     * → 두 DB 밖 강등 → general). 그러면 가드를 그냥 지나가고 `needsSearch` 가 켜진 채 웹 검색이
-     * 돌아 **화면에 카드가 멀쩡히 떠 있는데** 이런 답이 나갔다:
-     *   "죄송합니다. 세 번째 논문은 찾을 수 없었습니다. arXiv 데이터베이스에 연결할 수 없었습니다."
+     * `general` 도 본다 — 라우터 LLM 이 같은 발화를 `general` 로 분류하기도 하고, 그러면 가드를 지나가
+     * `needsSearch` 가 켜진 채 웹 검색이 돌아 화면 카드를 두고 "찾을 수 없었습니다"가 나간다.
      * 날씨 카드 가드가 `weatherCardShown` 만 보고 의도를 안 가리는 것과 같은 이유다.
      *
-     * ⚠️ 세 의도로만 좁힌다. 논문 카드가 떠 있어도 "오늘 서울 날씨?" 는 날씨로 가야 한다.
+     * 주의: 세 의도로만 좁힌다. 논문 카드가 떠 있어도 "오늘 서울 날씨?" 는 날씨로 가야 한다.
      */
     let paperFollowup = false;
     if (paperCardShown && (intent === "paper_search" || intent === "arxiv_search" || intent === "general")) {
@@ -400,15 +362,14 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     }
 
     const ruleIntentForLaw = classifyIntentByRules(textContent, hasImage);
-    // 🔴 진료과명이 있는데 LLM 이 약국이라 하면 규칙이 이긴다 — 판정 근거는 intentRules 에 있다.
-    //   ("서초구 소아과" 가 3/3 pharmacy_search 로 가서 빈 약국 카드가 떴다, 실측 2026-08-31)
+    // 진료과명이 있는데 LLM 이 약국이라 하면 규칙이 이긴다 — 판정 근거는 intentRules(resolveHospitalOverPharmacy).
     if (intent !== resolveClinicIntent(intent, ruleIntentForLaw)) {
         console.log(`[LangGraph] Clinic guard: ${intent} → hospital_search (진료과명이 있고 약국이라는 말이 없다)`);
         intent = resolveClinicIntent(intent, ruleIntentForLaw);
     }
-    // 🔴 첨부 문서 후속 턴에서 LLM 이 문서 주제(예: 인공지능 기본법 해설 PDF)만 보고 law_* 를 고르면
-    //   문서 대신 법령 카드가 나간다(GPT B2 "계도기간은 얼마나 돼?", DEV_261014 §9).
-    //   사용자가 법령을 직접 언급(규칙 law_search)했거나 법령 카드가 이미 떠 있을 때만 법률 경로를 연다.
+    // 첨부 문서 후속 턴에서 LLM 이 문서 주제(예: 인공지능 기본법 해설 PDF)만 보고 law_* 를 고르면
+    // 문서 대신 법령 카드가 나간다(Doc guard, DEV_261014 §9).
+    // 사용자가 법령을 직접 언급(규칙 law_search)했거나 법령 카드가 이미 떠 있을 때만 법률 경로를 연다.
     const docContentActive = !!state.webContent && (state.webContent.includes('[EXTRACTED_CONTENT:')
         || state.webContent.includes('[PREVIOUSLY_UPLOADED_DOCUMENT_CONTENT:'));
     if (docContentActive && (intent === 'law_search' || intent === 'law_qa')
@@ -416,16 +377,16 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         console.log(`[LangGraph] Doc guard: ${intent} → general (첨부 문서가 근거, 법령 언급 없음)`);
         intent = 'general';
     }
-    // 🔴 진입 근거를 구분해서 넘긴다. 카드가 떠 있다는 것 **하나만**으로 들어온 턴은
-    //   주제가 법률을 떠났을 수 있다 — 그 판정이 decideLawInteraction 의 'unrelated' 다.
-    //   구분 없이 돌리던 시절, 법률 카드가 화면에 있으면 논문·날씨·약국 질의까지 전부
-    //   law_search 로 가서 "관련 법령을 찾을 수 없습니다" 빈 카드가 나갔다(실측 2026-08-31).
+    // 진입 근거를 구분해서 넘긴다. 카드가 떠 있다는 것 **하나만**으로 들어온 턴은
+    // 주제가 법률을 떠났을 수 있다 — 그 판정이 decideLawInteraction 의 'unrelated' 다.
+    // 구분하지 않으면 법률 카드가 화면에 있을 때 논문·날씨·약국 질의까지 law_search 로 가서
+    // 빈 법령 카드가 나간다 → DEV_260831
     const intentIsLaw = intent === 'law_search' || intent === 'law_qa' || ruleIntentForLaw === 'law_search';
     if (intentIsLaw || (lawCardShown && state.activeCards?.latest === 'law')) {
         const decision = decideLawInteraction(textContent, lawCardShown, intentIsLaw, lawCardHasArticles(state.cardContexts?.law));
-        // 🔴 카드(조회)냐 답(해설)이냐는 LLM 이 문맥으로 고른 값을 존중한다. 규칙의 lookup 은 기본값이라
-        //   "김영란법 식사 한도 얼마야?" 처럼 정규식에 안 걸린 질문을 카드 전용으로 보내 답이 없었다(DEV_261018 §12).
-        //   규칙은 LLM 이 법령으로 안 봤을 때, 그리고 카드 후속(refine·acknowledge)·이탈(unrelated) 판정에만 쓴다.
+        // 카드(조회)냐 답(해설)이냐는 LLM 이 문맥으로 고른 값을 존중한다. 규칙의 lookup 은 기본값이라
+        // 정규식에 안 걸린 질문("김영란법 식사 한도 얼마야?")을 카드 전용으로 보내 답이 없게 만든다.
+        // 규칙은 LLM 이 법령으로 안 봤을 때, 그리고 카드 후속(refine·acknowledge)·이탈(unrelated) 판정에만 쓴다 → DEV_261018 §12
         const llmLawIntent = intent === 'law_search' || intent === 'law_qa' ? intent : null;
         if (llmLawIntent && (decision === 'lookup' || decision === 'synthesize')) { /* LLM 판정 유지 */ }
         else if (decision === 'lookup') intent = 'law_search';
@@ -471,8 +432,6 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     let weatherFollowup = false;
     if (weatherCardShown) {
         // 판정은 weather-followup.ts의 순수 함수로 나가 있다 — 하니스가 임포트해야 하기 때문이다.
-        // 인라인이던 시절, `날씨 + 알려/줘`가 전부 새 조회로 새면서 사용자가 같은 질문을 세 번 해도
-        // 카드만 세 번 뜨고 한 번도 답하지 않던 결함이 있었다.
         // 검증: `npx tsx tests/test-weather-followup.mts`
         const { decision, why } = decideWeatherFollowup({
             text: textContent,
@@ -502,7 +461,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         }
     }
 
-    // 🔴 날씨 카드가 무관한 질의를 빨아들이는 것을 막는다 — 판정은 intentRules 에 있다.
+    // 날씨 카드가 무관한 질의를 빨아들이는 것을 막는다 — 판정은 intentRules 에 있다.
     //   후속 판정(위 블록) 뒤에 둔다. 카드가 떠 있을 때 intent 를 weather 로 만드는 경로가
     //   LLM 직접 판정과 'new' 재조회 두 갈래라, 마지막에 한 번 거르는 편이 새지 않는다.
     if (weatherCardShown) {
@@ -572,8 +531,8 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         }
     }
 
-    // Route: drug_id requires vision preprocessing when image is present
-    // If drug_id but no image, treat as drug_info
+    // 라우팅: 이미지가 있는 drug_id 는 vision 전처리 필요
+    // drug_id 인데 이미지가 없으면 drug_info 로 처리
     if (intent === "drug_id") {
         if (hasImage) {
             console.log('[LangGraph] Router decided: VISION processing required');
@@ -583,7 +542,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         }
     }
 
-    // Search-need decision (general intent only).
+    // 검색 필요 판정 (general 인텐트만).
     // 다른 intent(medical_qa·renderer·검색계열 등)는 generator의 게이트가 검색 on/off를 직접 제어하므로
     // 여기서는 산출하지 않고 default(true)에 맡긴다. general만 rule→(gray)LLM→default-on 순으로 결정.
     // 기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (4, 6-1, 9 안전판)
@@ -615,9 +574,8 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
 
     // cardShown 은 진단에 필수 — 이 값이 false면 후속 판정 블록 자체가 안 돌아 llmFollowUp 이 무시된다
     // (히스토리 창 밖으로 카드가 밀려난 경우가 대표적).
-    // 재구성 요청 여부 — 여태 llmFollowUp을 로그로만 찍고 버렸다. 그 탓에 generator는 이번 턴이
-    // "형식만 바꿔달라"는 요청인지 모른 채, 수백 줄짜리 정적 프롬프트에 판단을 맡기고 있었다.
-    // (검색 판정에서 겪은 것과 같은 정보 손실 — DEV_260815 §2-2)
+    // 재구성 요청 여부는 state 로 넘긴다 — generator 가 이번 턴이 "형식만 바꿔달라"는 요청인지 알아야
+    // 턴 규칙을 붙일 수 있다(DEV_260815 §2-2).
     // 카드의 수치를 묻는 refine과 직전 산문의 형식 재구성은 다르다. 카드 후속에 REFORMAT 규칙까지
     // 주입하면 "몇 시까지?"를 형식 변경 요청으로 오해하므로 카드 전용 후속에서는 끈다.
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;

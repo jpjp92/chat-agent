@@ -19,10 +19,10 @@ const stripMarkdown = (t: string) => t.replace(/```[\s\S]*?```/g, '').replace(/[
 const stripUrls = (t: string) => t.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim();
 
 export async function POST(req: NextRequest) {
-    // 인증 — 무인증이면 누구나 우리 키로 LLM 을 부를 수 있다(10-09 감사 최우선). 위조 토큰·anon 키 거부는 requireProfile 참고.
+    // 인증 — 무인증이면 누구나 우리 키로 LLM 을 부를 수 있다. 위조 토큰·anon 키 거부는 requireProfile 참고.
     const auth = await requireProfile(req, 'Title API');
     if (auth.res) return auth.res;
-    // 회원이면 유료 키 우선 — 제목 생성이 회원 사용량으로 무료(게스트) 키 한도를 깎지 않게(2026-10-18).
+    // 회원이면 유료 키 우선 — 회원의 제목 생성이 무료(게스트) 키 한도를 깎지 않게.
     return runWithKeyTier(auth.isGuest ? 'free' : 'paid-first', () => generateTitle(req));
 }
 

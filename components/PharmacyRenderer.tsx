@@ -23,7 +23,7 @@ interface PharmacyData {
   notice?: string;
 }
 
-export type Lang = 'ko' | 'en' | 'es' | 'fr';
+type Lang = 'ko' | 'en' | 'es' | 'fr';
 
 interface PharmacyRendererProps {
   data: PharmacyData;
@@ -33,14 +33,14 @@ interface PharmacyRendererProps {
 const PAGE_SIZE = 5;
 
 /**
- * 🔴 API 계약값 — 공공데이터포털 약국 API 가 hours_today 로 주는 휴무 표시. **번역 금지.**
+ * API 계약값 — 공공데이터포털 약국 API 가 hours_today 로 주는 휴무 표시. **번역 금지.**
  * checkIsOpen 과 주간표의 휴무 판정에 쓰인다. 언어별로 바꾸면 영업중 판정이 깨진다.
  */
 const API_CLOSED_DAY = '휴무';
 
 /**
- * 요일은 **키와 라벨이 이미 분리**돼 있었다(key: 'mon' / label: '월').
- * 이 파일의 이 패턴이 다른 렌더러 i18n 의 본보기가 됐다 — 키는 데이터, 라벨만 언어별.
+ * 요일은 키와 라벨을 분리한다(key: 'mon' / label: '월') — 키는 데이터, 라벨만 언어별.
+ * 다른 렌더러 i18n 도 같은 패턴을 따른다.
  */
 const DAY_LABELS = [
   { key: 'mon', color: undefined },
@@ -70,15 +70,15 @@ const T: Record<Lang, Record<string, string>> = {
 const fill = (tpl: string, vars: Record<string, string | number>) =>
   tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 
-// Get current KST weekday key
+// 현재 KST 요일 키
 const getTodayKey = (): string => {
   const d = new Date(new Date().toLocaleString('en', { timeZone: 'Asia/Seoul' }));
   return ['sun','mon','tue','wed','thu','fri','sat'][d.getDay()];
 };
 
 /**
- * Computes real-time is_open_now from hours_today string (e.g. "09:00~18:00")
- * Falls back to the pre-computed value from the tool if hours_today is missing.
+ * hours_today 문자열(예: "09:00~18:00")로 실시간 is_open_now 를 계산한다.
+ * hours_today 가 없으면 도구가 미리 계산한 값으로 폴백.
  */
 const checkIsOpen = (hoursToday: string | undefined, fallback: boolean): boolean => {
   if (!hoursToday || hoursToday === API_CLOSED_DAY) return false;
@@ -133,7 +133,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
 
   return (
     <div className="my-4 w-full">
-      {/* Header */}
+      {/* 헤더 */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -158,12 +158,12 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 px-1">{data.summary}</p>
       )}
 
-      {/* Cards — w-full forces consistent width regardless of content length */}
+      {/* 카드 — w-full 로 내용 길이와 무관하게 폭 고정 */}
       <div className="flex flex-col gap-2 w-full">
         {pageItems.map((p, i) => {
           const isExpanded = expandedIdx === i;
           const hasHours = !!p.hours;
-          // Always compute is_open from hours_today at render time (real-time accurate)
+          // is_open 은 항상 렌더 시점에 hours_today 로 계산 (실시간 정확)
           const isOpen = checkIsOpen(p.hours_today, p.is_open_now);
 
           return (
@@ -171,16 +171,16 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
               key={`${p.name}-${i}`}
               className="group relative w-full rounded-2xl border border-white/10 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl overflow-hidden transition-all duration-200 hover:border-emerald-400/30"
             >
-              {/* Open/closed stripe */}
+              {/* 영업/종료 띠 */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${isOpen ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
 
-              {/* Main row — fixed height */}
+              {/* 메인 행 — 고정 높이 */}
               <div
                 className={`pl-4 pr-3 sm:pl-5 sm:pr-4 h-[72px] sm:h-[84px] flex items-center ${hasHours ? 'cursor-pointer' : ''}`}
                 onClick={() => hasHours && toggleExpand(i)}
               >
                 <div className="flex items-center justify-between gap-2 w-full min-w-0">
-                  {/* Left */}
+                  {/* 왼쪽 */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <span className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate max-w-[140px] sm:max-w-[300px] lg:max-w-[520px] xl:max-w-[680px]">{p.name}</span>
@@ -206,7 +206,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
                     )}
                   </div>
 
-                  {/* Right: buttons + expand chevron */}
+                  {/* 오른쪽: 버튼 + 펼치기 화살표 */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     <div className="flex flex-col gap-1">
                       {p.phone && (
@@ -239,7 +239,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
                 </div>
               </div>
 
-              {/* Accordion: weekday grid */}
+              {/* 아코디언: 요일 표 */}
               {hasHours && isExpanded && (
                 <div className="px-2 sm:px-5 pb-4 pt-1 border-t border-white/5 dark:border-white/[0.04]">
                   <p className="text-[9px] font-black text-slate-400/50 uppercase tracking-widest mb-2 px-2 sm:px-0">{tt.hoursTitle}</p>
@@ -281,7 +281,7 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
         })}
       </div>
 
-      {/* Pagination */}
+      {/* 페이지네이션 */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2">
           <button
@@ -320,5 +320,3 @@ export const PharmacyRenderer: React.FC<PharmacyRendererProps> = ({ data, langua
     </div>
   );
 };
-
-export default PharmacyRenderer;

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import WeatherRenderer from '../../../components/WeatherRenderer';
+import { useState } from 'react';
+import { WeatherRenderer } from '../../../components/WeatherRenderer';
 
 // 표본 데이터 — 실제 카드 JSON 모양(server/lib/weather WeatherData). 현지 시각을 정해 낮/밤을 재현한다.
 const TZ = 9 * 3600;

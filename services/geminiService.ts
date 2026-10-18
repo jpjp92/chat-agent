@@ -1,4 +1,4 @@
-import { Role, Message, MessageAttachment, Language, GroundingSource } from "../types";
+import { Message, MessageAttachment, Language, GroundingSource } from "../types";
 import { getAccessToken } from "../lib/supabase/client";
 import { GUEST_LIMIT_ERROR } from "../lib/limits";
 import { DEFAULT_CHAT_MODEL } from "../src/lib/models";
@@ -49,7 +49,7 @@ export async function authedFetch(input: string, init: RequestInit = {}): Promis
 
 export const uploadToStorage = async (file: { fileName: string; data: string; mimeType: string }, bucket: string) => {
   try {
-    // 1. Get Signed Upload URL from backend
+    // 1. 백엔드에서 서명된 업로드 URL 받기
     const signRes = await authedFetch('/api/create-signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,13 +67,13 @@ export const uploadToStorage = async (file: { fileName: string; data: string; mi
 
     const { signedUrl, publicUrl, filePath } = await signRes.json();
 
-    // 2. Upload binary data directly to the signed URL using PUT
+    // 2. 서명된 URL 로 바이너리를 PUT 업로드
     const buffer = decodeBase64(file.data);
     const uploadRes = await fetch(signedUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': file.mimeType,
-        'x-upsert': 'true' // Supabase specific header if needed, but createsigneduploadurl usually handles it
+        'x-upsert': 'true' // Supabase 덮어쓰기 헤더
       },
       body: buffer as any
     });
@@ -230,15 +230,14 @@ export const streamChatResponse = async (
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
   attachments?: MessageAttachment[],
-  // 기본값은 레지스트리에서 가져온다 — 리터럴이면 기본 모델이 바뀔 때 조용히 뒤처진다
-  // (실제로 기본이 3.6 이 된 뒤에도 여기만 3.5 로 남아 있었다). 호출부가 항상 넘기므로 동작 변화는 없다.
+  // 기본값은 레지스트리에서 가져온다 — 리터럴이면 기본 모델이 바뀔 때 조용히 뒤처진다.
+  // 호출부가 항상 넘기므로 동작 변화는 없다.
   model: string = DEFAULT_CHAT_MODEL,
   onCutOff?: () => void,
   movieContext?: string,
   // 화면에 떠 있는 카드 종류. 서버는 최근 10개 메시지만 받아서 카드 존재를 추정하는데,
-  // 대화가 5턴만 지나면 카드가 그 창 밖으로 밀려 "카드 없음"이 된다(영어 멀티턴에서 실측:
-  // 카드 이후 6턴째부터 후속 판정 블록이 통째로 스킵됐다). 전체 히스토리를 가진 클라이언트가
-  // 판정해서 넘긴다 — movieContext가 이미 쓰던 방식과 같은 패턴.
+  // 대화가 5턴만 지나면 카드가 그 창 밖으로 밀려 "카드 없음"이 된다. 전체 히스토리를 가진 클라이언트가
+  // 판정해서 넘긴다 — movieContext 와 같은 패턴.
   activeCards?: { weather?: boolean; paper?: boolean; pharmacy?: boolean; hospital?: boolean; vet?: boolean; law?: boolean; latest?: 'pharmacy' | 'hospital' | 'vet' | 'law' },
   cardContexts?: Partial<Record<'pharmacy' | 'hospital' | 'vet' | 'law', string>>,
   // 서버 진행 상태 — 'searching'(실제 웹 검색 시작) · 'lookup'(외부 조회 의도 확정). server/agent/status-event.ts
@@ -441,7 +440,7 @@ let currentPlayback: { abort: AbortController; sources: Set<AudioBufferSourceNod
  * 다시 듣기 캐시 — 같은 답변을 다시 누르면 서버를 부르지 않고 받아 둔 PCM 을 바로 재생한다.
  * 비용·회원 일일 한도가 다시 차감되지 않고 첫 소리도 즉시다. 키는 보낸 원문(스트리밍 중 바뀐 답변은 다른 키).
  * 브라우저 메모리에만 두며(새로고침하면 사라짐) 2000자 ≈ 13MB 라 총량 상한을 두고 오래된 것부터 버린다.
- * 🔴 **끝까지 받은 재생만** 저장한다 — 중간에 멈추거나 끊긴 오디오를 저장하면 다음엔 잘린 채로 나온다.
+ * **끝까지 받은 재생만** 저장한다 — 중간에 멈추거나 끊긴 오디오를 저장하면 다음엔 잘린 채로 나온다.
  */
 const TTS_CACHE_MAX_BYTES = 64 * 1024 * 1024;
 const ttsCache = new Map<string, Uint8Array>();
@@ -496,8 +495,8 @@ export const initAudioContext = async () => {
 };
 
 /**
- * 첫 재생을 늦춰 두는 여유(지터 버퍼). 🔴 OpenAI 는 첫 ~0.4s 분량을 몰아 보낸 뒤 **최대 225ms 멈췄다가**
- * 이어 보낸다(2026-10-03 실측 3/3) — 바로 재생하면 시작 직후 한 번 끊긴다. Gemini 는 끊김 0 이었다.
+ * 첫 재생을 늦춰 두는 여유(지터 버퍼). OpenAI 는 첫 ~0.4s 분량을 몰아 보낸 뒤 **최대 ~225ms 멈췄다가**
+ * 이어 보낸다 — 바로 재생하면 시작 직후 한 번 끊긴다(Gemini 는 끊기지 않는다).
  */
 const TTS_START_LEAD_SEC: Record<string, number> = { gemini: 0.05, openai: 0.3 };
 /** 예약 단위 ≈ 0.2s(24kHz·16bit = 48,000 B/s). 첫 소리는 이만큼 모인 뒤 시작한다. */
@@ -507,7 +506,7 @@ const TTS_SCHEDULE_MIN_BYTES = 9_600;
  * `/api/speech` 의 raw PCM(24kHz·16bit·mono) 스트림을 **받는 대로** 이어서 재생한다.
  * 첫 청크가 오면 `onStart` 를 부르고, 마지막 소스가 끝나면 resolve 한다. `stopAudio()` 로 중단.
  *
- * 🔴 네트워크 청크는 홀수 바이트로 끊길 수 있다 — Int16 이 1바이트 밀리면 잡음이 된다.
+ * 네트워크 청크는 홀수 바이트로 끊길 수 있다 — Int16 이 1바이트 밀리면 잡음이 된다.
  *    남는 1바이트는 다음 청크 앞에 붙인다.
  */
 export const playSpeechStream = async (text: string, onStart?: () => void): Promise<void> => {
@@ -569,7 +568,7 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
   const reader = response.body.getReader();
   let nextStart = 0;
   let lastEnded: Promise<void> = Promise.resolve();
-  // 네트워크 청크를 모아 한 번에 예약한다. 🔴 OpenAI 청크는 ~1.4KB(≈28ms)라 그대로 예약하면
+  // 네트워크 청크를 모아 한 번에 예약한다. OpenAI 청크는 ~1.4KB(≈28ms)라 그대로 예약하면
   // 2000자에 소스가 ~9,000개 — 경계 반올림 오차가 쌓여 미세한 틱이 나고 모바일에 무겁다.
   let pending: Uint8Array[] = [];
   let pendingBytes = 0;

@@ -110,7 +110,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
 
   const handleSave = () => {
     onUpdateProfile(tempProfile);
-    // showToast(t.updated, "success");
     setIsModalOpen(false);
   };
 
@@ -260,7 +259,7 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                           onClick={() => { setIsModalOpen(false); onLogin(); }}
                           className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-800 dark:text-white font-bold text-sm active:scale-95 transition-all border border-black/5 dark:border-white/10 flex items-center justify-center gap-2"
                         >
-                          {/* 공급자 중립 — 이 버튼은 로그인 모달(Google·카카오)을 연다. G 마크·"Google로" 문구는 Google 전용처럼 보였다(10-11). */}
+                          {/* 공급자 중립 — 이 버튼은 로그인 모달(Google·카카오)을 연다. G 마크·"Google로" 문구는 쓰지 않는다. */}
                           <i className="fa-solid fa-right-to-bracket text-xs" aria-hidden="true"></i>
                           {t.signIn}
                         </button>
@@ -271,9 +270,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onUpdateProfile, onMenuCli
                         {userEmail && (
                           <p className="text-xs text-center text-slate-500 dark:text-slate-400 font-medium truncate px-2">{userEmail}</p>
                         )}
-                        {/* 계정 전환 버튼은 두지 않는다(2026-10-11) — 로그아웃하면 새 게스트가 되고, 로그인 모달에서
-                            계정을 고르면 된다(대화 없는 게스트 → signIn). 버튼이 둘이면 차이가 안 보이고,
-                            전환 경로는 정식 계정에 다른 신원을 link 할 위험만 늘렸다(DEV_261011 §5). */}
+                        {/* 계정 전환 버튼은 두지 않는다 — 로그아웃하면 새 게스트가 되고, 로그인 모달에서
+                            계정을 고르면 된다(대화 없는 게스트 → signIn). 전환 경로는 정식 계정에
+                            다른 신원을 link 할 위험만 늘린다 → DEV_261011 §5 */}
                         <button
                           onClick={() => { setIsModalOpen(false); onSignOut(); }}
                           className="w-full py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 font-bold text-sm active:scale-95 transition-all"

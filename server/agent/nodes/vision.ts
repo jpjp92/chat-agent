@@ -5,8 +5,8 @@ import { SERVER_MODELS } from "../../models";
 import { HumanMessage } from "@langchain/core/messages";
 
 /**
- * Vision Node
- * Special preprocessor solely for extracting properties from pill images.
+ * Vision 노드
+ * 약 이미지에서 속성을 뽑는 전용 전처리기.
  */
 export const visionNode = async (state: AgentStateType) => {
     console.log('[LangGraph] Entering Vision Node');
@@ -55,10 +55,10 @@ Return ONLY a JSON object in this exact format, no other text:
         return null;
     })();
     if (!imageAtt) {
-        return { nextNode: "generator" }; // fallback
+        return { nextNode: "generator" }; // 폴백
     }
 
-    // Build message once — reused across retry attempts
+    // 메시지는 한 번만 만들어 재시도 때 재사용
     let imageUrlPart: any;
     if (imageAtt.data.startsWith("http")) {
         imageUrlPart = { type: "image_url", image_url: { url: imageAtt.data } };
@@ -73,7 +73,7 @@ Return ONLY a JSON object in this exact format, no other text:
         ]
     });
 
-    const MAX_ATTEMPTS = Math.min(2, API_KEYS.length); // 1 retry on 429
+    const MAX_ATTEMPTS = Math.min(2, API_KEYS.length); // 429 면 1회 재시도
     let attempt = 0;
 
     while (attempt < MAX_ATTEMPTS) {
@@ -112,7 +112,7 @@ Do NOT print the extracted vision data as JSON. Use the database lookup result s
             return {
                 contextInfo: `[VISION EXTRACTION FAILED]\n약 이미지에서 각인, 색상, 모양을 안정적으로 추출하지 못했습니다. 원본 이미지를 다시 분석하지 말고 "수동으로 각인, 색상, 모양을 알려주시면 다시 검색해 드릴게요"라고 사용자에게 응답하세요.`,
                 nextNode: "generator"
-            }; // LLM succeeded but no parseable JSON
+            }; // LLM 은 성공했지만 파싱할 JSON 없음
 
         } catch (err: any) {
             const isRateLimit = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');

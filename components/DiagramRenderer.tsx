@@ -17,18 +17,18 @@ interface CollisionObject {
 interface DiagramData {
     title?: string;
     type: 'inclined_plane' | 'free_body' | 'projectile' | 'collision';
-    // inclined_plane
+    // 경사면
     angle?: number;
     showBaseline?: boolean;
     showAngle?: boolean;
     forces?: Force[];
-    // free_body
+    // 자유물체도
     object?: { shape?: 'circle' | 'rectangle'; label?: string };
-    // projectile
+    // 포물선 운동
     launchAngle?: number;
     label?: string;
     showComponents?: boolean;
-    // collision
+    // 충돌
     before?: CollisionObject[];
     after?: CollisionObject[];
     elastic?: boolean;
@@ -111,9 +111,9 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         }
     };
 
-    // --- FREE BODY DIAGRAM ---
+    // --- 자유물체도 ---
     const renderFreeBody = (ctx: CanvasRenderingContext2D) => {
-        const { text, muted, surface, border } = getTheme();
+        const { text, surface, border } = getTheme();
         ctx.clearRect(0, 0, W, H);
 
         const cx = W / 2;
@@ -122,9 +122,9 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const shape = data.object?.shape || 'circle';
         const objLabel = data.object?.label || '';
         const R = 46;
-        // Auto-scale: prevent arrows + labels from exceeding canvas bounds.
-        // Available distance from center to canvas edge (minus padding) ≈ 220px.
-        // Needed per unit: (R+6) for start offset + magnitude*fScale + 28 for label.
+        // 자동 배율: 화살표·라벨이 캔버스 밖으로 나가지 않게.
+        // 중심에서 캔버스 가장자리까지 쓸 수 있는 거리(패딩 제외) ≈ 220px.
+        // 단위당 필요 거리: 시작 오프셋 (R+6) + magnitude*fScale + 라벨 28.
         // => fScale ≤ (220 - R - 6 - 28) / maxMag = 140/maxMag
         const maxMag = Math.max(1, ...forces.map(f => f.magnitude));
         const fScale = Math.min(115, 140 / maxMag);
@@ -153,7 +153,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             ctx.fillText(objLabel, cx, cy);
         }
 
-        // angle: 0=right, 90=up, 180=left, 270=down (physics convention)
+        // angle: 0=오른쪽, 90=위, 180=왼쪽, 270=아래 (물리 관례)
         forces.forEach(f => {
             const rad = (f.angle * Math.PI) / 180;
             const dx = Math.cos(rad);
@@ -166,7 +166,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         });
     };
 
-    // --- PROJECTILE MOTION ---
+    // --- 포물선 운동 ---
     const renderProjectile = (ctx: CanvasRenderingContext2D) => {
         const { isDark, text, muted, border } = getTheme();
         ctx.clearRect(0, 0, W, H);
@@ -184,7 +184,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const peakX = startX + rangeW / 2;
         const peakY = groundY - peakH;
 
-        // Ground
+        // 지면
         ctx.beginPath();
         ctx.moveTo(40, groundY);
         ctx.lineTo(W - 40, groundY);
@@ -192,7 +192,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Parabolic arc
+        // 포물선 궤적
         ctx.beginPath();
         ctx.moveTo(startX, groundY);
         for (let i = 1; i <= 100; i++) {
@@ -205,7 +205,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Launch dot + label
+        // 발사점 + 라벨
         ctx.beginPath();
         ctx.arc(startX, groundY, 9, 0, Math.PI * 2);
         ctx.fillStyle = isDark ? '#60a5fa' : '#2563eb';
@@ -216,7 +216,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.textBaseline = 'bottom';
         ctx.fillText(objLabel, startX + 13, groundY - 5);
 
-        // v₀ arrow
+        // v₀ 화살표
         const v0s = Math.min(peakH * 0.75, 95);
         const v0ex = startX + Math.cos(rad) * v0s;
         const v0ey = groundY - Math.sin(rad) * v0s;
@@ -230,7 +230,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             arrow(ctx, startX, groundY, startX + vxl, groundY, '#10b981', 'vₓ', startX + vxl / 2, groundY + 20);
             arrow(ctx, startX + vxl, groundY, startX + vxl, groundY - vyl, '#f43f5e', 'v₀y', startX + vxl + 28, groundY - vyl / 2);
             ctx.setLineDash([]);
-            // Right angle marker
+            // 직각 표시
             const qa = 12;
             ctx.beginPath();
             ctx.moveTo(startX + vxl - qa, groundY);
@@ -239,7 +239,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             ctx.strokeStyle = muted;
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            // Angle arc + label
+            // 각도 호 + 라벨
             ctx.beginPath();
             ctx.arc(startX, groundY, 50, -rad, 0);
             ctx.strokeStyle = text;
@@ -252,7 +252,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             ctx.fillText(`θ=${ang}°`, startX + 58, groundY - 22);
         }
 
-        // Peak dot + label
+        // 최고점 + 라벨
         ctx.beginPath();
         ctx.arc(peakX, peakY, 6, 0, Math.PI * 2);
         ctx.fillStyle = isDark ? '#a78bfa' : '#7c3aed';
@@ -263,7 +263,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.textBaseline = 'bottom';
         ctx.fillText(t.peak, peakX, peakY - 8);
 
-        // Height indicator
+        // 높이 표시
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.moveTo(peakX, peakY);
@@ -278,7 +278,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.textBaseline = 'middle';
         ctx.fillText('H', peakX + 6, (peakY + groundY) / 2);
 
-        // Landing dot + label
+        // 착지점 + 라벨
         ctx.beginPath();
         ctx.arc(endX, groundY, 8, 0, Math.PI * 2);
         ctx.fillStyle = isDark ? '#f87171' : '#dc2626';
@@ -289,7 +289,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.textBaseline = 'top';
         ctx.fillText(t.land, endX, groundY + 10);
 
-        // Range bracket
+        // 사거리 괄호
         const ry = groundY + 40;
         ctx.beginPath();
         ctx.moveTo(startX, ry - 5); ctx.lineTo(startX, ry + 5);
@@ -305,9 +305,9 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.fillText(t.range, (startX + endX) / 2, ry + 6);
     };
 
-    // --- COLLISION DIAGRAM ---
+    // --- 충돌 ---
     const renderCollision = (ctx: CanvasRenderingContext2D) => {
-        const { isDark, text, muted, border } = getTheme();
+        const { text, muted, border } = getTheme();
         ctx.clearRect(0, 0, W, H);
 
         const before = data.before || [];
@@ -317,7 +317,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const vScale = 55;
         const maxVLen = 145;
 
-        // Section headers
+        // 구역 제목
         ctx.font = 'bold 16px Inter, Arial, sans-serif';
         ctx.fillStyle = text;
         ctx.textAlign = 'center';
@@ -325,7 +325,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.fillText(t.before, midX / 2, 18);
         ctx.fillText(t.after, midX + midX / 2, 18);
 
-        // Divider
+        // 구분선
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
         ctx.moveTo(midX, 12);
@@ -335,7 +335,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Center arrow + type label
+        // 가운데 화살표 + 유형 라벨
         ctx.font = 'bold 26px Inter, Arial, sans-serif';
         ctx.fillStyle = muted;
         ctx.textAlign = 'center';
@@ -392,16 +392,16 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         drawGroup(after, midX + midX / 2);
     };
 
-    // --- INCLINED PLANE ---
+    // --- 경사면 ---
     const renderInclinedPlane = (ctx: CanvasRenderingContext2D) => {
-        const { text, muted, border } = getTheme();
+        const { text, border } = getTheme();
         ctx.clearRect(0, 0, W, H);
 
         const angleRad = ((data.angle ?? 30) * Math.PI) / 180;
         const boxSize = 60;
         const planeLeftX = 120;
         const baselineY = H - 100;
-        // Clamp plane length so the top never goes above y=60 (prevents off-canvas overflow at steep angles)
+        // 경사면 길이 제한 — 꼭대기가 y=60 위로 못 가게 (급경사에서 캔버스 밖 방지)
         const planeLength = Math.min(500, (baselineY - 60) / Math.max(Math.sin(angleRad), 0.1));
         const planeRightX = planeLeftX + planeLength * Math.cos(angleRad);
         const planeTopY = baselineY - planeLength * Math.sin(angleRad);
@@ -413,7 +413,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const boxCenterX = boxBaseX - perpOffset * Math.sin(angleRad);
         const boxCenterY = boxBaseY - perpOffset * Math.cos(angleRad);
 
-        // Baseline
+        // 바닥선
         if (data.showBaseline !== false) {
             ctx.beginPath();
             ctx.moveTo(50, baselineY);
@@ -423,7 +423,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             ctx.stroke();
         }
 
-        // Wedge
+        // 쐐기
         ctx.beginPath();
         ctx.moveTo(planeLeftX, baselineY);
         ctx.lineTo(planeRightX, planeTopY);
@@ -435,7 +435,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // Angle arc
+        // 각도 호
         if (data.showAngle !== false) {
             ctx.beginPath();
             ctx.arc(planeLeftX, baselineY, 80, -angleRad, 0);
@@ -448,7 +448,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
             ctx.fillText('θ', planeLeftX + 104 * Math.cos(angleRad / 2), baselineY - 56 * Math.sin(angleRad / 2) - 2);
         }
 
-        // Box
+        // 상자
         ctx.save();
         ctx.translate(boxCenterX, boxCenterY);
         ctx.rotate(-angleRad);
@@ -469,7 +469,7 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         ctx.font = 'bold 20px Arial';
         ctx.fillText(t.plane, planeRightX - 60, Math.max(30, planeTopY - 30));
 
-        // Force arrows
+        // 힘 화살표
         const forceScale = 110;
         const findForce = (keywords: string[]) =>
             (data.forces || []).find(f => keywords.some(k => f.label.includes(k)));

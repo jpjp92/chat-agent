@@ -6,7 +6,7 @@
  * **"구조만 바꿨다"를 증명할 자가 필요**했다. 그 자가 없으면 재배치가 응답을 바꿨는지
  * 알 수 없고, 알 수 없으면 되돌릴 근거도 없다.
  *
- * 🔴 2026-09-24 이전에는 **만들 수 없었다.** 조립 결과가 `generator.ts` 클로저의 지역 변수라
+ * 2026-09-24 이전에는 **만들 수 없었다.** 조립 결과가 `generator.ts` 클로저의 지역 변수라
  *    노드를 돌리지 않고는 볼 수 없었고, 돌리면 네트워크를 탔다(§7-6). `prompt-assembly.ts`
  *    로 떼어낸 뒤에야 오프라인으로 잴 수 있게 됐다.
  *
@@ -17,7 +17,7 @@
  *      조용히 깨진다.
  *   ③ **턴 조건 조합** — 카드 후속·재구성·날씨 후속처럼 규칙이 얹히는 분기가 실제로 얹히는가.
  *
- * ⚠️ **이 파일의 숫자는 "옳은 값"이 아니라 "지금 값"이다.** 프롬프트 문구를 의도적으로 고치면
+ * 주의: **이 파일의 숫자는 "옳은 값"이 아니라 "지금 값"이다.** 프롬프트 문구를 의도적으로 고치면
  *    당연히 깨진다 — 그때는 숫자를 갱신하고 **커밋 메시지에 왜 바뀌었는지 적는다.**
  *    구조만 바꾸는 리팩터링에서 깨지면 그건 리팩터링이 아니다.
  */
@@ -29,7 +29,7 @@ import { hasVideoPart } from '../server/agent/video-turn.js';
 
 /**
  * 의도·턴 골든이 보는 base — **두 게이트를 모두 켠 것**. 8단계 전과 바이트가 같아서
- * 골든 숫자를 그대로 비교할 수 있다. 🔴 선언은 **여기**여야 한다 — 아래에 두면
+ * 골든 숫자를 그대로 비교할 수 있다. 선언은 **여기**여야 한다 — 아래에 두면
  * 55행에서 먼저 참조해 TDZ(`Cannot access 'FULL' before initialization`)로 죽는다.
  * tsc 는 이걸 안 잡는다(실측: 프로브의 `ARMS` 에서 같은 실수를 했다).
  */
@@ -63,7 +63,7 @@ const emptyState = (intent: IntentType): AssemblyState => ({
 /**
  * 게이트를 **state 에서 유도한다** — 프로덕션(`route.ts`)이 하는 것과 같은 방식.
  *
- * 🔴 `FULL` 을 그대로 주면 안 된다. `emptyState` 는 `webContent: ''` 이므로 본문이 **없는** 턴인데
+ * `FULL` 을 그대로 주면 안 된다. `emptyState` 는 `webContent: ''` 이므로 본문이 **없는** 턴인데
  *    base 에 본문 조항을 실으면 **실제로 나가지 않는 프롬프트**를 골든으로 박는 셈이다.
  *    골든은 진짜 턴을 찍어야 회귀를 잡는다.
  */
@@ -136,7 +136,7 @@ check('영화 검색: 화면 제목을 부정하지 못하게 한다',
 const reformatRules = buildReformatRules();
 check('재구성: 없던 항목 추가를 금지', reformatRules.includes('추가하지 마세요'));
 check('재구성: 빈 칸을 기억으로 채우지 못하게 한다', reformatRules.includes('기억으로 채우지 마세요'));
-// 🔴 실측 회귀(DEV_260815_DEPLOY_CHECK): 직전 턴이 빈 응답인데 표를 만들어냈다.
+// 실측 회귀(DEV_260815_DEPLOY_CHECK): 직전 턴이 빈 응답인데 표를 만들어냈다.
 check('재구성: 원본이 없으면 없다고 말하게 한다', reformatRules.includes('재구성할 대상이 없다고 말하세요'));
 
 check('날짜 대응표: 실제 날짜가 박힌다', buildDateLadderBlock(NOW, TZ).includes('2026-09-24'));
@@ -182,14 +182,14 @@ check('요구한 렌더러의 스펙이 모두 실린다', orphans.length === 0,
 // ── ④ 불변 계약 ──────────────────────────────────────────────────────────────
 console.log('\n── 불변 계약 ──');
 check('시각 블록이 맨 앞이다', plain.startsWith('[CURRENT_SYSTEM_TIME'));
-// 🔴 이 순서가 계획의 A/B 대상이다(§7-1). 지금 값을 고정해 두고, 바꿀 때 의도적으로 깬다.
+// 이 순서가 계획의 A/B 대상이다(§7-1). 지금 값을 고정해 두고, 바꿀 때 의도적으로 깬다.
 check('base 가 시각 블록 바로 뒤에 온다', plain.indexOf(getSystemInstruction('Korean', FULL).slice(0, 60)) > 0);
 check('의도 정책이 마지막에 온다',
     plain.lastIndexOf(getIntentPolicy('general')) + getIntentPolicy('general').length === plain.length);
 check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('general')) === plain);
 
 // ── 9단계 A/B 손잡이 `timeBlockAt` (PLAN §10-11) ─────────────────────────────
-// 🔴 판정 전까지만 있는 실험 스캐폴딩이다. 프로덕션은 넘기지 않으므로 항상 'start'.
+// 판정 전까지만 있는 실험 스캐폴딩이다. 프로덕션은 넘기지 않으므로 항상 'start'.
 {
     const withAt = (at: 'start' | 'end' | 'both', st = emptyState('general')) => assemblePrompt({
         base: baseFor(st, 'Korean'), state: st, langName: 'Korean',
@@ -203,7 +203,7 @@ check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('ge
     check('end: 시각 블록이 의도 정책 뒤, 맨 끝에 온다',
         end.lastIndexOf('[CURRENT_SYSTEM_TIME') > end.lastIndexOf(getIntentPolicy('general'))
         && end.trimEnd().endsWith("Do not silently present an earlier date's material as today's."));
-    // 🔴 가장 중요한 검사 — **옮기기만 했는가.** 줄 다중집합이 같아야 한다.
+    // 가장 중요한 검사 — **옮기기만 했는가.** 줄 다중집합이 같아야 한다.
     //    자수만 보면 문구가 바뀐 것을 못 잡는다(§10-1·§11-3 에서 두 번 당했다).
     const bag = (t: string) => t.split('\n').filter(l => l.trim()).sort().join('\n');
     check('end: 줄을 더하거나 빼지 않고 자리만 옮겼다', bag(start) === bag(end));
@@ -225,16 +225,16 @@ check('순수하다 — 같은 입력이면 같은 출력', build(emptyState('ge
 }
 
 // ── ⑤ 골든 해시 — **찍기만 하면 골든이 아니다** ─────────────────────────────
-// 🔴 초안은 해시를 출력만 했다. 그러면 프롬프트가 바뀌어도 **하니스는 초록이다** —
+// 초안은 해시를 출력만 했다. 그러면 프롬프트가 바뀌어도 **하니스는 초록이다** —
 //    레포 규칙 그대로다: "통과하는 테스트는 공짜다. 실패할 수 있는 테스트만 값이 있다."
 //    채취 2026-09-24, `prompt-assembly.ts` 분리 직후(PR1). 문구를 의도적으로 고쳤다면
 //    이 표를 갱신하고 **커밋 메시지에 왜 바뀌었는지 적는다.**
 console.log('\n── 골든 해시 ──');
-// 🔴 2026-09-24(Step 4) 5개 -> **19개 전부**로 넓혔다. 5개만 박아 두면 6~8단계에서
+// 2026-09-24(Step 4) 5개 -> **19개 전부**로 넓혔다. 5개만 박아 두면 6~8단계에서
 //    `paper_search` 를 줄 단위로 가르거나 base 를 2분할할 때 **고정되지 않은 14개 의도가
 //    조용히 달라진다** — 그게 바로 그 단계들이 건드리는 전역 블록이다.
 //    넓히면서 기존 5개 값은 한 글자도 바뀌지 않았다(= 넓힘 자체는 무해).
-// 🔴 2026-09-25(8단계): 전부 **-2,951자**(한국어) — 영상 분석 지시가 조건부가 되어 빠졌다.
+// 2026-09-25(8단계): 전부 **-2,951자**(한국어) — 영상 분석 지시가 조건부가 되어 빠졌다.
 //    감소폭이 19개 의도·6개 턴에서 **전부 동일**한 것이 "그 블록만 빠졌다"의 증거다.
 //    영상 턴 base 는 바이트 동일하다(아래 BASE_GOLDEN).
 const GOLDEN: Record<string, { len: number; sha: string }> = {
@@ -267,7 +267,7 @@ for (const [intent, want] of Object.entries(GOLDEN)) {
         `기대 ${want.len}자/${want.sha}\n     실제 ${got.len}자/${got.sha}`);
 }
 
-// 🔴 **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
+// **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
 //    규칙이 얹힌 상태의 해시를 함께 박아야 "규칙을 파일로 옮겼을 뿐"이 검사된다(§10 Step 2).
 const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: string }> = {
     reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 21388, sha: '0909cd0bee858c2f' },
@@ -292,7 +292,7 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
         }, len: 21694, sha: '8f95955945b3cf3e',
     },
 
-    // 🔴 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
+    // 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
     //    `webContent: ''`** 였다 — 즉 `sourceTurn=true` 로 조립된 프롬프트를 **조립까지
     //    통과해서 sha 로 보는 골든이 하나도 없었다.** 그 구멍 때문에 줄 하나를 옮긴
     //    M4 돌연변이가 114개를 전부 통과했다(DEV_260925 §11-3).
@@ -321,7 +321,7 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
         `기대 ${want.len}자/${want.sha}\n     실제 ${out.length}자/${sha(out)}`);
 }
 
-// 🔴 sha 만 있으면 "무엇이 빠졌는지" 를 못 읽는다. 게이트가 조립까지 제대로 전달됐는지
+// sha 만 있으면 "무엇이 빠졌는지" 를 못 읽는다. 게이트가 조립까지 제대로 전달됐는지
 //    이름으로 확인한다 — 아래가 빨개지면 위 sha 골든의 원인이 바로 읽힌다.
 {
     const urlOut = build(TURN_GOLDEN.urlSummary.state);
@@ -340,14 +340,14 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
     check('평문 턴: 본문 조항도 영상 지시도 없다',
         !plainOut.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"')
         && !plainOut.includes('[VIDEO ANALYSIS DIRECTIVE]'));
-    // 🔴 그래도 전역 규칙은 남는다 — 조건부화가 과했는지 조립 수준에서도 본다.
+    // 그래도 전역 규칙은 남는다 — 조건부화가 과했는지 조립 수준에서도 본다.
     check('평문 턴도 전역 규칙은 갖는다',
         plainOut.includes('[ONE-LINE SUMMARY FORMAT]') && plainOut.includes('[TOOL AVAILABILITY]'));
 }
 
 // ── 첨부 유형 × 게이트 행렬 (2026-09-28 신설) ────────────────────────────────
 //
-// 🔴 **이 검사가 없어서 8단계가 결함을 냈다.** `sourceTurn = !!state.webContent` 로 게이트를
+// **이 검사가 없어서 8단계가 결함을 냈다.** `sourceTurn = !!state.webContent` 로 게이트를
 //    걸었는데, `webContent` 는 클라이언트가 **`extractedText` 를 뽑은 첨부에만** 채운다
 //    (docx·xlsx·txt·csv·hwp — `components/ChatInput.tsx`). PDF·이미지·영상·오디오는 추출 분기가
 //    없어 `fileData`/`image_url` 로 가고 `webContent` 는 빈다. 그래서 **첨부가 있는데 첨부 조항이
@@ -382,7 +382,7 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
         st.messages = [new HumanMessage({ content: partsFor(kind) })];
         const p = baseFor(st, 'Korean');
 
-        // 🔴 첨부가 있으면 **어떤 형태든** "첨부를 학습 지식보다 우선하라"가 실려야 한다.
+        // 첨부가 있으면 **어떤 형태든** "첨부를 학습 지식보다 우선하라"가 실려야 한다.
         //    이 줄은 하필 "PDF content" 를 이름으로 부르는데 PDF 턴에서 빠져 있었다.
         check(`첨부 행렬  ${label}: 본문 우선 규칙이 실린다`,
             p.includes('You MUST prioritize information from the source text'));
@@ -390,7 +390,7 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
         check(`첨부 행렬  ${label}: 한 줄 요약 서식이 실린다`, p.includes('[ONE-LINE SUMMARY FORMAT]'));
     }
 
-    // ⚠️ `hasVideoPart` 는 이름과 달리 **모든 `fileData`** 에 반응한다 — PDF·오디오 공개 URL 턴에도
+    // 주의: `hasVideoPart` 는 이름과 달리 **모든 `fileData`** 에 반응한다 — PDF·오디오 공개 URL 턴에도
     //    영상 지시 2,997자가 실린다. 손실이 아니라 **낭비**이고(8단계 전엔 무조건이었다),
     //    좁히면 그 턴들에서 새로 빠지는 변경이 된다 → TODO §5-c. 현재 동작을 사실대로 고정한다.
     const videoOn = (kind: string) => {
@@ -404,13 +404,13 @@ for (const [name, want] of Object.entries(TURN_GOLDEN)) {
 
 // 언어별 base 골든 — 한국어만 보면 나머지 셋이 조용히 깨진다.
 //
-// 🔴 8단계(2026-09-25)부터 base 는 **두 축으로 조건부**다:
+// 8단계(2026-09-25)부터 base 는 **두 축으로 조건부**다:
 //      `videoTurn`  = 영상 턴인가 (`isYoutubeRequest || hasVideoPart`)
 //      `sourceTurn` = 이번 턴에 `[PROVIDED_SOURCE_TEXT]` 가 붙는가 (`!!state.webContent`)
 //    `full`(둘 다 on) 숫자는 **8단계 이전 값 그대로**이며 한 자도 바꾸지 않았다 —
 //    조건부화가 본문·영상이 있는 턴을 건드리지 않았다는 증거다.
-//    🔴 이 4개 숫자가 바뀌면 그 턴들의 응답이 바뀐 것이다. 갱신 전에 이유를 확인한다.
-// 🔴 자수만으로는 **줄 재배치를 못 잡는다** — M4 돌연변이에서 실측했다. `[PAPER INFO]` 줄을
+//    이 4개 숫자가 바뀌면 그 턴들의 응답이 바뀐 것이다. 갱신 전에 이유를 확인한다.
+// 자수만으로는 **줄 재배치를 못 잡는다** — M4 돌연변이에서 실측했다. `[PAPER INFO]` 줄을
 //    아래로 옮겼더니 자수가 같아 114개가 전부 통과했다. 원인은 sha 를 가진 골든(의도·턴)이
 //    전부 `webContent: ''` 여서 **`sourceTurn=true` base 를 아무도 sha 로 보지 않았던** 것이다.
 //    그래서 4조합 × 4언어 전부 `자수/sha` 로 박는다.
@@ -448,7 +448,7 @@ for (const [lang, want] of Object.entries(BASE_GOLDEN)) {
         check(`골든  base/${lang} ${NAME[k]}`, got === want[k], `기대 ${want[k]} / 실제 ${got}`);
     }
 
-    // 🔴 게이트는 **빼기만** 한다 — 더하거나 순서를 바꾸지 않는다.
+    // 게이트는 **빼기만** 한다 — 더하거나 순서를 바꾸지 않는다.
     for (const k of ['video', 'source', 'plain'] as const) {
         check(`base/${lang} ${NAME[k]} 은 full 의 줄 부분수열이다 (추가·재배치 없음)`,
             isLineSubsequence(variants[k], variants.full), '줄이 추가되었거나 순서가 바뀌었다');
@@ -459,7 +459,7 @@ for (const [lang, want] of Object.entries(BASE_GOLDEN)) {
     check(`base/${lang} 본문 없으면 본문 조항이 없다`,
         !variants.video.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"') && !variants.video.includes("it's an Arxiv paper"));
 
-    // 🔴 전역 규칙은 무엇을 끄든 **잃지 않는다.** 하나라도 빠지면 조건부화가 과했다.
+    // 전역 규칙은 무엇을 끄든 **잃지 않는다.** 하나라도 빠지면 조건부화가 과했다.
     //    - 한 줄 요약 서식: "applies to EVERY analysis path alike" 라고 스스로 못 박은 규칙
     //    - 본문이 **없을 때** 무엇을 하라는 규칙(검색 폴백)은 없는 턴에서 가장 필요하다
     //    - 태그 누설 금지는 무결성 규칙이라 자수를 아끼려고 끄지 않았다

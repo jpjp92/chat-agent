@@ -1,18 +1,15 @@
 /**
  * Gemini grounding 인용을 OpenAI와 같은 클릭 가능한 번호로 변환한다.
  *
- * 지금까지 Gemini 응답은 하단 출처 배지만 있고 본문에 번호가 없었다. 모델이 스스로 쓴 `[1]`은
- * 실제 출처와 대응한다는 보장이 없어 **가짜 인용**이라 서버가 전부 지워 왔다(route.ts, generator.ts).
- * 그런데 grounding 응답에는 `groundingSupports`가 함께 오고, 여기에 문장 구간과 그 구간이 참조한
- * chunk 인덱스가 들어 있다 — OpenAI `url_citation`의 `endIndex`와 같은 구조다. 이걸 쓰면 추측이
- * 아니라 **API가 알려 준 위치**에 번호를 넣을 수 있다.
+ * 모델이 스스로 쓴 `[1]`은 실제 출처와 대응한다는 보장이 없어(가짜 인용) 서버가 지운다.
+ * grounding 응답의 `groundingSupports` 에는 문장 구간과 그 구간이 참조한 chunk 인덱스가 들어 있다 —
+ * OpenAI `url_citation`의 `endIndex`와 같은 구조라, 추측이 아니라 **API가 알려 준 위치**에 번호를 넣는다.
  *
- * 🔴 `segment.startIndex`/`endIndex`는 **UTF-8 바이트 오프셋**이다(2026-08-24 실측: 한글 응답에서
- *    api.start=323 · JS charIndex=143 · utf8 byteIndex=323으로 일치). JS 문자열 인덱스로 그대로
- *    쓰면 한글 문장 한가운데를 잘라 텍스트가 깨진다.
+ * 주의: `segment.startIndex`/`endIndex`는 **UTF-8 바이트 오프셋**이다. JS 문자열 인덱스로 그대로
+ * 쓰면 한글 문장 한가운데를 잘라 텍스트가 깨진다 → DEV_260824
  */
 
-export type GroundedSource = { title: string; uri: string; citationNumber?: number };
+type GroundedSource = { title: string; uri: string; citationNumber?: number };
 
 /** 모델이 지어낸 맨 대괄호 번호만 제거한다. `[1](url)` 형태의 실제 링크는 남긴다. */
 export const stripFabricatedCitations = (text: string): string =>
@@ -22,16 +19,12 @@ export const stripFabricatedCitations = (text: string): string =>
 const GROUNDING_REDIRECT_URL = String.raw`https?:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s)\]]+`;
 
 /**
- * 🔴 모델이 **본문에 직접 써 넣은** grounding redirect URL 을 지운다.
+ * 모델이 **본문에 직접 써 넣은** grounding redirect URL 을 지운다.
  *
- * 후속 턴에서 실측된 현상(2026-08-24 세션 6bd6817b): 검색 턴 답변은 `[N](redirect)` 마커를
- * 붙인 채 DB 에 저장되고, history.ts 가 그 본문을 **그대로** 모델에 되돌려 준다. 모델은 그
- * 포맷을 흉내 내 자기 검색 결과 URL 을 맨 괄호로 본문에 쓴다 — `…입니다.(A)(B)`.
- * groundingSupports 의 segment 경계가 그 괄호들 사이에서 끊기므로 우리 마커가 각 괄호 **앞에**
- * 꽂혀 `[1](A)(A)[2](B)(B)` 가 되고, 뒤쪽 맨 괄호는 마크다운 자동링크로 화면에 생 URL 이 뜬다.
- *
- * 근본 원인은 history 되먹임(history.ts 에서 차단)이고, 여기는 안전망이다.
- * `](` 바로 뒤 URL(= 우리 마커의 목적지)만 남기고 나머지는 지운다.
+ * 히스토리에 `[N](redirect)` 마커가 남으면 후속 턴 모델이 그 포맷을 흉내 내 검색 결과 URL 을 맨 괄호로
+ * 본문에 쓴다. 그 위에 서버 마커가 꽂히면 `[1](A)(A)` 처럼 겹치고 생 URL 이 화면에 뜬다.
+ * 근본 차단은 history.ts(되먹임 차단)이고, 여기는 안전망이다.
+ * `](` 바로 뒤 URL(= 우리 마커의 목적지)만 남기고 나머지는 지운다 → DEV_260824
  */
 export const stripBareGroundingUrls = (text: string): string => text
     // ① 괄호로 감싼 형태 — `](` 뒤가 아니면 통째로 제거

@@ -42,14 +42,9 @@ const isSecurityBlock = (text: string) => {
 };
 
 /**
- * 🔴 프로바이더의 **쿼터·인증 실패를 일반 실패와 구분한다.** (2026-08-22)
- *
- * 2026-08-22 장애: ScrapingBee 가 `401 {"message":"Monthly API calls limit reached: 1000"}` 을
- * 내는데 로그는 `ScrapingBee(static) failed { textChars: 0 }` 로만 찍혔다 — **본문이 없는 것과
- * 크레딧이 없는 것이 같은 문장**이었다. 그래서 "사이트가 막혔나" 를 먼저 의심하며 시간을 썼다.
- *
- * 이건 `url_cache` 45일 실종과 **같은 형태의 침묵**이다: 동작은 폴백으로 흘러가서 멀쩡해 보이는데,
- * 원인만 안 보인다. 상태코드가 이미 답을 갖고 있으므로 그대로 드러낸다.
+ * 프로바이더의 쿼터·인증 실패(401/402/429)를 일반 실패와 구분해 로그에 남긴다.
+ * 본문이 없는 것과 크레딧이 없는 것을 같은 문장으로 찍으면 원인을 엉뚱한 데서 찾게 된다.
+ * 폴백으로 흘러가 동작은 멀쩡해 보이므로 상태코드를 그대로 드러낸다 → DEV_260822
  */
 const logProviderAuthFailure = (provider: string, status: number, body: string, url: string): boolean => {
     if (status !== 401 && status !== 402 && status !== 429) return false;
@@ -76,17 +71,11 @@ const normalizeKey = (u: string) => {
 };
 
 /**
- * 🔴 캐시 실패를 **삼키지 않는다.** (2026-08-18)
- *
- * 2026-08-17 사고: dev 에 `url_cache` 테이블이 아예 없었고 **약 45일간 아무도 몰랐다.**
- * 매 요청이 유료 스크래퍼(browserless 1000 units/월, 회당 ~2)를 태우고 있었다.
- *
- * 왜 안 보였나 — 이 두 함수가 실패를 캐시 미스와 **같은 값**으로 만들었다:
- *   - `getCached`: `if (error || !data) return null` → **테이블 없음 = 미스**
- *   - `setCached`: upsert 반환 `error` 를 **읽지도 않는다**
- * 캐시가 best-effort 인 건 맞다. 그렇다고 **조용할 이유는 없다** — 동작은 그대로 두고
- * 실패만 드러낸다. 특히 `setCached` 가 계속 실패하면 히트율이 영원히 0 이고,
- * 그건 성능 문제가 아니라 **비용이 새는 것**이다.
+ * 캐시 실패를 삼키지 않는다.
+ * 캐시는 best-effort 지만 실패(테이블 없음·upsert 오류)를 캐시 미스와 같은 값으로 만들면
+ * 매 요청이 유료 스크래퍼를 태워도 아무도 모른다. 동작은 그대로 두고 실패만 로그로 드러낸다
+ *   - `getCached`: 오류와 미스를 구분해 기록
+ *   - `setCached`: upsert 반환 `error` 를 기록 → DEV_260817
  */
 const getCached = async (key: string): Promise<string | null> => {
     try {
@@ -159,8 +148,8 @@ const extractReadableContent = (html: string) => {
 };
 
 export async function POST(req: NextRequest) {
-    // 🔴 유료 폴백(browserless·ScrapingBee·OpenAI)과 service_role 캐시 쓰기를 가진 라우트다 — 인증을 맨 앞에.
-    //    캐시 히트도 인증 뒤: 캐시 응답만으로도 공개 프록시처럼 쓸 수 있다(PLAN_PUBLIC_ROUTE_AUTH_261017).
+    // 유료 폴백(browserless·ScrapingBee·OpenAI)과 service_role 캐시 쓰기를 가진 라우트다 — 인증을 맨 앞에.
+    // 캐시 히트도 인증 뒤: 캐시 응답만으로도 공개 프록시처럼 쓸 수 있다 → PLAN_PUBLIC_ROUTE_AUTH_261017
     const auth = await requireProfile(req, 'fetch-url');
     if (auth.res) return auth.res;
 
@@ -264,10 +253,10 @@ export async function POST(req: NextRequest) {
                         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
                     },
                 });
-                // 🔴 다운로드형 PDF(`callDownload.do` 등)는 확장자로 못 알아본다. KDI 는 Content-Type 도 없이
-                //    `Content-Disposition: attachment; filename="….pdf"` + `%PDF-` 본문만 준다(DEV_261014).
-                //    text() 로 읽으면 바이너리가 HTML 스크래핑으로 흘러 깨진 글자가 요약된다. PDF 면 본문 대신
-                //    isPdf 만 돌려주고 클라가 URL 을 PDF 링크로 붙인다 — 두 모델 모두 이 URL 을 직접 읽는다(실측).
+                // 다운로드형 PDF(`callDownload.do` 등)는 확장자로 못 알아본다 — Content-Type 없이
+                // `Content-Disposition: attachment; filename="….pdf"` + `%PDF-` 본문만 주는 서버가 있다.
+                // text() 로 읽으면 바이너리가 HTML 스크래핑으로 흘러 깨진 글자가 요약되므로, PDF 면 본문 대신
+                // isPdf 만 돌려주고 클라이언트가 URL 을 PDF 링크로 붙인다(두 모델 모두 이 URL 을 직접 읽는다) → DEV_261014
                 const buf = new Uint8Array(await response.arrayBuffer());
                 if (response.ok && isPdfResponse(response.headers, buf)) {
                     // 바이트를 이미 받았으니 텍스트층도 여기서 — 후속 턴 근거(lastActiveDoc.pdfText). 첫 턴은 URL 그대로 모델이 읽는다.
@@ -329,10 +318,8 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // 🔴 ScraperAPI 는 2026-08-22 체인에서 제외했다.
-        // 실측(ZDNet, 정상 확인된 대상): **500 · 55.8초** — "Protected domains may require
-        // premium=true OR ultra_premium=true". 성공은 0인데 45초 타임아웃 예산만 먹는다.
-        // 구현은 git 이력에 있다(이 커밋의 부모). 되살리려면 premium 파라미터가 선행 조건이다.
+        // ScraperAPI 는 체인에서 뺐다 — 보호 도메인은 premium 파라미터 없이는 실패하고 타임아웃 예산만 먹는다.
+        // 되살리려면 premium 파라미터가 선행 조건이다(구현은 git 이력) → DEV_260822
 
         // ScrapingBee static (no render_js) — SSR 뉴스/블로그 사이트용 빠른 경로 (~3-5s).
         // render_js=false이므로 Chrome headless 불필요 → 크레딧 절약 + 지연 최소화.
@@ -373,8 +360,8 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // ScrapingBee render_js (render_js + premium_proxy) — wikidocs Cloudflare 우회 검증됨(2026-06-22, ~4.6s).
-        // SPA·CF 챌린지 사이트 전용. 느리지만(~15-40s) JS 렌더링 필요 시 사용.
+        // ScrapingBee render_js (render_js + premium_proxy) — wikidocs 등 Cloudflare 챌린지·SPA 사이트용.
+        // 느리지만(~15-40s) JS 렌더링이 필요할 때 쓴다.
         const scrapingBeeFetch = async () => {
             const apiKey = process.env.SCRAPINGBEE_KEY;
             if (!apiKey) {
@@ -417,24 +404,12 @@ export async function POST(req: NextRequest) {
         };
 
         /**
-         * 범용 폴백 체인. Wikidocs는 실패가 확정된 static 단계를 생략하고
-         * ScrapingBee(render/premium/KR)부터 시작한다.
+         * 범용 폴백 체인. 모든 호스트가 같은 프로바이더 사다리를 탄다.
+         * Wikidocs(상시 CF 챌린지)는 실패가 확정된 static 단계를 건너뛰고 ScrapingBee(render/premium/KR)부터 시작한다.
+         * 한 프로바이더 쿼터가 소진돼도 다음 프로바이더로 넘어가야 하므로 호스트별로 사다리를 잠그지 않는다 → DEV_260822
          *
-         * 🔴 왜 고쳤나: 이전 구조는 `cloudflareUnblock()`(= ScrapingBee → browserless → ScraperAPI)을
-         *    **`isWikidocsHost` 로 잠가** 뒀다. 그래서 wikidocs 아닌 호스트의 폴백은 **ScrapingBee 하나뿐**,
-         *    그것도 static·render 로 두 번이었다. ScrapingBee 월 쿼터가 소진되자
-         *    **정상 작동하는 browserless 를 두고도 전 사이트가 502** 로 떨어졌다
-         *    (실측 2026-08-22: ScrapingBee 401 "Monthly API calls limit reached: 1000",
-         *     같은 시각 browserless 는 같은 URL 에 200·767KB).
-         *
-         *    DEV_260808 의 *"특정 사례로 이름 붙인 규칙은 그 사례에만 적용된다"* 가 **네 번째**로 걸린 자리다
-         *    (`pinYoutube`·`YOUTUBE_CALL_TIMEOUT_MS`·`fastLongInput`·라우터 지름길에 이어).
-         *    이름이 `cloudflareUnblock` 이라 wikidocs 전용으로 읽혔지만, 안에 든 것은
-         *    **범용 프로바이더 사다리**였다. → 이름과 게이트를 걷어내고 하나로 합친다.
-         *
-         * ⚠️ 남은 문제(별도 작업): 이 범용 체인이 다 돌면 최대 `10+15+40+30 = 95s` 인데
-         *    클라이언트 타임아웃은 **65s** 다(`services/geminiService.ts`). 범용 사다리의
-         *    전체 deadline은 아직 별도 과제다.
+         * 주의: 체인이 끝까지 돌면 최대 `10+15+40+30 = 95s` 인데 클라이언트 타임아웃은 65s 다
+         * (`services/geminiService.ts`). 전체 deadline 설계는 별도 과제(TODO §5-d).
          */
         const renderFallback = async (): Promise<string | null> => {
             // CF 상시 챌린지 호스트(wikidocs)는 static 을 건너뛴다 — 항상 챌린지라 순수 낭비다.

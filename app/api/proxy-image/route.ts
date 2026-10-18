@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     if (!url) return NextResponse.json({ error: 'Image URL is required' }, { status: 400 });
 
     try {
-        // URL Auto-Repair
+        // URL 자동 보정
         let repairedUrl = url;
         const secondHttpsIndex = url.indexOf('https://', 8);
         if (secondHttpsIndex > -1) {
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         try { await assertPublicUrl(targetUrl); }
         catch { return NextResponse.json({ error: 'URL not allowed' }, { status: 400 }); }
         // <img src> 로 불려 토큰을 붙일 수 없다 → 인증 대신 약품 이미지 호스트로 묶어 오픈 프록시를 닫는다.
-        // `?src=` 를 푼 **최종 URL** 로 검사한다 — 처음 URL 만 보면 src 로 아무 호스트나 우회된다(2026-10-17).
+        // `?src=` 를 푼 **최종 URL** 로 검사한다 — 처음 URL 만 보면 src 로 아무 호스트나 우회된다.
         if (!isDrugImageHost(targetUrl)) {
             console.error('[proxy-image] host not allowed:', targetUrl.hostname);
             return NextResponse.json({ error: 'Host not allowed' }, { status: 403 });

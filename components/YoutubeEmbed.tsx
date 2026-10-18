@@ -27,7 +27,7 @@ const YoutubeEmbed: React.FC<YoutubeEmbedProps> = ({ url }) => {
           className="absolute top-0 left-0 w-full h-full border-0"
         ></iframe>
         
-        {/* Decorative Overlay for Glassmorphism feel */}
+        {/* 글래스모피즘 장식 오버레이 */}
         <div className="absolute inset-0 pointer-events-none border border-white/5 rounded-2xl"></div>
       </div>
       

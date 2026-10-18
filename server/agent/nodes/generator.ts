@@ -1,6 +1,6 @@
 import { AgentStateType } from "../state";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError, isPaidKey, API_KEYS } from "../../config";
+import { getNextApiKey, markKeyInvalid, isPaidKey, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
 import { AIMessage } from "@langchain/core/messages";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
@@ -23,35 +23,21 @@ import { getLocalFunctionTool } from "../local-tool-registry";
 import { withExplicitSearchFollowup, shouldDropImageForSearch } from "../search-signals";
 import { emitStatus } from "../status-event";
 
-// SDK 호출 1회(attempt)당 상한. 3.5 행/혼잡을 강제 중단하고 2.5로 강등 재시도할 예산을 남긴다.
-// 무료티어 3.5는 정상이면 보통 <15s라 건강한 응답은 거의 안 잘림(DEV: 3.5 free-tier throughput).
-// 🔴 25s 의 원래 근거는 "25s×2 ≈ 50s < 60s 캡"이었으나 **그 캡은 우리가 건 것이었다**(DEV_260808 §9,
-//    Hobby 도 300s). 값은 유지하되 근거는 바뀐다 — 이제 캡 회피가 아니라 **행 감지 UX 가드**다.
-//    (일반 텍스트 턴이 25s 넘게 무응답이면 재시도가 사용자에게 더 낫다.)
+// SDK 호출 1회(attempt)당 상한 — 행 감지 UX 가드. 일반 텍스트 턴이 25s 넘게 무응답이면
+// 끊고 2.5 로 강등 재시도하는 편이 사용자에게 낫다. 건강한 응답은 보통 <15s 라 거의 안 잘린다 → DEV_260808 §9
 export const SDK_CALL_TIMEOUT_MS = 25_000;
-// YouTube 영상 턴은 프로파일이 정반대 — 영상 토큰이 무거운 단일 heavy 호출이 60s 예산
-// 대부분을 정당하게 소모하고(정상 ~30~48s, 메모리 youtube-call-timeout-profile), 폴백 3.5는
-// 무료티어 영상에서 오히려 더 느리다. 25s 일률 컷은 정상 분석을 끊어 키 로테이션·3.5 폴백이 각
-// 25s씩 쌓여 60s 천장을 초과 → 전부 타임아웃(DEV_260627 회귀).
-// 회귀 본질: aa9d701 이전엔 SDK 경로에 per-call 타임아웃이 없어 유튜브가 60s 캡 직전(~59s)까지
-// 예산을 다 썼고 잘 됐다. 48s는 정상 상한(~48s)과 겹쳐 살짝 초과한 정상 호출을 잘랐다
-// (DEV_260703: 48.38s 로그 = 우리 데드라인 발화). 원래 예산을 충실히 원복 — 57s로 상향.
+// 무거운 미디어 턴(YouTube·업로드 영상·대용량 PDF) 전용 상한 — 일반 턴과 프로파일이 정반대다.
+// 영상 토큰이 무거운 단일 호출이 수십 초를 정당하게 쓴다(YouTube ~30~48s, 6.5MB PDF 최대 ~55s).
+// 일반 턴의 25s 를 일률 적용하면 정상 분석이 끊겨 키 로테이션·폴백이 쌓인다 → DEV_260627·DEV_260703
+// 90s = 측정 최대의 약 1.6배이고, 강등 재시도까지 90×2=180s < maxDuration 300s 로 예산 안에 든다 → DEV_260808 §9
 // 도중 abort 시엔 스트리밍 부분 응답이 복구된다(아래 partial stream 처리).
-// 🔴 대상은 YouTube 만이 아니다 — **업로드 영상·대용량 PDF 도 같은 프로파일**이다(DEV_260808 실측:
-// 업로드 영상 21s · 400p PDF 21~32s · 6.5MB PDF 최대 54.9s). 25s 일률 컷은 이들도 정상 분석
-// 도중에 끊어 키 로테이션을 유발한다 — YouTube 가 겪은 회귀와 같은 구조다.
-//
-// 🔴 57 → 90 (DEV_260808 §9). 57 은 "60s 캡까지 ~3s 여유"에서 나온 값인데, **그 60s 는 플랫폼
-//    한계가 아니라 route.ts 가 스스로 건 값이었다**(Hobby 도 fluid 기본·최대 300s). 캡을 300 으로
-//    돌리면 57 이 곧바로 새 병목이 된다 — 6.5MB PDF 실측 최대가 54.9s 라 **여유가 2s 뿐**이었다.
-//    90s 로 잡으면 실측 최대의 1.6배이고, 강등 재시도까지 90×2=180s < 300s 로 예산 안에 든다.
 export const HEAVY_MEDIA_CALL_TIMEOUT_MS = 90_000;
 
 /**
- * Generator Node
- * Prepares the final System Message with all dynamic context and invokes the multimodal Chat model.
- * For general intents, uses @google/genai SDK directly to capture groundingMetadata which
- * is lost by @langchain/google-genai's response parsing.
+ * Generator 노드
+ * 동적 컨텍스트를 모두 담은 최종 시스템 메시지를 만들고 멀티모달 챗 모델을 호출한다.
+ * 일반 인텐트는 @google/genai SDK 를 직접 써서 groundingMetadata 를 받는다
+ * (@langchain/google-genai 의 응답 파싱은 이 값을 버린다).
  */
 export const createGeneratorNode = (
     systemInstructionBase: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void,
@@ -79,27 +65,25 @@ export const createGeneratorNode = (
             return lastHuman ? extractTextContent(lastHuman.content) : '';
         })();
 
-        // Inject Current Date/Time to prevent hallucination
+        // 현재 날짜·시간 주입 — 환각 방지
         const now = new Date();
         const tz = state.timeZone || 'Asia/Seoul';
-        // 🔴 `dateFormat` 실험 손잡이는 **판정 후 제거했다**(PLAN §10-13 사전 등록 약속).
-        //    `iso24`(24시간제 + ISO 병기)는 n=14 에서 p=0.678 — 판정 불가로 기각(DEV_260928 §13).
-        //    재시도하려면 손잡이를 다시 만들지 말고, **원인이 문구가 아니라는 §13-4 를 먼저 읽어라.**
+        // 날짜 표기 형식 실험(`dateFormat`)은 효과가 판정되지 않아 제거했다 — 원인이 문구가 아니다.
+        // 다시 시도하기 전에 DEV_260928 §13-4 를 먼저 읽을 것.
         const currentDateStr = new Intl.DateTimeFormat('ko-KR', {
             year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
             hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'short'
         }).format(now);
 
-        // 🔴 **사실 수집은 여기, 규칙 조립은 prompt-assembly.ts** (PLAN_PROMPT_LAYERING §7-6).
-        //    심평원 조회가 조립 한복판에 `await` 로 박혀 있어서 조립을 떼어낼 수가 없었다 —
-        //    떼면 조립 함수가 네트워크를 타고 골든 테스트가 외부 API 에 좌우된다.
-        //    기관 지목은 **한 번만** 구해 조회와 조립에 함께 넘긴다(두 경로가 다른 기관을 보면 안 된다).
+        // **사실 수집은 여기, 규칙 조립은 prompt-assembly.ts** (PLAN_PROMPT_LAYERING §7-6).
+        // 조립 함수가 네트워크를 타면 골든 테스트가 외부 API 에 좌우되므로 심평원 조회는 여기서 한다.
+        // 기관 지목은 **한 번만** 구해 조회와 조립에 함께 넘긴다(두 경로가 다른 기관을 보면 안 된다).
         const followupCardContext = state.cardFollowup ? state.cardContexts?.[state.cardFollowup] : undefined;
         const cardEntity = followupCardContext
             ? resolveCardEntity(followupCardContext, latestUserText)
             : { namedEntity: undefined, namedAddress: '' };
         let hospitalStatus: Awaited<ReturnType<typeof fetchHospitalOpenStatus>> | null = null;
-        // 🔴 이건 규칙이 아니라 **사실**이라 호출부에 남는다 — 아래 검색 게이트 두 곳이 읽는다.
+        // 이건 규칙이 아니라 **사실**이라 호출부에 남는다 — 아래 검색 게이트 두 곳이 읽는다.
         //    (조립부도 같은 값을 내부에서 판정한다. 조건이 같으므로 두 값은 항상 일치한다 —
         //     `needsHospitalHoursLookup` 이 참인데 조회 결과가 없으면 참.)
         let hospitalHoursUnavailable = false;
@@ -118,33 +102,30 @@ export const createGeneratorNode = (
             now, tz, currentDateStr, cardEntity, hospitalStatus,
         });
 
-        // Intent routing:
-        // LangChain path — intents that need custom tools (drug_id, drug_info, pharmacy_search)
-        // SDK path — all other intents (Google Search grounding available)
+        // 인텐트 라우팅:
+        // LangChain 경로 — 커스텀 도구가 필요한 인텐트 (아래 LANGCHAIN_INTENTS)
+        // SDK 경로 — 나머지 전부 (Google Search grounding 가능)
         const LANGCHAIN_INTENTS = ["drug_id", "drug_info", "pharmacy_search", "hospital_search", "vet_search", "law_search", "law_qa", "movie_search", "paper_search", "arxiv_search", "weather"];
         const useLangChain = LANGCHAIN_INTENTS.includes(state.intent);
 
         // hasVideoData: fileData(영상)가 실제로 전송되는 턴인지. 모델 핀과 ~625줄 YouTube
         // 폴백 블록이 함께 참조하므로 SDK 루프 밖으로 hoist.
-        // 🔴 판정은 `video-turn.ts` 한 곳에만 둔다 — `route.ts` 도 같은 값을 써서 영상
+        // 판정은 `video-turn.ts` 한 곳에만 둔다 — `route.ts` 도 같은 값을 써서 영상
         //    프롬프트 블록을 켠다. 인라인으로 두 벌이면 한쪽만 고쳐진다.
         const hasVideoData = hasVideoPart(state.messages);
         // 영상을 실제 읽는 YouTube 턴 — 예산형 단일 데드라인(YOUTUBE_CALL_TIMEOUT_MS) 대상.
         const isYtVideoTurn = isYoutubeRequest && hasVideoData;
 
-        // 영상 입력 토큰 절감 — YouTube 영상은 기본 해상도로 ~31만 토큰이라 인제스트가 93s+로 60s 캡을
-        // 초과했다(DEV_260703 실측). LOW 해상도는 프레임당 토큰을 대폭 줄여 ~11만 토큰·~23s(무료)로 캡
-        // 안에 들어온다(요약은 화질 무관). ← 유튜브 요약 실패의 근본 해결.
+        // 영상 입력 토큰 절감 — YouTube 영상은 기본 해상도로 ~31만 토큰이라 인제스트가 90s+ 걸린다.
+        // LOW 해상도는 프레임당 토큰을 크게 줄여 ~11만 토큰·~23s(무료)로 끝난다(요약은 화질 무관) → DEV_260703
         const videoMediaResolution: any = isYtVideoTurn ? { mediaResolution: 'MEDIA_RESOLUTION_LOW' } : {};
 
-        // YouTube는 영상 토큰이 무거워 60s 천장에 가장 위태로운 경로 — 영상을 실제 읽는 턴만
-        // thinking 없는 2.5로 고정한다(DEFAULT_CHAT_MODEL 3.5 전환(2026-05-30) 이전 원래 설계).
+        // YouTube 는 영상 토큰이 무거워 가장 느린 경로 — 영상을 실제 읽는 턴만 thinking 없는 2.5로 고정한다.
         // 멀티턴 후속 질문(URL은 history에만 있고 영상 미재전송 → hasVideoData=false)은 영상
-        // 토큰이 없어 60s 위험이 낮으므로 일반 대화 정책(3.5)으로 복귀시킨다. 아래 ~625줄 폴백
-        // 블록도 isYoutubeRequest && hasVideoData 조건이라 영상 턴에서만 2.5→3.5 폴백이 동작.
-        // URL 본문이 주입된 턴은 "주어진 기사 요약"이라 Search OFF + 모델 추론보다 본문이 답을 결정.
-        // 3.5 무료티어는 throughput이 나빠 20~30s를 끄는데(메모리 35-flash-free-tier-throughput),
-        // 외부 도구 인텐트와 같은 논리로 throughput 좋은 2.5에 고정해 지연을 줄인다.
+        // 토큰이 없어 느려질 위험이 낮으므로 일반 대화 정책으로 복귀시킨다. 아래 폴백 블록도
+        // isYoutubeRequest && hasVideoData 조건이라 영상 턴에서만 2.5→3.5 폴백이 동작한다.
+        // URL 본문이 주입된 턴은 "주어진 기사 요약"이라 Search OFF + 본문이 답을 결정한다.
+        // 선택 모델이 무료티어에서 긴 입력에 느리면(`fastLongInput=false`) 2.5에 고정해 지연을 줄인다.
         const hasUrlContentForModel = (state.webContent || '').includes('[URL_CONTENT:');
         // 핀 판정 기준 = 사용자 선택 모델(sel). 영상/URL 핀은 그 모델이 무료티어에서 느릴 때만 2.5 강등.
         // 3.6 은 영상(fastMultimodal)·긴입력(fastLongInput) 모두 빠르므로 핀 안 됨(직접 처리). 3.5 는 붕괴 → 핀.
@@ -152,11 +133,10 @@ export const createGeneratorNode = (
         const selCaps = modelCaps(sel);
         const pinYoutube = isYoutubeRequest && hasVideoData && !selCaps.fastMultimodal;
         const pinUrl = hasUrlContentForModel && !selCaps.fastLongInput;
-        // 🔴 업로드 첨부(영상·대용량 PDF·오디오)는 Storage 공개 URL 을 fileData 로 보낸다.
-        // 3.6 은 **임의 URL fileData 에 429 RESOURCE_EXHAUSTED** 를 낸다(DEV_260808 실측:
-        // 같은 키가 직전 텍스트 호출엔 200. YouTube fileData·인라인 이미지는 정상 → urlFileData 축).
-        // 이걸 강등하지 않으면 429 가 키 로테이션을 타고 12키 × ~12s ≈ 144s 로 60s 캡을 넘겨
-        // 사용자에겐 "응답을 받지 못했습니다"로만 보인다 — 어떤 키로도 성공하지 못하는 실패다.
+        // 업로드 첨부(영상·대용량 PDF·오디오)는 Storage 공개 URL 을 fileData 로 보낸다.
+        // 3.x 는 **임의 URL fileData 에 429 RESOURCE_EXHAUSTED** 를 낸다(YouTube fileData·인라인 이미지는 정상
+        // → `urlFileData` 축). 강등하지 않으면 429 가 키 로테이션을 타고 12키 × ~12s ≈ 144s 를 태운 끝에
+        // "응답을 받지 못했습니다"로 끝난다 — 어떤 키로도 성공하지 못하는 실패다 → DEV_260808
         const hasUrlFileData = state.messages.some((m: any) =>
             Array.isArray(m.content) && m.content.some((p: any) =>
                 p.fileData?.fileUri && !/youtube\.com|youtu\.be/.test(p.fileData.fileUri))
@@ -182,17 +162,16 @@ export const createGeneratorNode = (
             console.log(`[LangGraph] OpenAI unsupported media → model pinned to ${resolvedModel} (was state.model=${state.model})`);
         }
 
-        // SDK path: handles all non-tool intents (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
-        // @google/genai SDK natively supports fileData (YouTube) and inlineData (images/PDFs).
-        // Google Search grounding is enabled unless multimodal content is present.
-        // NOTE: gemini-3.5-flash supports Google Search grounding, but it is not available
-        // on the free tier. When 3.5 Flash is selected and grounding is needed, fall back
-        // to 2.5 Flash for the grounded response.
+        // SDK 경로: 도구 없는 인텐트 전부 (general, medical_qa, biology, chemistry, physics, astronomy, data_viz)
+        // @google/genai SDK 는 fileData(YouTube)·inlineData(이미지/PDF)를 기본 지원한다.
+        // 멀티모달 내용이 없으면 Google Search grounding 을 켠다.
+        // 검색 턴 강등 모델 — 무료 키에서 검색이 안 되거나 grounding 이 불안정한 모델은
+        // 검색이 필요할 때 2.5 Flash 로 답한다(아래 searchFallbackFor·rmCaps 가 판정).
         const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
         // 검색 턴을 2.5 로 강등하는 조건 — **독립된 두 축의 OR** 다.
         //   ① freeTierSearch=false : 무료티어에서 3.x grounding 이 아예 429 (과금 사실)
         //   ② groundingReliable=false : 검색이 발동해도 모델이 결과를 반영하지 않음 (답변 품질)
-        // 🔴 지금 두 축은 3.5·3.6 에서 우연히 같은 값을 낸다. 합쳐 두면, 유료 티어로 올리며
+        // 지금 두 축은 3.5·3.6 에서 우연히 같은 값을 낸다. 합쳐 두면, 유료 티어로 올리며
         //    ①만 보고 `freeTierSearch: true` 로 뒤집었을 때 **에러 없이** 3.6 의 2/5 오답이
         //    출처 칩을 달고 나가기 시작한다. 그래서 이름을 나눠 둔다.
         const rmCaps = modelCaps(resolvedModel);
@@ -200,9 +179,9 @@ export const createGeneratorNode = (
         // 지금 키로 다시 판단한다: 회원 유료 키가 실패해 무료 키로 내려가면 모델도 2.5 로 같이 내려간다.
         const searchFallbackFor = (apiKey: string) =>
             (!rmCaps.freeTierSearch && !isPaidKey(apiKey)) || !rmCaps.groundingReliable;
-        let sdkSuccess = false; // declared outside if-block so LangChain fallback check at line ~277 can read it
-        // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 ~48s 소진이라 키 로테이션·
-        // 3.5 폴백을 또 돌릴 60s 예산이 없으므로 모두 차단. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
+        let sdkSuccess = false; // if 블록 밖에 선언 — 아래 LangChain 폴백 판정이 읽는다
+        // 영상 턴 primary(2.5)가 데드라인 timeout으로 끝났는지. true면 heavy 상한을 다 쓴 것이고, 더 느린
+        // 3.5 폴백·키 로테이션은 같은 영상을 또 오래 붙잡을 뿐이라 모두 차단한다. if(!useLangChain) 밖 폴백도 읽으므로 hoist.
         let ytPrimaryTimedOut = false;
 
         // OpenAI 선택 경로. 일반 생성과 검색뿐 아니라 intent가 확정된 로컬 도구도 같은
@@ -217,14 +196,8 @@ export const createGeneratorNode = (
                 intent: state.intent,
                 needsSearch: state.needsSearch || hospitalHoursUnavailable,
                 hasMultimodalContent,
-                // 🔴 Gemini 경로의 "이미지 빼고 검색 켜기" 가드(:383)에 대응하는 값이지만, 여기서는
-                //   애초에 뺄 이미지가 없다 — OpenAI 는 input_image 와 web_search 를 함께 보낸다.
-                //   대신 `provider: 'openai'` 로 TIER 400 자체를 내지 않게 한다. 예전엔 이 자리가
-                //   false 로 고정돼 있어, **이미지 첨부 직후 턴**에서 사용자의 명시 검색 요청(300)이
-                //   남의 API 제약(400)에 눌렸다(2026-09-02 실측).
-                //   ⚠️ 범위가 "직후 1턴"인 것은 history 가 첨부를 최근 mediaWindow 개까지만 미디어로
-                //      싣기 때문이다 — 처음엔 "대화 내내"로 적었다가 실측으로 정정했다(DEV_260902 §9.1).
-                dropImageForSearch: false,
+                // OpenAI 는 input_image 와 web_search 를 함께 보낼 수 있다 — `provider: 'openai'` 로
+                // 이미지 첨부 직후 턴에도 명시 검색 요청이 막히지 않게 한다(→ DEV_260902 §9.1).
                 provider: 'openai',
                 isYoutubeRequest,
                 hasVideoData,
@@ -279,20 +252,20 @@ export const createGeneratorNode = (
             const MAX_KEY_RETRIES = API_KEYS.length;
             let sdkApiKey = geminiApiKey;
             let sdkAttempt = 0;
-            // When multimodal content (YouTube fileData, PDF URL) causes a 500,
-            // retry once without media parts + Google Search enabled.
+            // 멀티모달 내용(YouTube fileData, PDF URL)이 500 을 내면
+            // 미디어 없이 Google Search 를 켜고 한 번 재시도한다.
             let forceTextOnly = false;
             // 503(UNAVAILABLE)은 API 키가 아니라 모델 측 혼잡 → 다음 키도 같은 모델이면 똑같이 503.
             // 3.5-flash가 503이면 throughput 좋은 2.5-flash로 강등해 재시도 (전 키 소진 방지).
             // 한 번 set되면 이후 attempt에서 유지.
             let unavailableDowngrade = false;
-            // 🔴 429 를 낸 **서로 다른** 키. 429 는 두 가지가 겹쳐 오는데 응답만으로 구분이 안 된다
-            // (무료티어는 quotaMetric·retryDelay 없이 맨 429 만 준다 — DEV_260808 실측):
+            // 429 를 낸 **서로 다른** 키. 429 는 두 가지가 겹쳐 오는데 응답만으로 구분이 안 된다
+            // (무료티어는 quotaMetric·retryDelay 없이 맨 429 만 준다):
             //   ⓐ 그 키의 쿼터 소진 → 다른 키로 바꾸면 성공한다 (로테이션이 정답)
             //   ⓑ 모델이 그 요청을 아예 거부 → 어떤 키로도 실패한다 (로테이션은 예산만 태운다)
             // 구분은 **행동으로** 한다: 서로 다른 키 2개가 같은 모델에서 429 면 ⓑ 로 보고 모델을 강등한다.
-            // ⓐ 오판 비용은 낮고(2.5 도 잘 답한다), ⓑ 를 놓치면 12키 × ~12s ≈ 144s 로 60s 캡을
-            // 확실히 넘겨 사용자에겐 "응답을 받지 못했습니다"로만 보인다.
+            // ⓐ 오판 비용은 낮고(2.5 도 잘 답한다), ⓑ 를 놓치면 12키 × ~12s ≈ 144s 를 태운 끝에
+            // "응답을 받지 못했습니다"로 끝난다 → DEV_260808
             const rateLimitedKeys = new Set<string>();
 
             // [이미지+검색 할루시네이션 가드] 현재 턴엔 이미지가 없고 history에만 이미지가 있는데
@@ -313,8 +286,8 @@ export const createGeneratorNode = (
             const _explicitSearchForGuard = state.needsSearch === true
                 || /(검색|찾아|조사|출처|근거|최신|최근|실시간|뉴스|팩트체크|팩트 체크|사실확인|사실 확인|확인해|검증|웹에서|온라인에서|인터넷에서|실제로.*있|연구가.*있|논문|latest|recent|search|source|cite|fact.?check|verify|online)/i.test(latestUserText);
             // 판정은 search-signals 로 나가 있다 — 하니스가 프로덕션 함수를 그대로 실행하기 위해서다.
-            // 🔴 `medical_qa` 가 대상에 들어간 것이 2026-09-02 수정이다(§9.2): tier 100 검색 강제 ON 인
-            //    의도인데 400 에 눌려 "출처 기반 답변" 정책이 이미지 직후 턴 동안 무효였다.
+            // `medical_qa` 도 대상이다: tier 100 검색 강제 ON 인 의도라, 400 에 눌리면 이미지 직후 턴 동안
+            // "출처 기반 답변" 정책이 무효가 된다 → DEV_260902 §9.2
             const dropImageForSearch = shouldDropImageForSearch({
                 intent: state.intent,
                 currentTurnHasImage: _currentTurnHasImage,
@@ -327,36 +300,35 @@ export const createGeneratorNode = (
             }
 
             while (sdkAttempt < MAX_KEY_RETRIES) {
-                // Declare outside try so catch block can read them for duplicate-guard
+                // try 밖에 선언 — catch 의 중복 출력 가드가 읽는다
                 let responseText = "";
                 let groundingSources: any[] = [];
-                // Track whether this attempt included multimodal parts (readable in catch)
+                // 이번 시도에 멀티모달 파트가 있었는지 (catch 에서 읽음)
                 let hadMultimodalContent = false;
 
                 try {
                     const genai = new GoogleGenAI({ apiKey: sdkApiKey });
                     const needsSearchFallback = searchFallbackFor(sdkApiKey);
                     // 이 attempt의 모든 SDK 서브콜을 한 데드라인으로 묶음 — 행/혼잡 시 catch의 timeout 강등 경로로.
-                    // 영상 턴만 예산형 긴 데드라인(48s) — 25s는 정상 영상 분석을 끊는다(DEV_260627 회귀).
+                    // 무거운 미디어 턴만 긴 데드라인(HEAVY_MEDIA_CALL_TIMEOUT_MS) — 25s는 정상 영상 분석을 끊는다.
                     const attemptTimeoutMs = isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS;
                     const attemptSignal = AbortSignal.timeout(attemptTimeoutMs);
 
-                    // Build contents from state messages
-                    // Correctly maps all multimodal parts (text, image, pdf, video/YouTube) to SDK format
+                    // state 메시지로 contents 구성
+                    // 멀티모달 파트(텍스트·이미지·PDF·영상/YouTube)를 SDK 형식으로 매핑
                     const { sdkContents, hasMultimodalContent, hasDocumentContent } = buildSdkContents(state.messages, forceTextOnly);
-                    // hadMultimodalContent (declared outside try for the catch-block 500 retry)
-                    // mirrors hasMultimodalContent — set here so the catch path can read it.
+                    // hadMultimodalContent(catch 의 500 재시도용으로 try 밖에 선언)는
+                    // hasMultimodalContent 를 따른다 — catch 경로가 읽도록 여기서 설정.
                     if (hasMultimodalContent) hadMultimodalContent = true;
 
-                    // Google Search gate — decide grounding (multimodal/youtube/url/renderer/doc/general).
-                    // Returns useGoogleSearch + side-values consumed downstream (token budget / diagnostic logs).
+                    // Google Search 게이트 — grounding 여부 판정 (multimodal/youtube/url/renderer/doc/general).
+                    // useGoogleSearch 와 아래에서 쓰는 부가 값(토큰 상한·진단 로그)을 돌려준다.
                     const { useGoogleSearch, hasUrlContent, rendererIntents, explicitSearchRequested } = decideGoogleSearch({
                         webContent: state.webContent,
                         messages: state.messages,
                         intent: state.intent,
                         needsSearch: state.needsSearch || hospitalHoursUnavailable,
                         hasMultimodalContent,
-                        dropImageForSearch,
                         isYoutubeRequest,
                         hasVideoData,
                         latestUserText,
@@ -368,7 +340,7 @@ export const createGeneratorNode = (
                         useGoogleSearch ? 'google' : 'none',
                     );
 
-                    // Intent-based token budget: short-output paths get reduced limits to fit within Vercel 60s
+                    // 인텐트별 출력 토큰 상한(generation-config.ts)
                     const resolvedMaxTokens = resolveMaxTokens({
                         hasDocumentContent, isYoutubeRequest, hasMultimodalContent, hasUrlContent, intent: state.intent,
                     });
@@ -386,10 +358,10 @@ export const createGeneratorNode = (
                         console.log('[LangGraph] Renderer intent — Google Search disabled to preserve structured visualization output');
                     }
 
-                    // 이미지·영상 미디어 턴은 2.5로 고정(PDF/문서 제외). 무료티어 3.5 멀티모달은
-                    // throughput 한계로 이미지 ~56s·영상 더 느림 → 60s 캡 초과(웹 타임아웃). 2.5는 ~5s.
+                    // 이미지·영상 미디어 턴은 2.5로 고정(PDF/문서 제외) — 무료티어 3.5 멀티모달은 throughput 이 낮아
+                    // 이미지 ~56s·영상은 더 느리고, 2.5는 ~5s 다.
                     // hasMultimodalContent는 isRecent 윈도우(최근 3턴) 미디어를 반영 → 멀티턴 후속도 자동 커버,
-                    // 미디어가 윈도우 밖으로 밀려 텍스트로 강등되면 3.5 복귀. (DEV_260626 §2 측정 패밀리)
+                    // 미디어가 윈도우 밖으로 밀려 텍스트로 강등되면 선택 모델로 복귀한다 → DEV_260626 §2
                     const isMediaTurn = hasMultimodalContent && !hasDocumentContent;
                     // 3.x Search grounding 은 무료티어 미지원 → 검색 콜은 2.5 로 강등(needsSearchFallback).
                     // 이미지/영상 미디어 턴은 멀티모달이 느린 모델(3.5)만 2.5 로 핀; 3.6 은 fastMultimodal 이라 직접 처리.
@@ -406,24 +378,24 @@ export const createGeneratorNode = (
                     }
                     console.log('[LangGraph] Starting SDK stream | model:', effectiveModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
 
-                    // Thinking config — model-aware branching:
-                    // 3.5-flash uses thinkingLevel enum (thinkingBudget deprecated):
-                    //   - YouTube native video: "minimal" — disable thinking to stay within Vercel 60s
-                    //   - Renderer intents (astronomy/data_viz/etc): "minimal" — structured JSON output;
-                    //     "low" budget can be exhausted by JSON reasoning → empty response
-                    //   - Multi-turn: "medium" — follow-up turns need more reasoning to honor user format requests
-                    //   - 1st turn: "low" — prevents 60s timeout on first complex queries
-                    // 2.5-flash keeps thinkingBudget (thinkingLevel may be unsupported):
-                    //   - YouTube: budget 0 (disable — thinkingBudget>0 causes 503 with fileData on 2.5-flash)
-                    //   - medical_qa: budget 3000 (cap)
-                    //   - Others: undefined (model default)
+                    // Thinking config — 모델별 분기(상세는 generation-config.ts):
+                    // 3.x 는 thinkingLevel enum (thinkingBudget deprecated):
+                    //   - YouTube native video: "minimal" — 사고를 꺼서 영상 분석 시간을 줄인다
+                    //   - 렌더러 인텐트(astronomy/data_viz 등): "minimal" — 구조화 JSON 출력,
+                    //     "low" 는 JSON 추론에 예산이 소진돼 빈 응답이 났다
+                    //   - 멀티턴: "medium" — 후속 턴은 사용자 형식 요청을 지키려면 추론이 더 필요
+                    //   - 첫 턴: "low" — 복잡한 첫 질문의 지연을 줄인다
+                    // 2.5-flash 는 thinkingBudget 유지 (thinkingLevel 미지원일 수 있음):
+                    //   - YouTube: budget 0 (끔 — 2.5-flash 에서 fileData 와 thinkingBudget>0 이면 503)
+                    //   - medical_qa: budget 3000 (상한)
+                    //   - 나머지: undefined (모델 기본값)
                     const is3xModel = isThreeXFlash(effectiveModel);
                     const thinkingConfig = resolveThinkingConfig({
                         model: effectiveModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
                     });
 
-                    // 3.5 + Google Search → 2.5 single-pass grounding (Stage2 3.5 재합성 제거, DEV_260624 §6).
-                    // 무료티어 3.5 grounding은 429라 2.5로 검색하고, 그 결과를 그대로 최종 답으로 사용.
+                    // 검색 강등 턴 → 2.5 single-pass grounding. 무료티어 3.x grounding 은 429 라 2.5로 검색하고,
+                    // 그 결과를 그대로 최종 답으로 쓴다(재합성 단계 없음) → DEV_260624 §6
                     if (useGoogleSearch && needsSearchFallback) {
                         console.log('[LangGraph] Grounding via 2.5 single-pass (Stage2 3.5 synthesis removed)');
 
@@ -438,15 +410,15 @@ export const createGeneratorNode = (
                                 topP: 0.8,
                                 topK: 40,
                                 maxOutputTokens: effectiveMaxTokens,
-                                // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
-                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
+                                // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — dynamic thinking 이 grounding 지연의
+                                // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
                                 thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                             }
                         });
 
                         const stage1Parts = stage1Response.candidates?.[0]?.content?.parts ?? [];
                         const stage1Grounding = stage1Response.candidates?.[0]?.groundingMetadata;
-                        // 🔴 마커를 심기 전에 가짜 번호를 지우면 groundingSupports의 바이트 오프셋이
+                        // 마커를 심기 전에 가짜 번호를 지우면 groundingSupports의 바이트 오프셋이
                         //    어긋난다. applyGeminiCitations가 삽입 → 정리 순서를 함께 처리한다.
                         const stage1Cited = applyGeminiCitations((stage1Response.text ?? stage1Parts
                             .filter((p: any) => !p.thought)
@@ -472,8 +444,8 @@ export const createGeneratorNode = (
                                     topP: 0.8,
                                     topK: 40,
                                     maxOutputTokens: effectiveMaxTokens,
-                                    // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — 검증결과 dynamic thinking이
-                                // Stage1 grounding latency의 주범(~48% 차지)이며 budget0이 출처·표·정확도 동등 (PLAN_THINKING_LATENCY §5-1).
+                                    // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — dynamic thinking 이 grounding 지연의
+                                    // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
                                 thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                                 }
                             });
@@ -493,13 +465,12 @@ export const createGeneratorNode = (
                             throw new Error('Stage1 grounding returned empty grounded text');
                         }
 
-                        // Stage2(3.5 재합성) 제거 — Stage1(2.5+search)이 finalInstruction로 완결 답변 생성.
-                        // DEV_260624 §6: 2.5 single-pass가 two-track 대비 ~40% 빠르고 품질 동등,
-                        // production의 throttled 3.5 무료티어(§3)를 회피. weather 표 등 포맷은 base 프롬프트가 담당.
+                        // 2.5+search 가 finalInstruction 으로 완결 답변을 만든다(재합성 없음 — 더 빠르고 품질 동등,
+                        // DEV_260624 §6). weather 표 등 포맷은 base 프롬프트가 담당한다.
                         responseText = stage1Text;
                     } else {
-                        // thinkingLevel may exhaust the thinking budget → only thought parts returned → empty text.
-                        // Retry once with "minimal" thinking before giving up.
+                        // thinkingLevel 이 사고 예산을 다 쓰면 thought 파트만 오고 텍스트가 빈다.
+                        // 포기하기 전에 "minimal" 로 한 번 재시도한다.
                         let singlePassResponse = await genai.models.generateContent({
                             model: effectiveModel,
                             contents: sdkContents,
@@ -520,8 +491,8 @@ export const createGeneratorNode = (
                             .map((p: any) => p.text || '')
                             .join('')).trim();
 
-                        // If empty and we used a non-minimal thinkingLevel, retry with minimal thinking
-                        // 🔴 재시도 목표는 `'minimal'` 리터럴이 아니라 **그 모델의 최저 레벨**이다.
+                        // 비었고 minimal 이 아닌 thinkingLevel 을 썼으면 minimal 로 재시도
+                        // 재시도 목표는 `'minimal'` 리터럴이 아니라 **그 모델의 최저 레벨**이다.
                         // 3.7 은 minimal 을 400 으로 거부하므로 리터럴이면 복구 시도가 곧 에러가 된다.
                         const retryLevel = thinkingRetryLevel(effectiveModel, (thinkingConfig as any)?.thinkingLevel);
                         if (!responseText && retryLevel) {
@@ -669,7 +640,7 @@ export const createGeneratorNode = (
                     return { messages: [aiMsg], groundingSources };
 
                 } catch (err: any) {
-                    // If text was already streamed to the client, do NOT retry — would cause duplicate output
+                    // 이미 클라이언트로 텍스트를 보냈으면 재시도하지 않는다 — 출력이 중복된다
                     if (responseText) {
                         console.warn('[LangGraph] Error after partial stream (err:', err?.status, ') — returning partial response to avoid duplication');
                         if (sendEvent) sendEvent({ cutOff: true });
@@ -692,17 +663,9 @@ export const createGeneratorNode = (
                     } else if (isRateLimit || isUnavailable || isTimeout) {
                         if (isRateLimit) { markRateLimitKey(sdkApiKey, err); rateLimitedKeys.add(sdkApiKey); }
                         // 무거운 미디어 턴 timeout — **2.5 강등 1회만** 허용하고 그 다음엔 종료한다.
-                        //
-                        // 🔴 예전엔 무조건 즉시 종료였고 근거는 "또 다른 시도는 60s 캡 초과"였다. 그 60s 는
-                        //    이미 사라졌다 — route.ts 는 `maxDuration = 300` 이고, 이 파일 상수 주석도
-                        //    "강등 재시도까지 90×2=180s < 300s 로 예산 안에 든다"고 적고 있다(DEV_260808 §9).
-                        //    상수는 새 근거로 고쳤는데 **이 분기만 옛 근거로 남아** 있었다.
-                        //    2026-08-29 실측(19초 영상 4회): 3.7 은 90s 타임아웃 2회·성공 2회(15.5s·35.8s)로
-                        //    간헐적인데, 같은 영상을 2.5 는 17.3s 에 처리했다. 즉 재시도하면 건질 수 있는
-                        //    실패를 "일시적으로 불안정합니다" 로 버리고 있었다.
-                        //
-                        // 로테이션(같은 모델·다른 키)은 여전히 막는다 — 타임아웃은 키 쿼터가 아니라
-                        // 모델 측 혼잡이라 키만 바꾸면 90s 를 또 태운다. 바꿀 가치가 있는 건 **모델**이다.
+                        // maxDuration 300s 안에 90×2 가 들어가므로 강등 재시도로 건질 수 있는 실패를 버리지 않는다 → DEV_260808 §9
+                        // 로테이션(같은 모델·다른 키)은 막는다 — 타임아웃은 키 쿼터가 아니라 모델 측 혼잡이라 키만 바꾸면
+                        // 90s 를 또 태운다. 바꿀 가치가 있는 건 **모델**이다.
                         if (isHeavyMediaTurn && isTimeout) {
                             const action = heavyMediaTimeoutAction({
                                 alreadyDowngraded: unavailableDowngrade,
@@ -720,7 +683,7 @@ export const createGeneratorNode = (
                             continue;
                         }
                         // 503/timeout on 3.5 = 모델 측 혼잡(키 무관) → 키만 돌리면 같은 3.5에 또 막힘.
-                        // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷이 production 60s 캡 안에서 재시도 예산 확보).
+                        // 첫 발생에서 throughput 좋은 2.5로 강등(AbortSignal 25s 컷으로 행을 끊고 바로 재시도).
                         // 429 가 서로 다른 키 2개에서 났다 = 키 쿼터가 아니라 모델이 거부하는 요청(위 ⓑ).
                         // 키가 1개뿐인 환경(로컬 하니스 등)에선 로테이션 자체가 불가능하므로 1회로 판정한다.
                         const modelWide429 = isRateLimit && rateLimitedKeys.size >= Math.min(2, API_KEYS.length);
@@ -744,24 +707,24 @@ export const createGeneratorNode = (
                             continue;
                         }
                     } else if (err?.status === 500 && hadMultimodalContent && !forceTextOnly) {
-                        // Multimodal 500: video/image inaccessible or transient server error.
-                        // Retry once without media parts — Google Search will auto-enable (hasMultimodalContent=false).
+                        // 멀티모달 500: 영상·이미지에 접근 못 하거나 일시적 서버 오류.
+                        // 미디어 없이 한 번 재시도 — Google Search 가 자동으로 켜진다 (hasMultimodalContent=false).
                         forceTextOnly = true;
                         sdkAttempt++;
                         console.warn('[LangGraph] SDK 500 on multimodal — retrying text-only with Google Search enabled');
                         continue;
                     }
-                    // Safety block — don't retry, propagate immediately
+                    // 안전 차단 — 재시도 없이 바로 전파
                     if (err?.safetyBlock) throw err;
-                    // Non-retryable error or no more keys
+                    // 재시도 불가 오류이거나 남은 키 없음
                     console.error('[LangGraph] SDK call failed:', err?.status, err?.message || err);
                     break;
                 }
             }
         }
 
-        // YouTube fallback: primary model (2.5-flash) exhausted → retry with 3.5-flash
-        // ytPrimaryTimedOut: primary가 48s를 다 써 timeout이면 3.5 폴백(더 느림)은 60s 캡 초과 →
+        // YouTube 폴백: primary 모델(2.5-flash) 실패 → 3.5-flash 로 재시도
+        // ytPrimaryTimedOut: primary가 heavy 상한을 다 써 timeout이면 3.5 폴백(더 느림)도 끝나기 어렵다 →
         // 빠른 실패(429/500/빈응답)에서만 폴백, timeout에서는 스킵.
         // primary 가 2.5 로 핀된 경우(느린 멀티모달 모델 선택)에만 3.5 최후 폴백. 3.6 은 직접 처리라 제외.
         if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel === SERVER_MODELS.FLASH) {
@@ -792,9 +755,8 @@ export const createGeneratorNode = (
                     model: SERVER_MODELS.FLASH_3_5,
                     contents: fbContents,
                     config: {
-                        // 이 폴백도 fileData 파트를 그대로 싣는다(위 fbContents 조립) — 즉 heavy
-                        // media 턴이 여기 도달할 수 있다. 25s 일률이면 §4 와 같은 이유로 정상
-                        // 분석을 끊는다. 예산 축을 위와 일치시킨다.
+                        // 이 폴백도 fileData 파트를 그대로 싣는다(위 fbContents 조립) — 즉 무거운 미디어 턴이 여기 도달할 수 있다.
+                        // 25s 일률이면 정상 분석을 끊으므로 데드라인 축을 위와 일치시킨다.
                         abortSignal: AbortSignal.timeout(isHeavyMediaTurn ? HEAVY_MEDIA_CALL_TIMEOUT_MS : SDK_CALL_TIMEOUT_MS),
                         systemInstruction: withSearchProviderInstruction(finalInstruction, 'none'),
                         temperature: 0.2, topP: 0.8, topK: 40,
@@ -814,8 +776,8 @@ export const createGeneratorNode = (
             }
         }
 
-        // LangChain path: drug_id/drug_info etc. need custom tools; also the unstreamed
-        // fallback when the SDK path fully fails. Fully terminal (returns or throws).
+        // LangChain 경로: drug_id/drug_info 등 커스텀 도구가 필요한 인텐트, 그리고 SDK 경로가
+        // 완전히 실패했을 때의 비스트리밍 폴백. 여기서 반드시 반환하거나 throw 한다.
         return await runLangChainPath({
             state,
             finalInstruction,

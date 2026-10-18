@@ -20,9 +20,9 @@
 import { isKnownCityName } from "../lib/weather";
 
 export type WeatherFollowupDecision = "new" | "refine" | "unrelated" | "none";
-export type LlmFollowUp = "new" | "refine" | "unrelated" | null | undefined;
+type LlmFollowUp = "new" | "refine" | "unrelated" | null | undefined;
 
-export interface WeatherFollowupInput {
+interface WeatherFollowupInput {
     text: string;
     /** 라우터 LLM이 이미 정한 intent가 weather인가 (4단계 폴백에서만 쓰임) */
     intentIsWeather: boolean;
@@ -34,7 +34,7 @@ export interface WeatherFollowupInput {
     shownCities?: string[];
 }
 
-export interface WeatherFollowupResult {
+interface WeatherFollowupResult {
     decision: WeatherFollowupDecision;
     /** 어느 단계에서 정해졌는가 — 로그·하니스 진단용 */
     why: "rule" | "llm" | "fallback" | "none";
@@ -43,9 +43,9 @@ export interface WeatherFollowupResult {
 // "이런 날씨", "요즘 날씨", "더운 날씨"처럼 지시어·수식어가 붙은 '날씨'는 새 조회가 아니라
 // 떠 있는 카드에 대한 코멘트다("이런 날씨엔 뭐 먹을까?"). 도시명일 때만 재조회로 본다.
 //
-// ⚠️ 이 목록은 **닫힌 부류**만 담는다 — 지시어·수식어·담화표지·시간어. 도시명은 열린 부류라
+// 주의: 이 목록은 **닫힌 부류**만 담는다 — 지시어·수식어·담화표지·시간어. 도시명은 열린 부류라
 // 거부목록으로 다룰 수 없다(그래서 아래에서 `isKnownCityName` 사전을 따로 쓴다).
-// `아니`가 없어서 "아니 날씨 추세 알려줘"의 `아니`가 도시로 판정되던 결함이 있었다.
+// 담화표지가 빠지면 "아니 날씨 추세 알려줘"의 `아니`가 도시로 판정된다.
 const VAGUE_BEFORE_WEATHER = /^(이런|그런|저런|이|그|저|요즘|요새|무슨|어떤|더운|추운|좋은|나쁜|이딴|같은|덥고|춥고)$/;
 // 담화표지·접속부사 — 문장 앞에 붙을 뿐 지명이 아니다.
 const DISCOURSE_MARKER = /^(아니|아니아니|근데|그런데|그래서|그러면|그럼|그리고|또|음+|어+|저기|야|참|일단|그냥|아까|방금|다시|좀|더|현재|지금)$/;
@@ -53,10 +53,7 @@ const DISCOURSE_MARKER = /^(아니|아니아니|근데|그런데|그래서|그�
 /** "부산은?"·"내일은?" 꼴의 단독 재질의. 도시 판정과 시점 판정이 **같은 모양**을 본다. */
 const REASK = /^([가-힣A-Za-z]{1,10})\s*(?:은|는|도)\s*[?？]?$/;
 const TIME_TOKEN = /^(오늘|내일|모레|글피|어제|주|이번|다음|저번|지난|주말|평일|앞으로|당분간|이번주|다음주|주간|요번|올해|이달|이번달|아침|점심|저녁|밤|낮|오후|오전|새벽|월요일|화요일|수요일|목요일|금요일|토요일|일요일|월욜|화욜|수욜|목욜|금욜|토욜|일욜)$/;
-const TIME_SHIFT = /(내일|모레|글피|이번\s*주말|이번\s*주|다음\s*주|주말|오늘\s*(밤|저녁|오후|아침)|새벽)/;
 const WEATHER_WORD = /날씨|예보|기온|온도|몇\s*도|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)|강수|더[워울]|추[워울]|맑|흐[림려]/;
-const REQUEST_VERB = /(알려|보여|어때|어떄|어떻|찾아|줘|해\s*줘|궁금|부탁)/;
-const CITY_ONLY_REASK = /^[가-힣A-Za-z]{1,10}\s*(은|는|도)\s*[?？]?$/;
 // 강한 "카드 해석" 신호 — 지시어가 붙은 '날씨' 언급이거나 해석형 어휘.
 // 날씨와 무관해진 발화("주말 나들이 계획 짜줘")는 여기 안 걸려야 한다(검색을 살려야 하므로).
 const INTERPRETIVE = /왜|이유|우산|빨래|외출|나가도|입을|옷|옷차림|괜찮을까|편[이야]?\?|덥|춥|시원|후텁|쾌적|어느\s*날|무슨\s*요일|가장|제일|높|낮/;
@@ -64,10 +61,8 @@ const INTERPRETIVE = /왜|이유|우산|빨래|외출|나가도|입을|옷|옷�
 /**
  * 오늘/내일/모레/글피 ↔ `daily[].date`(YYYY-MM-DD) 대응표.
  *
- * 날짜 대응을 **모델에게 계산시키지 않기 위해** 서버가 만들어 준다. 실측(2026-08-17):
- * `내일 서울 비와?` 에 카드 히어로 블록(= **오늘** 강수 `19mm·60%`)을 그대로 집어
- * "내일 60%"라고 답했고, 같은 답변에서 18일을 "모레"라고 불렀다(하루씩 밀림).
- * 프롬프트에 `CURRENT_SYSTEM_TIME` 이 있어도 `daily[].date` 와의 대응은 **별개의 계산**이라 틀린다.
+ * 날짜 대응을 **모델에게 계산시키지 않기 위해** 서버가 만들어 준다 — `CURRENT_SYSTEM_TIME` 이 있어도
+ * `daily[].date` 와의 대응은 별개의 계산이라 틀린다(오늘 강수를 "내일"로, 날짜를 하루씩 밀어 부름) → DEV_260817
  */
 export const buildDateLadder = (now: Date, tz: string): string => {
     const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -90,9 +85,9 @@ const isNonPlaceToken = (t: string): boolean =>
  *   · unknown : 지명일 수 있는 고유명사("순천 날씨") → 새 카드(사전은 allowlist가 아니다)
  *   · none    : 지명이 없다("날씨 추세 알려줘") → 카드로 설명
  */
-export type CityMention = "known" | "unknown" | "none";
+type CityMention = "known" | "unknown" | "none";
 
-export const detectCityMention = (text: string, shownCities: string[] = []): CityMention => {
+const detectCityMention = (text: string, shownCities: string[] = []): CityMention => {
     // 화면 카드가 이미 그 도시를 담고 있으면 재조회가 아니다. 카드 라벨은 "부산광역시",
     // 사용자는 "부산"이라 쓰므로 양방향 포함으로 맞춘다.
     const alreadyShown = (t: string) =>
@@ -111,10 +106,9 @@ export const detectCityMention = (text: string, shownCities: string[] = []): Cit
         if (isNonPlaceToken(t)) continue;
         // `X 날씨`는 명시적 카드 요청이다 — 이미 떠 있어도 새로고침으로 본다.
         if (isKnownCityName(t)) return "known";
-        // 🔴 "X은?" 단독 재질의는 **사전에 있는 도시만** 지명으로 본다(2026-10-18).
-        //    날씨 카드 → 약 카드 뒤의 "부작용은?" 이 "모르는 지명 + 은?" 으로 읽혀 날씨 카드를 다시 그렸다.
-        //    "X은?" 은 어떤 주제의 후속에도 쓰이는 꼴이라, 모르는 단어는 지명 근거가 못 된다 → LLM 판정에 맡긴다.
-        //    `X 날씨` 는 날씨를 명시했으니 모르는 지명도 새 조회 근거로 둔다(사전은 allowlist 가 아니다).
+        // "X은?" 단독 재질의는 **사전에 있는 도시만** 지명으로 본다 — "X은?" 은 어떤 주제의 후속에도
+        // 쓰이는 꼴이라("부작용은?") 모르는 단어는 지명 근거가 못 된다 → LLM 판정에 맡긴다.
+        // `X 날씨` 는 날씨를 명시했으니 모르는 지명도 새 조회 근거로 둔다(사전은 allowlist 가 아니다) → DEV_261018 §10
         if (explicit) sawUnknown = true;
     }
     if (sawUnknown) return "unknown";
@@ -140,21 +134,14 @@ export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollo
     const weatherWord = WEATHER_WORD.test(text);
 
     // 새 조회의 유일한 근거는 **다른 지역이 지목됐는가**다.
-    //
-    // 예전엔 ① `시점이동 + 날씨어휘` ② `날씨 + 요청동사` 도 새 조회로 쳤다. 둘 다 걷어냈다.
-    //  ① 카드는 이미 +5일 예보를 담고 있다 — "내일 비와?"에 재조회해도 **같은 데이터**가 온다.
-    //     새 카드를 그리는 대신 떠 있는 카드로 답하는 것이 옳다.
-    //  ② "날씨 + 알려/줘"는 날씨를 묻는 **모든** 자연스러운 발화에 걸린다. "부산 날씨 알려줘"와
-    //     "날씨 추세 알려줘"를 구분하지 못해, 사용자가 같은 걸 세 번 물어도 카드만 세 번 떴다.
+    //   · 시점 이동("내일 비와?")은 새 조회가 아니다 — 카드에 이미 +5일 예보가 있어 같은 데이터가 온다.
+    //   · "날씨 + 알려/줘" 는 근거가 아니다 — 날씨를 묻는 모든 발화에 걸려 "부산 날씨 알려줘"와
+    //     "날씨 추세 알려줘"를 구분하지 못하고 카드만 반복해 그린다.
     const newFetch = city !== "none";
 
     /**
-     * 🔴 시점만 옮긴 단독 재질의("내일은?"·"주말은?")는 **항상** 화면 카드로 답한다.
-     *
-     * 실측(2026-08-31, 사용자 로컬): "부산 날씨 어때?" 뒤의 "내일은?" 이 카드를 다시 그렸다.
-     * 규칙 신호가 하나도 없어(날씨 어휘도, 지역도 없다) LLM 판정으로 떨어졌고 LLM 이 'new' 를
-     * 골랐기 때문이다. 위에 적어 둔 원칙 ①과 정면으로 어긋난다 — 카드에 이미 +5일 예보가 있어
-     * 재조회해도 **같은 데이터**가 오고, 사용자 화면은 그대로다(아무 일도 안 일어난 것처럼 보인다).
+     * 시점만 옮긴 단독 재질의("내일은?"·"주말은?")는 **항상** 화면 카드로 답한다.
+     * 규칙 신호가 없어 LLM 판정에 맡기면 'new' 가 나와 같은 데이터로 카드를 다시 그린다(위 원칙 ①) → DEV_260831
      * 지역 재질의("부산은?")는 위 newFetch 가 먼저 잡으므로 여기 걸리지 않는다.
      */
     const timeReask = (() => {
@@ -179,12 +166,8 @@ export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollo
 };
 
 /**
- * 날짜 대응표 블록 — 순수. 2026-09-24 에 `prompt-assembly.ts` 인라인에서 떼어냈다.
- *
- * 🔴 날짜 대응을 **모델에게 계산시키지 않는다.** 실측(2026-08-17): `내일 서울 비와?`에
- * 카드의 히어로 블록(= 오늘 강수 `19mm·60%`)을 그대로 집어 "내일 60%"라고 답했고,
- * 같은 답변에서 18일을 "모레"라고 불렀다(하루씩 밀림). 프롬프트에 CURRENT_SYSTEM_TIME 이
- * 있어도 `daily[].date` 와의 대응은 별개의 계산이라 틀린다 → 대응표를 서버가 만들어 준다.
+ * 날짜 대응표 블록 — 순수.
+ * 날짜 대응을 **모델에게 계산시키지 않는다** — 대응표를 서버가 만들어 준다(위 buildDateLadder 참고).
  */
 export const buildDateLadderBlock = (now: Date, tz: string): string =>
     `[날짜 대응표 — 이번 턴, 이 값이 정답입니다]\n${buildDateLadder(now, tz)}\n- \`json:weather\`의 \`daily[].date\`(YYYY-MM-DD)를 **위 표와 대조해서** 해당 날짜의 값을 쓰세요. 직접 날짜를 계산하지 마세요.\n- 🔴 \`current\`와 강수 히어로 블록은 **오늘** 값입니다. 내일·모레를 물으면 절대 쓰지 말고 \`daily\`에서 그 날짜를 찾으세요.\n- 요청받은 날짜가 \`daily\` 범위 밖이면 예보가 거기까지 없다고 밝히세요.`;

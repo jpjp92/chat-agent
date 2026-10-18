@@ -1,15 +1,13 @@
 /**
  * base 의 **무결성 계층** — 사실·출처·누설에 관한 규칙.
  *
- * 왜 갈랐나: base 21,208자가 한 덩어리라 "무엇이 진실성 규칙이고 무엇이 표현 규칙인지"를
- * 파일이 말해주지 못했다. 둘은 **바뀌는 속도가 다르다** — 표현 규칙은 가독성 실험마다 손대지만,
- * 무결성 규칙은 함부로 못 건드린다. 한 파일에 있으면 표현을 고치다 무결성을 스치게 된다.
+ * 응답 형태 규칙(prompt-response.ts)과 분리하는 이유는 **바뀌는 속도가 다르기 때문**이다 — 표현 규칙은
+ * 가독성 실험마다 손대지만 무결성 규칙은 함부로 못 건드린다. 한 파일에 있으면 표현을 고치다 무결성을 스친다.
  *
- * 🔴 **순서는 여기가 아니라 [prompt.ts](./prompt.ts) 의 `getSystemInstruction` 이 선언한다.**
- *    이 파일은 조각만 갖는다. 조각이 스스로 순서를 주장하면 조립부가 둘이 된다(§4 가 그 문제다).
+ * **순서는 여기가 아니라 [prompt.ts](./prompt.ts) 의 `getSystemInstruction` 이 선언한다.**
+ * 이 파일은 조각만 갖는다. 조각이 스스로 순서를 주장하면 조립부가 둘이 된다.
  *
- * ⚠️ 분리는 **바이트를 바꾸지 않았다** — 4개 언어 base 골든이 그걸 증명한다
- *    (`tests/test-prompt-assembly.mts`, Korean 21,208 / English 21,272 / Spanish 21,280 / French 21,294).
+ * 4개 언어 base 골든이 바이트를 지킨다(`tests/test-prompt-assembly.mts`).
  */
 
 /** URL·영상 요약의 언어별 소제목. `prompt.ts` 의 `URL_SUMMARY_LABELS` 에서 고른 것을 받는다. */
@@ -31,31 +29,25 @@ You are the AI model selected by the user. Follow the application rules below re
 /**
  * 제공된 본문(URL·첨부·영상)이 있을 때의 준수 규칙 — **줄 단위 조건부**.
  *
- * 🔴 2026-09-25(8단계 2차): 5,486자 중 **조건부 3,000여 자를 줄 단위로 갈랐다.**
- *    블록을 통째로 옮기지 않은 이유는 전역과 조건부가 **한 줄씩 교차**해 있기 때문이다 —
- *    `[ONE-LINE SUMMARY FORMAT]`(22~24행)은 전역인데 바로 위 URL 3단 템플릿(13~21행)은
- *    조건부이고, 그 아래 `[ANTI-HALLUCINATION]`·`[TOOL AVAILABILITY]`도 전역이다.
- *    통째 이동은 전역 규칙을 조건부로 만들거나 그 반대가 된다(PLAN §7-2 가 경고한 것).
+ * 블록 단위가 아니라 줄 단위로 켜고 끈다 — 전역 줄과 조건부 줄이 한 줄씩 교차해 있어
+ * (`[ONE-LINE SUMMARY FORMAT]` 은 전역, 바로 위 URL 3단 템플릿은 조건부) 통째로 옮기면 전역 규칙이
+ * 조건부가 되거나 그 반대가 된다(PLAN §7-2).
  *
- * 조건은 **코드에 이미 있다**:
+ * 조건은 코드에 있다:
  *  - `sourceTurn` = `!!state.webContent` — 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 바로 그 조건
- *    ([prompt-assembly.ts](./prompt-assembly.ts)). webContent 는 **어떤 노드도 쓰지 않고**
+ *    ([prompt-assembly.ts](./prompt-assembly.ts)). webContent 는 어떤 노드도 쓰지 않고
  *    route 의 initialState 에서만 정해지므로 턴 내내 고정이다 — base 를 route 에서 만들어도 안전하다.
  *  - `videoTurn` = `isYoutubeRequest || hasVideoPart(...)` — [video-turn.ts](./video-turn.ts)
  *
- * 🔴 **자리를 옮기지 않았다.** 각 줄은 원래 순서 그대로 있고 꺼질 때만 빠진다.
- *    그래서 `sourceTurn && videoTurn` 이면 **이전과 바이트가 완전히 같다**(골든이 증명).
+ * 각 줄은 원래 순서 그대로 있고 꺼질 때만 빠진다 — `sourceTurn && videoTurn` 이면 전체가 실린다(골든).
  *
- * ⚠️ 보수적으로 **전역에 남긴 두 줄**:
- *    - 26행 `NEVER mention internal context tag names` — 태그는 본문이 있을 때만 생기므로
- *      조건부로 볼 수도 있지만, **누설 방지는 무결성 규칙**이다. 370자를 아끼려고
- *      누설 위험을 사는 거래는 하지 않는다.
- *    - 29행 `If PROVIDED_SOURCE_TEXT is missing ... use the hosted search` — 본문이
- *      **없을 때** 무엇을 하라는 규칙이다. 조건부로 만들면 정확히 필요한 턴에서 사라진다.
+ * 보수적으로 **전역에 남긴 두 줄**:
+ *   - `NEVER mention internal context tag names` — 누설 방지는 무결성 규칙이다.
+ *   - `If PROVIDED_SOURCE_TEXT is missing ... use the hosted search` — 본문이 **없을 때**의 규칙이라
+ *     조건부로 만들면 정확히 필요한 턴에서 사라진다.
  *
- * ⚠️ 영상 전용 줄(3~6행 `[VIDEO ANALYSIS STRATEGY]`)은 `prompt-video.ts` 로 **합치지 않았다** —
- *    합치면 자리가 뒤로 밀려 위치가 변수로 끼어든다. 두 파일에 흩어진 채 두는 것이
- *    지금은 옳다(9단계 위치 A/B 이후에 재검토).
+ * 영상 전용 줄(`[VIDEO ANALYSIS STRATEGY]`)은 `prompt-video.ts` 로 합치지 않는다 — 합치면 자리가
+ * 뒤로 밀려 위치가 변수로 끼어든다(위치 A/B 이후 재검토).
  */
 const when = (on: boolean, text: string) => (on ? [text] : []);
 
@@ -69,15 +61,11 @@ export const buildSourceAdherence = (
     1.  Perform a **"Fast Scan"** by focusing intensely on the **Beginning**, **Middle**, and **Final** parts of the video.
     2.  Prioritize identifying core themes, major plot shifts, and conclusions quickly.
     3.  If the user asks for a specific detail, search the entire video, but for general summaries, use the Fast Scan approach to provide rapid insights.`),
-    // 🔴 **전역이다 — 게이트에 걸지 않는다**(2026-09-28 정정). 8단계 2차에서 `sourceTurn` 으로
-    //    묶었는데 **게이트가 이 줄의 적용 범위보다 좁았다.** `sourceTurn` 은 `!!state.webContent` 이고
-    //    `webContent` 는 클라이언트가 **`extractedText` 를 뽑은 첨부에만** 채운다
-    //    (docx·xlsx·txt·csv·hwp — `components/ChatInput.tsx`). **PDF·이미지·영상·오디오는 추출
-    //    분기가 없어** `fileData`/`image_url` 로 가고 `webContent` 는 빈다 → 이 줄이 **빠졌다.**
-    //    그런데 이 줄은 하필 **"PDF content" 를 이름으로 부른다.** 8단계 전에는 무조건 실렸으므로
-    //    전역으로 되돌리는 것은 **측정된 기준선으로 복귀**다.
-    //    ⚠️ 다른 10줄은 `If PROVIDED_SOURCE_TEXT contains "[...]"` 형태라 본문이 없으면 정말
-    //       무의미하다 — 그것들은 게이트에 남긴다. 이 줄만 `PROVIDED_SOURCE_TEXT` 를 전제하지 않는다.
+    // **전역이다 — 게이트에 걸지 않는다.** `sourceTurn`(`!!state.webContent`)은 클라이언트가
+    // `extractedText` 를 뽑은 첨부(docx·xlsx·txt·csv·hwp)에만 참이고, PDF·이미지·영상·오디오는
+    // `fileData`/`image_url` 로 가서 webContent 가 빈다. 이 줄은 "PDF content" 를 이름으로 부르므로
+    // 게이트에 걸면 정작 PDF 턴에서 빠진다 → DEV_260928
+    // 다른 10줄은 `If PROVIDED_SOURCE_TEXT contains "[...]"` 형태라 본문이 없으면 무의미하므로 게이트에 남긴다.
     `- You MUST prioritize information from the source text (Transcript, PDF content, etc.) over pre-trained knowledge or general search results for that specific source.`,
     ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[YOUTUBE_VIDEO_INFO]", it is a YouTube video. You are provided with Title, Channel, and Description. **IMPORTANT**: For shorter videos, you also have direct visual/auditory access via a multimodal 'fileUri' in the request parts. If a 'fileUri' part is present, you can "watch" and "listen" to the video directly. If it is NOT present, it means the video is too long or rich enough in metadata for a fast summary—in this case, use the provided Title and Description as your primary source. NEVER say "I cannot analyze video content"; always use the best available information to assist the user.`),
     ...when(sourceTurn, `- If PROVIDED_SOURCE_TEXT contains "[PAPER INFO]", it's an Arxiv paper. Use the Title, Authors, and Abstract provided.`),

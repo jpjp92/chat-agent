@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * Google 공식 로그인 버튼(GIS renderButton). 🔴 ID 토큰 흐름은 **Google 이 그린 버튼**으로만 시작된다 —
+ * Google 공식 로그인 버튼(GIS renderButton). ID 토큰 흐름은 **Google 이 그린 버튼**으로만 시작된다 —
  * 우리 버튼에서 `prompt()`(One Tap)를 부르면 사용자가 한 번 닫은 뒤 쿨다운으로 조용히 안 뜬다.
  * nonce 는 렌더마다 새로 만든다(재사용하면 재전송 방어가 무의미).
  */
@@ -45,7 +45,7 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
                 box.current.replaceChildren();
                 gid.renderButton(box.current, {
                     type: 'standard',
-                    // 다크에서도 흰 단색(outline) — filled_black 은 반투명 회색이라 카카오 노랑 옆에서 흐려 보였다(10-11).
+                    // 다크에서도 흰 단색(outline) — filled_black 은 반투명 회색이라 카카오 노랑 옆에서 흐려 보인다.
                     theme: 'outline',
                     size: 'large',
                     shape: 'pill',

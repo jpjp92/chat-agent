@@ -54,8 +54,8 @@ async function fetchPage(imprint: string, page: number): Promise<any[]> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    // Use imprint as-is — caller is responsible for passing the desired query form
-    // (uppercase normalized OR case-preserved). pharm.or.kr may be case-sensitive.
+    // 각인은 그대로 쓴다 — 원하는 질의 형태(대문자 정규화 또는 대소문자 보존)는
+    // 호출부가 정해서 넘긴다. pharm.or.kr 은 대소문자를 구분할 수 있다.
     const normalizedQuery = imprint;
 
     const body = new URLSearchParams({

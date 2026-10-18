@@ -2,27 +2,27 @@
  * 날씨 코어 — KMA(기상청 API Hub) + OpenWeather 하이브리드.
  *
  * 설계(PLAN_WEATHER_TOOL_260706):
- *  - 격자좌표는 하드코딩 표 X → `dfsXyConv(lat,lon)` LCC 공식(전국 커버). geocoding은 1회.
+ *  - 격자좌표는 하드코딩 표가 아니라 `dfsXyConv(lat,lon)` LCC 공식(전국 커버). geocoding은 1회.
  *  - 한국(country=KR) → KMA(실황+단기 2콜, 육상예보 생략), 실패 시 OpenWeather 폴백. 그 외 → OpenWeather.
  *  - 출력은 **언어 중립 구조 데이터**(condition/note 코드 + 숫자). i18n은 클라이언트(WeatherRenderer)가 담당.
- *  - 강수: 현재 우선 + 예보 fallback + PCP 범위/미만 파싱 강화(폭우 시 강수량 소실 방지).
+ *  - 강수: 현재 우선 + 예보 fallback + PCP 범위/미만 파싱(폭우 시 강수량 소실 방지).
  *
- * 검증: scripts/test-weather-hybrid.ts (KMA키=API Hub authKey·공식 격자 일치·레이턴시 1s, DEV_260705 §4).
+ * 검증 기록: DEV_260705 §4.
  */
 
 // ── 공개 타입 (렌더러/툴 공용 — 언어 중립) ──────────────────────────
 
 /** 정규화된 날씨 상태 코드. 렌더러가 이모지/라벨로 매핑. */
-export type WeatherCondition =
+type WeatherCondition =
   | 'clear' | 'mostlyClear' | 'partlyCloudy' | 'cloudy' | 'overcast'
   | 'rain' | 'shower' | 'drizzle' | 'thunder'
   | 'snow' | 'rainSnow' | 'flurry' | 'fog' | 'unknown';
 
 /** 강수 표시 상태: 지금 오는 중 / 예보상 예상 / 없음. */
-export type PrecipState = 'now' | 'expected' | 'none';
+type PrecipState = 'now' | 'expected' | 'none';
 
 /** 규칙기반 안내 코드(값 포함). 렌더러가 언어별 문구로 변환. */
-export type WeatherNote =
+type WeatherNote =
   | { code: 'highPop'; value: number }
   | { code: 'currentRain'; value: number }
   | { code: 'expectedRain'; value: number }
@@ -30,7 +30,7 @@ export type WeatherNote =
   | { code: 'freezing' }
   | { code: 'strongWind'; value: number };
 
-export type WeatherDaily = {
+type WeatherDaily = {
   date: string;            // YYYY-MM-DD (해당 도시 로컬)
   condition: WeatherCondition;
   minTemp: number;
@@ -40,7 +40,7 @@ export type WeatherDaily = {
   snowMm: number;
 };
 
-export type WeatherData = {
+type WeatherData = {
   source: 'KMA' | 'OpenWeather';
   updatedAt: string;                 // ISO (실제 조회 시각)
   timezoneOffsetSec: number;         // 도시 로컬 tz offset (초)
@@ -113,7 +113,7 @@ export function isKnownCityName(name: string): boolean {
   return !!(CITY_ALIASES[n] || CITY_ALIASES[compactCity(n)]);
 }
 
-export function normalizeCityInput(city: string) {
+function normalizeCityInput(city: string) {
   return city.trim().replace(/\s+/g, ' ').slice(0, 80);
 }
 function compactCity(city: string) {
@@ -126,7 +126,7 @@ function cityAliasQuery(city: string): string | undefined {
 
 // ── KMA 위경도 → 격자 변환 (Lambert Conformal Conic, 기상청 공식 샘플) ──
 // scripts/test-weather-hybrid.ts에서 서울 60,127 · 부산 98,76 등 레퍼런스 값과 일치 검증.
-export function dfsXyConv(lat: number, lon: number) {
+function dfsXyConv(lat: number, lon: number) {
   const RE = 6371.00877, GRID = 5.0;
   const SLAT1 = 30, SLAT2 = 60, OLON = 126, OLAT = 38, XO = 43, YO = 136;
   const D = Math.PI / 180, re = RE / GRID;
@@ -181,7 +181,7 @@ function dateFromYmd(ymd: string) {
 }
 
 // ── 값 파싱: KMA PCP 범위/미만/없음 문자열 안전 처리(폭우 강수량 소실 방지) ──
-export function numericValue(value: unknown): number | null {
+function numericValue(value: unknown): number | null {
   if (value === undefined || value === null) return null;
   const text = String(value).trim();
   if (!text) return null;
@@ -209,7 +209,7 @@ function kmaCondition(pty: number, sky: number): WeatherCondition {
   if (sky === 3) return 'cloudy';        // 구름많음
   return 'clear';                        // 맑음
 }
-// OpenWeather weather[0].id → condition (https://openweathermap.org/weather-conditions)
+// OpenWeather weather[0].id → 상태 (https://openweathermap.org/weather-conditions)
 function owmCondition(id: number): WeatherCondition {
   if (id >= 200 && id < 300) return 'thunder';
   if (id >= 300 && id < 400) return 'drizzle';
@@ -226,10 +226,6 @@ function owmCondition(id: number): WeatherCondition {
   if (id === 804) return 'overcast';
   return 'unknown';
 }
-function isPrecipCondition(c: WeatherCondition) {
-  return c === 'rain' || c === 'shower' || c === 'drizzle' || c === 'thunder'
-    || c === 'snow' || c === 'rainSnow' || c === 'flurry';
-}
 
 // ── OpenWeather ─────────────────────────────────────────────────────
 type OwmEntry = {
@@ -244,8 +240,8 @@ type OwmEntry = {
   visibility?: number;
 };
 
-// 외부 API가 멈추면 Vercel 60s 하드캡까지 매달림 → 툴 실행엔 상위 타임아웃이 없으므로
-// per-fetch로 끊는다. KMA는 실측 ~2~3.6s라 8s면 정상 응답은 안 잘리고 행만 차단.
+// 외부 API가 멈추면 함수 최대 실행 시간까지 매달린다 → 툴 실행엔 상위 타임아웃이 없으므로
+// per-fetch로 끊는다. KMA 정상 응답은 ~2~3.6s 라 8s면 정상 응답은 안 잘리고 행만 차단한다.
 const OWM_FETCH_TIMEOUT_MS = 8_000;
 const KMA_FETCH_TIMEOUT_MS = 9_000;
 

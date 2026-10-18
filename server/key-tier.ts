@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * 호출처(16곳)를 인자로 바꾸지 않으려고 AsyncLocalStorage 를 쓴다. ReadableStream 의 start 는
  * 생성자 안에서 동기 호출되므로, 스트림 **생성**을 감싸면 그래프 실행 전체가 컨텍스트를 물려받는다.
  */
-export type KeyTier = 'paid-first' | 'free';
+type KeyTier = 'paid-first' | 'free';
 
 const store = new AsyncLocalStorage<KeyTier>();
 

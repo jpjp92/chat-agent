@@ -38,7 +38,7 @@ interface AuthModalProps {
 
 const i18n = {
     ko: {
-        // 🔴 '저장'이라 하면 안 된다 — 게스트도 익명 계정이 있어 대화는 이미 DB에 있다.
+        // '저장'이라 하면 안 된다 — 게스트도 익명 계정이 있어 대화는 이미 DB에 있다.
         // 로그인해야만 되는 것은 '다른 기기에서 잇기'뿐이다. 제목은 그 진짜 혜택을 말한다.
         title: '다른 기기에서도 이어보기',
         limitTitle: '무료 체험이 끝났어요',
@@ -119,14 +119,14 @@ const KakaoMark = () => (
 );
 
 const AuthModal: React.FC<AuthModalProps> = ({
-    isOpen, onClose, reason = 'save', guestName, guestAvatarUrl, sessionCount, onLink, onSignIn,
+    isOpen, onClose, reason = 'save', guestAvatarUrl, sessionCount, onLink, onSignIn,
     onCredential, onSignInWithCredential, isDark, onKakao, initialConflict = false, language,
 }) => {
     const t = i18n[language] || i18n.ko;
     const isLimit = reason === 'limit';
     // GIS 를 못 쓰면(클라이언트 ID 없음·스크립트 차단) 기존 리다이렉트 버튼으로 떨어진다.
     const [gisFailed, setGisFailed] = useState(!GOOGLE_CLIENT_ID);
-    // 충돌 시 다시 쓸 토큰. 🔴 state 가 아니라 ref — 다시 그릴 이유가 없고, 모달을 닫으면 버린다.
+    // 충돌 시 다시 쓸 토큰. state 가 아니라 ref — 다시 그릴 이유가 없고, 모달을 닫으면 버린다.
     const lastCred = useRef<GoogleCredential | null>(null);
     const [busy, setBusy] = useState(false);
     const [conflict, setConflict] = useState(initialConflict);
@@ -160,7 +160,6 @@ const AuthModal: React.FC<AuthModalProps> = ({
             // provider 미등록 / manual linking 비활성 / 충돌이 전부 같은 화면으로 보인다.
             reportClientError('auth.link', e);
             // 이미 다른 유저에게 묶인 신원 → 충돌 분기. 이게 없으면 사용자는 무한 재시도에 갇힌다.
-            const msg = String(e?.message ?? '').toLowerCase();
             if (isIdentityConflict(e)) setConflict(true);
             else setError(t.genericError);
             setBusy(false);

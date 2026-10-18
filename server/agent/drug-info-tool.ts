@@ -28,8 +28,8 @@ const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
 
 /**
  * 검색 leg의 결과. **`empty`(검색했는데 결과 없음)와 `unavailable`(검색이 실행조차 안 됨)을
- * 반드시 구분한다.** 예전에는 둘 다 `null`이라, 429로 검색이 안 돌았는데도
- * "검색해도 없다"로 처리돼 모델이 훈련 지식으로 제품명을 지어냈다(DEV_260815_DEPLOY_CHECK).
+ * 반드시 구분한다.** 둘을 같은 값으로 두면 429 로 검색이 안 돌았는데도 "검색해도 없다"로 처리돼
+ * 모델이 훈련 지식으로 제품명을 지어낸다 → DEV_260815_DEPLOY_CHECK
  */
 // 약품 웹 검색은 무료티어 Google Search가 실제로 동작하는 2.5 Flash로 고정한다.
 // DEFAULT_CHAT_MODEL(현재 3.6)은 MODEL_CAPS상 freeTierSearch=false라 이 fallback에서 429가 난다.
@@ -44,8 +44,8 @@ const isQuotaError = (e: any): boolean =>
     e?.status === 429 || /429|RESOURCE_EXHAUSTED|quota/i.test(e?.message ?? '');
 
 /**
- * Uses Gemini SDK with Google Search grounding to retrieve drug info.
- * Called for ingredient/class questions and when an MFDS product lookup has no result.
+ * Gemini SDK + Google Search grounding 으로 약 정보를 찾는다.
+ * 성분·계열 질문, 그리고 MFDS 제품 조회 결과가 없을 때 호출된다.
  */
 async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOutcome> {
     if (API_KEYS.length === 0) {
@@ -75,7 +75,7 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOu
             const gm = response.candidates?.[0]?.groundingMetadata as any;
             console.log(`[Agent Tool] Google Search drug info for "${drugName}": ${text.length} chars | chunks: ${gm?.groundingChunks?.length ?? 'none'} | queries: ${JSON.stringify(gm?.webSearchQueries)}`);
 
-            // Extract grounding source URLs so chat.ts on_tool_end can surface them as chips
+            // grounding 출처 URL 추출 — chat.ts on_tool_end 가 칩으로 보여준다
             const chunks = gm?.groundingChunks as any[] | undefined;
             if (chunks && chunks.length > 0) {
                 const urlLines = chunks
@@ -86,7 +86,7 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOu
                     return { status: 'ok', text: `${text}\n\n[WEB_SOURCE_URLS]\n${urlLines}` };
                 }
             }
-            // Fallback: if grounding chunks are empty but search queries exist, use a Google search URL
+            // 폴백: grounding chunk 가 비었는데 검색어가 있으면 Google 검색 URL 사용
             const queries = gm?.webSearchQueries as string[] | undefined;
             if (queries && queries.length > 0) {
                 const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(queries[0])}`;
@@ -139,7 +139,7 @@ async function searchDrugReferences(drugName: string): Promise<DrugSearchOutcome
 }
 
 /**
- * Uses Gemini Vision to read actual imprint text from an MFDS drug image.
+ * Gemini Vision 으로 MFDS 약 이미지에서 실제 각인 글자를 읽는다.
  * Called when MFDS API returns "마크" (logo) instead of actual text.
  */
 async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' | 'marked'): Promise<string | null> {
@@ -147,7 +147,7 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' 
         const apiKey = getNextApiKey();
         if (!apiKey) return null;
 
-        // Download the image
+        // 이미지 다운로드
         const imgController = new AbortController();
         const imgTimeout = setTimeout(() => imgController.abort(), 6000);
         let imgRes: Response;
@@ -169,9 +169,8 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' 
         const contentType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
         const model = new ChatGoogleGenerativeAI({
-            // 각인 1~2자 판독엔 3.5 품질 불필요 — 2.5-flash로 고정해 Vision fan-out(최대 10콜)
-            // 지연을 복원한다. 기본 모델 3.5 전환(2026-05-30) 후 이 fan-out이 Vercel 60s를 초과해
-            // drug_info 무응답이 발생했음.
+            // 각인 1~2자 판독엔 고성능 모델이 필요 없다 — 2.5-flash 로 고정해 Vision fan-out(최대 10콜)
+            // 지연을 줄인다(느린 모델이면 fan-out 이 수십 초로 늘어 drug_info 가 무응답이 된다).
             model: SERVER_MODELS.FLASH,
             apiKey: apiKey,
             // temperature 0: 로고형 각인이 실행마다 다른 글자로 흔들리던 비결정성 제거
@@ -215,14 +214,14 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' 
 
 /**
  * Searches the official Korean MFDS (식약처) drug identification database.
- * This is the primary source of truth for pill visual data (imprint, shape, color, image).
+ * 약 외형 데이터(각인·모양·색·이미지)의 1차 근거다.
  * When MFDS returns "마크" for either imprint face, Gemini Vision reads the actual symbol.
  */
 export const searchDrugInfoTool = tool(
     async ({ drug_name, query_kind, reference_search }) => {
         try {
 
-            // MFDS Search Helper
+            // MFDS 검색 헬퍼
             const fetchMFDS = async (nameToSearch: string) => {
                 const encodedName = encodeURIComponent(nameToSearch);
                 const url = `${MFDS_API_ENDPOINT}?serviceKey=${MFDS_API_KEY}&numOfRows=5&pageNo=1&type=json&item_name=${encodedName}`;
@@ -318,7 +317,7 @@ export const searchDrugInfoTool = tool(
                 }
             }));
 
-            // Format result block for the LLM to use in json:drug generation
+            // json:drug 생성에 쓸 결과 블록을 LLM 용으로 정리
             let result = `[MFDS_DRUG_DATA] 식약처 공식 데이터 (총 ${items.length}건)\n\n`;
             items.forEach((item: any, idx: number) => {
                 result += `== 후보 ${idx + 1} ==\n`;

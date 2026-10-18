@@ -26,10 +26,10 @@ interface HospitalRendererProps {
 
 const PAGE_SIZE = 5;
 
-export type Lang = 'ko' | 'en' | 'es' | 'fr';
+type Lang = 'ko' | 'en' | 'es' | 'fr';
 
 /**
- * 🔴 HIRA API 계약값 — 종별 문자열. **번역 금지.**
+ * HIRA API 계약값 — 종별 문자열. **번역 금지.**
  * 아래 TYPE_STYLE 의 키이자 h.type.includes(...) 비교에 쓰인다. 언어별로 바꾸면
  * 색상 매핑과 분기가 통째로 깨진다. 화면 표시는 TYPE_LABEL 로 따로 옮긴다.
  */
@@ -103,7 +103,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
 
   return (
     <div className="my-4 w-full">
-      {/* Header */}
+      {/* 헤더 */}
       <div className="mb-4 flex items-center gap-2">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
           <i className="fa-solid fa-hospital text-white text-xs" />
@@ -118,7 +118,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
         </div>
       </div>
 
-      {/* Cards */}
+      {/* 카드 */}
       <div className="flex flex-col gap-2 w-full">
         {pageItems.map((h, i) => {
           const typeStyle = getTypeStyle(h.type);
@@ -129,7 +129,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
               key={`${h.name}-${i}`}
               className="relative w-full rounded-2xl border border-white/10 dark:border-white/[0.06] bg-white/60 dark:bg-white/[0.04] backdrop-blur-xl overflow-hidden"
             >
-              {/* Left accent stripe by type */}
+              {/* 종별 왼쪽 강조 띠 */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
                 h.type.includes(API_TERTIARY) ? 'bg-violet-500' :
                 h.type.includes(API_GENERAL) ? 'bg-blue-500' :
@@ -138,9 +138,9 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
 
               <div className="pl-4 pr-3 sm:pl-5 sm:pr-4 py-3 sm:py-4">
                 <div className="flex items-start justify-between gap-2 w-full min-w-0">
-                  {/* Left: info */}
+                  {/* 왼쪽: 정보 */}
                   <div className="min-w-0 flex-1">
-                    {/* Name + type badge */}
+                    {/* 이름 + 종별 배지 */}
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       <span className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white truncate max-w-[160px] sm:max-w-[320px] lg:max-w-[540px]">
                         {h.name}
@@ -150,12 +150,12 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
                       </span>
                     </div>
 
-                    {/* Address */}
+                    {/* 주소 */}
                     <p className="text-[11px] sm:text-[12px] text-slate-500 dark:text-slate-400 truncate leading-snug">
                       {h.address.replace(/^서울특별시 /, '').replace(/^부산광역시 /, '').replace(/^대구광역시 /, '').replace(/^인천광역시 /, '')}
                     </p>
 
-                    {/* Doctor count + established */}
+                    {/* 의사 수 + 개설일 */}
                     <div className="mt-1 flex items-center gap-3">
                       {h.doctor_count > 0 && (
                         <div className="flex items-center gap-1">
@@ -176,7 +176,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
                     </div>
                   </div>
 
-                  {/* Right: action buttons */}
+                  {/* 오른쪽: 동작 버튼 */}
                   <div className="flex flex-col gap-1 shrink-0">
                     {h.phone && (
                       <a
@@ -218,7 +218,7 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
         })}
       </div>
 
-      {/* Pagination */}
+      {/* 페이지네이션 */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2">
           <button
@@ -257,5 +257,3 @@ export const HospitalRenderer: React.FC<HospitalRendererProps> = ({ data, langua
     </div>
   );
 };
-
-export default HospitalRenderer;

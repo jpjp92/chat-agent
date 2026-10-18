@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
 import { DrugRenderer } from '../../../components/DrugRenderer';
 
-// 표본 — MFDS 알약식별 API 실제 값(2026-10-18 조회). 각인은 서버가 정리한 뒤의 값(drug-imprint.ts: "마크" → "마크(dHP)").
+// 표본 — MFDS 알약식별 API 실제 값. 각인은 서버가 정리한 뒤의 값(drug-imprint.ts: "마크" → "마크(dHP)").
 const SAMPLES = [
     {
         note: '한 면만 각인 · MFDS 는 "뒷면" 인데 사진은 왼쪽(앞면 자리)',

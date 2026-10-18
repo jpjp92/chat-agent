@@ -72,7 +72,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     const [activeSmiles, setActiveSmiles] = useState(smiles);
     const [smilesSource, setSmilesSource] = useState<'llm' | 'pubchem'>('llm');
 
-    // Adaptive height based on molecule complexity (SMILES length proxy)
+    // 분자 복잡도(SMILES 길이로 근사)에 맞춘 높이
     const resolvedHeight = height ?? (activeSmiles.length > 120 ? 460 : activeSmiles.length > 60 ? 380 : 300);
     const svgRef = useRef<SVGSVGElement>(null);
     const [drawer, setDrawer] = useState<any>(null);
@@ -225,7 +225,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
         <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
-                {/* Header — always visible */}
+                {/* 헤더 — 항상 표시 */}
                 <div className="px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-white/5 flex items-center justify-between gap-3 bg-slate-50/30 dark:bg-white/[0.04]">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 animate-pulse"></div>
@@ -253,7 +253,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                     )}
                 </div>
 
-                {/* Structure Area */}
+                {/* 구조식 영역 */}
                 <div className="p-8 flex flex-col items-center justify-center min-h-[200px] relative" style={{ minHeight: `${Math.max(200, resolvedHeight * 0.6)}px` }}>
                     <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/5 via-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
@@ -290,7 +290,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                     )}
                 </div>
 
-                {/* Info & Code Footer */}
+                {/* 정보·코드 하단 */}
                 <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.04] px-4 sm:px-5 py-2">
                     <div className="flex items-center justify-between gap-2 sm:gap-4">
                         <button

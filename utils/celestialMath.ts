@@ -1,77 +1,33 @@
 /**
- * Celestial coordinate transformation utilities for constellation visualization
+ * 별자리 시각화용 천구 좌표 변환 유틸
  */
 
 
 /**
- * Project celestial coordinates directly to 2D canvas
- * @param ra Right Ascension in hours (0-24)
- * @param dec Declination in degrees (-90 to 90)
- * @param scale Scaling factor for canvas
- * @param centerX Canvas center X
- * @param centerY Canvas center Y
- * @param centerRA Center RA for viewport (default: 6 hours for Orion region)
- * @param centerDec Center Dec for viewport (default: 0 degrees for celestial equator)
- * @returns [canvasX, canvasY] pixel coordinates
- */
-export function projectToCanvas(
-    ra: number,
-    dec: number,
-    scale: number,
-    centerX: number,
-    centerY: number,
-    centerRA: number = 6,
-    centerDec: number = 0
-): [number, number] {
-    // Convert RA/Dec offsets from center to canvas coordinates
-    // RA: 1 hour = 15 degrees, so we scale by 15
-    const raOffset = (ra - centerRA) * 15;  // Convert to degrees
-    const decOffset = dec - centerDec;
-
-    // Apply distance compression for better visualization
-    // This brings outlier stars closer to the center
-    const distance = Math.sqrt(raOffset * raOffset + decOffset * decOffset);
-    const compressionFactor = distance > 30 ?
-        30 + Math.log(1 + (distance - 30) / 10) * 10 : // Compress beyond 30°
-        distance;
-
-    const compressionRatio = distance > 0 ? compressionFactor / distance : 1;
-    const compressedRAOffset = raOffset * compressionRatio;
-    const compressedDecOffset = decOffset * compressionRatio;
-
-    // Map to canvas with appropriate scaling
-    // Smaller scale factor for RA to account for spherical distortion
-    const x = centerX + (compressedRAOffset * scale * 0.05);
-    const y = centerY - (compressedDecOffset * scale * 0.05);
-
-    return [x, y];
-}
-
-/**
- * Calculate star size based on magnitude (brighter stars = larger size)
- * @param magnitude Apparent magnitude (lower = brighter)
- * @returns Radius in pixels
+ * 등급으로 별 크기 계산 (밝을수록 크게)
+ * @param magnitude 겉보기 등급 (낮을수록 밝음)
+ * @returns 반지름(px)
  */
 export function magnitudeToSize(magnitude: number): number {
-    // Magnitude scale: -1.5 (Sirius) to 6 (faintest visible)
-    // Map to pixel radius: 12px (brightest) to 2px (faintest)
+    // 등급 범위: -1.5 (시리우스) ~ 6 (맨눈 한계)
+    // 픽셀 반지름: 12px (가장 밝음) ~ 2px (가장 어두움)
     return Math.max(2, Math.min(12, 9 - magnitude));
 }
 
 /**
- * Calculate star opacity based on magnitude
- * @param magnitude Apparent magnitude
- * @returns Opacity value (0-1)
+ * 등급으로 별 불투명도 계산
+ * @param magnitude 겉보기 등급
+ * @returns 불투명도 (0-1)
  */
 export function magnitudeToOpacity(magnitude: number): number {
-    // Brighter stars = more opaque
+    // 밝은 별일수록 불투명
     return Math.max(0.3, Math.min(1, 1 - magnitude / 8));
 }
 
 /**
- * Static "poster chart" projection: real RA/Dec relative positions, centered on the
- * constellation centroid and auto-fit to the frame. Time/location independent.
- * Sky orientation: RA increases to the LEFT, north (dec+) is up.
+ * 정적 "포스터 차트" 투영: 실제 RA/Dec 상대 위치를 별자리 무게중심에
+ * 맞추고 프레임에 자동 맞춤. 시간·위치 무관.
+ * 하늘 방향: RA 는 **왼쪽**으로 증가, 북(dec+)이 위.
  */
 export function projectStaticChart(
     stars: { id: number; ra: number; dec: number }[],
@@ -79,7 +35,7 @@ export function projectStaticChart(
     height: number,
     padXFrac = 0.15,
     padYFrac = 0.19,
-    topInset = 0, // extra reserved space at the top (px) for the poster title, so the figure sits below it
+    topInset = 0, // 포스터 제목용 위쪽 여백(px) — 그림이 제목 아래에 놓이게
 ): { id: number; x: number; y: number }[] {
     if (stars.length === 0) return [];
     const cRA = stars.reduce((s, x) => s + x.ra, 0) / stars.length;
@@ -87,8 +43,8 @@ export function projectStaticChart(
     const cosD = Math.cos((cDec * Math.PI) / 180);
     const raw = stars.map(s => ({
         id: s.id,
-        px: -((s.ra - cRA) * 15) * cosD, // degrees, RA increases left
-        py: -(s.dec - cDec),             // degrees, north up
+        px: -((s.ra - cRA) * 15) * cosD, // 도 단위, RA 는 왼쪽으로 증가
+        py: -(s.dec - cDec),             // 도 단위, 북쪽이 위
     }));
     const xs = raw.map(p => p.px), ys = raw.map(p => p.py);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -98,11 +54,11 @@ export function projectStaticChart(
     const availH = Math.max(1, availBottom - availTop);
     const sc = Math.min((width - 2 * padX) / ((maxX - minX) || 1), availH / ((maxY - minY) || 1));
     const ox = (width - (maxX + minX) * sc) / 2;
-    const oy = (availTop + availBottom) / 2 - ((minY + maxY) / 2) * sc; // center within the area below the title band
+    const oy = (availTop + availBottom) / 2 - ((minY + maxY) / 2) * sc; // 제목 띠 아래 영역 가운데에 배치
     return raw.map(p => ({ id: p.id, x: p.px * sc + ox, y: p.py * sc + oy }));
 }
 
-/** Screen-space view transform (zoom + rotation + pan) around a center, shared by both projection modes. */
+/** 중심 기준 화면 뷰 변환(줌 + 회전 + 이동) — 두 투영 모드 공통. */
 export function applyViewTransform(
     pts: { id: number; x: number; y: number }[],
     cx: number,

@@ -54,13 +54,13 @@ check('서버도 3.7 → 3.8 로 바꾼다', /\[SERVER_MODELS\.FLASH_3_7\]: SERV
 const chatRouteSource = fs.readFileSync(new URL('../app/api/chat/route.ts', import.meta.url), 'utf8');
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
 
-// 🔴 "한 줄 요약" 헤딩의 본문 서식이 경로마다 달랐다(실측 2026-08-31, 사용자 화면):
+// "한 줄 요약" 헤딩의 본문 서식이 경로마다 달랐다(실측 2026-08-31, 사용자 화면):
 //   URL·영상 요약은 `> 인용문`, **이미지 분석은 그냥 문단**. 같은 헤딩이 다르게 보인다.
 //   이미지 쪽엔 서식 규칙이 아예 없어서 모델이 헤딩만 흉내 낸 결과였다.
-//   ⚖️ 구조 전체를 강요하지 않는다 — 알약 판독·표 추출 같은 다른 이미지 질문이 망가진다.
+//   구조 전체를 강요하지 않는다 — 알약 판독·표 추출 같은 다른 이미지 질문이 망가진다.
 //      규칙은 **헤딩을 쓸 때의 서식**에만 건다.
 {
-    // 🔴 2026-09-24(7단계): 여기도 `prompt.ts` 를 **소스로 읽고** 있었다. base 를
+    // 2026-09-24(7단계): 여기도 `prompt.ts` 를 **소스로 읽고** 있었다. base 를
     //    prompt-integrity/prompt-response 로 가르자 문구는 그대로인데 3건이 깨졌다.
     //    이제 **조립된 base** 를 본다 — 블록이 어느 파일에 있든 따라가고, 문구가 바뀌면 깨진다.
     //    예시 검사는 소스의 `${lbl.summary}` 가 아니라 **실제로 찍히는 라벨**을 본다.
@@ -73,16 +73,16 @@ const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import
     // URL·영상 예시가 블록쿼트를 유지하는가 (예시가 규칙과 어긋나면 모델은 예시를 따른다)
     const exampleKeepsQuote = (block: string) =>
         new RegExp(`\\*\\*${LBL}\\*\\*\\s*\\n\\s*>`).test(block);
-    // 🔴 URL 3단 예시는 **본문 턴 base** 에만 있다 — 8단계 2차(2026-09-25)에서 조건부가 됐다.
+    // URL 3단 예시는 **본문 턴 base** 에만 있다 — 8단계 2차(2026-09-25)에서 조건부가 됐다.
     //    조건은 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 것과 같은 `!!state.webContent` 다.
     //    `?? ''` 를 남겨 둔다 — 블록이 사라지면 빈 문자열이 정규식에 걸려 빨갛게 된다.
     const psSource = getSystemInstruction('Korean', { sourceTurn: true });
     check('URL 예시가 블록쿼트를 쓴다', exampleKeepsQuote(psSource.match(/\[URL_CONTENT\][\s\S]{0,400}/)?.[0] ?? ''));
     check('본문 없는 턴 base 에는 URL 3단 조항이 없다',
         !ps.includes('If PROVIDED_SOURCE_TEXT contains "[URL_CONTENT]"'));
-    // 🔴 그래도 **전역 규칙은 남는다** — 한 줄 요약 서식은 "EVERY analysis path" 라고
+    // 그래도 **전역 규칙은 남는다** — 한 줄 요약 서식은 "EVERY analysis path" 라고
     //    스스로 못 박은 규칙이라 본문이 없어도 실린다. 위 `ps` 검사 3건이 그걸 본다.
-    // 🔴 영상 예시는 **영상 턴 base** 에만 있다 — 8단계(2026-09-25)에서 조건부가 됐다.
+    // 영상 예시는 **영상 턴 base** 에만 있다 — 8단계(2026-09-25)에서 조건부가 됐다.
     //    `ps`(영상 아님)로 보면 블록이 없어 깨진다. 없는 것을 통과로 세지 않으려고
     //    `?? ''` 를 남겨 둔다 — 블록이 사라지면 빈 문자열이 정규식에 걸려 빨갛게 된다.
     const psVideo = getSystemInstruction('Korean', { videoTurn: true });
@@ -385,7 +385,7 @@ const clamped = applyGeminiCitations('짧은 문장', {
 check('범위 밖 오프셋은 문장 끝으로 클램프', clamped.text === '짧은 문장[1](https://example.com/a)');
 
 // 실측 2026-08-24 00:20 KST: `오늘 나온 AI 뉴스`에 검색 결과 게시일(8/23)을 오늘로 답했다.
-// 🔴 2026-09-24: 시각 블록 문구가 `prompt-assembly.ts` 로 이사했다. grep 경로를 옮기는 대신
+// 2026-09-24: 시각 블록 문구가 `prompt-assembly.ts` 로 이사했다. grep 경로를 옮기는 대신
 //    **조립 결과**를 본다 — 문구가 어느 파일에 있든 사용자에게 나가는지가 지켜야 할 것이다.
 const timeBlockPrompt = assemblePrompt({
     base: getSystemInstruction('Korean'), langName: 'Korean', latestUserText: '오늘 나온 AI 뉴스',
@@ -455,12 +455,12 @@ const baseTimeoutOpts = {
     check('상한 초과는 status 504', caught?.status === 504, `status=${caught?.status}`);
     check('상한 초과는 code=timeout', caught?.code === 'timeout', `code=${caught?.code}`);
     check('타임아웃이 상한 근처에서 발화한다', elapsed >= 100 && elapsed < 2000, `${elapsed}ms`);
-    // 🔴 이 줄이 캡처의 빨간 토스트다. 504 → unavailable 매핑이 끊기면 문구가 바뀐다.
+    // 이 줄이 캡처의 빨간 토스트다. 504 → unavailable 매핑이 끊기면 문구가 바뀐다.
     check('504 는 unavailable 로 분류된다(=서버가 일시적으로 불안정합니다)',
         classifyChatError(caught) === 'unavailable', classifyChatError(caught));
 }
 
-// 2) 🔴 핵심 회귀: 상한은 **호출당** 이어야 한다, 턴 전체 예산이 아니라.
+// 2) 핵심 회귀: 상한은 **호출당** 이어야 한다, 턴 전체 예산이 아니라.
 //    initial 이 상한의 대부분을 쓰고 끝나도 followup 은 **온전한 상한**을 새로 받아야 한다.
 //    예전 구조(컨트롤러 1개 공유)에서는 followup 이 남은 잔액만 받아 즉시 잘렸다.
 {
@@ -516,7 +516,7 @@ const baseTimeoutOpts = {
     const m = src.match(/const OPENAI_CHAT_TIMEOUT_MS = ([\d_]+);/);
     const ms = Number(String(m?.[1] ?? '').replace(/_/g, ''));
     check('OPENAI_CHAT_TIMEOUT_MS 를 읽을 수 있다', Number.isFinite(ms) && ms > 0, String(m?.[1]));
-    // 🔴 60s 는 폐기된 전제다(e9435fa 8/9 에 maxDuration 60→300 으로 정정됨).
+    // 60s 는 폐기된 전제다(e9435fa 8/9 에 maxDuration 60→300 으로 정정됨).
     check('상한이 폐기된 60s 전제로 되돌아가지 않았다', ms > 60_000, `${ms}ms`);
     check('카드 턴 최악(2회)이 maxDuration 300s 안에 든다', ms * 2 <= 300_000, `${ms}×2 = ${ms * 2}ms`);
 }
@@ -533,7 +533,7 @@ const baseTimeoutOpts = {
     const openaiFetch = num(/OPENAI_URL_FETCH_TIMEOUT_MS = ([\d_]+)/, ufSrc);
     const chatTimeout = num(/const OPENAI_CHAT_TIMEOUT_MS = ([\d_]+);/, chatSrc);
     check('url-fetch 상한을 읽을 수 있다', Number.isFinite(openaiFetch) && openaiFetch > 0, String(openaiFetch));
-    // 🔴 두 값은 서로 다른 예산에서 나온다. 같아지면 한쪽 근거가 복사된 것이다.
+    // 두 값은 서로 다른 예산에서 나온다. 같아지면 한쪽 근거가 복사된 것이다.
     check('url-fetch 상한이 chat 상한과 독립이다', openaiFetch !== chatTimeout,
         `둘 다 ${openaiFetch}ms — chat 근거를 복사했을 가능성`);
     // 클라이언트가 65s 에 끊으므로 폴백 하나가 그보다 오래 버티는 건 의미가 없다.

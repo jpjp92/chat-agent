@@ -44,8 +44,7 @@ export const collectTextSearchSignals = (opts: {
     const { latestUserText, prevSearched, needsSearch, isGeneralIntent } = opts;
     const signals: SearchSignal[] = [];
 
-    // tier 300 — 사용자 명시 요청. 이번 결함(DEV_260815)을 막는 신호가 정확히 이것이다.
-    // 멀티턴 가드(100)도, 첨부문서(200)도 이걸 뒤집지 못한다.
+    // tier 300 — 사용자 명시 요청. 멀티턴 가드(100)도, 첨부문서(200)도 이걸 뒤집지 못한다(DEV_260815).
     if (detectExplicitSearchRequest(latestUserText)) {
         signals.push({
             tier: TIER.USER_EXPLICIT,
@@ -89,19 +88,17 @@ export const collectTextSearchSignals = (opts: {
 /**
  * 논문 카드 도구 + **사용자가 검색을 명시 요청** → 종합 단계에 웹 검색을 붙여 돌려준다.
  *
- * 🔴 왜 필요한가(2026-09-02 실사용). 라우터가 "클로드 skills 관련된 레포 검색" 을
- *   `arxiv_search` 로 보내자, generator 의 `useWebSearch = !localFunctionTool && ...` 가
- *   **로컬 함수가 있다는 이유만으로** 사용자의 명시 검색 요청(tier 300)을 버렸고, 논문 도구엔
- *   `followupWebSearch` 도 없어서 답변 전체가 엉뚱한 arXiv 근거만 달고 나갔다 — 웹으로
- *   빠져나갈 구멍이 하나도 없었다. 라우터 가드(`resolvePaperArtifactIntent`)가 1차 방어이고,
- *   이건 그걸 뚫고 온 경우의 2차 방어다.
+ * generator 의 `useWebSearch = !localFunctionTool && ...` 는 로컬 함수가 있으면 웹 검색을 끈다.
+ * 라우터가 논문 의도로 미끄러지면(예: 레포 검색이 `arxiv_search` 로) 사용자의 명시 검색 요청(tier 300)이
+ * 버려지고 엉뚱한 arXiv 근거만 남는다. 라우터 가드(`resolvePaperArtifactIntent`)가 1차 방어이고,
+ * 이건 그걸 뚫고 온 경우의 2차 방어다 → DEV_260902
  *
- * ⚠️ 논문 두 intent 로만 좁힌다. 약국·병원·날씨 카드는 조회 결과가 곧 답이라 웹을 덧붙일
- *   이유가 없고 레이턴시만 는다. `drug_info` 는 이미 상시 `followupWebSearch: true` 다.
+ * 주의: 논문 두 intent 로만 좁힌다. 약국·병원·날씨 카드는 조회 결과가 곧 답이라 웹을 덧붙일
+ * 이유가 없고 레이턴시만 는다. `drug_info` 는 이미 상시 `followupWebSearch: true` 다.
  *
- * 🏠 여기 사는 이유: 개념상 local-tool-registry 가 맞지만, 그 모듈은 도구 12종을 통해
- *   Supabase 클라이언트까지 끌고 와 시크릿 없이는 임포트되지 않는다. 판정은 텍스트 신호이므로
- *   (이 파일의 주제) 여기 두고 도구 모양은 제네릭으로 받는다 — 하니스가 프로덕션을 그대로 실행한다.
+ * 여기 두는 이유: 개념상 local-tool-registry 가 맞지만, 그 모듈은 도구를 통해 Supabase 클라이언트까지
+ * 끌고 와 시크릿 없이는 임포트되지 않는다. 판정은 텍스트 신호이므로 여기 두고 도구 모양은 제네릭으로
+ * 받는다 — 하니스가 프로덕션을 그대로 실행한다.
  */
 const PAPER_CARD_INTENTS = new Set(['paper_search', 'arxiv_search']);
 
@@ -118,15 +115,13 @@ export const withExplicitSearchFollowup = <T extends { intent: string; followupW
  *
  * Gemini 는 이미지와 grounding 을 한 요청에 못 담는다(tier 400). 그래서 **이미지를 빼는 것**이
  * 유일한 탈출구다 — 이미지 내용은 직전 assistant 답변에 텍스트로 전사돼 있어 팩트체크가 가능하다.
- * (OpenAI 는 이 제약이 없어 애초에 이 함수를 타지 않는다 — `provider: 'openai'` 로 400 자체가 안 난다.)
+ * (OpenAI 는 이 제약이 없어 이 함수를 타지 않는다 — `provider: 'openai'` 로 400 자체가 안 난다.)
  *
- * 🔴 **`medical_qa` 를 넣은 것이 이번 수정의 핵심이다**(DEV_260902 §9.2). 예전엔 `general` 만
- *   봤는데, `medical_qa` 는 게이트에서 **tier 100 검색 강제 ON** 인 의도다. 400 에 눌리면
- *   *"의약 질의는 출처 기반으로 답한다"* 는 정책이 이미지 직후 턴 동안 조용히 무효가 됐다.
+ * `general` 과 `medical_qa` 가 대상이다 — `medical_qa` 는 게이트에서 tier 100 검색 강제 ON 이라,
+ * 400 에 눌리면 "의약 질의는 출처 기반으로 답한다" 정책이 이미지 직후 턴 동안 무효가 된다 → DEV_260902 §9.2
  *
- * ⚖️ **렌더러 4종(astronomy·biology·chemistry·physics·data_viz)은 일부러 제외한다.**
- *   그쪽은 히스토리 이미지가 답의 **대상**일 수 있고(`이 사진 속 분자 구조 그려줘`),
- *   tier 200 `renderer` 신호로 어차피 off 다. 이미지를 빼면 얻는 것보다 잃는 게 크다.
+ * 렌더러 의도(astronomy·biology·chemistry·physics·data_viz)는 제외한다 — 히스토리 이미지가 답의
+ * **대상**일 수 있고(`이 사진 속 분자 구조 그려줘`), tier 200 `renderer` 신호로 어차피 off 다.
  */
 const IMAGE_DROP_ELIGIBLE_INTENTS = new Set(['general', 'medical_qa']);
 
@@ -146,15 +141,13 @@ export const shouldDropImageForSearch = (opts: {
 /**
  * LangChain(Gemini) 논문 턴의 **종합 단계**에 웹 검색 도구를 더할 것인가.
  *
- * 🔴 Gemini 경로의 논문 의도는 웹 탈출구가 **아예 없었다**(DEV_260902 §9.3).
- *   `drug_info` 는 `[searchDrugInfoTool, searchWebTool]` 로 웹을 함께 주는데 논문만 단일 도구였고,
- *   LangChain 경로는 grounding 도 쓰지 않는다. 라우터가 미끄러지면 어떤 경로로도 웹에 못 갔다.
+ * LangChain 경로는 grounding 을 쓰지 않으므로 논문 의도에 웹 탈출구가 따로 있어야 한다
+ * (`drug_info` 는 `[searchDrugInfoTool, searchWebTool]` 로 웹을 함께 준다) → DEV_260902 §9.3
  *
- * ⚠️ **`afterToolResult` 가 필수인 이유.** 1차 호출에 도구를 둘 주면 `forceDomainTool`
- *   (`allTools.length === 1` 요구)이 풀려 **모델이 논문 도구를 아예 안 부를 수 있다** —
- *   그 강제가 존재하는 이유가 *"Gemini 가 실제로 지원하는 요청도 자체 판단으로 거절한다"* 이다.
- *   그래서 조회는 단독·강제로 끝내고, `ToolMessage` 이후에만 웹을 더한다.
- *   OpenAI 의 `functionPhase: 'followup'`(`withExplicitSearchFollowup`)과 같은 구조다.
+ * `afterToolResult` 가 필수인 이유: 1차 호출에 도구를 둘 주면 `forceDomainTool`(`allTools.length === 1` 요구)이
+ * 풀려 모델이 논문 도구를 안 부를 수 있다(그 강제는 Gemini 가 지원하는 요청도 스스로 거절하는 것을 막는다).
+ * 그래서 조회는 단독·강제로 끝내고, `ToolMessage` 이후에만 웹을 더한다.
+ * OpenAI 의 `functionPhase: 'followup'`(`withExplicitSearchFollowup`)과 같은 구조다.
  */
 export const shouldAddWebSearchToPaperFollowup = (
     intent: string,

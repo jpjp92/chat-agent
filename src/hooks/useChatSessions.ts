@@ -54,9 +54,9 @@ const EXT_MIME: Record<string, string> = {
 };
 
 const inferAttachment = (attachmentUrl: string): { fileName: string; mimeType: string; data: string } => {
-  // attachment_url can be an HTTP URL (uploaded) or a bare mimeType string (base64 kept inline)
+  // attachment_url 은 HTTP URL(업로드됨) 또는 mimeType 문자열(base64 를 인라인으로 둔 경우)
   if (!attachmentUrl.startsWith('http')) {
-    // Stored as mimeType string — data cannot be recovered
+    // mimeType 문자열로 저장됨 — 데이터는 복구할 수 없다
     const mime = attachmentUrl;
     const fileName = mime.includes('pdf') ? 'document.pdf'
       : mime.includes('word') ? 'document.docx'
@@ -69,7 +69,7 @@ const inferAttachment = (attachmentUrl: string): { fileName: string; mimeType: s
       : 'document';
     return { fileName, mimeType: mime, data: '' };
   }
-  // HTTP URL — infer mimeType from file extension first, then bucket path
+  // HTTP URL — 파일 확장자로 mimeType 추론, 다음은 버킷 경로
   const ext = attachmentUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   if (ext && EXT_MIME[ext]) {
     const mimeType = EXT_MIME[ext];
@@ -79,7 +79,7 @@ const inferAttachment = (attachmentUrl: string): { fileName: string; mimeType: s
       : `document.${ext}`;
     return { fileName, mimeType, data: attachmentUrl };
   }
-  // Fallback: bucket path heuristic
+  // 폴백: 버킷 경로로 추정
   const mimeType = attachmentUrl.includes('/chat-videos/') ? 'video/mp4'
     : attachmentUrl.includes('/chat-docs/') ? 'application/pdf'
     : 'image/jpeg';
@@ -103,14 +103,13 @@ const SESSION_PAGE_SIZE = 30;
 const DEFAULT_SESSION_TITLE = 'New Chat';
 
 /**
- * 🔴 캐시에는 **소유자를 새긴다.**
+ * 캐시에는 **소유자를 새긴다.**
  *
- * 예전엔 전역 키 하나에 세션 목록만 담았다. 그래서 로그아웃 후 새 게스트가 이전 유저의
- * **대화 제목을 그대로 봤다**(실측). RLS 는 DB 를 지키지만 localStorage 는 못 지킨다 —
- * 캐시가 유저를 구분하지 않으면 화면에서 새어나간다.
+ * 캐시가 유저를 구분하지 않으면 로그아웃 후 새 게스트가 이전 유저의 대화 제목을 본다 —
+ * RLS 는 DB 를 지키지만 localStorage 는 못 지킨다.
  *
  * 소유자가 바뀌면 캐시는 버린다. 유저 전환은 signOut(→새 게스트) 과
- * signInWithGoogle(→다른 uuid) 두 경로로 일어난다. linkIdentity 는 uuid 가 유지되므로
+ * signIn(→다른 uuid) 두 경로로 일어난다. linkIdentity 는 uuid 가 유지되므로
  * 캐시가 그대로 유효하다.
  */
 interface SessionsCache {
@@ -171,7 +170,7 @@ const mergeSessionsPreservingLocalMessages = (localSessions: ChatSession[], dbSe
 };
 
 export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOptions) => {
-  // Hydrate from localStorage cache for instant render; API refresh happens in background.
+  // localStorage 캐시로 즉시 렌더, API 갱신은 백그라운드에서.
   // 마운트 시점엔 아직 userId 를 모른다(익명 로그인이 진행 중) → 일단 그리고, 아래 effect 가
   // 소유자를 확인해 남의 캐시면 즉시 버린다.
   const cachedRef = useRef(readSessionsCacheRaw());
@@ -209,8 +208,7 @@ export const useChatSessions = ({ userId, language, onError }: UseChatSessionsOp
     }
 
     // DB 세션은 만들지 않고 빈 화면(웰컴)으로만 돌린다 — 첫 메시지를 보낼 때 useChatStream 이 만든다.
-    // 미리 만들면 들어오기만 하고 안 쓴 세션, 메인 화면에서 바로 보낸 질문이 새 세션으로 가면서 남는 세션이
-    // 빈 "New Chat" 으로 쌓였다(2026-10-16).
+    // 미리 만들면 들어오기만 하고 안 쓴 세션이 빈 "New Chat" 으로 쌓인다 → DEV_261016
     setCurrentSessionId(null);
     return true;
   };

@@ -3,7 +3,7 @@
  *
  * 프로덕션을 **임포트**한다(로직 복사 금지).
  *
- * 🔴 왜 있는가 (2026-08-29, 세션 6bd6817b 실측):
+ * 왜 있는가 (2026-08-29, 세션 6bd6817b 실측):
  *   검색 답변 본문에 `[N](redirect)` 마커를 심기 시작한 뒤, **후속 턴**에서 화면에 생 URL 이
  *   그대로 노출됐다. DB 원문은 `[1](A)(A)[2](B)(B)` — 마커 뒤에 맨 괄호 URL 이 하나 더 붙어
  *   있었고, 그 맨 괄호가 마크다운 자동링크로 보라색 URL 이 됐다.
@@ -103,7 +103,7 @@ check('4. strip', '괄호 없이 노출된 redirect URL 도 지운다',
 check('4. strip', 'grounding redirect 가 아닌 일반 URL 은 살린다',
     stripBareGroundingUrls('출처는 https://example.com/news 입니다') === '출처는 https://example.com/news 입니다');
 
-// ── 5. 🔴 근본 원인 — history 에 마커가 실려 나가면 안 된다 ────────────────────
+// ── 5. 근본 원인 — history 에 마커가 실려 나가면 안 된다 ────────────────────
 {
     const prev = `정책은 사이버 전쟁입니다.[1](${A})[2](${B}) 이는 공격 행위입니다.[3](${C})`;
     const msgs = buildHistoryMessages([

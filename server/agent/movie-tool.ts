@@ -9,9 +9,9 @@ import { buildCardToolOutput } from "./card-tool-output";
  * 클라이언트 페치 구조: 이 도구는 무거운 상영시간표를 직접 가져오지 않고,
  * 사용자가 말한 지역(region)에 대응하는 3사 기본 지점만 골라 가벼운 json:movie 블록을 반환한다.
  * 실제 상영시간표는 MovieRenderer가 마운트/지점변경 시 /api/showtimes 로 조회(스켈레톤+SWR 캐시).
- * → 채팅 응답이 즉시 끝나고(CGV browserless ~2.5s가 챗 경로 밖), 지점 드롭다운 재조회와 동일 경로 재사용.
+ * → 채팅 응답이 즉시 끝나고(CGV browserless 지연이 챗 경로 밖), 지점 드롭다운 재조회와 같은 경로를 쓴다.
  *
- * 스파이크 본류: DEV_260608 §9 ~ DEV_260611.
+ * 설계 기록: DEV_260608 §9 ~ DEV_260611.
  */
 export const movieTool = tool(
   async ({ region }: { region?: string }) => {

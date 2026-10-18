@@ -15,12 +15,9 @@ import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent
 import { createStreamDispatch } from '../../../server/agent/stream-dispatch';
 
 export const runtime = 'nodejs';
-// 🔴 60 은 플랫폼 한계가 아니라 우리가 스스로 낮춘 값이었다 (DEV_260808 §9).
-//    Hobby 플랜의 fluid compute 기본값·최대값이 **둘 다 300s** 다 — 이 줄이 없으면 300s 가 된다.
-//    6.5MB PDF 가 최대 54.9s(캡의 91%)를 먹어 "가끔 끊기는" 상태였는데, 원인을 모델·전송 경로에서
-//    찾다가 정작 우리가 건 제한이었음을 뒤늦게 확인했다.
-//    비용: fluid 는 **Active CPU 과금**이라 Gemini 응답을 기다리는 I/O 구간은 CPU 로 안 잡힌다.
-//    폭주 방지는 이 값이 아니라 generator 의 per-call 타임아웃이 담당한다.
+// 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
+// 비용: fluid 는 Active CPU 과금이라 Gemini 응답을 기다리는 I/O 구간은 CPU 로 잡히지 않는다.
+// 폭주 방지는 이 값이 아니라 generator 의 per-call 타임아웃이 맡는다.
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 // 서울 리전 고정: law.go.kr 등 한국 API 접근성·지연 개선 (기본 iad1 → icn1)
@@ -138,12 +135,11 @@ export async function POST(req: NextRequest) {
       if (humanMessageParts.length === 0) humanMessageParts.push({ type: 'text', text: prompt });
       contents.push(new HumanMessage({ content: humanMessageParts }));
 
-      // 🔴 base 를 여기서 만든다 — 위가 아니라. 영상 분석 지시(2,997자)가 **조건부**가 되면서
-      //    `isYoutubeRequest` 와 `contents`(영상 fileData 포함)가 정해진 뒤여야 한다.
-      //    영상 턴이면 이전과 바이트가 완전히 같고, 아닌 턴에서는 그 블록만 빠진다
-      //    (PLAN §7-2 / 8단계, prompt-video.ts 의 주석에 근거를 적었다).
+      // base 는 여기서 만든다 — 영상 분석 지시(2,997자)가 조건부라
+      // `isYoutubeRequest` 와 `contents`(영상 fileData 포함)가 정해진 뒤여야 한다.
+      // 영상 턴이면 블록이 실리고, 아닌 턴에서는 그 블록만 빠진다(근거는 prompt-video.ts).
       const videoTurn = isYoutubeRequest || hasVideoPart(contents);
-      // 🔴 `sourceTurn` 은 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 조건과 **같은 값**이어야 한다.
+      // `sourceTurn` 은 조립이 `[PROVIDED_SOURCE_TEXT]` 를 붙이는 조건과 **같은 값**이어야 한다.
       //    그래서 `enrichedWebContent` 를 여기서 만들고 initialState 에도 이 값을 그대로 넘긴다 —
       //    각자 구하면 프롬프트엔 본문 규칙이 실리는데 본문은 안 붙는 턴이 생긴다.
       const videoUrl = isYoutubeRequest ? `https://www.youtube.com/watch?v=${ytMatch![1]}` : '';
@@ -196,9 +192,9 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // 🔴 콜백도 디스패치가 만든다. 여기서 따로 만들면 `fullAiResponse` 가 둘로 갈려
-        //   이미 나간 본문을 최종 메시지로 **다시** 보낸다(실측: 답변이 화면에 두 번 찍혔다).
-        // tz 는 오늘 날짜 사후 검증(today-guard)의 기준 — initialState 와 **같은 값**을 넘긴다.
+        // 콜백도 디스패치가 만든다. 여기서 따로 만들면 `fullAiResponse` 가 둘로 갈려
+        // 이미 나간 본문을 최종 메시지로 다시 보낸다(답이 두 번 찍힘).
+        // tz 는 오늘 날짜 사후 검증(today-guard)의 기준 — initialState 와 같은 값을 넘긴다.
         const dispatch = createStreamDispatch(sendEvent, { timeZone: timeZone || 'Asia/Seoul', lang: publicLang as 'ko' | 'en' | 'es' | 'fr' });
         const st = dispatch.state;
         const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
@@ -209,9 +205,7 @@ export async function POST(req: NextRequest) {
           sendEvent({ sources: st.allSources });
         }
 
-        // 이벤트 → SSE 프레임 변환은 stream-dispatch.ts 가 한다. 여기 인라인이던 시절에는
-        // import 가 안 돼 하니스가 루프를 못 태웠고, 이름 없는 else-if 하나가 카드 6종을
-        // 삼킨 채 배포됐다 (DEV_260830 §6.14).
+        // 이벤트 → SSE 프레임 변환은 stream-dispatch.ts 가 한다(하니스가 같은 루프를 태울 수 있게) → DEV_260830 §6.14
         for await (const event of streamEvents) dispatch.handle(event);
 
         const fullAiResponse = st.fullAiResponse;

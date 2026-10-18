@@ -293,5 +293,3 @@ export const LawRenderer: React.FC<{ data: LawPayload; language?: Lang }> = ({ d
     </div>
   );
 };
-
-export default LawRenderer;

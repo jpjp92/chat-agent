@@ -1,20 +1,16 @@
 /**
- * 모델별 thinking 지원 **실측표** — 계열 판정을 대체한다.
+ * 모델별 thinking 지원 **측정표** — 계열 판정을 대체한다.
  *
- * 🔴 이 파일은 `server-only` 를 임포트하지 않는다. 하니스(`tests/test-thinking-config.mts`)가
- *    직접 임포트해야 하기 때문이다. `server/models.ts` 가 그대로 re-export 하므로
- *    호출부는 기존처럼 `server/models` 만 보면 된다.
+ * 이 파일은 `server-only` 를 임포트하지 않는다. 하니스(`tests/test-thinking-config.mts`)가
+ * 직접 임포트해야 하기 때문이다. `server/models.ts` 가 그대로 re-export 하므로
+ * 호출부는 `server/models` 만 보면 된다.
  *
- * 🔴 출처는 문서가 아니라 프로브다(PLAN_MODEL_API_REVIEW_260817 §0·§1, TIER1 실측 2026-08-17).
- *    문서와 실측이 갈린 사례가 실제로 있었다 — **2.5-flash 는 문서상 low·medium·high 를
- *    지원한다고 적혀 있으나 넷 다 400 으로 거부한다.** 문서만 믿고 통일했으면 깨졌다.
+ * 출처는 문서가 아니라 프로브다(PLAN_MODEL_API_REVIEW_260817 §0·§1). 문서와 실제가 다르다 —
+ * 2.5-flash 는 문서상 low·medium·high 를 지원하지만 넷 다 400 으로 거부한다.
  *
- * 🔴 왜 계열 판정(`/^gemini-3\./`)으로 하지 않는가:
- *    3.5·3.6 은 `minimal` 을 받지만 **3.7 은 `minimal` 을 400 으로 거부한다.**
- *    접두사로 묶으면 3.7 에 `minimal` 이 자동 주입돼 **전 호출 400** 이 된다.
- *    → 판단 기준은 *"중복이 나쁜가"* 가 아니라 ***"빠뜨렸을 때의 기본값이 무엇인가"*** 다.
- *      `url_cache`·`mfds_pills` 에서 목록 누락은 **조용한 소멸**이었지만,
- *      여기서는 **틀린 값의 확신 있는 적용**이다. 그래서 열거가 방어막이다.
+ * 계열 판정(`/^gemini-3\./`)으로 하지 않는 이유: 3.5·3.6 은 `minimal` 을 받지만 3.7·3.8 은 400 으로 거부한다.
+ * 접두사로 묶으면 그 모델에 `minimal` 이 자동 주입돼 전 호출이 400 이 된다. 빠뜨렸을 때
+ * 틀린 값이 확신 있게 적용되므로 열거가 방어막이다.
  */
 
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
@@ -26,9 +22,9 @@ export const THINKING_MODE: Record<string, { levels: readonly ThinkingLevel[]; b
     "gemini-2.5-flash-lite": { levels: [],                                budget: true  },  // 기본 thinking Off
     "gemini-3.5-flash":      { levels: ["minimal", "low", "medium", "high"], budget: true  },
     "gemini-3.6-flash":      { levels: ["minimal", "low", "medium", "high"], budget: false },  // budget 거부
-    // 3.7은 minimal을 거부하므로 선택 경로에서도 반드시 이 실측 표를 통해 low를 사용한다.
+    // 3.7은 minimal을 거부하므로 선택 경로에서도 반드시 이 표를 통해 low를 사용한다.
     "gemini-3.7-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
-    // 3.8 — 2026-10-18 프로브: minimal 400("not supported"), low·medium·high·thinkingBudget 수용. 3.7 과 같다.
+    // 3.8 — minimal 400("not supported"), low·medium·high·thinkingBudget 수용. 3.7 과 같다.
     "gemini-3.8-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
 };
 

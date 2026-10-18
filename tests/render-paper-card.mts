@@ -1,7 +1,7 @@
 /**
  * PaperRenderer 를 **실제로 렌더해서** 확인한다 — `npm test` 에 들어간다(무네트워크·무자격증명).
  *
- * 🔴 test-paper-card.mts §4 는 소스를 정규식으로 본다. 그건 "그 코드가 파일에 있다" 까지만
+ * test-paper-card.mts §4 는 소스를 정규식으로 본다. 그건 "그 코드가 파일에 있다" 까지만
  * 말해준다 — 조건이 틀려 영영 안 그려지는 칸도, 다른 언어에서만 깨지는 문구도 통과한다.
  * 여기서는 JSX 를 돌려 **나온 HTML** 을 본다. 두 검사는 겹치지 않는다.
  */
@@ -74,7 +74,7 @@ console.log('\n§R3 철회 칸 — 번호 목록 밖, 빨강, 취소선');
     check('취소선이 걸린다', html.includes('line-through'));
     check('빨강 배지가 붙는다', /bg-red-100[^"]*"[^>]*>철회됨/.test(html));
     check('경고 문구가 나온다', html.includes('근거 목록에서 빼두었습니다'));
-    // 🔴 근거 등급 배지를 제외 칸에 그리면 철회 논문이 다시 신뢰 신호를 얻는다
+    // 근거 등급 배지를 제외 칸에 그리면 철회 논문이 다시 신뢰 신호를 얻는다
     check('제외 칸에는 종합분석 배지를 그리지 않는다', !html.includes('종합분석'));
 }
 
@@ -104,7 +104,7 @@ console.log('\n§R5 두 칸이 동시에 — 합쳐지지 않는가');
     });
     check('두 칸이 모두 나온다',
         html.includes('철회되어 제외된 논문') && html.includes('초록이 없어 요약하지 못한 논문'));
-    // ⚖️ 한 상자에 담으면 멀쩡한 논문에 철회의 색이 묻는다
+    // 한 상자에 담으면 멀쩡한 논문에 철회의 색이 묻는다
     const between = html.slice(html.indexOf('철회되어 제외된 논문'), html.indexOf('초록이 없어 요약하지 못한'));
     check('철회 칸이 초록없음 칸보다 먼저 닫힌다 (별개 상자다)', between.includes('</div>'));
     check('초록없음 논문에 철회 배지가 안 붙는다',
@@ -116,7 +116,7 @@ console.log('\n§R6 빈손 — 무엇이 남았는지에 따라 문구가 달라
     const nothing = render({ query: 'q', source: 'pubmed', total: 0, papers: [], retracted: [], noAbstract: [] });
     check('아무것도 없으면 "찾지 못했습니다"', nothing.includes('조건에 맞는 논문을 찾지 못했습니다'));
 
-    // 🔴 전부 철회인데 "못 찾았다" 고 하면 거짓말이다 — 찾긴 찾았고 쓸 수 없는 것이다
+    // 전부 철회인데 "못 찾았다" 고 하면 거짓말이다 — 찾긴 찾았고 쓸 수 없는 것이다
     const allRetracted = render({
         query: 'q', source: 'pubmed', total: 1, papers: [],
         retracted: [paper({ retracted: true, title: 'RETRACTED: only hit' })], noAbstract: [],
@@ -138,7 +138,7 @@ console.log('\n§R6 빈손 — 무엇이 남았는지에 따라 문구가 달라
 
 console.log('\n§R6b 조회 실패 — 0건과 같은 화면이면 거짓말이다');
 {
-    // 🔴 PubMed 가 죽어서 아무것도 못 받은 것과 조건에 맞는 논문이 정말 없는 것은
+    // PubMed 가 죽어서 아무것도 못 받은 것과 조건에 맞는 논문이 정말 없는 것은
     //   사용자에게 정반대 뜻이다. `error` 를 선언만 해두고 안 그려서 장애가 "찾지 못했습니다" 로 나갔다.
     const empty = render({ query: 'q', source: 'pubmed', total: 0, papers: [], retracted: [], noAbstract: [] });
     const failed = render({ query: 'q', source: 'pubmed', total: 0, papers: [], retracted: [], noAbstract: [], error: 'PubMed esearch HTTP 500' });
@@ -151,7 +151,7 @@ console.log('\n§R6b 조회 실패 — 0건과 같은 화면이면 거짓말이�
     // 원문 에러 메시지는 사용자에게 노출하지 않는다(다른 카드들의 계약과 같다)
     check('내부 에러 메시지를 노출하지 않는다', !failed.includes('HTTP 500'));
 
-    // 🔴 실제 화면에서 잡힌 두 가지(2026-08-31 사용자 확인).
+    // 실제 화면에서 잡힌 두 가지(2026-08-31 사용자 확인).
     //   ⓐ arXiv 조회 실패인데 카드가 "PubMed 응답을 받지 못했습니다" 라고 말했다 —
     //     이 카드는 두 출처가 공유한다. `disclaimer` 는 이미 출처별로 갈라 두었는데 여기만 빠뜨렸다.
     //   ⓑ 아이콘이 두부(⊠)로 떴다 — `fa-regular fa-circle-exclamation` 은 무료 세트에 없다.

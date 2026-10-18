@@ -37,12 +37,12 @@ export async function getAccessToken(): Promise<string | null> {
 /**
  * OAuth 가 URL 로 돌려준 에러를 읽고 **주소창에서 지운다**.
  *
- * 🔴 linkIdentity 의 실패는 두 갈래로 온다.
- *    - 리다이렉트 **전** 거절(manual linking off 등) → 예외로 throw → 호출부 catch
- *    - 리다이렉트 **후** 거절(이미 다른 유저의 신원 등) → 브라우저가 떠났다 돌아오므로
- *      예외가 아니라 `/?error=server_error&error_code=identity_already_exists` 로 온다
+ * linkIdentity 의 실패는 두 갈래로 온다.
+ *   - 리다이렉트 **전** 거절(manual linking off 등) → 예외로 throw → 호출부 catch
+ *   - 리다이렉트 **후** 거절(이미 다른 유저의 신원 등) → 브라우저가 떠났다 돌아오므로
+ *     예외가 아니라 `/?error=server_error&error_code=identity_already_exists` 로 온다
  *
- * 두 번째를 읽지 않으면 사용자는 아무 설명 없이 원래 화면으로 돌아온다(실측).
+ * 두 번째를 읽지 않으면 사용자는 아무 설명 없이 원래 화면으로 돌아온다.
  * 읽은 뒤 파라미터를 제거해야 새로고침 때 유령 에러가 되살아나지 않는다.
  */
 export function consumeOAuthError(): string | null {

@@ -1,7 +1,7 @@
 /**
  * 서버 진행 상태 이벤트 — SSE `{ status: 'searching' | 'lookup' }`. 검증: `npx tsx tests/test-status-event.mts`
  *
- * 원칙(10-10): 기본은 Orb 만. **실제로 오래 걸리는 일을 실제로 시작할 때만** 알린다.
+ * 원칙: 기본은 Orb 만. **실제로 오래 걸리는 일을 실제로 시작할 때만** 알린다.
  *  · 브라우저가 미리 아는 것(영상·문서·URL·이미지)은 클라이언트가 이미 표시한다(src/lib/loading-status.ts).
  *  · 서버만 아는 것 두 가지만 여기서 보낸다:
  *      lookup    — 라우터가 외부 조회(카드·약품·논문) 의도로 확정했을 때 (라우터 종료 시점)
@@ -12,7 +12,7 @@
  */
 import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 
-export type ServerStatus = 'searching' | 'lookup';
+type ServerStatus = 'searching' | 'lookup';
 export const STATUS_EVENT = 'chat_status';
 
 /** 외부 API·DB 를 조회하는 의도. drug_id 는 이미지 첨부라 클라이언트가 이미 "약품 식별" 을 보인다. */

@@ -1,12 +1,12 @@
 import { markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from "../../config";
 
 /**
- * Shared error classification & key-rotation helpers — the byte-identical parts
- * of the SDK and LangChain catch blocks in generator.ts (4-A, move-only).
+ * 공용 오류 분류·키 로테이션 헬퍼 — generator.ts 의 SDK·LangChain catch 블록에서
+ * 완전히 같은 부분만 모았다.
  *
- * NOTE: `isRateLimit`/`isUnavailable` intentionally NOT shared — their predicates
- * drift between the two paths (SDK checks message text; LangChain checks statusText).
- * Converging them is a behavior change, tracked separately as 4-B.
+ * 참고: `isRateLimit`/`isUnavailable` 은 일부러 공유하지 않는다 — 판정식이
+ * 두 경로에서 다르다(SDK 는 메시지 문자열, LangChain 은 statusText 를 본다).
+ * 합치면 동작이 바뀌므로 별도 과제다.
  */
 
 export const isTimeoutError = (err: any): boolean =>
@@ -19,8 +19,8 @@ export const isAuthError = (err: any): boolean =>
     err?.status === 401 || err?.status === 403 || /api key not valid|API_KEY_INVALID/i.test(err?.message ?? '');
 
 /**
- * Mark a key on a rate-limit error: daily/project quota → exhausted (rotation won't
- * help today); otherwise transient rate-limit. Call only when isRateLimit is true.
+ * rate-limit 오류에 키 표시: 일일/프로젝트 쿼터면 소진(오늘은 로테이션해도 소용없음),
+ * 아니면 일시적 rate-limit. isRateLimit 이 true 일 때만 호출.
  */
 export const markRateLimitKey = (key: string, err: any): void => {
     if (isDailyQuotaError(err)) {

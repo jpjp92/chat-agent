@@ -1,23 +1,13 @@
 /**
- * DuckDuckGo HTML 결과 파서 — **순수 함수**로 분리했다(네트워크·`server-only` 없음).
+ * DuckDuckGo HTML 결과 파서 — **순수 함수**(네트워크·`server-only` 없음). 하니스가 실제 응답 조각을
+ * 픽스처로 고정해 DDG 마크업 변화를 잡는다(`tests/test-ddg-parse.mts`).
  *
- * 🔴 왜 분리했나 (2026-08-18): `searchWebTool` 안에 정규식이 박혀 있어서
- *    **DDG 가 HTML 을 바꿔도 아무도 몰랐다.** 실측 결과 URL 추출이 **전 검색에서 0건**이었다.
- *
- * 무엇이 깨졌었나 — 두 가지가 동시에:
- *   ① `<a class="result__a"` 로 시작을 고정했는데 DDG 는 이제
- *      `<a rel="nofollow" class="result__a" href="…">` 를 낸다 → **속성 순서**가 달라 전부 불일치.
- *   ② 폴백 전략이 `uddg=` 리디렉션을 전제했는데 DDG 는 이제 **href 에 실제 URL 을 직접** 넣는다
- *      (`uddg=` 개수 실측 0). → 두 전략이 같이 죽어 `urls.length === 0`.
- *
- * 결과: 스니펫은 나오는데 **출처 URL 이 하나도 없었다.** 근거를 요구하는 호출부는 결과를 통째로
- * 버렸고(알약 웹 폴백), 그렇지 않은 호출부는 **출처 없이** 답했다. 후자가 더 나쁘다.
- *
- * 그래서 이 파서는 **속성 순서를 가정하지 않고**, uddg 리디렉션과 직접 href 를 **둘 다** 받는다.
- * 하니스: `tests/test-ddg-parse.mts` (실제 응답에서 뜬 조각을 픽스처로 고정).
+ * **속성 순서를 가정하지 않고**(`<a rel="nofollow" class="result__a" href="…">` 등),
+ * `uddg=` 리디렉션과 직접 href 를 **둘 다** 받는다. URL 추출이 0건이면 근거를 요구하는 호출부는
+ * 결과를 버리고, 그렇지 않은 호출부는 출처 없이 답하게 된다 → DEV_260818
  */
 
-export type DdgResult = { title: string; url: string; snippet: string };
+type DdgResult = { title: string; url: string; snippet: string };
 
 const decode = (s: string) =>
     s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')

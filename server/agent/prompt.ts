@@ -71,12 +71,9 @@ When presenting weather information, ALWAYS use the following structure. Do NOT 
 /**
  * 렌더러 스펙 — 의도별로만 주입되는 조각 (INTENT_RENDERERS 참조).
  *
- * 예전에는 이 전부가 base 시스템 인스트럭션에 상주해 **모든 턴에 매번 주입**됐다.
- * 비용 문제는 아니었지만(암묵 캐싱 78~98% 할인, DEV_260723) 문맥 오염이 실측됐다 —
- * base의 [WEATHER FORMATTING]("날씨 정보엔 ALWAYS 5일 표")이 날씨와 무관한 general 턴까지
- * 오염시켜 후속 대화에서 표가 재출력됐다(DEV_260731 §3-3). 레퍼런스 app2가 의도별로 응답
- * 가이드를 통째 교체해 이 누수를 구조적으로 막는 걸 보고 같은 방향으로 정리했다.
- * 상세: docs/guide/REF_App2_Agent.md §4·§8
+ * 모든 턴에 상주시키면 무관한 턴을 오염시킨다(예: [WEATHER FORMATTING]의 "날씨엔 ALWAYS 5일 표"가
+ * general 후속 대화에서 표를 재출력하게 함 → DEV_260731 §3-3). 레퍼런스 app2 처럼 의도별로 응답 가이드를
+ * 교체해 이 누수를 구조적으로 막는다. 상세: docs/guide/REF_App2_Agent.md §4·§8
  */
 export const RENDERER_SECTIONS: Record<string, string> = {
   chart: `[CHART VISUALIZATION]
@@ -309,22 +306,15 @@ export const RENDERER_SECTIONS: Record<string, string> = {
 /**
  * base 시스템 인스트럭션 — **조립 순서를 선언하는 유일한 자리**.
  *
- * 🔴 2026-09-24(7단계): 본문을 두 파일로 갈랐다 — 무결성([prompt-integrity.ts](./prompt-integrity.ts))과
- *    응답 형태([prompt-response.ts](./prompt-response.ts)). 조각은 저기 있고 **순서는 여기 있다.**
- *    조각이 스스로 순서를 주장하면 조립부가 둘로 갈린다 — §4 가 지적한 문제가 그것이다.
+ * 조각은 무결성([prompt-integrity.ts](./prompt-integrity.ts))·응답 형태([prompt-response.ts](./prompt-response.ts))·
+ * 영상 분석([prompt-video.ts](./prompt-video.ts), 영상 턴에만) 파일에 있고 **순서는 여기 있다.**
+ * 조각이 스스로 순서를 주장하면 조립부가 둘로 갈린다.
  *
- * 🔴 2026-09-25(8단계): `VIDEO ANALYSIS DIRECTIVE` 2,997자를 **조건부로** 바꿨다
- *    ([prompt-video.ts](./prompt-video.ts)). 영상 턴에만 실린다 — 블록 첫 줄이 스스로
- *    *"APPLIES ONLY WHEN ... YouTube URL ... video MIME type"* 이라고 적고 있었고, 그 조건은
- *    이미 코드에 불리언으로 있었다. **자리는 그대로다** — 뒤로 옮기면 위치가 변수로 끼어든다(§7-1).
- *    그래서 `videoTurn: true` 면 **이전과 바이트가 완전히 같다**(4개 언어 골든이 증명).
+ * `REFORMAT REQUESTS` 는 **무조건**이다 — `reformatTurn`
+ * (`llmFollowUp === 'refine' && !cardFollowup && !isMovieFollowup && !weatherFollowup`)이 이 블록의 적용 범위보다
+ * 좁아서, 게이트로 쓰면 카드 후속 턴의 "표로 정리해줘"에서 날조 금지 규칙이 사라진다(§10-9).
  *
- * 🔴 `REFORMAT REQUESTS` 는 **아직 무조건이다.** 옮기려 했으나 `reformatTurn` 의 정의가
- *    (`llmFollowUp === 'refine' && !cardFollowup && !isMovieFollowup && !weatherFollowup`)
- *    이 블록의 적용 범위보다 **좁다** — 카드 후속 턴의 "표로 정리해줘"는 `reformatTurn=false` 라
- *    게이트로 쓰면 **카드와 표가 만나는 바로 그 턴에서** 날조 금지 규칙이 사라진다(§10-9).
- *
- * ⚠️ 순서를 바꾸면 응답이 바뀐다(§7-1, 9단계 A/B 대상). 골든이 4개 언어로 잡고 있다.
+ * 주의: 순서를 바꾸면 응답이 바뀐다(§7-1, 위치 A/B 대상). 골든이 4개 언어로 잡고 있다.
  */
 export const getSystemInstruction = (
   langName: LangName = DEFAULT_LANG_NAME,
@@ -338,7 +328,7 @@ NEVER switch languages. THIS IS YOUR TOP PRIORITY.`,
     NEVER_FABRICATE_SOURCES,
     buildSourceAdherence(lbl, { sourceTurn, videoTurn }),
     GROUNDING_AND_CITATIONS,
-    // ── 아래 REFORMAT 은 아직 무조건 — 8단계 잔여분(§10-9) ───────────────────
+    // ── 아래 REFORMAT 은 무조건(§10-9) ───────────────────
     `[REFORMAT REQUESTS — DO NOT ADD NEW FACTS]
 When the user asks you to RESTATE your previous answer in another shape — "표로 정리해줘", "요약해줘", "비교해줘", "간단히", "정리해줘", "make a table", "summarize that", "compare these" — you are reformatting, not researching.
 - Do NOT introduce any item, product name, brand, manufacturer, number, date, or claim that was not already in the answer you are reformatting. Change the FORM, preserve the CONTENT.
@@ -366,9 +356,9 @@ import { PAPER_SEARCH_POLICY, ARXIV_SEARCH_POLICY } from "./intent-policy-paper"
  * 여기 없는 의도(pharmacy/hospital/vet/law/movie)는 도구가 카드 JSON을 통째로 반환하고
  * INTENT_POLICIES가 "그대로 출력하라"고 지시하므로 스펙이 필요 없다.
  *
- * weather에 [WEATHER FORMATTING]을 남긴 이유: 정상 경로는 weatherTool 카드이고 focus hint가
- * 마크다운 표를 금지하지만, **도구 실패 시** 모델이 텍스트로 답해야 하는 폴백이 남아 있다.
- * 반대로 general에서는 뺐다 — 카드 시대에 표 규칙이 general 턴을 오염시키기만 했다(DEV_260731 §3-3).
+ * weather 에 [WEATHER FORMATTING]을 남기는 이유: 정상 경로는 weatherTool 카드이고 정책이
+ * 마크다운 표를 금지하지만, **도구 실패 시** 모델이 텍스트로 답해야 하는 폴백이 있다.
+ * general 에서는 뺀다 — 표 규칙이 general 턴을 오염시킨다(DEV_260731 §3-3).
  */
 const INTENT_RENDERERS: Partial<Record<IntentType, string[]>> = {
     general: ['chart'],
@@ -401,10 +391,7 @@ export const getRendererSections = (intent: IntentType, langName: LangName = DEF
 
 /**
  * Intent → **의도 정책**. 그 의도에서만 참인 규칙만 둔다.
- *
- * 🔴 2026-09-24 `INTENT_FOCUS_HINTS` 에서 개명했다. "hint" 는 참고사항처럼 읽히지만
- *    내용은 `You MUST call the weatherTool` 같은 **강제 규칙**이다. 이름이 내용을 속이면
- *    다음 사람이 여기에 힌트를 더 넣는다.
+ * (내용이 `You MUST call the weatherTool` 같은 **강제 규칙**이라 "hint" 가 아니라 "policy" 라고 부른다.)
  *
  * 스키마는 위 `INTENT_RENDERERS` 가 담당한다 — 여기는 **어느 블록을 만들고 무엇을 피하는가**,
  * 즉 정책이다. 둘은 서로를 모르므로 한쪽만 고치면 스키마 없이 블록을 요구하게 된다.
@@ -447,9 +434,7 @@ Guidelines:
 
 /**
  * 이번 턴 의도의 정책을 반환한다(없으면 빈 문자열). 조립의 **맨 뒤**에 붙는다.
- *
- * 🔴 이전 주석은 *"general 은 빈 문자열"* 이라고 적었는데 **틀렸다** — `general` 은 순위표
- *    완전 출력 규칙 331자를 갖는다. (0자였던 `sports` 는 2026-10-04 의도째 제거)
+ * `general` 도 정책을 갖는다(순위표 완전 출력 규칙).
  */
 export const getIntentPolicy = (intent: IntentType): string => {
     return INTENT_POLICIES[intent] ?? "";

@@ -1,12 +1,10 @@
 /**
  * 응답 대기(Thinking Orb 옆) 문구 선택 — 순수. 검증: `npx tsx tests/test-loading-status.mts`
  *
- * 🔴 예전엔 첨부 문구를 URL 처리 **전에** 정하고, URL 분기가 그 위에 덮어쓰거나 즉시 지웠다
- *   (arXiv: 설정 직후 null · YouTube: 3초 뒤 null · URL: 가져온 뒤 null) → 정작 모델을 기다리는
- *   10~40초 동안 문구가 없었다(DEV_261010 §2-11). 이제 URL 처리 **뒤에 한 번** 정하고
- *   첫 응답 조각에서 내린다(useChatStream).
+ * 문구는 URL 처리 **뒤에 한 번** 정하고 첫 응답 조각에서 내린다(useChatStream) — URL 처리 전에 정하면
+ * URL 분기가 덮어쓰거나 지워, 정작 모델을 기다리는 동안 문구가 없다 → DEV_261010 §2-11
  *
- * 문구 원칙(10-10, ChatGPT·Claude 참고): 짧은 진행형 한 줄 — "○○을 분석 중입니다".
+ * 문구 원칙: 짧은 진행형 한 줄 — "○○을 분석 중입니다".
  * 소요 시간·괄호 설명·모델명 없음. 진행감은 문구가 아니라 shimmer 효과(`.status-shimmer`)로 준다.
  */
 export type WaitingStatusKey =
@@ -21,11 +19,11 @@ export type WaitingStatus = { key: WaitingStatusKey; docType?: string };
  * 미리보기: /dev/loading-preview (dev 전용)
  */
 export const SLOW_TURN_MS = 2000;
-export type WaitingAttachment = { mimeType: string; fileName?: string };
+type WaitingAttachment = { mimeType: string; fileName?: string };
 
 /**
- * 알약 식별 의도. 🔴 예전 키워드 목록에 `'정'` 한 글자가 있어 "정리해줘"·"정보"·"일정" 에도 걸렸다 —
- * 표 사진 + "정리해줘" 에 "약품 식별 중..." 이 떴다. 제품명 접미사 `…정`(타이레놀정)만 남긴다.
+ * 알약 식별 의도 — 제품명 접미사 `…정`(타이레놀정)만 본다. `'정'` 한 글자를 키워드로 두면
+ * "정리해줘"·"정보"·"일정" 에도 걸린다.
  */
 export const hasPillIntent = (text: string): boolean =>
     /알약|약품|캡슐|무슨\s*약|어떤\s*약|식별|명칭/.test(text)
@@ -44,7 +42,7 @@ const DOC_TYPES: [RegExp, RegExp, string][] = [
     [/\.md$/i, /text\/markdown/, 'MD'],
     [/\.txt$/i, /text\/plain/, 'TXT'],
 ];
-export const docTypeOf = (a: WaitingAttachment): string | null => {
+const docTypeOf = (a: WaitingAttachment): string | null => {
     for (const [ext, mime, label] of DOC_TYPES) if ((a.fileName && ext.test(a.fileName)) || mime.test(a.mimeType)) return label;
     return null;
 };

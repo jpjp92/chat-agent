@@ -25,18 +25,18 @@ const Dialog: React.FC<DialogProps> = ({ isOpen, title, message, type = 'info', 
 
     return (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
-            {/* Backdrop */}
+            {/* 배경 */}
             <div
                 className="fixed inset-0 bg-slate-950/60 backdrop-blur-md modal-backdrop-in"
                 onClick={onCancel}
             ></div>
 
-            {/* Modal Container */}
+            {/* 모달 컨테이너 */}
             <div className="relative w-full max-w-xs modal-panel-in">
                 <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-slate-200 dark:border-white/10 overflow-hidden">
                     <div className="p-5">
                         <div className="flex flex-col items-center text-center space-y-3">
-                            {/* Icon */}
+                            {/* 아이콘 */}
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-1 ${type === 'danger'
                                 ? 'bg-red-50 dark:bg-red-500/10 text-red-500 shadow-sm'
                                 : 'bg-primary-50 dark:bg-primary-500/10 text-primary-500 shadow-sm'

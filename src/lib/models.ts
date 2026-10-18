@@ -19,13 +19,10 @@ export const DEFAULT_CHAT_MODEL: ChatModelId = CHAT_MODELS.FLASH_3_6;
 /**
  * 모델 선택 UI 문자열의 단일 소스.
  *
- * 예전엔 레지스트리가 `labelKey` 만 갖고 실제 문자열은 `Header.tsx`(모바일)와
- * `ChatInput.tsx`(데스크톱) **양쪽에** 4개 언어 × 15키로 중복돼 있었다. 모델 하나를
- * 추가하려면 세 파일을 고쳐야 했고, 한 곳을 빠뜨리면 `t[option.labelKey]` 가 `undefined`
- * 로 조용히 렌더됐다 — 아무것도 막아주지 않았다. 문자열을 옵션 옆으로 옮겨 그 인디렉션
- * 자체를 없앴다(DEV_260829_DEADCODE §5).
+ * 문자열을 옵션 옆에 둔다 — `labelKey` 만 두고 문자열을 Header.tsx·ChatInput.tsx 에 따로 두면
+ * 모델을 추가할 때 한 곳을 빠뜨려 `t[option.labelKey]` 가 `undefined` 로 조용히 렌더된다(DEV_260829_DEADCODE §5).
  *
- * 🔴 제품명(`Gemini 3.7 Flash`·`OpenAI` 등)은 4개 언어 값이 같으므로 **문자열 그대로** 쓴다.
+ * 제품명(`Gemini 3.8 Flash`·`OpenAI` 등)은 4개 언어 값이 같으므로 **문자열 그대로** 쓴다.
  * 번역이 필요한 것만 `Record<Language, string>` 으로 적으면, 언어 하나만 빠져도 tsc 가 잡는다.
  */
 type Localized = string | Record<Language, string>;
@@ -120,10 +117,10 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
       fr: 'Rapide et équilibré',
     },
   },
-  // 2026-09-23 legacy 강등. `gpt-6-luna` 가 들어오면서 OpenAI 칸을 최신 2종으로 유지한다.
-  // 🔴 목록에서 내렸을 뿐 **계속 동작한다** — `preferred_model` 로컬 스토리지에 이 값을 가진
-  //    세션이 그대로 올라오므로, 서버 허용 목록(`server/models.ts`·`openai/models.ts`)에서는
-  //    빼지 않는다. 빼면 그 사용자는 다음 전송에서 오류를 본다.
+  // legacy — OpenAI 칸은 최신 2종만 보인다.
+  // 목록에서 내렸을 뿐 **계속 동작한다** — `preferred_model` 로컬 스토리지에 이 값을 가진
+  // 세션이 그대로 올라오므로, 서버 허용 목록(`server/models.ts`·`openai/models.ts`)에서는
+  // 빼지 않는다. 빼면 그 사용자는 다음 전송에서 오류를 본다.
   {
     id: CHAT_MODELS.GPT_5_4_MINI,
     section: 'legacy',

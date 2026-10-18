@@ -17,20 +17,20 @@ import { withTtsRetry } from './retry';
  * Gemini 키는 `TTS_USE_TIER1=true` 면 유료 `API_KEY_TIER1`, 아니면 무료 풀(한도가 작다 — 폴백이 받쳐 준다).
  * 라우트가 토큰·게스트·회원 일일 한도를 먼저 검사한다(app/api/speech/route.ts, PLAN §7).
  *
- * 실측 근거: PLAN_TTS_STREAMING_261002 §4-1~4-2c.
+ * 측정 근거: PLAN_TTS_STREAMING_261002 §4-1~4-2c.
  */
 
-export type TtsProvider = 'gemini' | 'openai';
+type TtsProvider = 'gemini' | 'openai';
 
 /**
- * 🔴 **2027-01-06 API 제거 예정**(OpenAI 2026-10-01 공지 — tts-1·tts-1-hd·gpt-4o-mini-tts 전 버전).
+ * **2027-01-06 API 제거 예정**(OpenAI 공지 — tts-1·tts-1-hd·gpt-4o-mini-tts 전 버전).
  * 공식 대체는 `gpt-realtime-2.1-mini` 지만 음성 대화 모델이라 원문 그대로 읽기를 보장하지 않는다(PLAN §4-3).
  * 그 전에 폴백을 `gemini-3.8-flash-tts` 등으로 바꾼다 — PLAN_TTS_STREAMING_261002 §10, TODO.
  */
-export const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
+const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 const OPENAI_TTS_VOICE = 'alloy';
 const GEMINI_TTS_VOICE = 'Kore';
-/** 재생 중 다음 조각을 미리 받는 수. 2 가 전체 시간이 가장 짧았다(§4-2: 23s vs p1 45s). */
+/** 재생 중 다음 조각을 미리 받는 수. 2 가 전체 시간이 가장 짧았다(§4-2). */
 const PREFETCH = 2;
 const CHUNK_TIMEOUT_MS = 60_000;
 
@@ -48,7 +48,7 @@ function geminiAvailable(): boolean {
 }
 
 /** [1순위, 폴백?]. 키가 없는 공급자는 빠진다. */
-export function resolveTtsProviders(): TtsProvider[] {
+function resolveTtsProviders(): TtsProvider[] {
     const primary: TtsProvider = process.env.TTS_PROVIDER === 'openai' && openAITtsKey() ? 'openai' : 'gemini';
     const secondary: TtsProvider = primary === 'gemini' ? 'openai' : 'gemini';
     const secondaryOk = secondary === 'openai' ? !!openAITtsKey() : geminiAvailable();
@@ -56,8 +56,8 @@ export function resolveTtsProviders(): TtsProvider[] {
 }
 
 /**
- * 공급자별 증폭 — 서버에서 PCM 샘플에 곱한다(클리핑 방지 포함). 실측(2026-10-03, 한국어 3문장, 증폭 전):
- *   gemini 3.8 Lite  RMS 5899(-14.9 dBFS) · 피크 32768 — 🔴 이미 풀스케일. 예전 1.8(2.5 TTS 용)을 그대로 두면 찌그러진다
+ * 공급자별 증폭 — 서버에서 PCM 샘플에 곱한다(클리핑 방지 포함). 증폭 전 측정(한국어 3문장):
+ *   gemini 3.8 Lite  RMS 5899(-14.9 dBFS) · 피크 32768 — 이미 풀스케일이라 증폭하면 찌그러진다
  *   openai           RMS 4029(-18.2 dBFS) · 피크 22152 — 3.3dB 작다. 1.4 로 맞추면 RMS ≈5640·피크 ≈31000
  * → 두 공급자가 폴백으로 한 스트림에 섞여도 비슷한 크기로 들린다.
  */
@@ -88,10 +88,9 @@ type Attempts = { maxAttempts?: number; firstByteTimeoutMs?: number };
 type Synth = (text: string, signal: AbortSignal, attempts?: Attempts) => AsyncGenerator<Uint8Array>;
 
 /**
- * 뒤에 폴백이 있을 때의 시도 설정 — **2회 · 첫 바이트 6s**. 응답 없이 걸려도 ≈12.5s 안에 폴백으로 넘어간다.
- * 🔴 기본(3회 · 12s)이면 걸린 Gemini 를 ~37s 붙잡은 뒤에야 폴백했다(사용자: "너무 길다", 2026-10-04).
- * 정상 첫 소리는 1.2~1.7s 라 6s 는 넉넉하다. 1회가 아니라 2회인 이유: 일시적 429·5xx 는 한 번 더 부르면
- * 대개 같은 공급자로 풀려 목소리가 덜 바뀐다.
+ * 뒤에 폴백이 있을 때의 시도 설정 — **2회 · 첫 바이트 6s**. 응답 없이 걸려도 ≈12.5s 안에 폴백으로 넘어간다
+ * (기본 3회 · 12s 면 걸린 공급자를 ~37s 붙잡는다). 정상 첫 소리는 1.2~1.7s 라 6s 는 넉넉하다.
+ * 1회가 아니라 2회인 이유: 일시적 429·5xx 는 한 번 더 부르면 대개 같은 공급자로 풀려 목소리가 덜 바뀐다.
  */
 const FAST_HANDOFF: Attempts = { maxAttempts: 2, firstByteTimeoutMs: 6_000 };
 
@@ -119,7 +118,7 @@ function synthOpenAI(text: string, signal: AbortSignal, attempts: Attempts = {})
 }
 
 /**
- * Gemini 는 키 풀을 돈다. 🔴 키 전환은 **그 조각의 첫 바이트 전까지만** — 이미 보낸 오디오는 되돌릴 수 없다.
+ * Gemini 는 키 풀을 돈다. 키 전환은 **그 조각의 첫 바이트 전까지만** — 이미 보낸 오디오는 되돌릴 수 없다.
  * 2.5 TTS 는 stream 으로 불러도 한 덩어리로 온다(§4-1 ①) — 3.1 부터 실제로 스트리밍된다.
  */
 async function* geminiOnce(text: string, apiKey: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
@@ -143,8 +142,8 @@ async function* geminiOnce(text: string, apiKey: string, signal: AbortSignal): A
 /**
  * 키 선택. `TTS_USE_TIER1=true` 면 유료 `API_KEY_TIER1` 만 쓴다(같은 키로 재시도, 대기 0.5s·1s).
  * 아니면 무료 풀에서 시도마다 다음 키(대기 없음).
- * 🔴 3.1 TTS 무료 한도는 **키(프로젝트)당 10회/일** — 조각마다 1회라 무료 풀은 금방 바닥난다
- *    (로컬 실사용 2026-10-03: 키 3개 RPD 소진 → 500). 유료 키는 env 로 명시할 때만 쓴다.
+ * TTS 무료 한도는 **키(프로젝트)당 일일 횟수가 작다** — 조각마다 1회라 무료 풀은 금방 바닥난다.
+ * 유료 키는 env 로 명시할 때만 쓴다.
  */
 function synthGemini(text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
     const tier1 = process.env.TTS_USE_TIER1 === 'true' ? process.env.API_KEY_TIER1 : undefined;

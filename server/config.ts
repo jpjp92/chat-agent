@@ -3,35 +3,35 @@ import 'server-only';
 import { currentKeyTier } from './key-tier';
 
 /**
- * API Key Management Utility
- * Dynamically loads all Gemini API keys from environment variables.
- * Supports rate-limit aware key rotation with temporary blacklisting.
+ * API 키 관리 유틸
+ * 환경 변수에서 Gemini API 키를 전부 읽어 온다.
+ * rate-limit 을 고려한 키 로테이션 + 임시 차단.
  */
 
-// Collect all API keys starting with 'API_KEY' (e.g., API_KEY, API_KEY2, etc.)
-// Deduplicate identical keys
+// 'API_KEY' 로 시작하는 키 전부 수집 (예: API_KEY, API_KEY2 …)
+// 같은 키 중복 제거
 const rawKeys = Object.keys(process.env)
     .filter(key => /^API_KEY\d*$/.test(key))
     .map(key => process.env[key])
     .filter(Boolean) as string[];
 
-export const API_KEYS = [...new Set(rawKeys)]; // Remove duplicates
+export const API_KEYS = [...new Set(rawKeys)]; // 중복 제거
 
 /**
- * Key Rotation Management with Rate-Limit Awareness
+ * rate-limit 을 고려한 키 로테이션 관리
  */
 let currentKeyIndex = 0;
 
-// Map of apiKey -> timestamp when it can be retried again (ms)
+// apiKey → 다시 시도할 수 있는 시각(ms)
 const rateLimitedUntil: Map<string, number> = new Map();
 
 const RATE_LIMIT_COOLDOWN_MS = 60_000;             // RPM 초과: 60s 쿨다운
 const DAILY_LIMIT_COOLDOWN_MS = 24 * 60 * 60_000; // RPD 초과: 24h 비활성화
 
 /**
- * Detect whether a 429 error indicates daily quota (RPD) exhaustion
- * vs a per-minute rate limit (RPM).
- * Google Gemini API error messages include clues like "quota", "day", "daily".
+ * 429 오류가 일일 쿼터(RPD) 소진인지
+ * 분당 rate-limit(RPM)인지 판정한다.
+ * Gemini API 오류 메시지에 "quota"·"day"·"daily" 같은 단서가 있다.
  */
 export const isDailyQuotaError = (err: any): boolean => {
     const msg: string = (err?.message || err?.toString() || '').toLowerCase();
@@ -40,7 +40,7 @@ export const isDailyQuotaError = (err: any): boolean => {
         msg.includes('per day') ||
         msg.includes('daily') ||
         msg.includes('quota_exceeded') ||
-        // Gemini free tier daily limit: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+        // Gemini 무료티어 일일 한도: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
         // err.message가 JSON 문자열 전체이므로 msg(소문자화)에서 camelCase 패턴 검사
         msg.includes('perday') ||
         msg.includes('freetier') ||
@@ -54,7 +54,7 @@ export const isDailyQuotaError = (err: any): boolean => {
 };
 
 /**
- * Mark an API key as RPM rate-limited (60s cooldown).
+ * API 키를 RPM rate-limit 으로 표시 (60s 쿨다운).
  */
 export const markKeyRateLimited = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + RATE_LIMIT_COOLDOWN_MS);
@@ -62,8 +62,8 @@ export const markKeyRateLimited = (apiKey: string) => {
 };
 
 /**
- * Mark an API key as daily-quota-exhausted (24h cooldown).
- * Prevents retry loops that burn all remaining daily quota on other keys.
+ * API 키를 일일 쿼터 소진으로 표시 (24h 쿨다운).
+ * 남은 일일 쿼터를 다른 키에서 다 태우는 재시도 루프를 막는다.
  */
 export const markKeyDailyExhausted = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + DAILY_LIMIT_COOLDOWN_MS);
@@ -71,7 +71,7 @@ export const markKeyDailyExhausted = (apiKey: string) => {
 };
 
 /**
- * Mark an API key as invalid (401/403) — disabled for 24 hours.
+ * API 키를 무효(401/403)로 표시 — 24시간 비활성.
  */
 export const markKeyInvalid = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + DAILY_LIMIT_COOLDOWN_MS);
@@ -79,17 +79,17 @@ export const markKeyInvalid = (apiKey: string) => {
 };
 
 /**
- * Get the next available API key, skipping rate-limited ones.
- * Returns null if all keys are currently rate-limited.
+ * rate-limit 걸린 키를 건너뛰고 다음 사용 가능한 키를 준다.
+ * 모든 키가 rate-limit 중이면 null.
  */
 /**
- * 유료 키 — 이름의 TIER1 은 Google 등급 번호가 아니라 "유료 프로젝트 키" 라는 뜻이다(2026-10-04 Tier 2 승급 후에도 이름 유지).
+ * 유료 키 — 이름의 TIER1 은 Google 등급 번호가 아니라 "유료 프로젝트 키" 라는 뜻이다(등급이 올라도 이름 유지).
  * `^API_KEY\d*$` 에 걸리지 않으므로 무료 풀(API_KEYS)에 섞이지 않는다. 테스트가 env 를 바꿀 수 있게 호출 시점에 읽는다.
  */
 const paidKey = (): string | null => process.env.API_KEY_TIER1 || null;
 
 /** 회원 유료 우선 스위치 — 끄면 현행(무료 로테이션만)과 동일. 비용이 튀면 배포 없이 끈다. */
-export const isPaidFirstEnabled = (): boolean => process.env.GEMINI_PAID_FIRST === 'true' && !!paidKey();
+const isPaidFirstEnabled = (): boolean => process.env.GEMINI_PAID_FIRST === 'true' && !!paidKey();
 
 /** 이 키로 부르는 호출이 유료 등급인가 — 검색 강등(freeTierSearch) 판단에 쓴다. */
 export const isPaidKey = (apiKey: string | null | undefined): boolean => !!apiKey && apiKey === paidKey();
@@ -116,25 +116,25 @@ export const getNextApiKey = (): string | null => {
 
         const cooldownUntil = rateLimitedUntil.get(key);
         if (!cooldownUntil || now > cooldownUntil) {
-            // Key is available (either never limited, or cooldown has expired)
+            // 사용 가능한 키 (제한된 적 없거나 쿨다운 끝남)
             if (cooldownUntil && now > cooldownUntil) {
-                rateLimitedUntil.delete(key); // Remove expired cooldown
+                rateLimitedUntil.delete(key); // 끝난 쿨다운 제거
             }
             return key;
         }
         attempts++;
     }
 
-    // All keys are rate-limited: return null so callers can handle gracefully
+    // 모든 키가 rate-limit 중: 호출부가 처리하도록 null 반환
     console.error('[Config] All API keys are rate-limited. Returning null.');
     return null;
 };
 
 /**
- * Check if all keys are in a long-term cooldown (daily quota exhausted).
- * Threshold: remaining cooldown > 5 minutes distinguishes RPD (24h) from RPM (60s).
+ * 모든 키가 장기 쿨다운(일일 쿼터 소진)인지 확인.
+ * 기준: 남은 쿨다운이 5분 넘으면 RPD(24h), 아니면 RPM(60s).
  */
-const DAILY_EXHAUSTED_THRESHOLD_MS = 5 * 60_000; // 5 minutes
+const DAILY_EXHAUSTED_THRESHOLD_MS = 5 * 60_000; // 5분
 
 export const isAllKeysDailyExhausted = (): boolean => {
     if (API_KEYS.length === 0) return false;
@@ -145,5 +145,5 @@ export const isAllKeysDailyExhausted = (): boolean => {
     });
 };
 
-// Log the number of unique keys loaded
+// 불러온 고유 키 개수 로그
 console.log(`[Config] Loaded ${API_KEYS.length} Gemini API keys.`);

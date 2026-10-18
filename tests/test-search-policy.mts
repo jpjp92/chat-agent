@@ -6,7 +6,7 @@
 //
 // 실행: npx tsx tests/test-search-policy.mts     (API 키 불필요 — 판정은 전부 결정론)
 //
-// ⚠️ 설계 원칙: 정규식을 이 파일에 복사하지 않는다. 프로덕션 모듈을 직접 import한다.
+// 주의: 설계 원칙: 정규식을 이 파일에 복사하지 않는다. 프로덕션 모듈을 직접 import한다.
 //    scripts/test-search-rules.mjs 는 정규식을 복사해 둔 탓에, 프로덕션이 바뀐 뒤에도
 //    22/22 초록을 유지하며 드리프트를 숨겼다(기획 §4 C5). 같은 실수를 반복하지 않는다.
 //
@@ -50,7 +50,7 @@ type Case = {
 };
 
 const CASES: Case[] = [
-    // ── 🔴 이번 버그 (RED 예상) ────────────────────────────────────────────
+    // ── 이번 버그 (RED 예상) ────────────────────────────────────────────
     // 공통 구조: 새 검색 요구 + "정리/비교" 같은 가공 어휘 동반 → 가드가 오발한다.
     {
         grp: 'BUG', msg: '그럼 모티프 모델 구체적으로 찾아서 정리해보자',
@@ -73,27 +73,27 @@ const CASES: Case[] = [
         why: '"구글"·"찾아보"를 explicit 정규식이 아예 못 잡음',
     },
 
-    // ── 🟡 정규식 갭 (explicit 미포착) ────────────────────────────────────
+    // ── 정규식 갭 (explicit 미포착) ────────────────────────────────────
     // prevSearched=false라 가드가 안 걸려 default-on으로 "우연히" 통과한다.
     // 즉 지금 GREEN인 것은 explicit이 동작해서가 아니다 — 안전판에 기대고 있을 뿐.
     { grp: 'GAP', msg: '모티프 모델 찾아줘', prevSearched: false, want: true, why: '"찾아줘"(붙여쓰기) 미포착' },
     { grp: 'GAP', msg: '모티프 모델 조사해줘', prevSearched: false, want: true, why: '"조사" 미포착' },
     { grp: 'GAP', msg: 'AI 모델 알아보자', prevSearched: false, want: true, why: '"알아보자" 미포착' },
 
-    // ── ✅ 멀티턴 가드 정상 동작 (회귀 방어 — 반드시 유지) ──────────────
+    // ── 멀티턴 가드 정상 동작 (회귀 방어 — 반드시 유지) ──────────────
     { grp: 'GUARD', msg: '방금 알려준 거 표로 정리해줘', prevSearched: true, want: false, why: '순수 가공형 — 재검색 불필요' },
     { grp: 'GUARD', msg: '아까 검색 결과 다시 요약', prevSearched: true, want: false, why: '과거참조' },
     { grp: 'GUARD', msg: '기존개념부터 최근 검색한 내용 비교 요약해줘', prevSearched: true, want: false, why: '과거참조("최근 검색한")' },
     { grp: 'GUARD', msg: '아까보다 더 최신 걸로 다시 알려줘', prevSearched: true, want: true, why: '새 최신요구 — 억제하면 안 됨' },
     { grp: 'GUARD', msg: '방금 알려준 거 정리해줘', prevSearched: false, want: true, why: '직전 검색 없었으면 억제 안 함' },
 
-    // ── ✅ 강한 OFF (회귀 방어) ───────────────────────────────────────────
+    // ── 강한 OFF (회귀 방어) ───────────────────────────────────────────
     { grp: 'OFF', msg: '퀵소트 알고리즘 파이썬으로 구현해줘', prevSearched: false, want: false, why: '코드 생성' },
     { grp: 'OFF', msg: '이 문장 영어로 번역해줘', prevSearched: false, want: false, why: '번역' },
     { grp: 'OFF', msg: '정중한 사과 이메일 작성해줘', prevSearched: false, want: false, why: '창작' },
     { grp: 'OFF', msg: '123 곱하기 456은?', prevSearched: false, want: false, why: '계산' },
 
-    // ── ✅ 강한 ON (회귀 방어) ────────────────────────────────────────────
+    // ── 강한 ON (회귀 방어) ────────────────────────────────────────────
     { grp: 'ON', msg: '오늘 서울 날씨 어때?', prevSearched: false, want: true, why: 'temporal + domain' },
     { grp: 'ON', msg: '지금 비트코인 가격 얼마야?', prevSearched: false, want: true, why: '실시간 시세' },
     { grp: 'ON', msg: '현재 대한민국 대통령이 누구야?', prevSearched: false, want: true, why: '인물 근황' },
@@ -245,7 +245,7 @@ const CONTRACT = [
         want: true,
     },
     {
-        // ⚠️ 처음엔 "rule-on이 이긴다"로 적었다가 뒤집었다.
+        // 주의: 처음엔 "rule-on이 이긴다"로 적었다가 뒤집었다.
         // 가드의 존재 이유가 바로 이것이다 — "최근 검색한 내용 요약해줘"는 "최근" 때문에
         // rule이 temporal ON을 내지만, 실제로는 과거참조다. 가드가 rule을 정정하지 못하면
         // 가드가 무의미해지고 기존 회귀(GUARD 그룹)가 깨진다.
@@ -305,7 +305,7 @@ const human = (text: string, parts: any[] = []) => ({
     content: [{ type: 'text', text }, ...parts],
 });
 const ai = (text: string) => ({ _getType: () => 'ai', content: [{ type: 'text', text }] });
-// 🔴 production 의 state.messages 에는 `inlineData` 가 **없다** — buildHistoryMessages 는
+// production 의 state.messages 에는 `inlineData` 가 **없다** — buildHistoryMessages 는
 //    인라인 이미지를 `type:'image_url'`(data: URI) 로 만든다(history.ts). 예전 픽스처가
 //    `inlineData` 였던 탓에, 죽은 `historyHasImage` 신호가 초록을 유지하고 있었다(DEV_260902 §9.4).
 const IMAGE_PART = { type: 'image_url', image_url: { url: 'data:image/png;base64,x' } };
@@ -322,7 +322,6 @@ const base = {
     intent: 'general',
     needsSearch: true,
     hasMultimodalContent: false,
-    dropImageForSearch: false,
     isYoutubeRequest: false,
     hasVideoData: false,
 };
@@ -341,10 +340,10 @@ const GATE_CASES: GateCase[] = [
         ctx: { hasMultimodalContent: true, messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('표로 정리해줘')], latestUserText: '표로 정리해줘' },
     },
     {
-        // 가드가 서면 generator 가 forceTextOnly 로 미디어를 빼므로 hasMultimodalContent 도 false 가 된다.
-        name: 'dropImageForSearch=true면 히스토리 이미지 신호 없음',
+        // 이미지 빼고 검색 가드가 서면 generator 가 forceTextOnly 로 미디어를 빼므로 hasMultimodalContent 가 false 로 들어온다.
+        name: '이미지 뺀 턴(hasMultimodalContent=false)은 히스토리 이미지 신호 없음',
         want: true,
-        ctx: { dropImageForSearch: true, messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('오늘 날씨는?')], latestUserText: '오늘 날씨는?' },
+        ctx: { messages: [human('이 사진 뭐야', [IMAGE_PART]), ai('...'), human('오늘 날씨는?')], latestUserText: '오늘 날씨는?' },
     },
     {
         name: 'YouTube + transcript → off',
@@ -476,7 +475,7 @@ GATE_CASES.push(
 );
 
 // ── Step 7: provider 인지 — TIER 400 은 Gemini 의 제약이다 ────────────────────
-// 🔴 실사용 결함(2026-09-02, GPT-5.4 mini): 앞 턴에 이미지를 붙인 대화에서
+// 실사용 결함(2026-09-02, GPT-5.4 mini): 앞 턴에 이미지를 붙인 대화에서
 //   "저기 저장소 검색해서 확인해봐" 에 검색이 안 붙어 "실시간 검색 없이 답할 수 있어요" 가 나왔다.
 //   400 은 "Gemini 는 이미지와 grounding 을 함께 못 보낸다" 는 **물리 사실**인데,
 //   OpenAI Responses 는 input_image 와 web_search 를 같이 보낸다 — 없는 제약에 눌린 것이다.
@@ -606,7 +605,7 @@ const drop = (intent: string, cur: boolean, hist: boolean, explicit: boolean) =>
     shouldDropImageForSearch({ intent, currentTurnHasImage: cur, historyHasImage: hist, explicitSearchSignal: explicit });
 
 e('general + 히스토리 이미지 + 명시 요청 → 드롭', drop('general', false, true, true), true);
-// 🔴 §9.2: medical_qa 는 tier 100 검색 강제 ON 인데 400 에 눌려 정책이 무효였다
+// §9.2: medical_qa 는 tier 100 검색 강제 ON 인데 400 에 눌려 정책이 무효였다
 e('medical_qa 도 드롭 대상 (검색 강제 정책 보호)', drop('medical_qa', false, true, true), true);
 e('현재 턴에 이미지가 있으면 드롭 금지 (그게 질문 대상)', drop('general', true, true, true), false);
 e('히스토리에 이미지가 없으면 드롭할 것도 없음', drop('general', false, false, true), false);
@@ -618,7 +617,7 @@ e('카드 intent 는 SDK 경로가 아니라 무관', drop('movie_search', false
 
 // ── shouldAddWebSearchToPaperFollowup ───────────────────────────────────────
 // §9.3: LangChain(Gemini) 논문 경로는 웹 탈출구가 아예 없었다.
-// ⚠️ 1차 호출에 도구를 둘 주면 forceDomainTool(allTools.length===1)이 풀려 논문 도구를
+// 주의: 1차 호출에 도구를 둘 주면 forceDomainTool(allTools.length===1)이 풀려 논문 도구를
 //    아예 안 부를 수 있다 → ToolMessage 이후 종합 단계에서만 더한다.
 const web = shouldAddWebSearchToPaperFollowup;
 e('arxiv + 종합단계 + 명시 요청 → 웹 도구 추가', web('arxiv_search', true, '레포 검색해줘'), true);
@@ -629,7 +628,7 @@ e('과거참조는 새 검색 요청이 아니다', web('arxiv_search', true, '�
 e('논문 외 intent 는 대상 아님', web('drug_info', true, '검색해줘'), false);
 
 // ── 배선: 호출부가 실제로 이 함수를 쓰는가 ──────────────────────────────────
-// 🔴 DEV_260830 §6.25 의 교훈 — "순수 함수를 새로 빼면 호출부 연결을 같은 커밋에서 검사한다".
+// DEV_260830 §6.25 의 교훈 — "순수 함수를 새로 빼면 호출부 연결을 같은 커밋에서 검사한다".
 //    판정은 맞는데 아무 일도 안 일어나는 실수를 이 레포에서 두 번 냈다.
 const { readFileSync } = await import('node:fs');
 const genSrc = readFileSync(new URL('../server/agent/nodes/generator.ts', import.meta.url), 'utf8');

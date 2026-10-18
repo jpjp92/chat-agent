@@ -2,7 +2,7 @@
 // 사용자에겐 각 화면의 안내 문구만 보이고, 콘솔에는 어느 단계가 실패했는지만 남는다.
 // 수신: app/api/client-log/route.ts (Vercel 함수 로그에 console.error 로 기록)
 
-export type ClientErrorScope =
+type ClientErrorScope =
     | 'upload'
     | 'auth.link'
     | 'auth.idToken'

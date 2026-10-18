@@ -18,8 +18,8 @@ import { arxivTool } from "./arxiv-tool";
 import { paperTool } from "./paper-tool";
 
 /**
- * Compiles the LangGraph StateGraph instance.
- * Sets up edges, conditional routing, and binding the executable tools.
+ * LangGraph StateGraph 인스턴스를 컴파일한다.
+ * 엣지·조건부 라우팅을 설정하고 실행 도구를 연결한다.
  */
 export const compileAgentGraph = (
     systemInstruction: string, isYoutubeRequest: boolean, sendEvent?: (data: any) => void,
@@ -32,8 +32,8 @@ export const compileAgentGraph = (
     const generator = createGeneratorNode(systemInstruction, isYoutubeRequest, sendEvent, langName, experiment);
     const toolNode = new ToolNode([identifyPillTool, searchDrugInfoTool, searchWebTool, pharmacyTool, hospitalTool, vetTool, lawTool, movieTool, weatherTool, paperTool, arxivTool]);
 
-    // 2. Define Conditional Routing
-    // Evaluates if the generator LLM decided to invoke a tool
+    // 2. 조건부 라우팅 정의
+    // generator LLM 이 도구 호출을 결정했는지 판단
     const shouldContinueToTools = (state: AgentStateType) => {
         const messages = state.messages;
         const lastMessage = messages[messages.length - 1];
@@ -43,20 +43,20 @@ export const compileAgentGraph = (
         return END;
     };
 
-    // Evaluates where to go after the Router Node detects constraints
+    // Router 노드 판정 후 어디로 갈지 결정
     const routePostRouter = (state: AgentStateType) => {
-        // drug_id with image → vision preprocessing; all others go directly to generator
+        // 이미지 있는 drug_id → vision 전처리, 나머지는 바로 generator
         return state.nextNode === "vision" ? "vision" : "generator";
     };
 
-    // 3. Construct Graph
+    // 3. 그래프 구성
     const workflow = new StateGraph(GraphState)
         .addNode("router", routerNode)
         .addNode("vision", visionNode)
         .addNode("generator", generator)
         .addNode("tools", toolNode)
 
-        // Directed Logic Flow
+        // 흐름
         .addEdge(START, "router")
         .addConditionalEdges("router", routePostRouter)
         .addEdge("vision", "generator")
@@ -64,7 +64,7 @@ export const compileAgentGraph = (
             tools: "tools",
             __end__: END
         })
-        .addEdge("tools", "generator"); // Recursively back to generator to synthesize
+        .addEdge("tools", "generator"); // 다시 generator 로 돌아가 결과를 종합
 
     return workflow.compile();
 };

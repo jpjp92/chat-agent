@@ -3,7 +3,7 @@ import { z } from "zod";
 import { buildCardToolOutput } from "./card-tool-output";
 
 // 행정안전부_동물_동물병원 조회서비스
-// Endpoint: /1741000/animal_hospitals/info
+// 엔드포인트: /1741000/animal_hospitals/info
 // returnType=JSON 지원 → XML 파싱 불필요
 // Note: apis.data.go.kr → native fetch + AbortController (hospital B551182와 동일 패턴)
 const VET_KEY = process.env.VET_KEY || '';
@@ -199,11 +199,9 @@ export const vetTool = tool(
                 };
             });
 
-            // 배지의 '영업/정상'은 행안부 **인허가** 상태이지 지금 진료 중이라는 뜻이 아니다.
-            // 실측(2026-08-23): 모델이 이 배지를 읽고 "열려 있는 동물병원 10곳"이라고 단정했다.
-            // 이 데이터에는 진료시간 필드 자체가 없으므로 카드에서 한계를 명시한다.
-            // 진료시간을 카드에 담을 방법이 없으니(데이터에 필드 자체가 없다) 검색 경로로 유도한다.
-            // 병원 이름을 지목하면 needsLiveStatusSearch가 그 턴에만 웹 검색을 열어 준다.
+            // 배지의 '영업/정상'은 행안부 **인허가** 상태이지 지금 진료 중이라는 뜻이 아니다 — 모델이 현재 영업으로
+            // 오독하지 않게 카드에서 한계를 명시한다(데이터에 진료시간 필드가 없다) → DEV_260823
+            // 진료시간은 검색 경로로 유도한다 — 병원 이름을 지목하면 needsLiveStatusSearch가 그 턴에만 웹 검색을 연다.
             const LICENSE_ONLY_NOTICE = '인허가 상태 표시 — 진료시간은 병원 이름을 알려주시면 검색해 드립니다.';
             return buildCardToolOutput('vet', {
                 query: locationLabel,

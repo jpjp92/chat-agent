@@ -39,7 +39,7 @@ interface PaperData {
      */
     retracted?: Paper[];
     /**
-     * PubMed 에 초록이 없어 요약할 수 없는 논문(실측 8%). 철회와 같은 이유로 번호 목록에서
+     * PubMed 에 초록이 없어 요약할 수 없는 논문. 철회와 같은 이유로 번호 목록에서
      * 빼지만 **같은 칸에 담지 않는다** — 철회는 "믿지 마라", 이건 "우리가 요약을 못 한다" 다.
      */
     noAbstract?: Paper[];
@@ -133,13 +133,12 @@ const T: Record<Lang, {
 /**
  * 근거 등급 배지.
  *
- * 🔴 문구는 학술 용어가 아니라 일상어다. '종설'·'무작위 대조시험'은 학계 밖에서 안 통한다.
- * 색 위계(violet > blue > sky)는 json:hospital 의 종별 규칙을 그대로 재사용했다.
+ * 문구는 학술 용어가 아니라 일상어다. '종설'·'무작위 대조시험'은 학계 밖에서 안 통한다.
+ * 색 위계(violet > blue > sky)는 json:hospital 의 종별 규칙을 재사용한다.
  *
- * `evidence: null` 이면 **아무것도 그리지 않는다.** 실측상 약 35%가 여기 해당하는데,
- * 미분류는 "등급이 낮다"가 아니라 "아직 분류가 안 됐다"는 뜻이라 최하위처럼 보이는 칩을
- * 달면 사실과 반대되는 신호가 된다(DEV_260830 §3.2). 같은 이유로
- * 좌측 색 스트라이프도 쓰지 않는다 — 띠로 서열을 그리면 배지 없는 카드가 꼴찌로 읽힌다.
+ * `evidence: null`(미분류, 약 35%)이면 **아무것도 그리지 않는다.** 미분류는 "등급이 낮다"가 아니라
+ * "아직 분류가 안 됐다"는 뜻이라 최하위처럼 보이는 칩을 달면 사실과 반대되는 신호가 된다.
+ * 같은 이유로 좌측 색 스트라이프도 쓰지 않는다 — 띠로 서열을 그리면 배지 없는 카드가 꼴찌로 읽힌다 → DEV_260830 §3.2
  */
 const EVIDENCE_STYLE: Record<EvidenceLevel, { label: Record<Lang, string>; className: string }> = {
     'meta-analysis': {
@@ -159,7 +158,7 @@ const EVIDENCE_STYLE: Record<EvidenceLevel, { label: Record<Lang, string>; class
 /**
  * arXiv 배지.
  *
- * 🔴 PubMed 의 근거 등급(EVIDENCE_STYLE)을 **재사용하면 안 된다.** 저건 NLM 큐레이터가 연구
+ * PubMed 의 근거 등급(EVIDENCE_STYLE)을 **재사용하면 안 된다.** 저건 NLM 큐레이터가 연구
  * 설계를 분류한 값이고, arXiv 에는 그런 분류가 아예 없다. 여기서 말할 수 있는 사실은 하나뿐이다
  * — 저널 게재 판본이 확인되는가(`journal_ref`/`doi` 존재). 그래서 색으로 서열을 만들지 않고
  * 게재/프리프린트만 구분한다. 프리프린트를 회색으로 두는 건 "낮은 등급"이 아니라 "심사 전"이라는
@@ -189,7 +188,7 @@ export const PaperRenderer: React.FC<PaperRendererProps> = ({ data, language = '
 
     if (!papers.length && !retracted.length && !noAbstract.length) {
         /**
-         * 🔴 **조회 실패를 0건으로 말하지 않는다.** PubMed 가 죽어서 아무것도 못 받은 것과
+         * **조회 실패를 0건으로 말하지 않는다.** PubMed 가 죽어서 아무것도 못 받은 것과
          * 조건에 맞는 논문이 정말 없는 것은 사용자에게 정반대 뜻이다 — 앞은 다시 시도하면
          * 되고, 뒤는 근거가 없다는 판단이다. `error` 를 선언만 해두고 안 그리던 탓에
          * PubMed 장애가 "찾지 못했습니다" 로 나갔다. 심평원에서 같은 병을 이미 고쳤다.
@@ -278,7 +277,7 @@ export const PaperRenderer: React.FC<PaperRendererProps> = ({ data, language = '
                             {paper.summary ? (
                                 <p className="mt-2 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
                                     {/* 결론 라벨이 붙은 초록만 '결론'이다. 나머지는 위치로 집은 추측이라
-                                        그렇게 밝힌다 — 곁가지 문단이 결론인 척 읽히는 게 실제 결함이었다. */}
+                                        그렇게 밝힌다 — 곁가지 문단이 결론인 척 읽히지 않게. */}
                                     {paper.summaryKind === 'excerpt' && (
                                         <span className="mr-1.5 rounded bg-slate-100 px-1 py-0.5 align-[1px] text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:bg-white/[0.06] dark:text-slate-500">
                                             {tt.excerpt}
@@ -321,7 +320,7 @@ export const PaperRenderer: React.FC<PaperRendererProps> = ({ data, language = '
             {/*
               * 철회 논문 — 번호 없는 별도 칸.
               *
-              * 🔴 목록에서 지우지 않고 여기로 내린 이유: 프롬프트로 "인용하지 말라" 고만 했을 때
+              * 목록에서 지우지 않고 여기로 내린 이유: 프롬프트로 "인용하지 말라" 고만 했을 때
               * 라이브 3회 중 2회가 그대로 근거로 인용했다. 인용 마커 [n] 은 `papers` 순번이므로
               * 도구가 배열에서 빼면 모델은 **번호로 가리킬 방법이 없다**. 그렇다고 화면에서까지
               * 지우면 사용자는 그 논문이 철회됐다는 걸 영영 모른다 — 그게 더 나쁘다.
@@ -362,9 +361,8 @@ export const PaperRenderer: React.FC<PaperRendererProps> = ({ data, language = '
               * 철회는 "믿지 마라", 이건 "우리가 요약을 못 한다" 다. 같은 상자에 담으면
               * 멀쩡한 논문에 철회의 색이 묻는다.
               *
-              * 🔴 목록에서 빼낸 이유: `summary: ""` 를 그대로 보냈더니 모델이 그 공백을 연구
-              * 내용으로 옮겨 적었다 — "일부 검토 논문 [1, 3] 에서는 구체적인 결론을 제시하지
-              * 않았습니다". 전용 프롬프트 블록으로 3회 재측정해도 3회 모두 같았다.
+              * 목록에서 빼는 이유: `summary: ""` 를 그대로 보내면 모델이 그 공백을 연구 내용으로
+              * 옮겨 적는다("구체적인 결론을 제시하지 않았습니다"). 프롬프트로는 막히지 않았다.
               */}
             {noAbstract.length > 0 && (
                 <div className="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 px-3.5 py-3 dark:border-white/[0.06] dark:bg-white/[0.03] sm:px-4">

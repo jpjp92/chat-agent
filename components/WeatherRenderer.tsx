@@ -55,7 +55,7 @@ const isSnowy = (c: Condition) => c === 'snow' || c === 'flurry' || c === 'rainS
 const isPrecip = (c: Condition) =>
   c === 'rain' || c === 'shower' || c === 'drizzle' || c === 'thunder' || isSnowy(c);
 
-// 하늘 그라디언트(2026-10-15 네이비 팔레트): 맑은 낮=하늘색 / 밤(현지 18~6시)=인디고 / 흐림·안개=회색 / 강수=짙은 파랑
+// 하늘 그라디언트(네이비 팔레트): 맑은 낮=하늘색 / 밤(현지 18~6시)=인디고 / 흐림·안개=회색 / 강수=짙은 파랑
 function skyClass(c: Condition, night: boolean): string {
   if (isPrecip(c)) {
     return 'bg-[linear-gradient(to_bottom,rgba(71,105,170,.55)_0%,rgba(71,105,170,.18)_46%,transparent_100%)] '
@@ -240,5 +240,3 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
     </div>
   );
 };
-
-export default WeatherRenderer;

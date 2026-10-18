@@ -6,17 +6,13 @@ import crypto from 'crypto';
 import { BROWSER_UA } from '../../../server/browser-ua';
 
 /**
- * 🔴 이 라우트의 Storage 쓰기는 **admin 권한이 필요하다.** 이름으로 명시한다. (2026-08-18)
+ * 이 라우트의 Storage 쓰기는 **admin 권한이 필요하다**(이름으로 명시한다).
  *
- * 경로가 `drug-cache/<md5>.jpg` 라 첫 세그먼트가 `auth.uid()` 가 아니다 →
- * 2026-08-17 Storage RLS 정책(`scripts/sql/storage-user-prefix-rls.sql`)상 **거부돼야 한다.**
- * 지금 살아 있는 건 `server/supabase.ts` 의 `supabase` 가 실제로는 **service_role 키를 들고
- * 있기 때문**이다(`SUPABASE_KEY` 라는 anon 스러운 이름이지만 값은 service_role).
- * 즉 **동작하는 이유가 우연**이고, 키를 anon 으로 바꾸면 조용히 죽는다 —
- * 공개 버킷이라 기존 캐시는 계속 보이고 **새 약품만 이미지를 잃는다.**
- *
- * 이건 유저 데이터가 아니라 **공용 약품 이미지 캐시**라 admin 이 맞다.
- * `supabaseAdmin` 이 없으면 시작 시점에 드러나게 한다 — 런타임에 조용히 강등되는 것보다 낫다.
+ * 경로가 `drug-cache/<md5>.jpg` 라 첫 세그먼트가 `auth.uid()` 가 아니어서 Storage RLS 정책
+ * (`docs/guide/db/storage-user-prefix-rls.sql`)상 일반 키로는 거부된다.
+ * 유저 데이터가 아니라 **공용 약품 이미지 캐시**라 admin 이 맞다.
+ * `supabaseAdmin` 이 없으면 시작 시점에 드러나게 한다 — 런타임에 조용히 강등되면
+ * 공개 버킷이라 기존 캐시는 계속 보이고 새 약품만 이미지를 잃는다 → DEV_260818
  */
 const storage = (() => {
     if (!supabaseAdmin) {
@@ -35,9 +31,9 @@ export async function POST(req: NextRequest) {
     const auth = await requireProfile(req, 'sync-drug-image');
     if (auth.res) return auth.res;
 
-    let url: string, imprint_front: string, imprint_back: string, drug_name: string;
+    let url: string, drug_name: string;
     try {
-        ({ url, imprint_front, imprint_back, drug_name } = await req.json());
+        ({ url, drug_name } = await req.json());
     } catch {
         return NextResponse.json({ error: 'Invalid or empty request body' }, { status: 400 });
     }
@@ -142,7 +138,7 @@ export async function POST(req: NextRequest) {
 
         if (!externalResponse.ok) {
             if (finalUrl.includes('nedrug.mfds.go.kr') && drug_name) {
-                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!);
                 if (fallbackResult) { completeInflight(fallbackResult); return NextResponse.json(fallbackResult); }
             }
             completeInflight(null);
@@ -215,7 +211,7 @@ export async function POST(req: NextRequest) {
 
         if (!contentType.includes('image/') && !contentType.includes('application/octet-stream')) {
             if (finalUrl.includes('nedrug.mfds.go.kr') && drug_name) {
-                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!, imprint_front, imprint_back);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName!);
                 if (fallbackResult) { completeInflight(fallbackResult); return NextResponse.json(fallbackResult); }
             }
             completeInflight(null);
@@ -237,19 +233,19 @@ export async function POST(req: NextRequest) {
         console.error('[Sync] Fatal error:', error);
         if (drug_name && fileName) {
             try {
-                const fallbackResult = await tryConnectDIFallback(drug_name, fileName, imprint_front, imprint_back);
+                const fallbackResult = await tryConnectDIFallback(drug_name, fileName);
                 if (fallbackResult) { completeInflight(fallbackResult); return NextResponse.json(fallbackResult); }
             } catch {}
         }
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     } finally {
-        // 🔴 정리를 빠뜨린 return 이 있으면 같은 이미지의 다음 요청이 maxDuration 까지 매달린다.
-        //    캐시 히트 경로가 그랬다(2026-10-17). 경로가 늘어도 빠지지 않게 여기서 한 번 더 닫는다(이미 닫혔으면 무시).
+        // 정리를 빠뜨린 return 이 있으면 같은 이미지의 다음 요청이 maxDuration 까지 매달린다.
+        // 경로가 늘어도 빠지지 않게 여기서 한 번 더 닫는다(이미 닫혔으면 무시) → DEV_261017
         completeInflight(null);
     }
 }
 
-// ─── helpers (business logic unchanged) ──────────────────────────────────────
+// ─── 헬퍼 ──────────────────────────────────────
 
 function extractBaseName(name: string) {
     return name.replace(/\(.*?\)/g, '').replace(/[\d.]+\s*(밀리그램|밀리그람|마이크로그램|마이크로그람|그램|그람|mg|mcg|g)/gi, '').replace(/\s+/g, '').trim();
@@ -278,7 +274,7 @@ function parseMedList(html: string): MedListItem[] {
     }
     return items;
 }
-async function tryConnectDIFallback(drugName: string, fileName: string, imprintFront?: string, imprintBack?: string): Promise<{ publicUrl: string; pillVisual: any } | null> {
+async function tryConnectDIFallback(drugName: string, fileName: string): Promise<{ publicUrl: string; pillVisual: any } | null> {
     try {
         const baseName = extractBaseName(drugName);
         const sCtrl = new AbortController(); const st = setTimeout(() => sCtrl.abort(), 10000);
