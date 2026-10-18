@@ -15,7 +15,7 @@ export async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
     const pdfjs = await import('pdfjs-dist');
     const g = globalThis as any;
     // 워커 모듈엔 타입 선언이 없다. 전역에 두면 pdfjs 가 fake worker 로 메인 스레드에서 쓴다.
-    // @ts-ignore
+    // @ts-expect-error 워커 모듈엔 타입 선언이 없다
     if (!g.pdfjsWorker) g.pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
     const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer), isEvalSupported: false }).promise;
     let out = '';

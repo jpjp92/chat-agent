@@ -27,6 +27,13 @@ export default [
             // Gemini SDK 응답은 타입이 느슨해 `(x as any)` 없이는 다루기 어렵다. 에러로 두면
             // 338건 중 304건이 이것 하나여서 나머지 34건(진짜 신호)이 묻힌다. 경고로 남긴다.
             '@typescript-eslint/no-explicit-any': 'warn',
+            // 아래 넷은 React Compiler 전제 규칙이다. 이 레포는 컴파일러를 켜지 않았고, 걸리는 자리는
+            // 마운트 후 localStorage·window 읽기(SSR 하이드레이션 불일치 회피), 최신 콜백 ref,
+            // 렌더 밖에서만 도는 함수 같은 의도된 패턴이다. 경고로 보이게만 두고 verify 는 막지 않는다.
+            'react-hooks/set-state-in-effect': 'warn',
+            'react-hooks/purity': 'warn',
+            'react-hooks/refs': 'warn',
+            'react-hooks/immutability': 'warn',
         },
     },
 ];

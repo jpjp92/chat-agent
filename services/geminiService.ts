@@ -226,7 +226,8 @@ export const streamChatResponse = async (
   language: Language = 'ko',
   attachment?: MessageAttachment,
   webContent?: string,
-  contentType: 'text' | 'web' | 'video' = 'text',
+  // 서버가 판정하므로 쓰지 않는다. 위치 인자라 자리만 유지한다.
+  _contentType: 'text' | 'web' | 'video' = 'text',
   onMetadata?: (sources: GroundingSource[]) => void,
   sessionId?: string,
   attachments?: MessageAttachment[],

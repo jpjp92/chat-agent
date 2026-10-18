@@ -140,7 +140,7 @@ if (has('--report')) {
         return child;
     };
 
-    let child = connect();
+    const child = connect();
     const finish = () => {
         stopped = true;
         try { child.kill('SIGINT'); } catch {}

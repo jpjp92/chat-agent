@@ -34,7 +34,7 @@ export default function DrugPreview() {
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8">
             <h1 className="text-lg font-bold mb-1">약 카드 — 각인 면 표기 비교</h1>
-            <p className="text-xs text-slate-400 mb-6">① MFDS 앞/뒤 그대로 · ② 한 면만 각인이면 "각인 / 반대면". 로그인 없이 열어 이미지는 proxy 경로로 뜬다.</p>
+            <p className="text-xs text-slate-400 mb-6">① MFDS 앞/뒤 그대로 · ② 한 면만 각인이면 &ldquo;각인 / 반대면&rdquo;. 로그인 없이 열어 이미지는 proxy 경로로 뜬다.</p>
             {SAMPLES.map(s => (
                 <section key={s.data.name} className="mb-10">
                     <h2 className="text-sm font-semibold mb-3">{s.data.name} <span className="text-slate-400 font-normal">— {s.note}</span></h2>

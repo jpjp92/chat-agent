@@ -90,7 +90,7 @@ class ShiftedDate extends RealDate {
     static now() { return RealDate.now() + clockOffset; }
 }
 (globalThis as any).Date = ShiftedDate;
-const useClaimedClock = (on: boolean) => {
+const setClaimedClock = (on: boolean) => {
     // 켤 때마다 00:20 에서 다시 시작 — 라운드가 길어져도 "자정 직후" 가 유지된다
     clockOffset = on ? tomorrowKst.getTime() - RealDate.now() : 0;
 };
@@ -263,7 +263,7 @@ for (let round = 1; round <= rounds; round++) {
     const order: Pos[] = round % 2 ? [...POSITIONS] : [...POSITIONS].reverse();
     for (const p of selProv) for (const a of selArms) for (const pos of order) {
         if (done.has(`${round}|${p.id}|${a.id}|${pos}`)) continue;
-        useClaimedClock(a.claimedClock);
+        setClaimedClock(a.claimedClock);
         const t0 = performance.now();
         let r: Row;
         try {
@@ -273,7 +273,7 @@ for (let round = 1; round <= rounds; round++) {
         } catch (e: any) {
             r = { round, provider: p.id, arm: a.id, pos, ms: Math.round(performance.now() - t0), intent: '', sources: 0, chars: 0, text: '',
                 pass: false, invalid: true, notes: [`⚪ 무효: 호출 실패 ${String(e?.message ?? e).slice(0, 120)}`] };
-        } finally { useClaimedClock(false); }
+        } finally { setClaimedClock(false); }
         rows.push(r);
         console.log(`${r.invalid ? '⚪' : r.pass ? '✅' : '❌'} r${round} ${p.id.padEnd(6)} ${a.id} ${pos.padEnd(5)} `
             + `${String(r.ms).padStart(6)}ms ${String(r.chars).padStart(5)}자 intent=${(r.intent || '?').padEnd(8)} src=${r.sources}  ${r.notes.join(' · ')}`);

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "tests/*.mts",
+    "tests/manual/**/*.{mts,mjs,ts}",
+    "tests/lib/server-only-stub.ts",
+    "docs/**/*.mjs"
+  ],
+  "project": [
+    "**/*.{ts,tsx,mts,mjs}"
+  ],
+  "ignore": [],
+  "rules": {
+    "files": "error",
+    "exports": "error",
+    "types": "error",
+    "duplicates": "error",
+    "unlisted": "error",
+    "dependencies": "warn",
+    "devDependencies": "warn",
+    "binaries": "warn"
+  }
+}

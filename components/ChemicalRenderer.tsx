@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-// @ts-ignore
+// @ts-expect-error 타입 선언이 없는 패키지
 import SmilesDrawer from 'smiles-drawer';
 
 interface ChemicalRendererProps {

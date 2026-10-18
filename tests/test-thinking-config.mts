@@ -27,17 +27,9 @@ const baseCtx = { isYoutubeRequest: false, hasVideoData: false, hasUrlContent: f
 const cfg = (model: string, over: Partial<typeof baseCtx> = {}) =>
     resolveThinkingConfig({ model, ...baseCtx, ...over }) as any;
 
-// ── 1. 핵심 — 3.7 에 minimal 이 들어가면 안 된다 ────────────────────────────
-for (const M37 of ['gemini-3.7-flash', 'gemini-3.8-flash']) {  // 3.8 도 minimal 400(2026-10-18 프로브)
-const tag = M37.includes('3.8') ? '3.8' : '3.7';
-check(`${tag} 방어`, 'minimal 을 지원 목록에 넣지 않는다',
-    supportsThinkingLevel(M37, 'minimal') === false);
-check(`${tag} 방어`, '하한은 low 다',
-    lowestThinkingLevel(M37) === 'low', `실제: ${lowestThinkingLevel(M37)}`);
-
 // 프로덕션이 3.7 에 실제로 무엇을 넣는지 — **모든 경로**를 훑는다.
 // (렌더러·YouTube·URL·미디어가 과거에 서로 다른 값을 쓰던 자리라 한 경로만 보면 놓친다)
-var ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
+const ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
     ['general',   {}],
     ['renderer',  { intent: 'astronomy' }],
     ['data_viz',  { intent: 'data_viz' }],
@@ -46,6 +38,15 @@ var ALL_PATHS: Array<[string, Partial<typeof baseCtx>]> = [
     ['url',       { hasUrlContent: true }],
     ['media',     { isMediaTurn: true }],
 ];
+
+// ── 1. 핵심 — 3.7 에 minimal 이 들어가면 안 된다 ────────────────────────────
+for (const M37 of ['gemini-3.7-flash', 'gemini-3.8-flash']) {  // 3.8 도 minimal 400(2026-10-18 프로브)
+const tag = M37.includes('3.8') ? '3.8' : '3.7';
+check(`${tag} 방어`, 'minimal 을 지원 목록에 넣지 않는다',
+    supportsThinkingLevel(M37, 'minimal') === false);
+check(`${tag} 방어`, '하한은 low 다',
+    lowestThinkingLevel(M37) === 'low', `실제: ${lowestThinkingLevel(M37)}`);
+
 for (const [label, over] of ALL_PATHS) {
     const c = cfg(M37, over);
     check(`${tag} 경로`, `${label} → minimal 이 아니다`,

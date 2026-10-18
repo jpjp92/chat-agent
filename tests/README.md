@@ -1,8 +1,8 @@
 # 회귀 하니스
 
 ```bash
-npm test        # 30종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
-npm run verify  # typecheck + test
+npm test        # 36종 전부 — tests/*.mts 를 훑어 하나씩 돌린다
+npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 + knip(미사용 파일·export·미선언 의존성) + test
 ```
 
 ## 러너 — 🔴 실패 하나가 다른 하니스를 가리지 않는다
