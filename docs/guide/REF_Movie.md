@@ -129,7 +129,7 @@ Reference prompts for testing the `json:movie` renderer and the multiplex showti
 
 ## 지점 데이터 갱신 (`data/theater-branches.json`)
 
-3사 기본 지점·드롭다운 목록은 `data/theater-branches.json`(424지점)에서 온다. **런타임 fetch가 아니라 [lib/theaters.ts](../../lib/theaters.ts)가 빌드 타임에 번들로 import** — 0ms·네트워크 없음. DB로 옮기지 않는 이유와 정책: [PLAN_THEATER_BRANCHES_DATA_260627.md](../plans/PLAN_THEATER_BRANCHES_DATA_260627.md).
+3사 기본 지점·드롭다운 목록은 `data/theater-branches.json`(416지점, 2026-10-18 갱신)에서 온다. **런타임 fetch가 아니라 [lib/theaters.ts](../../lib/theaters.ts)가 빌드 타임에 번들로 import** — 0ms·네트워크 없음. DB로 옮기지 않는 이유와 정책: [PLAN_THEATER_BRANCHES_DATA_260627.md](../plans/PLAN_THEATER_BRANCHES_DATA_260627.md).
 
 데이터는 커밋되어 있고, 갱신은 **로컬 전용 스크립트**(gitignore `scripts/test-*`, 레포 미포함)로 수동 실행:
 
@@ -148,10 +148,11 @@ node scripts/test-branch-list.mjs   # 로컬 전용 — data/theater-branches.js
 
 - **3사 색상**: CGV 빨강(`#e6002d`) · 롯데시네마 블루(`#2563eb`) · 메가박스 보라(`#6b3fa0`). 롯데는 흰 배지 아웃라인(적색 중복 회피).
 - **fetch 방식**: 롯데(`GetPlaySequence`)·메가박스(`schedulePage.do`)는 direct JSON(~0.1~0.3s, 좌석수 포함). **CGV만 browserless**(Cloudflare가 Node TLS 지문 차단 — direct HMAC 서명도 403).
+- **CGV API 주소(2026-10-18 이전)**: `api.cgv.co.kr/cnm/atkt/*` → **`cgv.co.kr/api/v1/*`**(같은 오리진). 상영시간 `GET /api/v1/cnm/atkt/searchMovScnInfo`(HMAC 서명, 서명 대상은 `/api/v1` 포함 전체 경로), 지점 `GET /api/v1/booking/searchRegnList`(서명 불필요, `regnGrpNm`·`bzplcOperStusNm` 운영 상태 포함). 예전 주소는 페이지 안 fetch 가 "Failed to fetch" 로 막혀 **오류 없이 0편**이 됐다 → [DEV_261018 §8](../logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신)
 - **SWR 캐시 + 스켈레톤**: fresh 120s / stale 30분(즉시 반환 + 백그라운드 갱신). CGV 콜드 7.3s → 웜 0.003s. 빠른 2사도 최소 320ms 스켈레톤 표시로 "번쩍" 방지, 3사 로딩 상태 일관.
 - **CGV 콜드 ~2.5s**: `domcontentloaded` + 이미지/폰트/CSS 리소스 차단 + `api.cgv.co.kr/robots.txt` 직접 goto. 남은 floor=browserless 기동(실 Chrome spin-up).
 - **채팅 변형 카드**: 칩 모바일 1열 / 데스크톱 2열, 패널 경량화(체인색 상단 액센트), 영화 `MOVIE_CAP=3` + 더보기, 회차 `CHIP_CAP=8` + 더보기.
 - **좌석 부족 강조**: 잔여/총석 15% 미만이면 칩 테두리·좌석수 적색.
 - **오늘 0건 시 내일 폴백**: 오늘 상영 회차 없으면 자동으로 내일 조회 후 `내일` 배지 표시.
-- **지점 데이터**: `data/theater-branches.json`(CGV 177 · 롯데 133 · 메가박스 114 = **424지점**) 빌드 타임 번들 → 드롭다운 즉시 표시(추가 요청 없음). 갱신은 로컬 전용 `scripts/test-branch-list.mjs` 재스크랩 후 복사.
+- **지점 데이터**: `data/theater-branches.json`(CGV 173 · 롯데 132 · 메가박스 111 = **416지점**, 2026-10-18) 빌드 타임 번들 → 드롭다운 즉시 표시(추가 요청 없음). 갱신은 로컬 전용 `scripts/test-branch-list.mjs` 재스크랩 후 복사.
 - **서울 리전**: `/api/showtimes`는 `preferredRegion='icn1'` — 한국 극장 API 접근(law-tool과 동일 이유).

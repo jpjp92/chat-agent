@@ -1,5 +1,6 @@
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireProfile } from '../../../lib/supabase/route';
 
 /**
  * 상영시간표 조회 API — MovieRenderer가 지점별로 호출(마운트/드롭다운 변경 시).
@@ -83,17 +84,20 @@ async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow:
   const code = `
   export default async function ({ page }) {
     await page.setUserAgent(${JSON.stringify(UA)});
-    // 콜드 단축(~7s→~2.5s, S6+block): api 오리진으로 직접 goto(가벼운 robots.txt) + 이미지/폰트/CSS 차단.
+    // 콜드 단축(~7s→~2.5s, S6+block): 가벼운 robots.txt 로 오리진만 잡고 이미지/폰트/CSS 차단.
+    // 🔴 2026-10-18 CGV 가 API 를 api.cgv.co.kr → **cgv.co.kr/api/v1/** 로 옮겼다. 예전 오리진은 페이지 안 fetch 가
+    //    "Failed to fetch" 로 막혀 전 지점 0편이었다(오류 없이 빈 목록). 같은 오리진(cgv.co.kr)에서 부른다.
+    //    서명 키는 그대로, 서명 대상 경로는 /api/v1 을 포함한 전체 경로다.
     await page.setRequestInterception(true);
     page.on('request', rq => { const t = rq.resourceType(); (t === 'image' || t === 'font' || t === 'stylesheet' || t === 'media') ? rq.abort() : rq.continue(); });
-    try { await page.goto('https://api.cgv.co.kr/robots.txt', { waitUntil: 'domcontentloaded', timeout: 20000 }); } catch {}
+    try { await page.goto('https://cgv.co.kr/robots.txt', { waitUntil: 'domcontentloaded', timeout: 20000 }); } catch {}
     const result = await page.evaluate(async (dates, siteNo) => {
       const SECRET = 'ydqXY0ocnFLmJGHr_zNzFcpjwAsXq_8JcBNURAkRscg';
       async function sig(msg){ const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']); const s=await crypto.subtle.sign('HMAC',k,new TextEncoder().encode(msg)); return btoa(String.fromCharCode(...new Uint8Array(s))); }
-      async function get(pathname, query){ const ts=Math.floor(Date.now()/1000).toString(); const sg=await sig(ts+'|'+pathname+'|'+''); const r=await fetch('https://api.cgv.co.kr'+pathname+(query?'?'+query:''),{headers:{'X-TIMESTAMP':ts,'X-SIGNATURE':sg,'Accept':'application/json'},credentials:'include'}); return r.json(); }
+      async function get(pathname, query){ const ts=Math.floor(Date.now()/1000).toString(); const sg=await sig(ts+'|'+pathname+'|'+''); const r=await fetch('https://cgv.co.kr'+pathname+(query?'?'+query:''),{headers:{'X-TIMESTAMP':ts,'X-SIGNATURE':sg,'Accept':'application/json'},credentials:'include'}); return r.json(); }
       for (const ymd of dates) {
         const params = 'coCd=A420&siteNo='+siteNo+'&scnYmd='+ymd+'&scnsNo=&scnSseq=&rtctlScopCd=08&custNo=';
-        const mov = await get('/cnm/atkt/searchMovScnInfo', params);
+        const mov = await get('/api/v1/cnm/atkt/searchMovScnInfo', params);
         if ((mov.data||[]).length) return { date: ymd, rows: mov.data };
       }
       return { date: dates[0], rows: [] };
@@ -149,6 +153,10 @@ async function getShowtimes(chain: string, code: string, nm: string): Promise<Pa
 }
 
 export async function GET(req: NextRequest) {
+  // browserless 유료 키를 쓰는 라우트다 — 인증을 맨 앞에(PLAN_PUBLIC_ROUTE_AUTH_261017).
+  const auth = await requireProfile(req, 'showtimes');
+  if (auth.res) return auth.res;
+
   const sp = req.nextUrl.searchParams;
   const chain = sp.get('chain') || '';
   const code = sp.get('code') || '';
