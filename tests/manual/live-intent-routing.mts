@@ -36,32 +36,8 @@ const { HumanMessage } = await import('@langchain/core/messages');
 
 const RUNS = Number(process.argv[2] ?? 3);
 
-interface Case { q: string; want: string; note: string }
-/** 실측 오분류 — 카드 어휘가 들어 있지만 조회 요청이 아니다. */
-const MISROUTED: Case[] = [
-    { q: '강아지 사료 추천해줘', want: 'general', note: '실측 → vet_search' },
-    { q: '변호사 비용 얼마나 들어?', want: 'general', note: '실측 → law_search' },
-    { q: '고양이 간식 뭐가 좋아', want: 'general', note: '반려동물 어휘' },
-    { q: '강아지 산책 얼마나 시켜야 해', want: 'general', note: '반려동물 어휘' },
-    { q: '변호사 시험 언제야', want: 'general', note: '법 어휘' },
-    { q: '병원비 세액공제 어떻게 받아?', want: 'general', note: '병원 어휘' },
-    { q: '약국 창업하려면 뭐가 필요해?', want: 'general', note: '약국 어휘 — 위치 조회 아님' },
-];
-/** 막으면 안 되는 진짜 조회 — 반례를 넣다 이쪽이 죽으면 그게 회귀다. */
-const MUST_KEEP: Case[] = [
-    { q: '서초구 동물병원 알려줘', want: 'vet_search', note: '' },
-    { q: '근처 약국 어디 있어', want: 'pharmacy_search', note: '' },
-    { q: '서초구 소아과 알려줘', want: 'hospital_search', note: '' },
-    { q: '근로기준법 연차 조항 알려줘', want: 'law_search', note: '' },
-    { q: '강남 영화 상영표', want: 'movie_search', note: '' },
-    { q: '오늘 서울 날씨 어때?', want: 'weather', note: '' },
-    { q: '타이레놀 성분 알려줘', want: 'drug_info', note: '' },
-    { q: '감기 걸렸는데 어떻게 해?', want: 'medical_qa', note: '' },
-    { q: '프로바이오틱스 감기 논문 찾아줘', want: 'paper_search', note: '' },
-    { q: '트랜스포머 어텐션 논문 찾아줘', want: 'arxiv_search', note: '' },
-    { q: '지금 코스피 지수 얼마야?', want: 'general', note: '' },
-    { q: '파이썬 리스트 정렬하는 법', want: 'general', note: '' },
-];
+const { MISROUTED, MUST_KEEP } = await import('./router-cases.mts');
+type Case = (typeof MISROUTED)[number];
 
 const latencies: number[] = [];
 async function run(q: string): Promise<string> {
