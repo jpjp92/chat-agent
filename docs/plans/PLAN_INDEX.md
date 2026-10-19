@@ -12,6 +12,8 @@
 
 > **2026-10-18 코드 위생(주석·데드코드):** [PLAN_CODE_HYGIENE_261018](PLAN_CODE_HYGIENE_261018.md) — 전수조사: 주석 한국어 81%·영어 18%, 혼합 파일 110개, 메모성 주석 1,251줄. 🔴 "Vercel 60s 캡" 틀린 주석 9곳(실제 300s). 데드 파일 2개(월드컵 도구 — 개인정보처리방침 문구도 잔재), 미사용 변수 30개. **10-18 적용**(데드코드·60s·한국어 통일·메모성 주석 318블록 → 정의성, 원문은 로그 보관·이모지 제거). knip·strict 타입·ESLint 를 verify 에 편입(10-18). 남은 것: 주석 규칙 명문화.
 
+> **2026-10-19 라우터 판단 API 검토:** [PLAN_DECISION_ROUTER_261019](PLAN_DECISION_ROUTER_261019.md) — 의도 분류를 OpenAI Decisions API(확률·확신도 반환)로 섞을 수 있는지 9개 세트 약 1,000회 측정. 하이브리드(확신도 0.7 미만만 현행)가 정확도 현행 이상·p50 약 1,030ms → 250ms, 인젝션도 Decisions 10/10(현행 8/10). 검색 판정은 Decisions 가 더 나빠 제외. **적용 보류 — 현행 라우터 먼저 개선(§15 R1~R6).** Jev 는 API 접근 후.
+
 > **2026-10-18 tests/ 로컬 전용 전환(대기):** [PLAN_TESTS_LOCAL_ONLY_261018](PLAN_TESTS_LOCAL_ONLY_261018.md) — 나중에 tests/ 를 레포에서 뺄 때의 체크리스트. package.json `test`·`verify` 하니스 단계, knip 진입점, tests 전용 devDependencies, 문서 링크 정리. 시점은 사용자 결정.
 
 > **2026-10-10 미디어 첨부 라우팅:** [PLAN_MEDIA_ROUTING_261010](PLAN_MEDIA_ROUTING_261010.md) — 재측정: 3.x 업로드 영상·PDF **429 0건**(08-08 결론 소멸), GPT 는 PDF 직접 처리 ✅(2~7s). 게스트 2.5·무료, 회원 3.x·유료(실패 2.5), GPT+PDF 직접, GPT+영상·오디오는 Gemini 분석 → GPT 정제. 미구현.

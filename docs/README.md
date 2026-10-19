@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-10-18
+> 최종 갱신: 2026-10-19
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -25,6 +25,7 @@
 
 - **2026-10-14** — [다운로드형 PDF 링크 · 문서 후속 법령 가드](logs/2026/10/DEV_261014.md) — KDI `callDownload.do` 처럼 Content-Type 없는 PDF 링크를 응답으로 판별하고, 서버에서 텍스트를 뽑아 후속 턴도 문서로 답한다. 문서 후속에서 법령 카드가 뜨던 오분류는 라우터 Doc guard 로 차단. 업로드·로그인 원본 오류는 서버 로그로. README·guide 현행화
 - **2026-10-13** — [멀티턴 검색·대용량 PDF 후속](logs/2026/10/DEV_261013.md) — 검색 직후 세부 후속은 검색 on(`followup-detail`), 대용량 PDF 후속 요청 413 선차단과 후속 턴 PDF 텍스트 근거(`pdfText`)
+- **2026-10-19** — [라우터 판단 API 측정](plans/PLAN_DECISION_ROUTER_261019.md) — OpenAI Decisions 하이브리드: 정확도 현행 이상, 라우터 지연 약 1,030ms → 250ms. 검색 판정은 제외. 현행 라우터의 어휘 끌림·프롬프트 인젝션 취약 확인 → **현행부터 개선**. RAG+Jev 설계안 검토([DEV_261019](logs/2026/10/DEV_261019.md))
 - **2026-10-18** — [코드 위생 · verify 강화](logs/2026/10/DEV_261018.md#14-코드-위생-1차--데드코드-제거--틀린-60s-주석--주석-한국어-통일) — 데드코드·미사용 export 제거, 월드컵 도구 삭제(문서는 logs 보관), 주석 한국어 통일·메모성 주석 318블록 → 정의성(원문은 [보관 로그](logs/2026/10/DEV_261018_COMMENT_ARCHIVE.md)). `verify` 에 strict 타입·ESLint(오류 41 → 0)·knip 편입
 - **2026-10-12** — [REF_Auth](guide/REF_Auth.md) — 인증 단일 레퍼런스 신설: 게스트 → Google(GIS)·카카오 구조, link/signIn·충돌·해시 제거 규칙, **Google Cloud·Supabase·Kakao Developers 설정값**, 오류 진단표
 
