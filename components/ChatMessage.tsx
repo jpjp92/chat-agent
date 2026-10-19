@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ErrorBoundary from './ErrorBoundary';
+import SourceBar from './SourceBar';
 import 'katex/dist/katex.min.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,18 +19,6 @@ import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorK
 import { toSpeakableText } from '../lib/tts-speakable';
 import { splitInlineDisplayMath } from '../utils/mathNormalize';
 
-/**
- * 출처 칩 favicon 도메인. Gemini grounding 링크는 전부 `vertexaisearch.cloud.google.com`
- * 경유라 호스트로 고르면 12개가 모두 구글 G 가 된다. 이때 제목 자리에 오는 도메인
- * ("chosun.com")을 쓴다. 제목이 도메인 꼴이 아니면 원래 호스트로 둔다.
- */
-const faviconDomain = (source: { uri: string; title?: string }): string => {
-  let host = '';
-  try { host = new URL(source.uri).hostname; } catch { /* 잘못된 URI — 아래 폴백 */ }
-  const title = (source.title || '').trim().toLowerCase();
-  if (host.endsWith('vertexaisearch.cloud.google.com') && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(title)) return title;
-  return host;
-};
 
 
 
@@ -948,27 +937,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
             if (!hasGrounding && drugChips.length === 0) return null;
             return (
               <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
-                {hasGrounding && message.groundingSources!
-                  .filter(source => { try { new URL(source.uri); return true; } catch { return false; } })
-                  .map((source, idx) => (
-                  <a
-                    key={`${source.uri}-${idx}`}
-                    href={source.uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-800 hover:border-primary-500 transition-all group"
-                  >
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${faviconDomain(source)}&sz=32`}
-                      alt="fav"
-                      className="w-3.5 h-3.5 mr-2"
-                    />
-                    {source.citationNumber && (
-                      <span className="mr-1.5 text-[10px] font-black text-primary-600 dark:text-primary-400">[{source.citationNumber}]</span>
-                    )}
-                    <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">{source.title}</span>
-                  </a>
-                ))}
+                {hasGrounding && <SourceBar sources={message.groundingSources!} language={language} />}
                 {drugChips.map((chip, idx) => {
                   const normName = chip.name
                     .replace(/\(.*?\)/g, '')
@@ -981,14 +950,14 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-[#1e1e1f] border border-slate-200 dark:border-slate-800 hover:border-primary-500 transition-all group"
+                      className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-white/[0.07] border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-400/60 transition-all group"
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=connectdi.com&sz=32"
-                        alt="fav"
+                        alt=""
                         className="w-3.5 h-3.5 mr-2"
                       />
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]">connectdi.com</span>
+                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate max-w-[150px]">connectdi.com</span>
                     </a>
                   );
                 })}
