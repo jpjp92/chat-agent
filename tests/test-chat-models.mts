@@ -156,7 +156,9 @@ for (const model of ['gpt-5.4-mini', 'gpt-5.6-luna']) {
         useWebSearch: true,
         maxOutputTokens: 2048,
     });
-    check(`요청 reasoning=none  ${model}`, body.reasoning?.effort === 'none');
+    // 검색 요청은 모델별 webSearchReasoningEffort(5.6 은 low — 날짜 지어내기 방지), 없으면 none.
+    const searchEffort = model === 'gpt-5.6-luna' ? 'low' : 'none';
+    check(`검색 요청 reasoning=${searchEffort}  ${model}`, body.reasoning?.effort === searchEffort);
     check(`요청 저장 비활성  ${model}`, body.store === false);
     check(`요청 웹 검색 강제  ${model}`, body.tools?.[0]?.type === 'web_search' && body.tool_choice === 'required');
     check(`OpenAI 검색 프롬프트 매핑  ${model}`,
@@ -176,6 +178,11 @@ const noSearchBody = buildOpenAIChatRequest({
     model: 'gpt-5.4-mini', instructions: '테스트 지시', messages: [new HumanMessage('안녕')],
     useWebSearch: false, maxOutputTokens: 256,
 });
+const lunaNoSearch = buildOpenAIChatRequest({
+    model: 'gpt-5.6-luna', instructions: '테스트 지시', messages: [new HumanMessage('안녕')],
+    useWebSearch: false, maxOutputTokens: 256,
+});
+check('검색 없는 요청은 reasoning=none (함수 호출 계약)', lunaNoSearch.reasoning?.effort === 'none');
 check('OpenAI 검색 OFF 프롬프트 매핑',
     noSearchBody.instructions?.includes('enabled=false')
     && noSearchBody.instructions?.includes('tool=none')

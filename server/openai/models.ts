@@ -12,6 +12,12 @@ type OpenAIModelCapabilities = {
     webSearchDomainFilters: boolean;
     reasoningEffort?: OpenAIReasoningEffort;
     chatReasoningEffort?: OpenAIReasoningEffort;
+    /**
+     * 웹 검색을 붙인 채팅 요청만 쓰는 effort. `none` 은 검색 1회 후 페이지를 열지 않고 답해
+     * 날짜 없는 페이지를 출처로 단 채 날짜를 지어냈다(10-19 "변호사 시험" GPT-5.6 접수일 0/5 → low 3/3).
+     * 함수 호출 요청은 검색과 같이 실리지 않으므로 chatReasoningEffort(none) 그대로다.
+     */
+    webSearchReasoningEffort?: OpenAIReasoningEffort;
     imageInput?: boolean;
 };
 
@@ -42,6 +48,7 @@ const OPENAI_MODEL_CAPS: Record<string, OpenAIModelCapabilities> = {
         webSearch: true,
         webSearchDomainFilters: true,
         chatReasoningEffort: 'none',
+        webSearchReasoningEffort: 'low',
         imageInput: true,
     },
     // 아래 값은 **모델 카드 기재 사항**이고 실호출로 확인하는 하니스는
@@ -55,6 +62,7 @@ const OPENAI_MODEL_CAPS: Record<string, OpenAIModelCapabilities> = {
         webSearch: true,
         webSearchDomainFilters: true,
         chatReasoningEffort: 'none',
+        webSearchReasoningEffort: 'low',
         imageInput: true,
     },
 };

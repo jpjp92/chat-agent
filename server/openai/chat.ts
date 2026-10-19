@@ -131,7 +131,7 @@ export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
             return { role, content: toInputContent(message, role) };
         }),
         max_output_tokens: options.maxOutputTokens,
-        reasoning: { effort: capabilities.chatReasoningEffort },
+        reasoning: { effort: (hostedWebSearch && capabilities.webSearchReasoningEffort) || capabilities.chatReasoningEffort },
     };
 
     if (hostedWebSearch) {
