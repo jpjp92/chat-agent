@@ -431,11 +431,15 @@ function summarizeKmaDaily(villageRows: KmaItem[]): WeatherDaily[] {
     const pop = entries.map(v => numericValue(v.POP)).filter((v): v is number => v !== null);
     const rain = entries.map(v => numericValue(v.PCP)).filter((v): v is number => v !== null);
     const snow = entries.map(v => numericValue(v.SNO)).filter((v): v is number => v !== null);
-    const rep = entries.find(v => Number(v.PTY || 0) > 0) || entries[Math.floor(entries.length / 2)] || {};
+    // 02시 발표에서 붙인 TMN·TMX 행은 기온 한 줄뿐이라 하늘 상태 대표로 고르지 않는다(fillTodayMinMax).
+    const sky = entries.filter(v => v.SKY !== undefined);
+    const rep = sky.find(v => Number(v.PTY || 0) > 0) || sky[Math.floor(sky.length / 2)] || {};
     const tmn = entries.map(v => numericValue(v.TMN)).find((v): v is number => v !== null);
     const tmx = entries.map(v => numericValue(v.TMX)).find((v): v is number => v !== null);
-    const minTemp = tmn ?? (temps.length ? Math.min(...temps) : 0);
-    const maxTemp = tmx ?? (temps.length ? Math.max(...temps) : minTemp);
+    // TMN·TMX 는 예보값이라 실제 시간별 기온이 그 밖으로 나가기도 한다(밤에 아침 최저보다 내려감) — 범위를 넓힌다.
+    const lo = Math.min(tmn ?? Infinity, ...temps), hi = Math.max(tmx ?? -Infinity, ...temps);
+    const minTemp = Number.isFinite(lo) ? lo : 0;
+    const maxTemp = Number.isFinite(hi) ? hi : minTemp;
     return {
       date,
       condition: kmaCondition(Number(rep.PTY || 0), Number(rep.SKY || 1)),
@@ -446,6 +450,26 @@ function summarizeKmaDaily(villageRows: KmaItem[]): WeatherDaily[] {
       snowMm: Number(snow.reduce((s, v) => s + v, 0).toFixed(1)),
     };
   });
+}
+
+/**
+ * 오늘 최저·최고(TMN 06시·TMX 15시)는 그 시각 이전 발표에만 들어 있다. 오후·저녁 발표만 쓰면 오늘 항목이
+ * 남은 몇 시간의 TMP 뿐이라 "오늘 13~14°" 처럼 일교차가 사라진다(실측 10-19 21시: 20시 발표 TMP 3개, 실제 11~20°).
+ * 최신 발표에 오늘 TMN·TMX 가 없으면 오늘 02시 발표에서 그 두 줄만 가져와 붙인다. 실패하면 기존 값 그대로.
+ */
+async function fillTodayMinMax(rows: KmaItem[], base: { baseDate: string; baseTime: string }, nx: number, ny: number) {
+  const today = formatKst(new Date(Date.now() + 9 * 3600 * 1000)).ymd;
+  const has = (cat: string) => rows.some(r => String(r.fcstDate) === today && r.category === cat);
+  if (base.baseDate !== today || base.baseTime === '0200' || (has('TMN') && has('TMX'))) return;
+  try {
+    const early = kmaItems(await fetchKma('/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst', {
+      pageNo: '1', numOfRows: '400', dataType: 'JSON',
+      base_date: today, base_time: '0200', nx: String(nx), ny: String(ny),
+    }));
+    for (const r of early) {
+      if (String(r.fcstDate) === today && (r.category === 'TMN' || r.category === 'TMX') && !has(String(r.category))) rows.push(r);
+    }
+  } catch { /* 보조 조회 실패 — 남은 시간 TMP 로 계산한 값을 쓴다 */ }
 }
 
 async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
@@ -467,15 +491,18 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
 
   const nowRows = kmaItems(nowcast);
   const villageRows = kmaItems(villageForecast);
+  await fillTodayMinMax(villageRows, village, nx, ny);
   // KMA가 200이지만 데이터가 비는 경우(격자 밖·base_time 미스 등) → 0°C 유령카드 대신 폴백 유도.
   if (nowRows.length === 0 && villageRows.length === 0) {
     throw new Error('KMA 응답에 관측/예보 데이터가 없습니다 (빈 items)');
   }
   const cur = kmaCategoryMap(nowRows);
-  const firstForecast = groupKmaForecast(villageRows)[0]?.values || {};
+  const firstForecast = groupKmaForecast(villageRows).find(e => e.values.SKY !== undefined)?.values || {};
   const daily = summarizeKmaDaily(villageRows);
 
   const temp = Math.round(numericValue(cur.T1H) ?? daily[0]?.maxTemp ?? 0);
+  // 카드 머리 범위와 예보 첫 칸(오늘)이 같은 숫자를 보이도록 현재 기온도 오늘 범위에 넣는다.
+  if (daily[0]) { daily[0].minTemp = Math.min(daily[0].minTemp, temp); daily[0].maxTemp = Math.max(daily[0].maxTemp, temp); }
   const humidity = Math.round(numericValue(cur.REH) ?? daily[0]?.pop ?? 0);
   const wind = Number((numericValue(cur.WSD) ?? 0).toFixed(1));
   const curRain = numericValue(cur.RN1) ?? 0;
