@@ -2,7 +2,7 @@
  * 카드 후속 멀티턴 — 현행 라우터 LLM 판정 vs OpenAI Decisions vs 하이브리드.
  * 계획: docs/plans/PLAN_DECISION_ROUTER_261019.md §8
  *
- *   npx tsx tests/manual/probe-decisions-multiturn.mts --dry [--set=more|holdout|holdout2] [--q=v2]
+ *   npx tsx tests/manual/probe-decisions-multiturn.mts --dry [--set=more|holdout|holdout2|fresh] [--q=v2]
  *   --decisions-only : 현행 라우터를 부르지 않는다(문구 비교·회귀용, Decisions 호출만)
  *   TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-decisions-multiturn.mts [라운드=2]
  *
@@ -29,10 +29,10 @@ const DEC_ONLY = args.includes('--decisions-only');
 const ROUNDS = Number(args.find(a => /^\d+$/.test(a)) ?? 2);
 
 const { DECISIONS_MODEL, LOW_CONF, INTENT_QUESTIONS, INTENT_QUESTIONS_V2, FOLLOW_UP_V1, FOLLOW_UP_V2, callDecisions, resolveIntent } = await import('./decisions-client.mts');
-const { MULTITURN, MULTITURN_MORE, MULTITURN_HOLDOUT, MULTITURN_HOLDOUT2 } = await import('./router-cases.mts');
+const { MULTITURN, MULTITURN_MORE, MULTITURN_HOLDOUT, MULTITURN_HOLDOUT2, ROUTER_FRESH_MULTITURN } = await import('./router-cases.mts');
 type MultiturnCase = (typeof MULTITURN)[number];
 const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'cards';
-const CASES: MultiturnCase[] = SET === 'more' ? MULTITURN_MORE : SET === 'holdout' ? MULTITURN_HOLDOUT : SET === 'holdout2' ? MULTITURN_HOLDOUT2 : MULTITURN;
+const CASES: MultiturnCase[] = SET === 'more' ? MULTITURN_MORE : SET === 'holdout' ? MULTITURN_HOLDOUT : SET === 'holdout2' ? MULTITURN_HOLDOUT2 : SET === 'fresh' ? ROUTER_FRESH_MULTITURN : MULTITURN;
 
 const QV = args.find(a => a.startsWith('--q='))?.slice(4) ?? 'v1';
 const FOLLOW_UP_QUESTION = QV === 'v2' ? FOLLOW_UP_V2 : FOLLOW_UP_V1;

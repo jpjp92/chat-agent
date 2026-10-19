@@ -3,7 +3,7 @@
  * 계획: docs/plans/PLAN_DECISION_ROUTER_261019.md
  *
  *   npx tsx tests/manual/probe-decisions-router.mts --dry      # 호출 0회 — 요청 본문과 호출 계획만
- *   ... --set=holdout|holdout2|holdout3                                # 검증용 세트(router-cases.mts)
+ *   ... --set=holdout|holdout2|holdout3|fresh|final|domains                                # 검증용 세트(router-cases.mts)
  *   ... --q=v2                                                 # 개선 문구(decisions-client INTENT_QUESTIONS_V2)
  *   ... --decisions-only                                       # 현행 라우터를 부르지 않는다(문구 비교·회귀용)
  *   npx tsx tests/manual/probe-decisions-router.mts --one      # Decisions 1회 — 응답 형식 확인용
@@ -36,9 +36,9 @@ const { DECISIONS_MODEL, LOW_CONF, INTENT_QUESTIONS, INTENT_QUESTIONS_V2, callDe
 const QV = args.find(a => a.startsWith('--q='))?.slice(4) ?? 'v1';
 const questions = QV === 'v2' ? INTENT_QUESTIONS_V2 : INTENT_QUESTIONS;
 
-const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3 } = await import('./router-cases.mts');
+const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3, ROUTER_FRESH, ROUTER_FINAL, ROUTER_DOMAINS } = await import('./router-cases.mts');
 const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'base';
-const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : [...MISROUTED, ...MUST_KEEP];
+const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : SET === 'fresh' ? ROUTER_FRESH : SET === 'final' ? ROUTER_FINAL : SET === 'domains' ? ROUTER_DOMAINS : [...MISROUTED, ...MUST_KEEP];
 
 type DecisionResult = { intent: string; confidence: number | null; ms: number; status: number; raw?: unknown; error?: string };
 
