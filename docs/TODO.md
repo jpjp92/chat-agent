@@ -48,7 +48,8 @@
   - [x] ~~웹 폴백을 `drug_info` 에도 적용~~ — **이미 있다**(2026-08-18 확인). `drug-info-tool.ts` 가 `[MFDS_NOT_FOUND]` 일 때 ①Google Search grounding ②DuckDuckGo ③"검색 못 함"과 "결과 없음"을 구분한 안내 순으로 탄다. 오늘 고친 DDG 파서가 ②를 같이 되살렸다
   - [ ] ⬜ **`drug_info` 는 각인으로 못 찾는다** — `search_drug_info` 가 *약품명* 기준이라, 이미지 없이 "OG37 각인 약이 뭐야?" 로 물으면 못 찾는다. 각인처럼 보이는 토큰이면 `drug_id` 의 웹 폴백과 같은 경로를 태울 여지
 
-- [ ] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 폴백을 `gemini-3.8-flash-tts` 로 바꾼다 → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
+- [x] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 10-20 폴백을 `gemini-3.8-flash-tts` 로 교체(미배포) → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
+  - [ ] 배포 후 Vercel env `OPENAI_API_TTS` 삭제(더 쓰지 않음)
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)

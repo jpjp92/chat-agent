@@ -1,6 +1,6 @@
 # REF: TTS (소리 내어 읽기)
 
-> 최종 점검: 2026-10-04 · 상태: **dev 구현, main 미배포**
+> 최종 점검: 2026-10-20(폴백 교체) · 상태: **dev 구현, main 미배포**
 > 설계·측정 이력: [PLAN_TTS_STREAMING_261002](../plans/PLAN_TTS_STREAMING_261002.md) · 날짜 로그: [DEV_261003](../logs/2026/10/DEV_261003.md)
 > 코드: `app/api/speech/route.ts` · `server/tts/` · `lib/tts-speakable.ts`(서버·클라 공용) · `services/geminiService.ts`(`playSpeechStream`) · `components/ChatMessage.tsx`
 
@@ -10,25 +10,24 @@
 
 | 순위 | 모델 | 언제 |
 |---|---|---|
-| **1순위** | Gemini `gemini-3.8-flash-lite-tts` (음성 `Kore`) | 기본. `TTS_PROVIDER` 미설정 또는 `gemini` |
-| **폴백** | OpenAI `gpt-4o-mini-tts` (음성 `alloy`) | 1순위가 **조각의 첫 바이트 전**에 실패할 때. 키가 있으면 자동, `TTS_FALLBACK=off` 로 끈다 |
+| **1순위** | Gemini `gemini-3.8-flash-lite-tts` (음성 `Kore`) | 기본 |
+| **폴백** | Gemini `gemini-3.8-flash-tts` (음성 `Kore`) | 1순위가 **조각의 첫 바이트 전**에 실패할 때. `TTS_FALLBACK=off` 로 끈다 |
 
-- `TTS_PROVIDER=openai` 로 순서를 뒤집을 수 있다(OpenAI 1순위 → Gemini 폴백).
-- 🔴 **OpenAI `gpt-4o-mini-tts` 는 2027-01-06 API 에서 제거된다**(2026-10-01 공지, `tts-1`·`tts-1-hd` 포함).
-  공식 대체 `gpt-realtime-2.1-mini` 는 음성 대화 모델이라 원문 그대로 읽기를 보장하지 않는다 → **2026-12 안에 폴백을 `gemini-3.8-flash-tts` 로 교체**한다(TODO).
-- ⚖️ **채팅 모델 정책의 예외다.** 채팅은 쿼터·장애를 다른 공급자로 넘기지 않는다(다른 모델의 답을 선택 모델 답처럼 보이게 하지 않기 위해, [REF_Architecture §Model Policy](REF_Architecture.md#model-policy)).
-  TTS 는 **읽을 내용이 같고 목소리만 바뀌므로** 공급자 폴백을 허용한다.
+- 폴백을 다른 모델로 두는 이유: Gemini 한도는 모델 단위라 Lite 가 429·장애일 때 Flash 는 대개 살아 있다. **Google 전체 장애는 못 막는다.**
+- 2026-10-20 까지 폴백은 OpenAI `gpt-4o-mini-tts` 였다. 이 모델은 **2027-01-06 API 에서 제거**된다. 공식 대체 `gpt-realtime-2.1-mini` 는 실측에서 날짜를 바꿔 읽었다("일월"→"2월" 3/3) → 교체([PLAN §10-2](../plans/PLAN_TTS_STREAMING_261002.md)). `TTS_PROVIDER`·`OPENAI_API_TTS` 는 더 쓰지 않는다.
+- 2.5·3.1 TTS 는 2026-11-17 종료. 3.8 두 모델은 종료일 미발표(2026-10-20 확인).
+- ⚖️ 채팅은 쿼터·장애를 다른 모델로 넘기지 않는다([REF_Architecture §Model Policy](REF_Architecture.md#model-policy)). TTS 는 **읽을 내용이 같고 목소리만 바뀌므로** 폴백을 허용한다(지금은 음성도 같다).
 
 ### 모델 선택 근거 (실측, 2026-10-02~04)
 
 | 모델 | 2000자 첫 소리 | 2000자 생성 시간 | 문장 누락 | 비고 |
 |---|---|---|---|---|
 | **Gemini 3.8 Flash Lite TTS** | 1.2~1.4s | **28~30s** | 0/5 | 채택(1순위) |
-| OpenAI `gpt-4o-mini-tts` | 0.6~1.4s | 22~27s | 0/7 | 채택(폴백) — 2027-01-06 제거 |
-| Gemini 3.8 Flash TTS | 1.5~1.7s | 54~55s | 0/5 | 느림. 2027 폴백 후보 |
+| Gemini 3.8 Flash TTS | 1.5~1.7s | 54~55s | 0/5 · 283자 원문 9/9 | **채택(폴백, 10-20)** — 느리지만 생성이 재생보다 빠르다(40s 오디오를 11s) |
+| OpenAI `gpt-4o-mini-tts` | 0.6~1.4s | 22~27s | 0/7 | 10-20 까지 폴백 — 2027-01-06 제거 |
 | Gemini 3.1 Flash TTS (preview) | 0.9~1.5s | 37~41s | **1/7** | 2026-10-03~04 잠시 사용 후 교체 |
 | Gemini 2.5 Flash TTS | = 전체 시간 | — | — | 🔴 stream 호출도 **한 덩어리**, 2000자 0/2 실패 — 2026-10-02 까지의 원래 모델 |
-| `gpt-realtime-2.1-mini` | — | — | — | 미채택 — 대화 모델(읽기 계약 없음), WebSocket 세션 |
+| `gpt-realtime-2.1-mini` | 2.0~2.7s(283자) | — | 🔴 날짜를 바꿔 읽음 | 미채택 — 대화 모델, WebSocket 세션 (PLAN §10-2) |
 
 문장 누락은 약 340자(2조각)를 반복 합성해 **전사로 원문 문장을 대조**했다. 오디오 길이(±3%)로는 한 문장 누락을 못 잡는다.
 
@@ -42,13 +41,12 @@
 |---|---|---|---|---|
 | **Gemini 3.8 Flash Lite TTS** | **$6/1M** (2026-12-31 까지) | ≈$0.009 | ≈$0.009 | **≈$0.04** |
 | ↳ 2027-01-01 부터 | $12/1M (2배) | ≈$0.018 | ≈$0.018 | ≈$0.08 |
-| OpenAI `gpt-4o-mini-tts` | $12/1M (대시보드 역산 ≈$0.016/분) | ≈$0.015 | ≈$0.015 | ≈$0.07 |
-| Gemini 3.1 Flash TTS | $20/1M | ≈$0.03 | ≈$0.03 | ≈$0.14 |
+| Gemini 3.8 Flash TTS (폴백) | $9/1M (2026-12-31 까지) | ≈$0.0135 | ≈$0.0135 | ≈$0.06 |
+| ↳ 2027-01-01 부터 | $18/1M (2배) | ≈$0.027 | ≈$0.027 | ≈$0.13 |
 
-- 단가는 2026-10 공개 가격(출처: 공급자 가격표·LiteLLM·eesel 정리). 채택·한도 변경 전에 재확인한다.
-- **회원 한도 20,000자/일** = 2000자 10회 ≈ Lite **$0.4/일/회원**(2027 $0.8), OpenAI 폴백으로만 읽으면 ≈$0.7.
-- 공급자 월 상한(콘솔): Gemini — AI Studio **Project Spend Cap**(반영 ~10분 지연), OpenAI — 프로젝트 **hard limit**(429 로 차단). 권장 $10~20/월.
-  OpenAI TTS 는 **전용 키 `OPENAI_API_TTS`**(별도 프로젝트) — 공유 키면 상한 도달 시 GPT 채팅까지 멈춘다.
+- 단가는 [Gemini 가격표](https://ai.google.dev/gemini-api/docs/pricing)(2026-10-20 확인). 다른 후보와의 비교는 [PLAN §10-1](../plans/PLAN_TTS_STREAMING_261002.md).
+- **회원 한도 20,000자/일** = 2000자 10회 ≈ Lite **$0.4/일/회원**(2027 $0.8), 폴백으로만 읽으면 ≈$0.6(2027 $1.3).
+- 월 상한: AI Studio **Project Spend Cap**(반영 ~10분 지연). 권장 $10~20/월.
 
 ---
 
@@ -122,13 +120,12 @@ flowchart TB
 
 | 변수 | 값 | 설명 |
 |---|---|---|
-| `TTS_PROVIDER` | `gemini`(기본) · `openai` | 1순위 공급자 |
-| `TTS_FALLBACK` | `off` | 폴백 끄기(미설정이면 다른 공급자 키가 있을 때 켜짐) |
+| `TTS_FALLBACK` | `off` | 폴백(3.8 Flash) 끄기. 미설정이면 켜짐 |
 | `TTS_USE_TIER1` | `true` | Gemini 를 유료 `API_KEY_TIER1` 로만. 미설정이면 무료 풀 `API_KEY`~`API_KEY12` 로테이션(한도가 작다) |
 | `API_KEY_TIER1` | Gemini 유료 키 | 위와 짝 |
-| `OPENAI_API_TTS` | OpenAI 키 | TTS 전용(권장). 없으면 `OPENAI_API_KEY_TIER1` 로 내려간다 |
 
-Vercel(2026-10-04): Production 에 `TTS_USE_TIER1`·`API_KEY_TIER1`·`OPENAI_API_TTS` 등록. Preview 에는 `TTS_USE_TIER1`·`API_KEY_TIER1` 이 없어 Gemini 무료 풀 → 실패 시 OpenAI 폴백.
+Vercel(2026-10-04): Production 에 `TTS_USE_TIER1`·`API_KEY_TIER1` 등록. Preview 는 Gemini 무료 풀(폴백도 같은 풀).
+`OPENAI_API_TTS` 는 10-20 교체 뒤 쓰지 않는다 — 배포 후 env 에서 지워도 된다.
 
 ---
 

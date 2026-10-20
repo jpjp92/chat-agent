@@ -1,12 +1,12 @@
 /**
- * `/api/speech` 라우트 핸들러 실호출 — 공급자별(TTS_PROVIDER) 스트리밍 응답 확인.
+ * `/api/speech` 라우트 핸들러 실호출 — 스트리밍 응답 확인(`X-TTS-Provider` 로 폴백 여부를 본다).
  *
  * dev 서버 없이 `POST` 를 직접 부른다. 응답 스트림을 읽으며 첫 바이트·전체 시간·오디오 길이를 잰다.
  * 클라이언트 재생과 같은 규칙으로 **스트리밍 재생을 흉내내** 끊김(재생 시계가 도착보다 앞선 횟수)을 센다.
  * 라우트가 회원 토큰을 요구한다(2026-10-03) — 회원 access token 을 TTS_PROBE_BEARER 로 넘긴다
  *    (브라우저 devtools: Supabase 세션의 access_token). 회원 일일 한도도 함께 소비된다.
  * 유료 호출. 실행:
- *   TTS_PROVIDER=openai npx tsx --conditions=react-server tests/manual/probe-speech-route.mts [outDir]
+ *   TTS_FALLBACK=off npx tsx --conditions=react-server tests/manual/probe-speech-route.mts [outDir]
  */
 import fs from 'node:fs';
 import path from 'node:path';

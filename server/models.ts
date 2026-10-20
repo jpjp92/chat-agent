@@ -15,6 +15,8 @@ export const SERVER_MODELS = {
     // 3.8 Flash Lite TTS — Gemini 중 가장 빠르고 문장 누락이 없다. 3.1(preview)은 누락·느림·비쌈,
     // 2.5 는 stream 호출도 한 덩어리 — PLAN_TTS_STREAMING_261002 §4-2d
     TTS: "gemini-3.8-flash-lite-tts",
+    // 폴백 — 한도가 모델 단위라 Lite 와 따로 논다. 2.5·3.1 TTS 는 2026-11-17 종료(PLAN_TTS §10-1)
+    TTS_FALLBACK: "gemini-3.8-flash-tts",
     GPT_5_4_MINI: "gpt-5.4-mini",
     GPT_5_6_LUNA: "gpt-5.6-luna",
     GPT_6_LUNA: "gpt-6-luna",

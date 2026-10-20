@@ -1,7 +1,7 @@
 # TTS 스트리밍 전환 계획 (2026-10-02)
 
 > 상태: **2026-10-03 dev 구현 — 1~3단계 + 인증·한도(§7) + 예외 처리(§8). 미배포·미커밋.** 기록: [DEV_261003](../logs/2026/10/DEV_261003.md)
-> 공급자 (2026-10-04 확정, §9): **1순위 Gemini 3.8 Flash Lite TTS → 폴백 OpenAI `gpt-4o-mini-tts`**(전용 키 `OPENAI_API_TTS`). Gemini 키는 `TTS_USE_TIER1=true` 면 유료. 🔴 배포 전 운영 DB 에 `tts-quota.sql` 적용 필수.
+> 공급자 (2026-10-20 갱신, §10-2): **1순위 Gemini 3.8 Flash Lite TTS → 폴백 Gemini 3.8 Flash TTS**. 10-04~10-20 폴백은 OpenAI `gpt-4o-mini-tts`(2027-01-06 제거). Gemini 키는 `TTS_USE_TIER1=true` 면 유료. 🔴 배포 전 운영 DB 에 `tts-quota.sql` 적용 필수.
 >
 > (원래 상태: 계획 — 미착수.) 외부 피드백("TTS만 OpenAI `gpt-4o-mini-tts` 스트리밍으로 분리")을
 > 현재 코드에 대조해 채택·수정·추가한 결과다. 채팅 모델·프롬프트는 범위 밖이다.
@@ -208,7 +208,7 @@ AI Studio 사용량 화면(사용자 제공)에도 둘 다 Tier 2 한도(1K RPM 
 
 - 3.8 Lite 가 Gemini 중 가장 빠르고(OpenAI 에 근접) 누락이 없었다. 3.8 Flash 는 느리다(전체 54s).
 - n=2(길이)·5(누락)로 작다. 3.1 의 누락도 7회 중 1회였으므로 "3.8 은 누락 없음"은 아직 확정이 아니다.
-- 💰 3.8 TTS 단가는 **확인하지 않았다** — 채택 전 공식 가격표를 본다.
+- 💰 3.8 TTS 단가 — §10-1(10-20 확인).
 
 ### 4-3. `gpt-realtime-2.1-mini` 검토 (2026-10-03, 문서 기준·미측정)
 
@@ -310,3 +310,62 @@ Preview 환경엔 `TTS_USE_TIER1` 이 없어 Gemini 무료 풀을 쓴다(3.8 Lit
 - 계획: **2026-12 안에 폴백을 `gemini-3.8-flash-tts` 로 교체**(같은 키·누락 0/5, 단 느림 54s/2000자, 공급자 장애는 못 막음).
   공급자 이중화가 필요하면 그때 다른 TTS 공급자를 따로 검토한다.
 - 같은 공지 묶음: 측정 프로브의 전사 모델 `gpt-4o-mini-transcribe` 도 **2027-02-26 EOL** — 프로브만 쓰므로 서비스 영향 없음.
+
+### 10-1. 대체 후보 가격 (2026-10-20, 공식 가격표)
+
+- OpenAI 에는 `/v1/audio/speech` 를 지원하는 후속 모델이 없다.
+  - 공식 대체 `gpt-realtime-2.1-mini` 는 Realtime 만 지원한다.
+  - `gpt-audio-1.5` 는 Chat Completions 만 지원한다.
+  - 둘 다 대화 모델이라 원문을 그대로 읽는다는 보장이 없다(§4-3).
+- 분당 비용은 오디오 25 토큰/초 = 1,500 토큰/분 기준이다. 2,000자 ≈ 4.7분.
+
+| 모델 | 오디오 출력 /1M ~2026-12 | 2027-01-01~ | 분당(2026 → 2027) | 2,000자(2026 → 2027) | 비고 |
+|---|---:|---:|---:|---:|---|
+| `gemini-3.8-flash-lite-tts` (1순위) | $6 | $12 | $0.009 → $0.018 | $0.04 → $0.08 | 무료 티어 있음 |
+| `gemini-3.8-flash-tts` (폴백 교체 후보) | $9 | $18 | $0.0135 → $0.027 | $0.06 → $0.13 | 무료 티어 있음 |
+| `gemini-2.5-flash-preview-tts` | $10 | $10 | $0.015 | $0.07 | preview · 스트리밍 안 됨(§4-1) |
+| `gemini-3.1-flash-tts-preview` | $20 | $20 | $0.03 | $0.14 | 누락 1/7(§4-2d) |
+| OpenAI `gpt-4o-mini-tts` (현 폴백) | $12 | 제거(01-06) | $0.018 | $0.08 | |
+| OpenAI `gpt-realtime-2.1-mini` | $20 | $20 | $0.03 | $0.14 | Realtime 만 지원 |
+| OpenAI `gpt-audio-1.5` | $64 | $64 | $0.10 | $0.45 | Chat Completions 만 지원 |
+
+- 텍스트 입력 단가: 3.8 두 모델은 $0.50 → 2027 $1.00, 2.5 는 $0.50, OpenAI TTS 는 $0.60이다. 오디오에 비해 작다.
+- 🔴 **1순위 Lite 도 2027-01-01 에 두 배가 된다.** TTS 전체 비용이 약 2배가 되므로 일일 한도(§7)를 다시 본다.
+- 폴백은 1순위가 실패할 때만 돈다. 그래서 폴백 단가 차이는 전체 비용에 거의 안 잡힌다.
+- **Gemini 종료 일정**(10-20, [Gemini deprecations](https://ai.google.dev/gemini-api/docs/deprecations)):
+  - `gemini-2.5-flash-preview-tts` · `gemini-2.5-pro-preview-tts` · `gemini-3.1-flash-tts-preview` 는 **2026-11-17 종료**다. 대체는 3.8 Flash / 3.8 Flash Lite.
+    - 2.5 는 OpenAI 보다 먼저 사라지므로 폴백 후보에서 제외한다.
+  - `gemini-3.8-flash-tts` · `gemini-3.8-flash-lite-tts` 는 종료일이 발표되지 않았다. 표기상 가장 이른 날짜도 없다.
+
+### 10-2. `gemini-3.8-flash-tts` vs `gpt-realtime-2.1-mini` 실측 (2026-10-20, n=3, `probe-tts-realtime-vs-gemini.mts`)
+
+- 문장 3종을 썼다.
+  - `short` 33자
+  - `question` 96자: 질문·"대답해 주세요" 섞임
+  - `chunk400` 283자: 날짜·숫자·영어 약어
+- realtime 은 "TTS 엔진으로서 그대로 읽어라" 지시를 넣고, 요청마다 WebSocket 세션 하나를 연다(연결 시간 포함).
+- 원문 유사도는 `gpt-4o-mini-transcribe` 전사와 입력의 글자 편집거리다. 입력이 한글 숫자("시월 칠일")라 전사의 아라비아 숫자와 어긋나므로, chunk400 은 정상이어도 약 85% 가 상한이다.
+- 비용 약 $0.15.
+
+| 모델 | 텍스트 | 성공 | 첫 소리 p50 | 전체 p50 | 원문 유사도 p50 · 최저 |
+|---|---|---|---:|---:|---:|
+| `gemini-3.8-flash-tts` | short | 3/3 | **0.98s** | 2.21s | 100% · 100% |
+| | question | 3/3 | **0.97s** | 4.33s | 100% · 100% |
+| | chunk400 | 3/3 | **1.02s** | 11.22s | 86% · 85% |
+| `gpt-realtime-2.1-mini` | short | 3/3 | 2.04s | 2.76s | 100% · 91% |
+| | question | 3/3 | 2.05s | 3.22s | 97% · 94% |
+| | chunk400 | 3/3 | 2.66s | **6.51s** | 83% · 83% |
+
+- 🔴 **realtime 은 사실을 바꿔 읽었다.** 같은 전사기로 Gemini 는 3/3 맞은 대목이다.
+  - "이천이십칠년 일월 십이일" → **"2월 12일"**(3/3), 한 번은 **"2023년"**
+  - "닷새" → "5세"(2/3)
+  - "시험 원서" → "시험원"
+  - 재실행 1회(내장 WebSocket 으로 바꾼 뒤): 날짜는 맞게 읽었지만 "접수 마감 **뒤**에는" → "마감 **전**에는"으로 뜻을 뒤집었고, "닷새" → "다섯" 이었다. 오류 위치가 매번 달라 지시문으로 막을 수 있는 종류가 아니다.
+  - 질문 문장에 대답하지는 않았다(question 94~99%).
+- Gemini 3.8 Flash 는 9/9 원문 그대로였다. 첫 소리도 realtime 보다 약 1~1.6s 빠르다.
+  - 전체 시간은 realtime 이 빠르다(283자 6.5s vs 11.2s).
+  - 하지만 Gemini 도 오디오 40s 를 11s 에 만든다. 생성이 재생보다 빠르므로 분할 스트리밍(PREFETCH 2)에서 끊김 요인은 아니다.
+- **판정: 폴백은 `gemini-3.8-flash-tts`** — 10-20 교체(`server/tts/synth.ts`, `SERVER_MODELS.TTS_FALLBACK`). 두 모델 RMS 차 약 0.6dB(Lite 는 다른 문장으로 잰 값)라 음량 보정(`TTS_GAIN`)은 없앴다. realtime 은 날짜를 바꿔 읽는 것만으로 읽기 용도에서 탈락이다(§4-3 의 우려가 실측으로 확인됨). 비용·연결 방식(WebSocket)도 불리하다.
+- 측정 메모: 로컬 Node 의 `fetch` 가 Gemini 호출에서 `SELF_SIGNED_CERT_IN_CHAIN` 으로 실패했다. `NODE_OPTIONS=--use-system-ca` 로 해결했고, 환경 문제라 코드와는 무관하다.
+
+출처: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) · [OpenAI Deprecations](https://developers.openai.com/api/docs/deprecations) · [gpt-realtime-2.1-mini](https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini) · [gpt-audio-1.5](https://developers.openai.com/api/docs/models/gpt-audio-1.5)

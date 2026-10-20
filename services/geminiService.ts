@@ -496,10 +496,10 @@ export const initAudioContext = async () => {
 };
 
 /**
- * 첫 재생을 늦춰 두는 여유(지터 버퍼). OpenAI 는 첫 ~0.4s 분량을 몰아 보낸 뒤 **최대 ~225ms 멈췄다가**
- * 이어 보낸다 — 바로 재생하면 시작 직후 한 번 끊긴다(Gemini 는 끊기지 않는다).
+ * 첫 재생을 늦춰 두는 여유(지터 버퍼). Gemini 는 시작 직후 끊기지 않아 짧게 둔다.
+ * 표에 없는 값(배포 전환 중 구 서버의 'openai' 등)은 넉넉한 0.3s — OpenAI 는 첫 ~0.4s 를 몰아 보낸 뒤 ~225ms 멈췄다.
  */
-const TTS_START_LEAD_SEC: Record<string, number> = { gemini: 0.05, openai: 0.3 };
+const TTS_START_LEAD_SEC: Record<string, number> = { gemini: 0.05, 'gemini-flash': 0.05 };
 /** 예약 단위 ≈ 0.2s(24kHz·16bit = 48,000 B/s). 첫 소리는 이만큼 모인 뒤 시작한다. */
 const TTS_SCHEDULE_MIN_BYTES = 9_600;
 
@@ -560,7 +560,6 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
   if (response.status === 401) throw new TtsError('auth', '401');
   if (!response.ok || !response.body) throw new TtsError('server', `HTTP ${response.status}`);
 
-  // 공급자별 음량은 서버가 PCM 에 이미 맞춰 보낸다(server/tts/synth.ts TTS_GAIN) — 폴백으로 섞여도 같은 크기
   const gainNode = ctx.createGain();
   const provider = response.headers.get('X-TTS-Provider') ?? 'gemini';
   const startLead = TTS_START_LEAD_SEC[provider] ?? 0.3;
@@ -569,7 +568,7 @@ export const playSpeechStream = async (text: string, onStart?: () => void): Prom
   const reader = response.body.getReader();
   let nextStart = 0;
   let lastEnded: Promise<void> = Promise.resolve();
-  // 네트워크 청크를 모아 한 번에 예약한다. OpenAI 청크는 ~1.4KB(≈28ms)라 그대로 예약하면
+  // 네트워크 청크를 모아 한 번에 예약한다. 청크가 잘게 오면(예: ~1.4KB ≈ 28ms) 그대로 예약할 때
   // 2000자에 소스가 ~9,000개 — 경계 반올림 오차가 쌓여 미세한 틱이 나고 모바일에 무겁다.
   let pending: Uint8Array[] = [];
   let pendingBytes = 0;

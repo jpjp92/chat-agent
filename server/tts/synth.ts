@@ -8,79 +8,41 @@ import { withTtsRetry } from './retry';
 /**
  * TTS 합성 — 공급자 전환 + 분할 조각을 **하나의 PCM 스트림**으로 이어 붙인다.
  *
- * 출력은 두 공급자 공통 **24kHz · 16bit · mono · little-endian raw PCM**.
- * 1순위 공급자는 `TTS_PROVIDER` (gemini | openai), **미설정이면 gemini(3.8 Flash Lite)**.
- * 다른 공급자는 **폴백** — 키가 있으면 자동으로 켜진다(`TTS_FALLBACK=off` 로 끈다).
+ * 출력은 **24kHz · 16bit · mono · little-endian raw PCM**.
+ * 1순위는 `gemini-3.8-flash-lite-tts`, 폴백은 `gemini-3.8-flash-tts`(`TTS_FALLBACK=off` 로 끈다).
+ * 폴백이 다른 모델인 이유: Gemini 한도는 모델 단위라 Lite 가 429·장애일 때 Flash 는 대개 살아 있다.
+ * Google 전체 장애는 못 막는다 — 다른 공급자가 필요하면 PLAN §10.
  *   - 첫 조각이 1순위에서 실패하면 **요청 전체**를 폴백으로 넘긴다(목소리 하나로 읽는다)
- *   - 이후 조각이 실패하면 **그 조각만** 폴백 — 목소리가 바뀌는 편이 내용을 건너뛰는 것보다 낫다
- * 음량은 공급자마다 달라 **서버에서 PCM 을 맞춘다**(TTS_GAIN) — 한 스트림에 두 공급자가 섞여도 같은 크기로 들린다.
+ *   - 이후 조각이 실패하면 **그 조각만** 폴백 — 같은 음성(Kore)이라 바뀌어도 티가 작다
  * Gemini 키는 `TTS_USE_TIER1=true` 면 유료 `API_KEY_TIER1`, 아니면 무료 풀(한도가 작다 — 폴백이 받쳐 준다).
  * 라우트가 토큰·게스트·회원 일일 한도를 먼저 검사한다(app/api/speech/route.ts, PLAN §7).
  *
- * 측정 근거: PLAN_TTS_STREAMING_261002 §4-1~4-2c.
+ * 측정 근거: PLAN_TTS_STREAMING_261002 §4-1~4-2d · §10.
+ * OpenAI `gpt-4o-mini-tts` 폴백은 뺐다 — 2027-01-06 API 제거, 공식 대체 `gpt-realtime-2.1-mini` 는
+ * 실측에서 날짜를 바꿔 읽었다("일월"→"2월", PLAN §10-2).
  */
 
-type TtsProvider = 'gemini' | 'openai';
+/** `X-TTS-Provider` 헤더 값 — 클라이언트가 재생 시작 여유(TTS_START_LEAD_SEC)를 고르는 키다. */
+type TtsProvider = 'gemini' | 'gemini-flash';
+const TTS_MODEL: Record<TtsProvider, string> = { gemini: SERVER_MODELS.TTS, 'gemini-flash': SERVER_MODELS.TTS_FALLBACK };
 
-/**
- * **2027-01-06 API 제거 예정**(OpenAI 공지 — tts-1·tts-1-hd·gpt-4o-mini-tts 전 버전).
- * 공식 대체는 `gpt-realtime-2.1-mini` 지만 음성 대화 모델이라 원문 그대로 읽기를 보장하지 않는다(PLAN §4-3).
- * 그 전에 폴백을 `gemini-3.8-flash-tts` 등으로 바꾼다 — PLAN_TTS_STREAMING_261002 §10, TODO.
- */
-const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
-const OPENAI_TTS_VOICE = 'alloy';
 const GEMINI_TTS_VOICE = 'Kore';
 /** 재생 중 다음 조각을 미리 받는 수. 2 가 전체 시간이 가장 짧았다(§4-2). */
 const PREFETCH = 2;
 const CHUNK_TIMEOUT_MS = 60_000;
 
-/**
- * OpenAI TTS 키. 전용 `OPENAI_API_TTS` 를 우선한다 — 채팅과 같은 키(`OPENAI_API_KEY_TIER1`)를 쓰면
- * 프로젝트 hard limit 에 TTS 가 닿는 순간 **GPT 채팅까지 429** 로 멈춘다(상한은 프로젝트 단위).
- * 전용 키가 없을 때만 공유 키로 내려간다.
- */
-function openAITtsKey(): string | undefined {
-    return process.env.OPENAI_API_TTS || process.env.OPENAI_API_KEY_TIER1;
-}
-
 function geminiAvailable(): boolean {
     return (process.env.TTS_USE_TIER1 === 'true' && !!process.env.API_KEY_TIER1) || API_KEYS.length > 0;
 }
 
-/** [1순위, 폴백?]. 키가 없는 공급자는 빠진다. */
-function resolveTtsProviders(): TtsProvider[] {
-    const primary: TtsProvider = process.env.TTS_PROVIDER === 'openai' && openAITtsKey() ? 'openai' : 'gemini';
-    const secondary: TtsProvider = primary === 'gemini' ? 'openai' : 'gemini';
-    const secondaryOk = secondary === 'openai' ? !!openAITtsKey() : geminiAvailable();
-    return process.env.TTS_FALLBACK !== 'off' && secondaryOk ? [primary, secondary] : [primary];
-}
-
 /**
- * 공급자별 증폭 — 서버에서 PCM 샘플에 곱한다(클리핑 방지 포함). 증폭 전 측정(한국어 3문장):
- *   gemini 3.8 Lite  RMS 5899(-14.9 dBFS) · 피크 32768 — 이미 풀스케일이라 증폭하면 찌그러진다
- *   openai           RMS 4029(-18.2 dBFS) · 피크 22152 — 3.3dB 작다. 1.4 로 맞추면 RMS ≈5640·피크 ≈31000
- * → 두 공급자가 폴백으로 한 스트림에 섞여도 비슷한 크기로 들린다.
+ * [1순위, 폴백?]. 두 모델 모두 Gemini 라 키 조건이 같다.
+ * 음량 보정은 두지 않는다 — RMS 가 Lite -14.9 dBFS(한국어 3문장) · Flash -15.5 dBFS(283자 3회)로
+ * 약 0.6dB 차이라 들리지 않는다. Lite 는 이미 피크가 풀스케일이라 키우면 찌그러진다.
  */
-const TTS_GAIN: Record<TtsProvider, number> = { gemini: 1.0, openai: 1.4 };
-
-/** 16bit LE PCM 증폭. 청크가 홀수 바이트로 끊길 수 있어 남는 1바이트를 다음 청크로 넘긴다. */
-async function* applyGain(gen: AsyncGenerator<Uint8Array>, gain: number): AsyncGenerator<Uint8Array> {
-    if (gain === 1) { yield* gen; return; }
-    let carry: Uint8Array | null = null;
-    for await (const value of gen) {
-        let bytes = value;
-        if (carry) { bytes = new Uint8Array(carry.length + value.length); bytes.set(carry); bytes.set(value, carry.length); carry = null; }
-        const even = bytes.length - (bytes.length % 2);
-        if (even < bytes.length) carry = bytes.slice(even);
-        if (even === 0) continue;
-        const out = Buffer.from(bytes.slice(0, even));
-        for (let i = 0; i < even; i += 2) {
-            const v = Math.round(out.readInt16LE(i) * gain);
-            out.writeInt16LE(v > 32767 ? 32767 : v < -32768 ? -32768 : v, i);
-        }
-        yield out;
-    }
-    if (carry) yield carry;
+function resolveTtsProviders(): TtsProvider[] {
+    if (!geminiAvailable()) return ['gemini']; // 아래 synthGemini 가 키 없음 오류를 낸다
+    return process.env.TTS_FALLBACK !== 'off' ? ['gemini', 'gemini-flash'] : ['gemini'];
 }
 
 /** 시도 설정. 뒤에 폴백이 있으면 짧게 쥐고 빨리 넘긴다(FAST_HANDOFF). */
@@ -94,37 +56,14 @@ type Synth = (text: string, signal: AbortSignal, attempts?: Attempts) => AsyncGe
  */
 const FAST_HANDOFF: Attempts = { maxAttempts: 2, firstByteTimeoutMs: 6_000 };
 
-async function* openAIOnce(text: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
-    const res = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${openAITtsKey()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: OPENAI_TTS_MODEL, voice: OPENAI_TTS_VOICE, input: text, response_format: 'pcm' }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(CHUNK_TIMEOUT_MS)]),
-    });
-    if (!res.ok || !res.body) {
-        throw Object.assign(new Error(`openai tts ${res.status}: ${(await res.text()).slice(0, 200)}`), { status: res.status });
-    }
-    const reader = res.body.getReader();
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done) return;
-        if (value.length) yield value;
-    }
-}
-
-/** 키가 하나라 같은 키로 다시 부른다 — 429 를 바로 다시 치지 않게 0.5s·1s 쉰다. */
-function synthOpenAI(text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
-    return withTtsRetry((_, attemptSignal) => openAIOnce(text, attemptSignal), signal, { ...attempts, backoffMs: n => 500 * (n + 1) });
-}
-
 /**
  * Gemini 는 키 풀을 돈다. 키 전환은 **그 조각의 첫 바이트 전까지만** — 이미 보낸 오디오는 되돌릴 수 없다.
  * 2.5 TTS 는 stream 으로 불러도 한 덩어리로 온다(§4-1 ①) — 3.1 부터 실제로 스트리밍된다.
  */
-async function* geminiOnce(text: string, apiKey: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
+async function* geminiOnce(model: string, text: string, apiKey: string, signal: AbortSignal): AsyncGenerator<Uint8Array> {
     const ai = new GoogleGenAI({ apiKey });
     const stream = await ai.models.generateContentStream({
-        model: SERVER_MODELS.TTS,
+        model,
         contents: [{ parts: [{ text }] }],
         config: {
             responseModalities: ['AUDIO'],
@@ -145,10 +84,10 @@ async function* geminiOnce(text: string, apiKey: string, signal: AbortSignal): A
  * TTS 무료 한도는 **키(프로젝트)당 일일 횟수가 작다** — 조각마다 1회라 무료 풀은 금방 바닥난다.
  * 유료 키는 env 로 명시할 때만 쓴다.
  */
-function synthGemini(text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
+function synthGemini(model: string, text: string, signal: AbortSignal, attempts: Attempts = {}): AsyncGenerator<Uint8Array> {
     const tier1 = process.env.TTS_USE_TIER1 === 'true' ? process.env.API_KEY_TIER1 : undefined;
     if (tier1) {
-        return withTtsRetry((_, s) => geminiOnce(text, tier1, s), signal, { ...attempts, backoffMs: n => 500 * (n + 1) });
+        return withTtsRetry((_, s) => geminiOnce(model, text, tier1, s), signal, { ...attempts, backoffMs: n => 500 * (n + 1) });
     }
     // 동기 throw 는 ChunkBuffer 밖으로 새어 나간다 — 생성기 안에서 실패시킨다
     if (API_KEYS.length === 0) return (async function* () { throw new Error('gemini tts: no API keys'); })();
@@ -157,7 +96,7 @@ function synthGemini(text: string, signal: AbortSignal, attempts: Attempts = {})
         const apiKey = getNextApiKey();
         if (!apiKey) throw Object.assign(new Error('gemini tts: all keys exhausted'), { status: 429 });
         keys[n] = apiKey;
-        return geminiOnce(text, apiKey, s);
+        return geminiOnce(model, text, apiKey, s);
     }, signal, {
         firstByteTimeoutMs: attempts.firstByteTimeoutMs,
         maxAttempts: Math.min(attempts.maxAttempts ?? 3, API_KEYS.length),
@@ -204,7 +143,10 @@ class ChunkBuffer {
  * 텍스트 → PCM 바이트 스트림. 첫 바이트가 나오기 전 실패는 throw 로 올려
  * 라우트가 JSON 오류를 낼 수 있게 한다(그 뒤의 실패는 스트림 중단).
  */
-const SYNTH: Record<TtsProvider, Synth> = { gemini: synthGemini, openai: synthOpenAI };
+const SYNTH: Record<TtsProvider, Synth> = {
+    gemini: (text, signal, attempts) => synthGemini(TTS_MODEL.gemini, text, signal, attempts),
+    'gemini-flash': (text, signal, attempts) => synthGemini(TTS_MODEL['gemini-flash'], text, signal, attempts),
+};
 
 /**
  * 조각 하나를 공급자 순서대로 시도한다. 폴백은 **그 조각의 첫 바이트 전** 실패에만 —
@@ -219,7 +161,7 @@ async function* synthWithFallback(
         let started = false;
         try {
             const hasFallback = k < providers.length - 1;
-            for await (const bytes of applyGain(SYNTH[provider](text, signal, hasFallback ? FAST_HANDOFF : {}), TTS_GAIN[provider])) {
+            for await (const bytes of SYNTH[provider](text, signal, hasFallback ? FAST_HANDOFF : {})) {
                 if (!started) { started = true; onProvider(provider); }
                 yield bytes;
             }
