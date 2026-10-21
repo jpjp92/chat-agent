@@ -50,6 +50,9 @@
 
 - [x] 🔴 **TTS 폴백 교체 — 2026-12 안에** (기한 2027-01-06): OpenAI `gpt-4o-mini-tts` API 제거(2026-10-01 공지). 10-20 폴백을 `gemini-3.8-flash-tts` 로 교체(미배포) → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md)
   - [ ] 배포 후 Vercel env `OPENAI_API_TTS` 삭제(더 쓰지 않음)
+  - [ ] 배포 후 로그 확인: `[speech] gemini failed before first byte — falling back to gemini-flash` 가 얼마나 찍히는지. 폴백은 Lite 보다 느리다(2,000자 약 54s vs 29s)
+  - [ ] 🟡 **TTS 단가 2027-01-01 두 배**(Lite $6 → $12, Flash $9 → $18 /1M 오디오) — 회원 한도 20,000자/일(≈$0.4 → $0.8/일/회원)을 그 전에 다시 본다 → [REF_TTS §2](guide/REF_TTS.md)
+  - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
@@ -327,6 +330,15 @@
   - [ ] 운영 메시지로 skip 가능 비율 세기 — 규칙만 돌리고 개수만 낸다. 사용자 승인이 필요하다.
   - [ ] 처리방침 확인 — 하이브리드는 Gemini 사용자 메시지도 매 턴 OpenAI 로 보낸다.
   - [ ] shadow 병렬 1~2주 → 도입 판정(남은 쟁점: Decisions GA · Jev)
+
+### 0-h. 10-19~10-20 미배포 변경 — 배포 후 확인
+
+dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0-g 에 있다.
+
+- [ ] **출처 바**(076914b) — iOS Safari 에서 하단 시트가 safe-area 위로 올라오는지, 시트 안 스크롤·바깥 탭 닫기, 출처 3개 이상 답변의 다크모드 대비 → [DEV_261019 §6](logs/2026/10/DEV_261019.md)
+- [ ] **날씨 오늘 최저·최고**(a747266) — 오후·밤(15시 이후)에 물어도 카드 첫 줄 최저·최고가 하루 범위로 나오는지. 02시 발표 보충 호출이 실패하면 예전 값으로 남는다 → [DEV_261019 §5](logs/2026/10/DEV_261019.md)
+- [ ] **GPT 웹 검색 reasoning low**(ac76d60) — 다른 검색 질문에서 지연(+약 1s)·품질 확인 (0-g 와 같은 항목)
+- [ ] **TTS 폴백**(d7763d7) — 위 TTS 항목의 env 정리·폴백 로그
 
 ### 1. 멀티턴 경고·차단
 

@@ -47,7 +47,7 @@ A multi-provider AI messenger built on Gemini and OpenAI. A LangGraph.js agent r
 | Live facts | "Open now" for pharmacies and hospitals is computed by the server from official data, never guessed by the model |
 | Documents | PDF, DOCX/PPTX/XLSX, HWP/HWPX, plus PDF download links. Follow-up questions are answered from the document → [REF_Document](docs/guide/REF_Document.md) |
 | Media | Images, video, YouTube (captions or native video analysis) |
-| Read aloud | Gemini TTS with OpenAI fallback, streamed so playback starts in about a second. Members only, 20,000 chars/day → [REF_TTS](docs/guide/REF_TTS.md) |
+| Read aloud | Gemini 3.8 Flash Lite TTS with Gemini 3.8 Flash fallback, streamed so playback starts in about a second. Members only, 20,000 chars/day → [REF_TTS](docs/guide/REF_TTS.md) |
 
 Routing, tool binding, model policy and streaming: [REF_Architecture](docs/guide/REF_Architecture.md)
 

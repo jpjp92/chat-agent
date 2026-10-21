@@ -16,7 +16,7 @@ README 는 큰 그림(4단계)만 둔다. 각 단계의 상세는 아래 섹션�
 | 1. 클라이언트 | 첨부 업로드(서명 URL), 링크 프리페치, 히스토리·`activeCards` 조립 | [URL Prefetch](#url-prefetch--fallback-flow) · [Database & Storage](#database--storage-flow) |
 | 2. 라우터 | intent·검색 여부·후속 판정, 결정적 가드 | [LangGraph Agent Flow](#langgraph-agent-flow) · [Intent Routing](#intent-routing) · [Card Follow-up](#card-follow-up-state) |
 | 3. 생성 | 공급자별 경로, 도구 루프, 알약 식별 | [Agent Runtime Branches](#agent-runtime-branches) · [Tool Inventory](#tool-inventory) · [Pill ID](#pill-image-identification-flow) · [Model Policy](#model-policy) |
-| 4. 스트리밍·렌더 | SSE, 출처 칩, 카드 렌더, 저장 | [Streaming & Source Handling](#streaming--source-handling) · [Client Rendering](#client-rendering-pipeline) |
+| 4. 스트리밍·렌더 | SSE, 출처 칩·출처 바, 카드 렌더, 저장 | [Streaming & Source Handling](#streaming--source-handling) · [Client Rendering](#client-rendering-pipeline) |
 | 부가 | 읽어주기 | [TTS Flow](#tts-read-aloud-flow) |
 
 ### 전체 구성도
@@ -528,11 +528,11 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | Gemini 일반·URL·검색·멀티모달 | 선택한 Gemini를 우선하고 `MODEL_CAPS`의 search/long-input/multimodal/fileData 축에 따라 2.5 fallback |
 | 외부 API 도구 인텐트 (LangChain) | `gemini-2.5-flash` (drug/pharmacy/hospital/vet/law/movie; fast-pass = thinking off) |
 | 알약 Vision 전처리 | `gemini-2.5-flash`, thinking off |
-| TTS | `gemini-3.8-flash-lite-tts` (1순위) → `gpt-4o-mini-tts` (폴백, 🔴 **2027-01-06 OpenAI 제거** → 2026-12 안에 `gemini-3.8-flash-tts` 로 교체). 500자 분할 + PCM 스트리밍 + 서버 음량 보정, 회원 전용·일일 20,000자 — **[REF_TTS](REF_TTS.md)** |
+| TTS | `gemini-3.8-flash-lite-tts` (1순위) → `gemini-3.8-flash-tts` (폴백, 2026-10-20 OpenAI `gpt-4o-mini-tts` 에서 교체 — 2027-01-06 제거). 500자 분할 + PCM 스트리밍, 회원 전용·일일 20,000자 — **[REF_TTS](REF_TTS.md)** |
 | 세션 제목 생성 | `gemini-2.5-flash-lite` (primary) / `gemini-2.5-flash` (fallback) |
 | 초기 라우터 (현재) | `gemini-2.5-flash`, thinkingBudget:0 (2026-09-02 에 flash-lite 에서 상향). GPT 선택 시에도 Gemini 키를 먼저 요구하는 충돌은 미해결 |
 
-**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **예외 — TTS**: 읽을 내용이 같고 목소리만 바뀌므로 Gemini 실패 시 OpenAI 로 폴백한다(첫 바이트 전 실패만, [REF_TTS §1](REF_TTS.md#1-모델-정책)). 채팅에 같은 논리를 적용하지 않는다 — 다른 모델의 답을 선택 모델의 답처럼 보이게 된다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 10종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
+**정책 원칙:** 일반 입력은 선택 모델을 유지하고, 공급자 간 자동 전환은 unsupported modality에만 허용한다. 쿼터·결제·인증·일시 장애는 다른 공급자로 넘기지 않으며 사용자에게 정제된 안내만 보여준다. ⚖️ **예외 — TTS**: 읽을 내용이 같고 목소리만 바뀌므로 Lite 실패 시 다른 모델(3.8 Flash)로 폴백한다(첫 바이트 전 실패만, [REF_TTS §1](REF_TTS.md#1-모델-정책)). 채팅에 같은 논리를 적용하지 않는다 — 다른 모델의 답을 선택 모델의 답처럼 보이게 된다. ⚖️ **GPT 로컬 도구 호출은 구현됐다**(`server/agent/local-tool-registry.ts`, 의도 10종의 strict function calling). 남은 것은 Gemini 선행 router 의존성이고 [PLAN_MULTI_PROVIDER_ROUTING_260823](../plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md)에 추적한다.
 
 ### 🔴 타임아웃 예산 — **60 을 베껴 오지 말 것**
 
@@ -567,9 +567,9 @@ initial·followup 이 같은 signal 을 공유했다 — 즉 상한이 "턴 전�
 flowchart LR
     Btn["ChatMessage 음성 버튼"] -->|authedFetch| Speech["/api/speech"]
     Speech --> Q["RPC consume_tts_quota<br/>(tts_usage)"]
-    Speech --> S["server/tts/synth.ts<br/>500자 분할 · 선행 2 · 폴백 · 음량 보정"]
+    Speech --> S["server/tts/synth.ts<br/>500자 분할 · 선행 2 · 폴백"]
     S --> G["Gemini 3.8 Flash Lite TTS"]
-    S -.첫 바이트 전 실패.-> O["OpenAI gpt-4o-mini-tts"]
+    S -.첫 바이트 전 실패.-> O["Gemini 3.8 Flash TTS"]
     S -->|"raw PCM stream"| P["playSpeechStream<br/>(services/geminiService.ts)"]
 ```
 
@@ -601,6 +601,7 @@ flowchart LR
 - LangChain `on_chat_model_stream` 청크: Vision 노드 청크(내부 JSON 추출 데이터) 필터링 후 전달
 - URL fetch 실패: 지역화된 접근 제한 안내로 short-circuit; 대체 검색 결과 요약 금지
 - 툴 소스 URL: `[WEB_SOURCE_URLS]` 파싱 → 소스 칩으로 emit
+- 출처 표시(`components/SourceBar.tsx`, 2026-10-19): 1~2개는 칩, **3개 이상은 접힌 바 하나**(favicon 3개 + "출처 N개") → 누르면 전체 목록 시트(모바일 하단 · 데스크톱 가운데). 번호는 원래 `citationNumber` 를 쓰고 새로 매기지 않는다. 출처는 스트림이 끝난 뒤에만 붙어 숫자가 중간에 바뀌지 않는다
 - Fast-pass 렌더러: `json:pharmacy` / `json:hospital` / `json:vet` / `json:law` / `json:movie` / `json:weather` 블록을 추가 LLM 합성 없이 직접 스트림
 - 오늘 날짜 사후 검증: `on_chain_end generator` 에서 [today-guard.ts](../../server/agent/today-guard.ts) 가
   틀린 `오늘 N월 M일` 단정에 정정을 덧붙인다. **세 경로(SDK·OpenAI·LangChain)가 모두 지나는 유일한

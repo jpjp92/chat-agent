@@ -1,6 +1,6 @@
 # REF: TTS (소리 내어 읽기)
 
-> 최종 점검: 2026-10-20(폴백 교체) · 상태: **dev 구현, main 미배포**
+> 최종 점검: 2026-10-20(폴백 교체) · 상태: **10-05 운영 배포 · 10-20 폴백 교체는 dev 만(미배포)**
 > 설계·측정 이력: [PLAN_TTS_STREAMING_261002](../plans/PLAN_TTS_STREAMING_261002.md) · 날짜 로그: [DEV_261003](../logs/2026/10/DEV_261003.md)
 > 코드: `app/api/speech/route.ts` · `server/tts/` · `lib/tts-speakable.ts`(서버·클라 공용) · `services/geminiService.ts`(`playSpeechStream`) · `components/ChatMessage.tsx`
 

@@ -75,7 +75,7 @@ body의 `user_id`를 신뢰하지 않는다. 2026-08-17 이전의 nickname 인�
 | `role` | `text` | NOT NULL | `'user'` \| `'assistant'` |
 | `content` | `text` | NOT NULL | 메시지 본문. 마크다운 포함 |
 | `attachment_url` | `text` | nullable | 첨부파일 첫 번째 항목의 Storage URL |
-| `grounding_sources` | `jsonb` | nullable | Gemini/OpenAI 웹 출처 칩. `[{title, uri}]` 배열 |
+| `grounding_sources` | `jsonb` | nullable | Gemini/OpenAI 웹 출처(칩·출처 바). `[{title, uri, citationNumber?, cited?}]` 배열 |
 | `created_at` | `timestamptz` | DEFAULT now() | 메시지 시각. 조회 정렬 기준 |
 
 **API 접근:** `app/api/sessions/route.ts`(조회), `app/api/chat/route.ts`(삽입)  
