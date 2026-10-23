@@ -3,7 +3,7 @@
  * 계획: docs/plans/PLAN_DECISION_ROUTER_261019.md
  *
  *   npx tsx tests/manual/probe-decisions-router.mts --dry      # 호출 0회 — 요청 본문과 호출 계획만
- *   ... --set=holdout|holdout2|holdout3|fresh|final|domains|domains2|causes|law                                # 검증용 세트(router-cases.mts)
+ *   ... --set=holdout|holdout2|holdout3|fresh|final|domains|domains2|causes|law|wobble|golden|pet|bio                                # 검증용 세트(router-cases.mts)
  *   ... --q=v2                                                 # 개선 문구(decisions-client INTENT_QUESTIONS_V2)
  *   ... --decisions-only                                       # 현행 라우터를 부르지 않는다(문구 비교·회귀용)
  *   ... --router-only                                          # Decisions 를 부르지 않는다(현행 라우터 검증용)
@@ -28,6 +28,8 @@ for (const file of ['.env.local', '.env']) {
     }
 }
 
+// ROUTER_VARIANT 가 있으면 라우터 프롬프트 변형(라우터 import 전에 fetch 를 감싼다)
+const { variantStats } = await import('./router-prompt-variant.mts');
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry');
 const DEC_ONLY = args.includes('--decisions-only');
@@ -38,9 +40,13 @@ const { DECISIONS_MODEL, LOW_CONF, INTENT_QUESTIONS, INTENT_QUESTIONS_V2, callDe
 const QV = args.find(a => a.startsWith('--q='))?.slice(4) ?? 'v1';
 const questions = QV === 'v2' ? INTENT_QUESTIONS_V2 : INTENT_QUESTIONS;
 
-const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3, ROUTER_FRESH, ROUTER_FINAL, ROUTER_DOMAINS, ROUTER_DOMAINS2, ROUTER_CAUSES, ROUTER_LAW_BOUNDARY } = await import('./router-cases.mts');
+const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3, ROUTER_FRESH, ROUTER_FINAL, ROUTER_DOMAINS, ROUTER_DOMAINS2, ROUTER_CAUSES, ROUTER_LAW_BOUNDARY, ROUTER_WOBBLE, ROUTER_PET, ROUTER_BIO_EXPLAIN } = await import('./router-cases.mts');
 const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'base';
-const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : SET === 'fresh' ? ROUTER_FRESH : SET === 'final' ? ROUTER_FINAL : SET === 'domains' ? ROUTER_DOMAINS : SET === 'domains2' ? ROUTER_DOMAINS2 : SET === 'causes' ? ROUTER_CAUSES : SET === 'law' ? ROUTER_LAW_BOUNDARY : [...MISROUTED, ...MUST_KEEP];
+const { GOLDEN_V1 } = await import('./router-golden.mts');
+const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : SET === 'fresh' ? ROUTER_FRESH : SET === 'final' ? ROUTER_FINAL : SET === 'domains' ? ROUTER_DOMAINS : SET === 'domains2' ? ROUTER_DOMAINS2 : SET === 'causes' ? ROUTER_CAUSES : SET === 'law' ? ROUTER_LAW_BOUNDARY : SET === 'wobble' ? ROUTER_WOBBLE : SET === 'golden' ? GOLDEN_V1 : SET === 'pet' ? ROUTER_PET : SET === 'bio' ? ROUTER_BIO_EXPLAIN : [...MISROUTED, ...MUST_KEEP];
+
+// 라벨이 애매한 문장은 alt 도 정답으로 센다(router-cases.mts RouterCase.alt)
+const isRight = (g: string, c: { want: string; alt?: string[] }) => g === c.want || !!c.alt?.includes(g);
 
 type DecisionResult = { intent: string; confidence: number | null; ms: number; status: number; raw?: unknown; error?: string };
 
@@ -93,15 +99,15 @@ async function callRouter(q: string): Promise<{ intent: string; ms: number }> {
 console.log(`\n현행 ${ROUTER_MODEL} vs Decisions ${DECISIONS_MODEL} · 세트 ${SET} · 문구 ${QV} · 질의 ${CASES.length}종 × ${ROUNDS}라운드`);
 console.log(`호출: Decisions ${ROUTER_ONLY ? 0 : CASES.length * ROUNDS}회 · 현행 ${CASES.length * ROUNDS}회\n`);
 
-type Row = { q: string; want: string; round: number; router: { intent: string; ms: number }; decisions: DecisionResult };
+type Row = { q: string; want: string; alt?: string[]; round: number; router: { intent: string; ms: number }; decisions: DecisionResult };
 const rows: Row[] = [];
 for (let round = 0; round < ROUNDS; round++) {
     for (const c of CASES) {
         let router, decisions;
         if (round % 2 === 0) { decisions = await callDecisions(c.q); router = await callRouter(c.q); }
         else { router = await callRouter(c.q); decisions = await callDecisions(c.q); }
-        rows.push({ q: c.q, want: c.want, round, router, decisions });
-        const mark = (g: string) => (g === c.want ? '✓' : '✗');
+        rows.push({ q: c.q, want: c.want, alt: c.alt, round, router, decisions });
+        const mark = (g: string) => (isRight(g, c) ? '✓' : '✗');
         console.log(`  r${round + 1} ${mark(router.intent)}현행 ${router.intent.padEnd(15)} ${String(router.ms).padStart(5)}ms │ ` +
             `${mark(decisions.intent)}Dec ${decisions.intent.padEnd(15)} ${String(decisions.ms).padStart(5)}ms conf ${decisions.confidence?.toFixed(2) ?? ' -  '}` +
             `  "${c.q}"${decisions.error ? ` · ${decisions.error}` : ''}`);
@@ -110,7 +116,7 @@ for (let round = 0; round < ROUNDS; round++) {
 
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
 const summarize = (name: string, pick: (r: Row) => { intent: string; ms: number }) => {
-    const ok = rows.filter(r => pick(r).intent === r.want).length;
+    const ok = rows.filter(r => isRight(pick(r).intent, r)).length;
     const errs = rows.filter(r => ['ERR', 'REFUSAL'].includes(pick(r).intent)).length;
     const ms = rows.map(r => pick(r).ms);
     console.log(`${name.padEnd(12)} 정확도 ${ok}/${rows.length} (${(ok / rows.length * 100).toFixed(0)}%) · 오류 ${errs} · 지연 p50 ${pct(ms, 0.5)}ms · p90 ${pct(ms, 0.9)}ms · 최대 ${Math.max(...ms)}ms`);
@@ -129,14 +135,14 @@ console.log(`  └ 현행으로 넘긴 턴 ${rows.filter(r => !(r.decisions.conf
 // 확신도가 운영 신호로 쓸모 있는가 — 틀린 답이 낮은 확신으로 나오면 그 구간만 기존 라우터로 넘길 수 있다.
 const withConf = rows.filter(r => r.decisions.confidence !== null);
 if (withConf.length) {
-    const right = withConf.filter(r => r.decisions.intent === r.want).map(r => r.decisions.confidence!);
-    const wrong = withConf.filter(r => r.decisions.intent !== r.want).map(r => r.decisions.confidence!);
+    const right = withConf.filter(r => isRight(r.decisions.intent, r)).map(r => r.decisions.confidence!);
+    const wrong = withConf.filter(r => !isRight(r.decisions.intent, r)).map(r => r.decisions.confidence!);
     const avg = (xs: number[]) => (xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(2) : '-');
     const low = withConf.filter(r => r.decisions.confidence! < LOW_CONF);
     const caught = wrong.filter(c => c < LOW_CONF).length;
     console.log(`Decisions 확신도: 정답 평균 ${avg(right)} · 오답 평균 ${avg(wrong)} · <${LOW_CONF} 비율 ${low.length}/${withConf.length} · 오답 중 <${LOW_CONF} ${caught}/${wrong.length}`);
 }
-const disagree = rows.filter(r => r.round === 0 && ((!DEC_ONLY && r.router.intent !== r.want) || (!ROUTER_ONLY && r.decisions.intent !== r.want)));
+const disagree = rows.filter(r => r.round === 0 && ((!DEC_ONLY && !isRight(r.router.intent, r)) || (!ROUTER_ONLY && !isRight(r.decisions.intent, r))));
 if (disagree.length) {
     console.log(`\n어느 한쪽이라도 틀린 문장 ${disagree.length}건(1라운드 기준):`);
     for (const r of disagree) console.log(`  "${r.q}" 기대 ${r.want} · 현행 ${r.router.intent} · Dec ${r.decisions.intent} (conf ${r.decisions.confidence?.toFixed(2) ?? '-'})`);
@@ -146,3 +152,4 @@ if (process.env.PROBE_OUT) {
     fs.writeFileSync(process.env.PROBE_OUT, JSON.stringify({ at: new Date().toISOString(), set: SET, questions: QV, lowConf: LOW_CONF, routerModel: ROUTER_MODEL, decisionsModel: DECISIONS_MODEL, rows }, null, 2));
     console.log(`\n원자료 → ${process.env.PROBE_OUT}`);
 }
+if (process.env.ROUTER_VARIANT) console.log(`[variant] 변형 호출 ${variantStats.calls} · 출력 토큰 ${variantStats.outputTokens} (호출당 약 ${Math.round(variantStats.outputTokens / Math.max(1, variantStats.calls))})`);

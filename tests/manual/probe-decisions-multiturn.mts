@@ -4,6 +4,7 @@
  *
  *   npx tsx tests/manual/probe-decisions-multiturn.mts --dry [--set=more|holdout|holdout2|fresh] [--q=v2]
  *   --decisions-only : 현행 라우터를 부르지 않는다(문구 비교·회귀용, Decisions 호출만)
+ *   --router-only    : Decisions 를 부르지 않는다(현행 라우터 검증용)
  *   TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-decisions-multiturn.mts [라운드=2]
  *
  * 비교 층: **라우터 LLM 의 판정(intent + follow_up)**. 운영 라우터는 이 위에 규칙(card-followup·날씨 고정 등)을
@@ -23,9 +24,12 @@ for (const file of ['.env.local', '.env']) {
     }
 }
 
+// ROUTER_VARIANT 가 있으면 라우터 프롬프트 변형(라우터 import 전에 fetch 를 감싼다)
+const { variantStats } = await import('./router-prompt-variant.mts');
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry');
 const DEC_ONLY = args.includes('--decisions-only');
+const ROUTER_ONLY = args.includes('--router-only');
 const ROUNDS = Number(args.find(a => /^\d+$/.test(a)) ?? 2);
 
 const { DECISIONS_MODEL, LOW_CONF, INTENT_QUESTIONS, INTENT_QUESTIONS_V2, FOLLOW_UP_V1, FOLLOW_UP_V2, callDecisions, resolveIntent } = await import('./decisions-client.mts');
@@ -109,6 +113,7 @@ async function callRouter(c: MultiturnCase): Promise<Judged> {
 }
 
 async function callDec(c: MultiturnCase): Promise<Judged> {
+    if (ROUTER_ONLY) return { intent: 'SKIP', followUp: 'SKIP', ms: 0, intentConf: null, followConf: null };
     const call = await callDecisions(decisionsInput(c), questionsFor(c));
     const { intent, confidence } = resolveIntent(call);
     const f = call.answers.follow_up;
@@ -163,10 +168,11 @@ console.log(`Decisions 오답 ${decWrong.length}건 중 하이브리드가 넘�
 console.log('\n어느 한쪽이라도 틀린 문장(1라운드):');
 for (const r of rows.filter(r => r.round === 0)) {
     const bad = (j: Judged) => !intentOk(r.c, j.intent) || (!!r.c.wantFollowUp && j.followUp !== r.c.wantFollowUp);
-    if (bad(r.router) || bad(r.dec)) console.log(`  [${r.c.card}] "${r.c.q}" 기대 ${r.c.want}/${r.c.wantFollowUp} · 현행 ${r.router.intent}/${r.router.followUp}(최종 ${r.router.finalIntent}) · Dec ${r.dec.intent}/${r.dec.followUp} (${r.dec.intentConf?.toFixed(2)}/${r.dec.followConf?.toFixed(2)})`);
+    if ((!DEC_ONLY && bad(r.router)) || (!ROUTER_ONLY && bad(r.dec))) console.log(`  [${r.c.card}] "${r.c.q}" 기대 ${r.c.want}/${r.c.wantFollowUp} · 현행 ${r.router.intent}/${r.router.followUp}(최종 ${r.router.finalIntent}) · Dec ${r.dec.intent}/${r.dec.followUp} (${r.dec.intentConf?.toFixed(2)}/${r.dec.followConf?.toFixed(2)})`);
 }
 
 if (process.env.PROBE_OUT) {
     fs.writeFileSync(process.env.PROBE_OUT, JSON.stringify({ at: new Date().toISOString(), set: SET, questions: QV, lowConf: LOW_CONF, routerModel: ROUTER_MODEL, decisionsModel: DECISIONS_MODEL, rows }, null, 2));
     console.log(`\n원자료 → ${process.env.PROBE_OUT}`);
 }
+if (process.env.ROUTER_VARIANT) console.log(`[variant] 변형 호출 ${variantStats.calls} · 출력 토큰 ${variantStats.outputTokens} (호출당 약 ${Math.round(variantStats.outputTokens / Math.max(1, variantStats.calls))})`);

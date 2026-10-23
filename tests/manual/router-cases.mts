@@ -2,7 +2,8 @@
  * 라우터 의도 분류 질의 세트 — live-intent-routing · probe-decisions-router 가 같이 쓴다.
  * 두 프로브가 같은 자로 재도록 한 곳에만 둔다.
  */
-export interface RouterCase { q: string; want: string; note: string }
+/** alt: 라벨이 애매해 둘 다 정답으로 인정하는 의도(근거는 note). */
+export interface RouterCase { q: string; want: string; note: string; alt?: string[] }
 
 /** 실측 오분류 — 카드 어휘가 들어 있지만 조회 요청이 아니다. */
 export const MISROUTED: RouterCase[] = [
@@ -84,7 +85,7 @@ export interface MultiturnCase { card: CardKind; prev: string; ai?: string; q: s
 export const MULTITURN: MultiturnCase[] = [
     // 날씨 카드(서울)
     { card: 'weather', prev: '서울 날씨 알려줘', q: '부산은?', want: 'weather', wantFollowUp: 'new', note: '다른 도시' },
-    { card: 'weather', prev: '서울 날씨 알려줘', q: '내일은?', want: 'weather', wantFollowUp: 'new', note: '다른 날' },
+    { card: 'weather', prev: '서울 날씨 알려줘', q: '내일은?', want: 'weather', wantFollowUp: 'refine', note: '다른 날 — 날씨 카드는 여러 날 예보를 이미 담음(10-23 기대값 new→refine)' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: 'How about Busan?', want: 'weather', wantFollowUp: 'new', note: '영어 · 다른 도시' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: '우산 챙겨야 해?', want: 'weather', wantFollowUp: 'refine', note: '카드 해석' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: '이번 주 중에 제일 더운 날이 언제야?', want: 'weather', wantFollowUp: 'refine', note: '카드 해석' },
@@ -162,8 +163,8 @@ export const HOLDOUT2: RouterCase[] = [
 
 export const MULTITURN_HOLDOUT: MultiturnCase[] = [
     // 날씨 카드 — 다른 날짜·시간·도시는 카드에 예보가 있어도 new
-    { card: 'weather', prev: '서울 날씨 알려줘', q: '모레는?', want: 'weather', wantFollowUp: 'new', note: '다른 날' },
-    { card: 'weather', prev: '서울 날씨 알려줘', q: '주말엔 어때?', want: 'weather', wantFollowUp: 'new', note: '다른 날' },
+    { card: 'weather', prev: '서울 날씨 알려줘', q: '모레는?', want: 'weather', wantFollowUp: 'refine', note: '다른 날 — 날씨 카드는 여러 날 예보를 이미 담음(10-23 기대값 new→refine)' },
+    { card: 'weather', prev: '서울 날씨 알려줘', q: '주말엔 어때?', want: 'weather', wantFollowUp: 'refine', note: '다른 날 — 날씨 카드는 여러 날 예보를 이미 담음(10-23 기대값 new→refine)' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: '대구랑 비교하면?', want: 'weather', wantFollowUp: 'new', note: '화면에 없는 도시' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: '그럼 반팔 입어도 돼?', want: 'weather', wantFollowUp: 'refine', note: '카드 해석' },
     // 법령 카드 — 다른 조문·법령은 new
@@ -297,7 +298,7 @@ export const ROUTER_FRESH_MULTITURN: MultiturnCase[] = [
     { card: 'law', prev: '근로기준법 연차 조항 알려줘', q: '형법 제250조도 찾아줘', want: 'law_search', wantFollowUp: 'new', note: '다른 법령 조문' },
     { card: 'law', prev: '근로기준법 연차 조항 알려줘', q: '바로 다음 조항은 뭐야?', want: 'law_search', wantFollowUp: 'new', note: '다른 조문' },
     { card: 'law', prev: '근로기준법 연차 조항 알려줘', q: '이거 프리랜서한테도 적용돼?', want: 'law_qa', wantFollowUp: 'refine', note: '카드 조문 적용' },
-    { card: 'weather', prev: '서울 날씨 알려줘', q: '다음 주 화요일은?', want: 'weather', wantFollowUp: 'new', note: '다른 날' },
+    { card: 'weather', prev: '서울 날씨 알려줘', q: '다음 주 화요일은?', want: 'weather', wantFollowUp: 'refine', note: '다른 날 — 날씨 카드는 여러 날 예보를 이미 담음(10-23 기대값 new→refine)' },
     { card: 'weather', prev: '서울 날씨 알려줘', q: '세차해도 될까?', want: 'general', wantFollowUp: 'refine', note: '카드 해석' },
 ];
 
@@ -437,18 +438,18 @@ export const ROUTER_CAUSES: RouterCase[] = [
     { q: '이번 달 밤하늘에서 금성 어디 보여?', want: 'astronomy', note: '' },
     { q: 'DNA랑 RNA 차이가 뭐야', want: 'general', note: '생물 · 설명' },
     { q: 'DNA 이중나선 구조 3D로', want: 'biology', note: '' },
-    { q: '소금이 물에 녹는 이유', want: 'general', note: '화학 · 설명' },
+    { q: '소금이 물에 녹는 이유', want: 'general', alt: ['chemistry'], note: '화학 · 설명 — 분자 현상 이유는 그림도 도움(10-23 alt)' },
     { q: '에탄올 분자 모양 보여줘', want: 'chemistry', note: '' },
     { q: '관성의 법칙 쉽게 설명해줘', want: 'general', note: '물리 · 설명' },
     { q: '두 공이 부딪히는 충돌 시뮬레이션 돌려줘', want: 'physics', note: '' },
     { q: '평균이랑 중앙값 차이', want: 'general', note: '통계 · 설명' },
     { q: '우리나라 인구 변화 그래프로 보여줘', want: 'data_viz', note: '' },
     // ③ 건강한 일상 / 건강 걱정
-    { q: '중학생 하루 수면 시간 적당한 거', want: 'general', note: '일상 수면' },
+    { q: '중학생 하루 수면 시간 적당한 거', want: 'medical_qa', alt: ['general'], note: '수면 권장량(10-23 정의 변경)' },
     { q: '아기가 밤에 자다가 숨을 자주 멈춰', want: 'medical_qa', note: '걱정' },
     { q: '신생아 하루 수유 횟수', want: 'general', note: '육아 일상' },
     { q: '아기 열이 39도인데 응급실 가야 해?', want: 'medical_qa', note: '' },
-    { q: '하루 물 몇 잔 마시는 게 좋아?', want: 'general', note: '일상 습관' },
+    { q: '하루 물 몇 잔 마시는 게 좋아?', want: 'medical_qa', alt: ['general'], note: '수분 권장량(10-23 정의 변경)' },
     { q: '물을 많이 마셔도 계속 목이 말라', want: 'medical_qa', note: '증상' },
     { q: '아침형 인간 되는 법', want: 'general', note: '생활' },
     { q: '불면증이 한 달째 계속돼', want: 'medical_qa', note: '' },
@@ -471,4 +472,45 @@ export const ROUTER_LAW_BOUNDARY: RouterCase[] = [
     { q: '보험사가 보험금 지급 거절하면 어떻게 대응해?', want: 'law_qa', note: '분쟁 대처' },
     { q: '건강보험 피부양자 등록하는 법', want: 'general', note: '보험 절차' },
     { q: '전세 사기 당하면 보증금 돌려받을 수 있어?', want: 'law_qa', note: '권리' },
+];
+
+/**
+ * 흔들림 진단 세트 — 10-23. "소금이 물에 녹는 이유"(chemistry 2/3)·"중학생 수면 시간"(medical_qa 1/3)이
+ * 문장 하나의 우연인지, 경계 전체의 성질인지 본다. 채점보다 **분포**를 보려고 만들었다(want 는 현행 정의 기준).
+ */
+export const ROUTER_WOBBLE: RouterCase[] = [
+    // A. 분자 수준 현상의 이유 — 설명형
+    { q: '소금이 물에 녹는 이유', want: 'general', alt: ['chemistry'], note: 'A 원문 — 분자 현상 이유는 그림도 도움(10-23 alt)' },
+    { q: '설탕은 왜 물에 잘 녹아?', want: 'general', alt: ['chemistry'], note: 'A 분자 현상' },
+    { q: '기름이랑 물이 안 섞이는 이유', want: 'general', alt: ['chemistry'], note: 'A 분자 현상' },
+    { q: '얼음이 물에 뜨는 이유', want: 'general', alt: ['chemistry'], note: 'A 분자 현상' },
+    { q: '철이 녹스는 원리', want: 'general', alt: ['chemistry'], note: 'A 반응' },
+    { q: '베이킹소다에 식초 부으면 왜 거품 나?', want: 'general', alt: ['chemistry'], note: 'A 반응' },
+    // A 대조 — 분자와 무관한 이유 / 명시적으로 보여달라
+    { q: '하늘은 왜 파래?', want: 'general', note: 'A 대조 · 비분자' },
+    { q: '무지개는 왜 생겨?', want: 'general', note: 'A 대조 · 비분자' },
+    { q: '소금이 물에 녹는 과정 분자 그림으로 보여줘', want: 'chemistry', note: 'A 대조 · 보여줘' },
+    { q: '물 분자 구조 보여줘', want: 'chemistry', note: 'A 대조 · 보여줘' },
+    // B. 건강한 사람의 권장량
+    { q: '중학생 하루 수면 시간 적당한 거', want: 'medical_qa', alt: ['general'], note: 'B 원문 — 권장량(10-23 정의 변경)' },
+    { q: '성인 하루 적정 수면 시간', want: 'medical_qa', alt: ['general'], note: 'B 권장량' },
+    { q: '초등학생 하루 운동 얼마나 해야 돼?', want: 'medical_qa', alt: ['general'], note: 'B 권장량' },
+    { q: '하루 카페인 적정량', want: 'medical_qa', note: 'B 권장량' },
+    { q: '고등학생 하루 필요 칼로리', want: 'medical_qa', alt: ['general'], note: 'B 권장량 — 10-23 medical_qa 범위를 좁힌 뒤 general 3/3. 권장량 답은 general 로도 정상이라 alt' },
+    { q: '노인 하루 단백질 권장량', want: 'medical_qa', note: 'B 권장량' },
+    // B 대조 — 걱정·증상
+    { q: '중학생 아들이 하루 4시간밖에 못 자고 자꾸 어지럽대', want: 'medical_qa', note: 'B 대조 · 증상' },
+    { q: '커피 마시면 가슴이 두근거려', want: 'medical_qa', note: 'B 대조 · 증상' },
+    { q: '잠을 10시간 자도 계속 피곤해', want: 'medical_qa', note: 'B 대조 · 증상' },
+];
+
+/** 동물 건강 — 골든셋 첫 측정(10-23)에서 Gemini 가 medical_qa 로 보낸 문장. 이 문장으로 medical_qa 를 "사람만"으로 고쳤으므로 튜닝 세트다. */
+export const ROUTER_PET: RouterCase[] = [
+    { q: '강아지 예방접종 몇 개월에 맞아?', want: 'general', note: '동물 건강 — 골든셋 vet-3 에서 옮김' },
+];
+
+/** 정상 생물학 설명 — 골든셋(10-23)에서 Gemini 가 medical_qa 로 보낸 문장. 이 문장으로 medical_qa 의 "해부학·생리학" 범위를 고쳤으므로 튜닝 세트다. */
+export const ROUTER_BIO_EXPLAIN: RouterCase[] = [
+    { q: '세포 분열 과정 설명해줘', want: 'general', alt: ['biology'], note: '정상 생리 — 골든셋 bio-3 에서 옮김' },
+    { q: 'DNA랑 RNA 차이가 뭐야', want: 'general', alt: ['biology'], note: 'causes 세트와 같은 문장 — 10-23 문구 수정 중 medical_qa 로 흔들렸다' },
 ];

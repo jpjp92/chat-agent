@@ -26,8 +26,8 @@ const MODEL = args.find(a => a.startsWith('--model='))?.slice(8) ?? 'gpt-6-luna'
 const ROUNDS = Number(args.find(a => /^\d+$/.test(a)) ?? 3);
 const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'domains2';
 const cases = await import('./router-cases.mts');
-const SETS: Record<string, { q: string; want: string }[]> = {
-    final: cases.ROUTER_FINAL, domains: cases.ROUTER_DOMAINS, domains2: cases.ROUTER_DOMAINS2, causes: cases.ROUTER_CAUSES, law: cases.ROUTER_LAW_BOUNDARY, base: [...cases.MISROUTED, ...cases.MUST_KEEP],
+const SETS: Record<string, { q: string; want: string; alt?: string[] }[]> = {
+    final: cases.ROUTER_FINAL, domains: cases.ROUTER_DOMAINS, domains2: cases.ROUTER_DOMAINS2, causes: cases.ROUTER_CAUSES, law: cases.ROUTER_LAW_BOUNDARY, wobble: cases.ROUTER_WOBBLE, golden: (await import('./router-golden.mts')).GOLDEN_V1, base: [...cases.MISROUTED, ...cases.MUST_KEEP],
     holdout3: cases.HOLDOUT3, fresh: cases.ROUTER_FRESH,
 };
 const CASES = SETS[SET];
@@ -74,7 +74,9 @@ globalThis.fetch = async (url: any, init?: any) => {
 const { routerNode } = await import('../../server/agent/nodes/router.js');
 const { HumanMessage } = await import('@langchain/core/messages');
 
-type Row = { q: string; want: string; round: number; intent: string; ms: number };
+// 라벨이 애매한 문장은 alt 도 정답(router-cases.mts RouterCase.alt)
+const isRight = (g: string, c: { want: string; alt?: string[] }) => g === c.want || !!c.alt?.includes(g);
+type Row = { q: string; want: string; alt?: string[]; round: number; intent: string; ms: number };
 const rows: Row[] = [];
 for (let round = 0; round < ROUNDS; round++) {
     for (const c of CASES) {
@@ -82,13 +84,13 @@ for (let round = 0; round < ROUNDS; round++) {
         let intent = 'ERR';
         try { intent = ((await routerNode({ messages: [new HumanMessage(c.q)] } as any)) as any).intent; } catch { /* ERR */ }
         const ms = Date.now() - t0;
-        rows.push({ q: c.q, want: c.want, round, intent, ms });
-        if (intent !== c.want) console.log(`  r${round + 1} ✗ ${intent.padEnd(15)} ${String(ms).padStart(5)}ms  "${c.q}" (기대 ${c.want})`);
+        rows.push({ q: c.q, want: c.want, alt: c.alt, round, intent, ms });
+        if (!isRight(intent, c)) console.log(`  r${round + 1} ✗ ${intent.padEnd(15)} ${String(ms).padStart(5)}ms  "${c.q}" (기대 ${c.want})`);
     }
 }
 
 const pct = (xs: number[], p: number) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
-const ok = rows.filter(r => r.intent === r.want).length;
+const ok = rows.filter(r => isRight(r.intent, r)).length;
 const ms = rows.map(r => r.ms);
 console.log(`\n${MODEL} 정확도 ${ok}/${rows.length} (${(ok / rows.length * 100).toFixed(0)}%) · 오류 ${rows.filter(r => r.intent === 'ERR').length} · 지연 p50 ${pct(ms, 0.5)}ms · p90 ${pct(ms, 0.9)}ms · 최대 ${Math.max(...ms)}ms`);
 console.log(`가로챈 호출 ${usage.intercepted} · 토큰: 입력 ${usage.input} · 출력 ${usage.output} (호출당 입력 약 ${Math.round(usage.input / rows.length)})`);
