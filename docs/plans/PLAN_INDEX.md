@@ -124,6 +124,7 @@
 |---:|---|---|---|---|
 | P1 | **멀티 공급자 모델 라우팅** | [PLAN_MULTI_PROVIDER_ROUTING_260823.md](PLAN_MULTI_PROVIDER_ROUTING_260823.md) | OpenAI 일반 생성·Gemini 키 분리·로컬 도구 8종 strict function calling 완료. 두 GPT 모델 chat+function 라이브 통과 | 공급자별 initial router → dev UI 카드/합성 종단 → 모델 전환 스냅샷 UX |
 | — | Security | [PLAN_SECURITY_VERIFICATION.md](PLAN_SECURITY_VERIFICATION.md) | Bucket whitelist verification guide; SSRF/redirect blocking applied (DEV_260504) | IDOR-1/2는 인증 MVP로 해소(라우트 삭제 + RLS). 남은 IDOR-3(Storage prefix)·xlsx·CSP는 `docs/TODO.md` §보안 |
+| — | Security | [PLAN_SECURITY_REVIEW_261023.md](PLAN_SECURITY_REVIEW_261023.md) | 외부 보안 재검토 10항목을 dev HEAD 로 검증(9 맞음 · `url_cache` 포이즈닝 과장) + 처리 순서 | 수정 미착수. 1순위 `sync-drug-image` 이미지 덮어쓰기·SSRF |
 | — | Cost | [PLAN_OPENAI_COST_REVIEW_261014.md](PLAN_OPENAI_COST_REVIEW_261014.md) | 30일 $6.69(10월 $5.12/$120). 비용 70% 가 대량 실측 5일, 웹 검색 43% | 실측 반복 횟수 설계 · 시각 블록 날짜만(프롬프트 캐시) 검토 |
 | — | Inline viz | [PLAN_INLINE_VIZ_REVIEW_261015.md](PLAN_INLINE_VIZ_REVIEW_261015.md) | 외부 기획안 검토 — 본문 중간 렌더·general 자동 차트·스트리밍 플레이스홀더는 이미 있음. 블록 목록 3벌 중복(`paper` 불일치) | 현황 측정 → ChatMessage 분리 계획 실행 + 블록 단일 레지스트리 → 신규 블록 하나씩 |
 | — | Public route auth | [PLAN_PUBLIC_ROUTE_AUTH_261017.md](PLAN_PUBLIC_ROUTE_AUTH_261017.md) | 외부 보안 리뷰(dev) 대조 — `fetch-url`·`sync-drug-image` 무인증 + service_role 쓰기(HIGH), sync-drug-image 캐시 히트 inflight 누수(MEDIUM-3, 실제 버그) | inflight 수정 → `requireProfile` 4개 라우트(fetch-url·sync-drug-image·showtimes·parse-document 직행) + proxy-image 호스트 허용목록. 쿼터는 다음 |

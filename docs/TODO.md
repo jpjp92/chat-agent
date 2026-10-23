@@ -53,6 +53,13 @@
   - [ ] 배포 후 로그 확인: `[speech] gemini failed before first byte — falling back to gemini-flash` 가 얼마나 찍히는지. 폴백은 Lite 보다 느리다(2,000자 약 54s vs 29s)
   - [ ] 🟡 **TTS 단가 2027-01-01 두 배**(Lite $6 → $12, Flash $9 → $18 /1M 오디오) — 회원 한도 20,000자/일(≈$0.4 → $0.8/일/회원)을 그 전에 다시 본다 → [REF_TTS §2](guide/REF_TTS.md)
   - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
+- [ ] 🔴 **보안 재검토(10-23) 처리** — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
+  - [ ] ① `sync-drug-image` — 약품 이미지 덮어쓰기(`upsert: true` + 요청자 입력 캐시 키) · 생 `fetch` 7곳 → `safeFetch`
+  - [ ] ② `fetch-url`·`sync-drug-image`·`showtimes` 게스트 쿼터(`consume_tts_quota` 패턴, SQL 운영 적용은 사용자)
+  - [ ] ③ PDF 다운로드 바이트 상한(아래 0-f 항목과 같은 일)
+  - [ ] ④ client-log 제어문자·auth 본문 · 키 로그 마스킹 · CGV 시크릿 env · 세션 트리거 소유권 술어 · CI 에 `npm run verify`
+  - [ ] ⬜ `xlsx` 수동 추적 — CDN 타르볼이라 Dependabot 이 갱신 PR 을 못 올린다. 분기마다 SheetJS 릴리스 확인
+  - ⏸ `SUPABASE_KEY`(실제 service_role) 이름 정리는 Storage 보안 AWS 이전 때 함께
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
   - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
@@ -306,7 +313,7 @@
 → [DEV_261014](logs/2026/10/DEV_261014.md)
 
 - [ ] 🔴 **Vercel 에서 서버 PDF 추출 확인** — 로컬 `next build` 가 OOM 이라 번들 미확인. 배포 후 KDI 링크 B1 → 함수 로그 `PDF download detected` 의 `pdfTextChars > 0`(`KEEP_LOGS=1` 필요)
-- [ ] 🔴 **`pdf-text-node.ts` 자원 상한** — 보안 리뷰 지적(자원 고갈). 8초 타임아웃은 추출 작업 자체를 멈추지 않는다. 다운로드 크기 상한 + 추출 쪽수 상한을 건다
+- [ ] 🔴 **`pdf-text-node.ts` 자원 상한** — 보안 리뷰 지적(자원 고갈, 10-23 재확인 → [PLAN_SECURITY_REVIEW §1 #3](plans/PLAN_SECURITY_REVIEW_261023.md)). 8초 타임아웃은 추출 작업 자체를 멈추지 않는다. 다운로드 크기 상한 + 추출 쪽수 상한을 건다
 - [ ] 🟡 **문서 후속인데 검색이 켜지는 질의** — "계도기간은 얼마나 돼?" 를 룰 분류기가 on 으로 봐 `doc-content` off 가 빠진다. 답은 문서와 일치해 보류
 - [ ] 🟡 **`/api/sessions` 가 만료 토큰도 500** — PostgREST 401 `PGRST301` 을 401 로 매핑(지금은 모든 오류를 500)
 - [ ] ⬜ 로컬 `url_cache` 가 `Invalid API key` — dev 환경 키 확인
