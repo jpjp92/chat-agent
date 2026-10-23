@@ -370,3 +370,105 @@ export const ROUTER_DOMAINS: RouterCase[] = [
     { q: '파이썬 리스트 중복 제거 코드', want: 'general', note: '' },
     { q: '부모님 환갑 선물 추천', want: 'general', note: '' },
 ];
+
+/**
+ * 분야별 추가 검증 2 — 10-23 작성, 프롬프트는 10-19 그대로. ROUTER_DOMAINS 가 다루지 않은 생활 분야(세금·금융·부동산·여행·
+ * 요리·스포츠·IT·교육·자동차·육아)의 일반 질문과, 조회 의도의 구어체·오타·한영 혼용 변형을 넣었다.
+ * R4·R5(약 상호작용·세금 의도)는 정책이 미정이라 넣지 않았다 — 정답을 정하지 않은 문장으로 채점하지 않는다.
+ */
+export const ROUTER_DOMAINS2: RouterCase[] = [
+    // 생활 분야 — 일반
+    { q: '주식 처음 시작하는데 ETF가 뭐야?', want: 'general', note: '금융' },
+    { q: '전세 대출 금리 비교하는 법', want: 'general', note: '부동산·금융' },
+    { q: '오사카 3박4일 여행 코스 짜줘', want: 'general', note: '여행' },
+    { q: '김치찌개 맛있게 끓이는 법', want: 'general', note: '요리' },
+    { q: '손흥민 이번 시즌 몇 골 넣었어?', want: 'general', note: '스포츠 · 검색' },
+    { q: '맥북 에어랑 프로 차이', want: 'general', note: 'IT 제품' },
+    { q: '초등학생 영어 공부 앱 추천', want: 'general', note: '교육' },
+    { q: '자동차 엔진오일 교체 주기', want: 'general', note: '자동차' },
+    { q: '돌 지난 아기 낮잠 몇 번 자?', want: 'general', note: '육아' },
+    { q: '자기소개서 첫 문장 어떻게 써?', want: 'general', note: '취업' },
+    // 분야 어휘가 들어간 일반
+    { q: '약국 창업하려면 돈 얼마나 들어?', want: 'general', note: '약국 어휘 · 창업' },
+    { q: '수의사 되려면 어떤 과 가야 해?', want: 'general', note: '동물병원 어휘 · 진로' },
+    { q: '비 오는 날 듣기 좋은 노래', want: 'general', note: '날씨 어휘 · 음악' },
+    { q: '법률 드라마 추천해줘', want: 'general', note: '법 어휘 · 작품' },
+    { q: '영화 리뷰 블로그 잘 쓰는 법', want: 'general', note: '영화 어휘 · 글쓰기' },
+    { q: '논문 표절 검사 사이트', want: 'general', note: '논문 어휘 · 도구' },
+    { q: '달이 왜 모양이 바뀌어?', want: 'general', note: '천문 어휘 · 설명만' },
+    { q: '그래프 공부하는 알고리즘 문제 추천', want: 'general', note: '차트 어휘 · 코딩' },
+    // 조회 의도 — 구어체·오타·한영 혼용
+    { q: '잠실 근처 피부과 ㄱㄱ', want: 'hospital_search', note: '구어체' },
+    { q: '지금 문 연 약국 강남역', want: 'pharmacy_search', note: '어순' },
+    { q: '분당 고양이 동물병원 24시', want: 'vet_search', note: '' },
+    { q: '부산 낼 날씨 어떰', want: 'weather', note: '구어체·축약' },
+    { q: '용산 CGV IMAX 시간표', want: 'movie_search', note: '한영 혼용' },
+    { q: '근로기준법 제60조 보여줘', want: 'law_search', note: '' },
+    { q: '월세 밀리면 집주인이 바로 내보낼 수 있어?', want: 'law_qa', note: '' },
+    { q: '아세트아미노펜 부작용', want: 'drug_info', note: '' },
+    { q: '타이래놀 하루 몇번 먹어', want: 'drug_info', note: '오타' },
+    { q: '자꾸 어지럽고 귀에서 삐 소리 나', want: 'medical_qa', note: '증상' },
+    { q: 'CRISPR 유전자 편집 최근 논문', want: 'paper_search', note: '한영 혼용 · pubmed' },
+    { q: 'diffusion model 관련 arxiv 논문 찾아줘', want: 'arxiv_search', note: '한영 혼용' },
+    // 렌더러
+    { q: '인슐린 단백질 구조 보여줘', want: 'biology', note: '' },
+    { q: '카페인 분자 구조', want: 'chemistry', note: '' },
+    { q: '포물선 운동 시뮬레이션', want: 'physics', note: '' },
+    { q: '목성 위성들 위치 보여줘', want: 'astronomy', note: '' },
+    { q: '서울 아파트 매매가 10년 추이 차트', want: 'data_viz', note: '' },
+];
+
+/**
+ * 원인별 검증 세트 — 10-23 domains2 오답 3건의 원인을 고친 뒤, 고치기 전에 쓰지 않은 문장으로 같은 경계를 잰다.
+ * ① 법 어휘가 있지만 법을 묻지 않음(규칙 덮어쓰기) ② 렌더러 주제의 설명형 질문 vs 보여달라는 요청 ③ 건강한 일상 vs 건강 걱정.
+ * 각 경계마다 반대쪽 정답 문장을 짝지어 넣었다 — 고친 정의가 반대 방향으로 과하게 밀지 않는지 본다.
+ */
+export const ROUTER_CAUSES: RouterCase[] = [
+    // ① 법 어휘 — 법을 묻지 않음 / 법을 물음
+    { q: '법학 공부 입문서 추천', want: 'general', note: '법 어휘 · 책' },
+    { q: '법무팀 면접 질문 예상', want: 'general', note: '법 어휘 · 취업' },
+    { q: '헌법재판소 건물 견학 가능해?', want: 'general', note: '법 어휘 · 장소' },
+    { q: '형법 영화 같은 법정물 추천', want: 'general', note: '법령명 · 작품' },
+    { q: '민법 제750조 원문 보여줘', want: 'law_search', note: '' },
+    { q: '형법 조문 중에 사기죄 찾아줘', want: 'law_search', note: '' },
+    { q: '중고거래 사기 당하면 신고 어떻게 해?', want: 'law_qa', note: '' },
+    // ② 렌더러 주제 — 설명 / 보여줘
+    { q: '왜 별은 반짝여?', want: 'general', note: '천문 · 설명' },
+    { q: '이번 달 밤하늘에서 금성 어디 보여?', want: 'astronomy', note: '' },
+    { q: 'DNA랑 RNA 차이가 뭐야', want: 'general', note: '생물 · 설명' },
+    { q: 'DNA 이중나선 구조 3D로', want: 'biology', note: '' },
+    { q: '소금이 물에 녹는 이유', want: 'general', note: '화학 · 설명' },
+    { q: '에탄올 분자 모양 보여줘', want: 'chemistry', note: '' },
+    { q: '관성의 법칙 쉽게 설명해줘', want: 'general', note: '물리 · 설명' },
+    { q: '두 공이 부딪히는 충돌 시뮬레이션 돌려줘', want: 'physics', note: '' },
+    { q: '평균이랑 중앙값 차이', want: 'general', note: '통계 · 설명' },
+    { q: '우리나라 인구 변화 그래프로 보여줘', want: 'data_viz', note: '' },
+    // ③ 건강한 일상 / 건강 걱정
+    { q: '중학생 하루 수면 시간 적당한 거', want: 'general', note: '일상 수면' },
+    { q: '아기가 밤에 자다가 숨을 자주 멈춰', want: 'medical_qa', note: '걱정' },
+    { q: '신생아 하루 수유 횟수', want: 'general', note: '육아 일상' },
+    { q: '아기 열이 39도인데 응급실 가야 해?', want: 'medical_qa', note: '' },
+    { q: '하루 물 몇 잔 마시는 게 좋아?', want: 'general', note: '일상 습관' },
+    { q: '물을 많이 마셔도 계속 목이 말라', want: 'medical_qa', note: '증상' },
+    { q: '아침형 인간 되는 법', want: 'general', note: '생활' },
+    { q: '불면증이 한 달째 계속돼', want: 'medical_qa', note: '' },
+];
+
+/**
+ * law_qa 경계 세트 — 10-23, law_qa 정의를 고치기 **전에** 작성. 세금·보험·지원금 같은 행정·금융 절차(general)와
+ * 같은 분야의 권리·허용·처벌 질문(law_qa)을 짝지었다.
+ */
+export const ROUTER_LAW_BOUNDARY: RouterCase[] = [
+    { q: '연말정산 의료비 공제 서류 뭐 내야 돼?', want: 'general', note: '세금 절차' },
+    { q: '세금 체납하면 처벌받아?', want: 'law_qa', note: '처벌' },
+    { q: '실손보험 도수치료 청구 어떻게 해?', want: 'general', note: '보험 청구' },
+    { q: '회사가 4대보험 안 들어주면 불법이야?', want: 'law_qa', note: '허용 여부' },
+    { q: '종합소득세 신고 기간 언제야?', want: 'general', note: '세금 일정' },
+    { q: '프리랜서 3.3% 떼는 거 합법이야?', want: 'law_qa', note: '허용 여부' },
+    { q: '청년도약계좌 가입 조건', want: 'general', note: '금융 상품' },
+    { q: '실업급여 받는 중에 알바하면 걸려?', want: 'law_qa', note: '부정수급·처벌' },
+    { q: '자동차세 연납 할인 신청 방법', want: 'general', note: '세금 절차' },
+    { q: '보험사가 보험금 지급 거절하면 어떻게 대응해?', want: 'law_qa', note: '분쟁 대처' },
+    { q: '건강보험 피부양자 등록하는 법', want: 'general', note: '보험 절차' },
+    { q: '전세 사기 당하면 보증금 돌려받을 수 있어?', want: 'law_qa', note: '권리' },
+];

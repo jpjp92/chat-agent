@@ -3,9 +3,10 @@
  * 계획: docs/plans/PLAN_DECISION_ROUTER_261019.md
  *
  *   npx tsx tests/manual/probe-decisions-router.mts --dry      # 호출 0회 — 요청 본문과 호출 계획만
- *   ... --set=holdout|holdout2|holdout3|fresh|final|domains                                # 검증용 세트(router-cases.mts)
+ *   ... --set=holdout|holdout2|holdout3|fresh|final|domains|domains2|causes|law                                # 검증용 세트(router-cases.mts)
  *   ... --q=v2                                                 # 개선 문구(decisions-client INTENT_QUESTIONS_V2)
  *   ... --decisions-only                                       # 현행 라우터를 부르지 않는다(문구 비교·회귀용)
+ *   ... --router-only                                          # Decisions 를 부르지 않는다(현행 라우터 검증용)
  *   npx tsx tests/manual/probe-decisions-router.mts --one      # Decisions 1회 — 응답 형식 확인용
  *   TIER1=1 npx tsx tests/manual/probe-decisions-router.mts [라운드=3]
  *   PROBE_OUT=out.json ...                                     # 원자료 저장
@@ -31,18 +32,20 @@ const args = process.argv.slice(2);
 const DRY = args.includes('--dry');
 const DEC_ONLY = args.includes('--decisions-only');
 const ONE = args.includes('--one');
+const ROUTER_ONLY = args.includes('--router-only');
 const ROUNDS = Number(args.find(a => /^\d+$/.test(a)) ?? 3);
 const { DECISIONS_MODEL, LOW_CONF, INTENT_QUESTIONS, INTENT_QUESTIONS_V2, callDecisions: rawCall, resolveIntent } = await import('./decisions-client.mts');
 const QV = args.find(a => a.startsWith('--q='))?.slice(4) ?? 'v1';
 const questions = QV === 'v2' ? INTENT_QUESTIONS_V2 : INTENT_QUESTIONS;
 
-const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3, ROUTER_FRESH, ROUTER_FINAL, ROUTER_DOMAINS } = await import('./router-cases.mts');
+const { MISROUTED, MUST_KEEP, HOLDOUT, HOLDOUT2, HOLDOUT3, ROUTER_FRESH, ROUTER_FINAL, ROUTER_DOMAINS, ROUTER_DOMAINS2, ROUTER_CAUSES, ROUTER_LAW_BOUNDARY } = await import('./router-cases.mts');
 const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'base';
-const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : SET === 'fresh' ? ROUTER_FRESH : SET === 'final' ? ROUTER_FINAL : SET === 'domains' ? ROUTER_DOMAINS : [...MISROUTED, ...MUST_KEEP];
+const CASES = SET === 'holdout' ? HOLDOUT : SET === 'holdout2' ? HOLDOUT2 : SET === 'holdout3' ? HOLDOUT3 : SET === 'fresh' ? ROUTER_FRESH : SET === 'final' ? ROUTER_FINAL : SET === 'domains' ? ROUTER_DOMAINS : SET === 'domains2' ? ROUTER_DOMAINS2 : SET === 'causes' ? ROUTER_CAUSES : SET === 'law' ? ROUTER_LAW_BOUNDARY : [...MISROUTED, ...MUST_KEEP];
 
 type DecisionResult = { intent: string; confidence: number | null; ms: number; status: number; raw?: unknown; error?: string };
 
 async function callDecisions(q: string, keepRaw = false): Promise<DecisionResult> {
+    if (ROUTER_ONLY) return { intent: 'SKIP', confidence: null, ms: 0, status: 0 };
     const call = await rawCall(q, questions, keepRaw);
     const { intent, confidence } = resolveIntent(call);
     return { intent, confidence, ms: call.ms, status: call.status, raw: call.raw, error: call.error };
@@ -51,7 +54,7 @@ async function callDecisions(q: string, keepRaw = false): Promise<DecisionResult
 if (DRY) {
     console.log('요청 본문(질의 1건 예시):');
     console.log(JSON.stringify({ model: DECISIONS_MODEL, input: CASES[0].q, questions }, null, 2));
-    console.log(`\n계획: 질의 ${CASES.length}종 × ${ROUNDS}라운드 = Decisions ${CASES.length * ROUNDS}회 + 현행 라우터 ${CASES.length * ROUNDS}회. 호출 0회로 종료.`);
+    console.log(`\n계획: 질의 ${CASES.length}종 × ${ROUNDS}라운드 = Decisions ${ROUTER_ONLY ? 0 : CASES.length * ROUNDS}회 + 현행 라우터 ${CASES.length * ROUNDS}회. 호출 0회로 종료.`);
     process.exit(0);
 }
 
@@ -88,7 +91,7 @@ async function callRouter(q: string): Promise<{ intent: string; ms: number }> {
 }
 
 console.log(`\n현행 ${ROUTER_MODEL} vs Decisions ${DECISIONS_MODEL} · 세트 ${SET} · 문구 ${QV} · 질의 ${CASES.length}종 × ${ROUNDS}라운드`);
-console.log(`호출: Decisions ${CASES.length * ROUNDS}회 · 현행 ${CASES.length * ROUNDS}회\n`);
+console.log(`호출: Decisions ${ROUTER_ONLY ? 0 : CASES.length * ROUNDS}회 · 현행 ${CASES.length * ROUNDS}회\n`);
 
 type Row = { q: string; want: string; round: number; router: { intent: string; ms: number }; decisions: DecisionResult };
 const rows: Row[] = [];
@@ -133,7 +136,7 @@ if (withConf.length) {
     const caught = wrong.filter(c => c < LOW_CONF).length;
     console.log(`Decisions 확신도: 정답 평균 ${avg(right)} · 오답 평균 ${avg(wrong)} · <${LOW_CONF} 비율 ${low.length}/${withConf.length} · 오답 중 <${LOW_CONF} ${caught}/${wrong.length}`);
 }
-const disagree = rows.filter(r => r.round === 0 && (r.router.intent !== r.want || r.decisions.intent !== r.want));
+const disagree = rows.filter(r => r.round === 0 && ((!DEC_ONLY && r.router.intent !== r.want) || (!ROUTER_ONLY && r.decisions.intent !== r.want)));
 if (disagree.length) {
     console.log(`\n어느 한쪽이라도 틀린 문장 ${disagree.length}건(1라운드 기준):`);
     for (const r of disagree) console.log(`  "${r.q}" 기대 ${r.want} · 현행 ${r.router.intent} · Dec ${r.decisions.intent} (conf ${r.decisions.confidence?.toFixed(2) ?? '-'})`);
