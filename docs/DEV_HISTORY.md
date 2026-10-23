@@ -12,6 +12,13 @@
 >
 > **회귀 하니스 36종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
+- **2026-10-23 · 라우터 2차 개선(오답 근본 원인) · Jev 가격 · 라우터 LLM 비교** → [DEV_261023](logs/2026/10/DEV_261023.md) · [PLAN_DECISION_ROUTER §18](plans/PLAN_DECISION_ROUTER_261019.md)
+  - 새 생활 분야 세트의 고정 오답 3건을 퓨샷 없이 원인으로 고쳤다.
+    - 법령 규칙이 LLM 의 general 판정을 덮어쓰던 것을 막았다(LLM 실패 때만).
+    - 렌더러·medical_qa 를 주제 목록이 아니라 "무엇을 받고 싶은가"로 다시 정의했다.
+  - R5 결정: 세금·보험·지원금 같은 행정·금융 절차는 general, 권리·처벌·분쟁은 law_qa.
+  - 6세트 417/420, 지연 변화 없음. 같은 프롬프트로 gpt-6-luna 는 413/420 · 0.8s 느림 → 라우터는 Gemini 유지.
+  - Jev 는 입력 $0.042/M · 출력 무료. Decisions 와 월 몇 센트 차이라 비용은 선택 기준이 아니다.
 - **2026-10-20 · TTS 폴백 교체 · Decisions 하이브리드 재평가** → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md) · [PLAN_DECISION_ROUTER §17](plans/PLAN_DECISION_ROUTER_261019.md)
   - TTS 폴백을 OpenAI `gpt-4o-mini-tts`(2027-01-06 제거)에서 `gemini-3.8-flash-tts` 로 바꿨다.
     - 공식 대체 `gpt-realtime-2.1-mini` 는 실측에서 날짜·뜻을 바꿔 읽어 탈락했다("일월"→"2월", "마감 뒤"→"마감 전").
