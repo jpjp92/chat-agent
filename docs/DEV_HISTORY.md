@@ -19,6 +19,9 @@
   - R5 결정: 세금·보험·지원금 같은 행정·금융 절차는 general, 권리·처벌·분쟁은 law_qa.
   - 6세트 417/420, 지연 변화 없음. 같은 프롬프트로 gpt-6-luna 는 413/420 · 0.8s 느림 → 라우터는 Gemini 유지.
   - Jev 는 입력 $0.042/M · 출력 무료. Decisions 와 월 몇 센트 차이라 비용은 선택 기준이 아니다.
+  - 오후: 날씨 카드 후속 판정이 흔들린 원인은 프롬프트("다른 날짜 = new")와 코드("같은 도시 다른 날짜 = refine")가 반대였던 것. 카드 종류별로 나눴다.
+  - **골든셋 v1**(85문장, 동결) · **정답 기준 문서**(REF_ROUTER_LABELS) · **LLM judge**(정답 검수용) 도입. 골든 267/267.
+  - 동물 건강은 general(medical_qa 는 사람만), 정상 생리 설명은 general 원칙. reasoning 필드 A/B 는 +0.2s 에 정확도 그대로라 기각. medical_qa 답변 지침 분리는 실측에서 이득이 없어 되돌렸다.
 - **2026-10-20 · TTS 폴백 교체 · Decisions 하이브리드 재평가** → [PLAN_TTS §10](plans/PLAN_TTS_STREAMING_261002.md) · [PLAN_DECISION_ROUTER §17](plans/PLAN_DECISION_ROUTER_261019.md)
   - TTS 폴백을 OpenAI `gpt-4o-mini-tts`(2027-01-06 제거)에서 `gemini-3.8-flash-tts` 로 바꿨다.
     - 공식 대체 `gpt-realtime-2.1-mini` 는 실측에서 날짜·뜻을 바꿔 읽어 탈락했다("일월"→"2월", "마감 뒤"→"마감 전").

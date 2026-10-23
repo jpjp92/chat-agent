@@ -23,7 +23,7 @@
 
 ## 최근 문서
 
-- **2026-10-23** — [라우터 2차 개선](logs/2026/10/DEV_261023.md) — 오답 원인(법령 규칙의 LLM 덮어쓰기 · 주제 목록식 의도 정의 · law_qa 범위)을 고쳐 6세트 417/420. R5 결정(행정·금융 절차는 general). gpt-6-luna 라우터는 같은 정확도에 0.8s 느려 Gemini 유지. Jev 가격 정리([PLAN §17-5·§18](plans/PLAN_DECISION_ROUTER_261019.md))
+- **2026-10-23** — [라우터 2차 개선](logs/2026/10/DEV_261023.md) — 오답 원인(법령 규칙의 LLM 덮어쓰기 · 주제 목록식 의도 정의 · law_qa 범위)을 고쳐 6세트 417/420. R5 결정(행정·금융 절차는 general). gpt-6-luna 라우터는 같은 정확도에 0.8s 느려 Gemini 유지. Jev 가격 정리([PLAN §17-5·§18](plans/PLAN_DECISION_ROUTER_261019.md)). 오후: [REF_ROUTER_LABELS](guide/REF_ROUTER_LABELS.md) — **라우터 정답 기준** 신설(골든셋·LLM judge 공용), 골든셋 v1 85문장, 날씨 후속 정의를 코드 설계에 맞춤
 - **2026-10-20** — [TTS 폴백 교체](plans/PLAN_TTS_STREAMING_261002.md) — OpenAI `gpt-4o-mini-tts`(2027-01-06 제거) → `gemini-3.8-flash-tts`. 공식 대체 `gpt-realtime-2.1-mini` 는 실측에서 날짜·뜻을 바꿔 읽어 탈락(§10-2). 2.5·3.1 TTS 는 11-17 종료. [Decisions 하이브리드 재평가](plans/PLAN_DECISION_ROUTER_261019.md) — 넣는다면 병렬, 비용 차이 월 1달러 미만, 전송 범위 확대(§17)
 - **2026-10-14** — [다운로드형 PDF 링크 · 문서 후속 법령 가드](logs/2026/10/DEV_261014.md) — KDI `callDownload.do` 처럼 Content-Type 없는 PDF 링크를 응답으로 판별하고, 서버에서 텍스트를 뽑아 후속 턴도 문서로 답한다. 문서 후속에서 법령 카드가 뜨던 오분류는 라우터 Doc guard 로 차단. 업로드·로그인 원본 오류는 서버 로그로. README·guide 현행화
 - **2026-10-13** — [멀티턴 검색·대용량 PDF 후속](logs/2026/10/DEV_261013.md) — 검색 직후 세부 후속은 검색 on(`followup-detail`), 대용량 PDF 후속 요청 413 선차단과 후속 턴 PDF 텍스트 근거(`pdfText`)

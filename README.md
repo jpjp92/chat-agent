@@ -50,6 +50,7 @@ A multi-provider AI messenger built on Gemini and OpenAI. A LangGraph.js agent r
 | Read aloud | Gemini 3.8 Flash Lite TTS with Gemini 3.8 Flash fallback, streamed so playback starts in about a second. Members only, 20,000 chars/day → [REF_TTS](docs/guide/REF_TTS.md) |
 
 Routing, tool binding, model policy and streaming: [REF_Architecture](docs/guide/REF_Architecture.md)
+Which intent a message should get (the rules behind the router tests and golden set): [REF_ROUTER_LABELS](docs/guide/REF_ROUTER_LABELS.md)
 
 ### 1-3. Renderers (13)
 
