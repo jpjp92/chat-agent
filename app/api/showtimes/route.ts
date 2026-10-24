@@ -79,8 +79,44 @@ async function fetchMegabox(brchNo: string, today: string, tomorrow: string): Pr
   return Object.values(byMovie);
 }
 
-// ── CGV (browserless + HMAC, siteNo 직접) ─────────────────
+// ── CGV (서명 직접 호출 → 막히면 browserless) ─────────────────
+const CGV_SECRET = 'ydqXY0ocnFLmJGHr_zNzFcpjwAsXq_8JcBNURAkRscg';
+const CGV_MOV_PATH = '/api/v1/cnm/atkt/searchMovScnInfo';
+
+/**
+ * 브라우저 없이 서명만 붙여 부른다 — 10-24 로컬(가정 IP)에서 Cloudflare 통과 확인.
+ * 데이터센터 IP 는 챌린지를 받을 수 있어 실패하면 null → browserless 로 넘긴다. 어느 경로였는지 로그로 남긴다.
+ */
+async function fetchCgvDirect(siteNo: string, dates: string[]): Promise<{ date: string; rows: any[] } | null> {
+  const { createHmac } = await import('node:crypto');
+  try {
+    for (const ymd of dates) {
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const sg = createHmac('sha256', CGV_SECRET).update(`${ts}|${CGV_MOV_PATH}|`).digest('base64');
+      const qs = `coCd=A420&siteNo=${encodeURIComponent(siteNo)}&scnYmd=${ymd}&scnsNo=&scnSseq=&rtctlScopCd=08&custNo=`;
+      const res = await fetch(`https://cgv.co.kr${CGV_MOV_PATH}?${qs}`, {
+        headers: { 'X-TIMESTAMP': ts, 'X-SIGNATURE': sg, Accept: 'application/json', 'User-Agent': UA, Referer: 'https://cgv.co.kr/' },
+        signal: AbortSignal.timeout(8000),
+      });
+      const text = await res.text();
+      if (!res.ok || !text.trimStart().startsWith('{')) {
+        console.warn('[showtimes] cgv direct blocked', { status: res.status, cfMitigated: res.headers.get('cf-mitigated'), sample: text.slice(0, 80) });
+        return null;
+      }
+      const rows = JSON.parse(text).data || [];
+      if (rows.length) return { date: ymd, rows };
+    }
+    return { date: dates[0], rows: [] };
+  } catch (e: any) {
+    console.warn('[showtimes] cgv direct error', e?.message);
+    return null;
+  }
+}
+
 async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow: string): Promise<MovieEntry[]> {
+  const direct = await fetchCgvDirect(siteNo, [today, tomorrow]);
+  console.info('[showtimes] cgv path', { path: direct ? 'direct' : 'browserless', siteNo, rows: direct?.rows.length });
+  if (direct) return cgvRowsToMovies(direct, siteNm);
   if (!KEY) throw new Error('BROWSERLESS_KEY 미설정');
   const code = `
   export default async function ({ page }) {
@@ -108,6 +144,10 @@ async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow:
   const res = await fetch(`${BASE}/function?token=${encodeURIComponent(KEY)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, context: {} }), signal: AbortSignal.timeout(90000) });
   const d = (JSON.parse(await res.text())).data || {};
   if (!d.rows) return [];
+  return cgvRowsToMovies(d, siteNm);
+}
+
+function cgvRowsToMovies(d: { date: string; rows: any[] }, siteNm: string): MovieEntry[] {
   const cinema = `CGV ${siteNm}`;
   const byMovie: Record<string, MovieEntry> = {};
   for (const r of d.rows) {
