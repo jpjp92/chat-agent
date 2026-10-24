@@ -142,7 +142,9 @@ export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
             });
         }
         body.tools = [{ type: 'web_search' }];
-        body.tool_choice = 'required';
+        // 함수 결과를 정리하는 단계는 검색을 강제하지 않는다 — 이전 턴이 있으면 모델이 검색을 부르지 않고
+        // 메시지만 반복하다 incomplete(max_messages)로 빈 답이 됐다(DEV_261024 §6). 근거는 이미 함수 결과에 있다.
+        body.tool_choice = requestState.functionPhase === 'followup' ? 'auto' : 'required';
         body.include = ['web_search_call.action.sources'];
     } else if (options.functionTool && requestState.functionPhase !== 'followup') {
         body.tools = [{
@@ -422,8 +424,9 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
 
         const rawText = extractText(json);
         if (!rawText) {
+            // 미완료(incomplete)도 502 — 503 이면 게스트에게 "무료 이용량" 안내로 바뀌는데 로그인과 무관한 실패다.
             throw new OpenAIChatError('OpenAI returned empty response text', {
-                status: json.status === 'incomplete' ? 503 : 502,
+                status: 502,
                 code: json.incomplete_details?.reason,
             });
         }

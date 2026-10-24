@@ -288,7 +288,7 @@ const synthesisResult = await generateOpenAIChat({
             && body.input.some((item: any) => item.type === 'function_call')
             && body.input.some((item: any) => item.type === 'function_call_output' && item.call_id === 'call_drug')
             && body.tools?.[0]?.type === 'web_search'
-            && body.tool_choice === 'required'
+            && body.tool_choice === 'auto'
             && !body.tools.some((tool: any) => tool.type === 'function')
             && body.instructions.includes('provider=OpenAI Web Search');
         return new Response(JSON.stringify({
