@@ -25,6 +25,7 @@ Supabase → SQL Editor 에 **전문을 붙여넣고 Run**. 순서를 지킬 것
 | 5 | `mfds-pills.sql` | 약품 낱알식별 테이블 | RLS 동일. 각인 GIN 인덱스가 핵심 |
 | 6 | `node docs/guide/db/sync-mfds-pills.mjs` | 약품 데이터 적재 (~25,000행) | 아래 참조 |
 | 7 | `session-activity.sql` | 메시지 저장 시 세션 `updated_at` 갱신 트리거 + 기존 데이터 1회 보정 | 사이드바 "마지막 대화 순". 여러 번 실행해도 안전 |
+| 8 | `aux-quota.sql` | 보조 라우트(fetch-url·sync-drug-image·showtimes) 게스트 일일 한도 | 🔴 **코드 배포보다 먼저** — 없으면 게스트 요청이 503. RLS 켜고 정책 없음, RPC 만 |
 
 인증 컷오버(프로덕션)는 `auth-mvp-preflight-prod.sql` → `auth-mvp-cutover-prod.sql` → `auth-mvp-verify-prod.sql` 순서를
 따로 탄다. `auth-mvp-sync-trigger.sql` · `auth-mvp-identity-sync.sql` · `auth-mvp-guest-limit.sql` 은 그 부속이다.

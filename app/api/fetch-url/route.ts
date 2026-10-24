@@ -7,6 +7,7 @@ import { extractPdfTextOnServer } from '../../../server/pdf-text-node';
 const PDF_DETECTED = '\u0000PDF_DETECTED';
 import { supabase, supabaseAdmin } from '../../../server/supabase';
 import { requireProfile } from '../../../lib/supabase/route';
+import { consumeAuxQuota } from '../../../server/aux-quota';
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { fetchUrlContentWithOpenAI, isOpenAIUrlFallbackHost } from '../../../server/openai/url-fetch';
 
@@ -147,6 +148,32 @@ const extractReadableContent = (html: string) => {
     };
 };
 
+// 직접 받기 상한 — 10초 abort 만으로는 Vercel 대역폭에서 수백 MB 를 받을 수 있다(PLAN_SECURITY_REVIEW_261023 #3).
+// 30MB: 큰 보고서 PDF 도 덮는다. 텍스트 추출은 20만 자에서 멈춰(lib/pdf-text.ts) 크기만큼 파싱이 늘지 않는다.
+const MAX_DIRECT_BYTES = 30 * 1024 * 1024;
+
+/** 상한까지만 읽는다. Content-Length 가 이미 넘으면 본문 앞부분(형식 판별용)만 읽고 끊는다. */
+async function readCapped(res: Response, max: number): Promise<{ buf: Uint8Array; truncated: boolean }> {
+    const declared = Number(res.headers.get('content-length') || 0);
+    const limit = declared > max ? 1024 : max;
+    const reader = res.body?.getReader();
+    if (!reader) return { buf: new Uint8Array(), truncated: false };
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let truncated = declared > max;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.length;
+        if (total > limit) { truncated = true; await reader.cancel().catch(() => {}); break; }
+    }
+    const buf = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.length; }
+    return { buf, truncated };
+}
+
 export async function POST(req: NextRequest) {
     // 유료 폴백(browserless·ScrapingBee·OpenAI)과 service_role 캐시 쓰기를 가진 라우트다 — 인증을 맨 앞에.
     // 캐시 히트도 인증 뒤: 캐시 응답만으로도 공개 프록시처럼 쓸 수 있다 → PLAN_PUBLIC_ROUTE_AUTH_261017
@@ -177,6 +204,9 @@ export async function POST(req: NextRequest) {
             console.info('[fetch-url] cache hit', { url: targetUrl });
             return NextResponse.json({ content: cached, cached: true });
         }
+
+        const quotaRes = await consumeAuxQuota(auth, 'fetch_url', 'fetch-url');
+        if (quotaRes) return quotaRes;
 
         if (url.includes('youtube.com') || url.includes('youtu.be')) {
             const oembedCtrl = new AbortController();
@@ -257,7 +287,17 @@ export async function POST(req: NextRequest) {
                 // `Content-Disposition: attachment; filename="….pdf"` + `%PDF-` 본문만 주는 서버가 있다.
                 // text() 로 읽으면 바이너리가 HTML 스크래핑으로 흘러 깨진 글자가 요약되므로, PDF 면 본문 대신
                 // isPdf 만 돌려주고 클라이언트가 URL 을 PDF 링크로 붙인다(두 모델 모두 이 URL 을 직접 읽는다) → DEV_261014
-                const buf = new Uint8Array(await response.arrayBuffer());
+                const { buf, truncated } = await readCapped(response, MAX_DIRECT_BYTES);
+                if (truncated) {
+                    // 큰 PDF 는 서버에서 텍스트층을 만들지 않는다(파싱은 취소가 안 돼 함수 시간을 붙잡는다).
+                    // 첫 턴은 모델이 URL 을 직접 읽으므로 isPdf 만 알려 준다 — 후속 턴 근거만 빠진다.
+                    if (response.ok && isPdfResponse(response.headers, buf)) {
+                        console.warn('[fetch-url] PDF over byte cap — skipping text layer', { url: targetUrl, cap: MAX_DIRECT_BYTES });
+                        return NextResponse.json({ isPdf: true, content: '' });
+                    }
+                    console.warn('[fetch-url] body over byte cap', { url: targetUrl, cap: MAX_DIRECT_BYTES });
+                    return NextResponse.json({ error: 'Content too large' }, { status: 413 });
+                }
                 if (response.ok && isPdfResponse(response.headers, buf)) {
                     // 바이트를 이미 받았으니 텍스트층도 여기서 — 후속 턴 근거(lastActiveDoc.pdfText). 첫 턴은 URL 그대로 모델이 읽는다.
                     const pdfText = await extractPdfTextOnServer(buf);

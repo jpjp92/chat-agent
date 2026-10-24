@@ -1,6 +1,7 @@
 import { BROWSER_UA } from '../../../server/browser-ua';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireProfile } from '../../../lib/supabase/route';
+import { consumeAuxQuota } from '../../../server/aux-quota';
 
 /**
  * 상영시간표 조회 API — MovieRenderer가 지점별로 호출(마운트/드롭다운 변경 시).
@@ -164,6 +165,12 @@ export async function GET(req: NextRequest) {
   const nocache = sp.get('nocache') === '1';
   if (!['cgv', 'lotte', 'mega'].includes(chain) || !code) {
     return NextResponse.json({ error: 'chain(cgv|lotte|mega)·code 필수', list: [] }, { status: 400 });
+  }
+  // 메모리 캐시로 답할 수 있으면 세지 않는다(stale 의 백그라운드 갱신은 키당 하나라 따로 막지 않는다).
+  const hit = CACHE.get(`${chain}:${code}:${toYmd(kstNow())}`);
+  if (nocache || !hit || Date.now() - hit.ts >= STALE_MS) {
+    const quotaRes = await consumeAuxQuota(auth, 'showtimes', 'showtimes');
+    if (quotaRes) return quotaRes;
   }
   try {
     const payload = nocache

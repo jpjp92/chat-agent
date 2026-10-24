@@ -1,6 +1,6 @@
 # PLAN_SECURITY_REVIEW_261023 — 보안 재검토(10-23) 검증과 처리 계획
 
-> 상태: **검증만 완료, 수정 미착수**(2026-10-23). 이전 정리: [PLAN_HARDENING_260822](PLAN_HARDENING_260822.md) · 10-17 인증 계약 `f7b1181`([DEV_261017](../logs/2026/10/DEV_261017.md)).
+> 상태: **①~③ 처리(2026-10-24, 미배포) · ④ 남음** → [DEV_261024](../logs/2026/10/DEV_261024.md). 검증 2026-10-23. 이전 정리: [PLAN_HARDENING_260822](PLAN_HARDENING_260822.md) · 10-17 인증 계약 `f7b1181`([DEV_261017](../logs/2026/10/DEV_261017.md)).
 > 원본: 웹에서 받은 외부 리뷰 `reference/SECURITY_REVIEW.md`(로컬 전용, `origin/dev` = `28e14ce` 기준). 이 문서는 그 지적을 **dev HEAD(`b85cd6a`)의 코드로 다시 확인**한 결과다. 10-23 의 라우터 커밋은 지적 대상 파일을 건드리지 않았다.
 
 ## 0. 요약
@@ -45,12 +45,18 @@
 
 | 순서 | 묶음 | 항목 | 범위 | 운영 작업 |
 |---|---|---|---|---|
-| 1 | `sync-drug-image` 정리 | #1 · #2 | `upsert` 차단(신규만 생성) · 캐시 키에서 자유 문자열 `drug_name` 제거 또는 정규화 · octet-stream 대신 매직바이트 검사 · 생 `fetch` 7곳 → `safeFetch`(`og:image` 폴백 포함) | 없음 |
-| 2 | 보조 라우트 게스트 쿼터 | #4 | `consume_tts_quota` 패턴(공급자 호출 **전** 원자 소비, RPC 실패 시 fail-closed). `requireProfile` 이 `isGuest` 를 이미 준다 | **SQL 함수 추가 — 운영 DB 적용은 사용자** |
-| 3 | PDF 입력 상한 | #3 | Content-Length 선검사 + 스트리밍 바이트 상한(예: 20MB). 워커 분리·취소 가능화는 뒤로 | 없음 |
+| 1 ✅ | `sync-drug-image` 정리 | #1 · #2 | `upsert` 차단(신규만 생성) · 캐시 키에서 자유 문자열 `drug_name` 제거 또는 정규화 · octet-stream 대신 매직바이트 검사 · 생 `fetch` 7곳 → `safeFetch`(`og:image` 폴백 포함) | 없음 |
+| 2 ✅ | 보조 라우트 게스트 쿼터 | #4 | `consume_tts_quota` 패턴(공급자 호출 **전** 원자 소비, RPC 실패 시 fail-closed). `requireProfile` 이 `isGuest` 를 이미 준다 | **SQL 함수 추가 — 운영 DB 적용은 사용자** |
+| 3 ✅ | PDF 입력 상한 | #3 | Content-Length 선검사 + 스트리밍 바이트 상한(예: 20MB). 워커 분리·취소 가능화는 뒤로 | 없음 |
 | 4 | 작은 정리 | #5 · #7 · #8 · #9 · 권고 9 | client-log 제어문자 `[\x00-\x1f]` 전체 제거 + auth 스코프는 `code`/`status` 만 · 키 로그는 인덱스로 · `CGV_HMAC_SECRET` env 이전 · 세션 트리거에 `and user_id = (select auth.uid())` · CI 에 `npm run verify` | **CGV env 추가 · SQL 재적용 — 사용자** |
 | 보류 | 키 네이밍 | #6 | `SUPABASE_KEY` → `SUPABASE_SERVICE_ROLE_KEY` 통일, 폴백 제거, `supabaseAdmin` 만 노출. env 이름이 바뀌어 운영 설정도 바뀐다 | Storage 보안 AWS 이전 결정(10-10, TODO P0)과 함께 |
 | 보류 | 수동 추적 | #10 | TODO 에 `xlsx` 수동 확인 항목. Dependabot 이 못 잡는다 | — |
+
+### 3-1. 처리 결과 (10-24)
+
+- **1** — 계획대로. 캐시 키의 `drug_name` 은 빼지 않고 정규화만 했다(같은 URL 이 약 이름에 따라 다른 사진을 주는 ConnectDI 검색 경로가 있다). 덮어쓰기는 `upsert: false` 가 막는다. 기존 `octet-stream` 캐시 파일은 유지.
+- **2** — `consume_aux_quota(kind)` 하나로 세 라우트. 게스트만 세고 **캐시 미스 뒤에만** 소비. 한도 20·60·20. SQL `docs/guide/db/aux-quota.sql` 운영 적용 완료.
+- **3** — 상한 30MB(20MB 에서 상향). 초과 PDF 는 텍스트층 없이 `isPdf`, 그 외 413.
 
 client-log 레이트리밋(#5 의 첫 번째)은 공개 라우트라 사용자 단위로 걸 수 없다. IP 기준 또는 Vercel Firewall 규칙 중 고른다 — 묶음 4 착수 때 정한다.
 

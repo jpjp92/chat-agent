@@ -53,10 +53,10 @@
   - [ ] 배포 후 로그 확인: `[speech] gemini failed before first byte — falling back to gemini-flash` 가 얼마나 찍히는지. 폴백은 Lite 보다 느리다(2,000자 약 54s vs 29s)
   - [ ] 🟡 **TTS 단가 2027-01-01 두 배**(Lite $6 → $12, Flash $9 → $18 /1M 오디오) — 회원 한도 20,000자/일(≈$0.4 → $0.8/일/회원)을 그 전에 다시 본다 → [REF_TTS §2](guide/REF_TTS.md)
   - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
-- [ ] 🔴 **보안 재검토(10-23) 처리** — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
-  - [ ] ① `sync-drug-image` — 약품 이미지 덮어쓰기(`upsert: true` + 요청자 입력 캐시 키) · 생 `fetch` 7곳 → `safeFetch`
-  - [ ] ② `fetch-url`·`sync-drug-image`·`showtimes` 게스트 쿼터(`consume_tts_quota` 패턴, SQL 운영 적용은 사용자)
-  - [ ] ③ PDF 다운로드 바이트 상한(아래 0-f 항목과 같은 일)
+- [ ] 🔴 **보안 재검토(10-23) 처리** (①~③ 10-24 완료, ④ 남음) — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
+  - [x] ✅ 10-24 ① `sync-drug-image` — `upsert: false` · 약 이름 정규화 · 매직바이트 판별 · `drugFetch`(safeFetch + 최종 허용목록) → [DEV_261024 §1](logs/2026/10/DEV_261024.md)
+  - [x] ✅ 10-24 ② 게스트 일일 한도 `consume_aux_quota`(캐시 미스만 셈, fail-closed) · SQL 운영 적용 완료 → [DEV_261024 §2](logs/2026/10/DEV_261024.md). 남은 것: 배포 후 게스트 소진 확인
+  - [x] ✅ 10-24 ③ 직접 받기 30MB 상한(초과 PDF 는 isPdf 만, 그 외 413) → [DEV_261024 §3](logs/2026/10/DEV_261024.md). 파싱 취소(워커)는 남음
   - [ ] ④ client-log 제어문자·auth 본문 · 키 로그 마스킹 · CGV 시크릿 env · 세션 트리거 소유권 술어 · CI 에 `npm run verify`
   - [ ] ⬜ `xlsx` 수동 추적 — CDN 타르볼이라 Dependabot 이 갱신 PR 을 못 올린다. 분기마다 SheetJS 릴리스 확인
   - ⏸ `SUPABASE_KEY`(실제 service_role) 이름 정리는 Storage 보안 AWS 이전 때 함께

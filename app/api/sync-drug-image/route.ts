@@ -4,6 +4,8 @@ import { requireProfile } from '../../../lib/supabase/route';
 import { isDrugImageHost } from '../../../server/drug-image-hosts';
 import crypto from 'crypto';
 import { BROWSER_UA } from '../../../server/browser-ua';
+import { safeFetch } from '../../../server/ssrf';
+import { consumeAuxQuota } from '../../../server/aux-quota';
 
 /**
  * 이 라우트의 Storage 쓰기는 **admin 권한이 필요하다**(이름으로 명시한다).
@@ -68,6 +70,9 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // 약 이름은 요청자가 주는 자유 문자열이다 — 공백·길이를 정규화해 같은 약이 같은 키로 모이게 한다.
+        // 덮어쓰기는 키가 아니라 업로드(upsert 금지)에서 막는다.
+        drug_name = typeof drug_name === 'string' ? drug_name.trim().replace(/\s+/g, ' ').slice(0, 100) : '';
         const cacheKey = drug_name ? `${repairedUrl}::${drug_name}` : repairedUrl;
         const urlHash = crypto.createHash('md5').update(cacheKey).digest('hex');
         fileName = `drug-cache/${urlHash}.jpg`;
@@ -100,6 +105,10 @@ export async function POST(req: NextRequest) {
             } catch {}
         }
 
+        // 캐시에 없을 때만 센다 — 이미 저장된 사진을 다시 보는 것은 외부 호출이 없다.
+        const quotaRes = await consumeAuxQuota(auth, 'drug_image', 'sync-drug-image');
+        if (quotaRes) { completeInflight(null); return quotaRes; }
+
         let finalUrl = repairedUrl;
         if (url.includes('dthumb-phinf.pstatic.net') && url.includes('src=')) {
             try {
@@ -125,7 +134,7 @@ export async function POST(req: NextRequest) {
         const fetchWithRetry = async (retries = 1): Promise<Response> => {
             const ctrl = new AbortController();
             const t = setTimeout(() => ctrl.abort(), 12000);
-            try { return await fetch(finalUrl, { headers: fetchHeaders, signal: ctrl.signal }); }
+            try { return await drugFetch(finalUrl, { headers: fetchHeaders, signal: ctrl.signal }); }
             catch (e: any) {
                 if (retries > 0 && e.name !== 'AbortError' && (e.code === 'ECONNRESET' || e.message?.includes('fetch failed'))) {
                     await new Promise(r => setTimeout(r, 800));
@@ -180,12 +189,15 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            // og:image 등 HTML 에서 뽑은 URL 은 임의 호스트일 수 있다 — 허용목록 밖이면 받지 않는다.
+            if (targetScrapedUrl && !isAllowedDrugUrl(targetScrapedUrl)) targetScrapedUrl = null;
+
             if (targetScrapedUrl) {
                 const sCtrl = new AbortController();
                 const sTimeout = setTimeout(() => sCtrl.abort(), 8000);
                 let scrapedResponse: Response;
                 try {
-                    scrapedResponse = await fetch(targetScrapedUrl, {
+                    scrapedResponse = await drugFetch(targetScrapedUrl, {
                         signal: sCtrl.signal,
                         headers: { Referer: isNaverEntry ? 'https://terms.naver.com/' : 'https://www.connectdi.com/', 'User-Agent': fetchHeaders['User-Agent'] },
                     });
@@ -193,7 +205,7 @@ export async function POST(req: NextRequest) {
 
                 if (scrapedResponse.ok) {
                     const buf = Buffer.from(await scrapedResponse.arrayBuffer());
-                    const result = await uploadAndReturn(buf, scrapedResponse.headers.get('content-type') || 'image/jpeg', fileName);
+                    const result = await uploadAndReturn(buf, fileName);
                     let pillVisual = null;
                     if (isConnectDIEntry) {
                         const dHtml = await fetchConnectDIDetailHTML(finalUrl);
@@ -219,7 +231,7 @@ export async function POST(req: NextRequest) {
         }
 
         const buffer = Buffer.from(await externalResponse.arrayBuffer());
-        const result = await uploadAndReturn(buffer, contentType, fileName);
+        const result = await uploadAndReturn(buffer, fileName);
         let pillVisual = null;
         if (isConnectDIEntry) {
             const dHtml = await fetchConnectDIDetailHTML(finalUrl);
@@ -279,7 +291,7 @@ async function tryConnectDIFallback(drugName: string, fileName: string): Promise
         const baseName = extractBaseName(drugName);
         const sCtrl = new AbortController(); const st = setTimeout(() => sCtrl.abort(), 10000);
         let searchResponse: Response;
-        try { searchResponse = await fetch(`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(baseName)}`, { signal: sCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0', Accept: 'text/html', 'Accept-Language': 'ko-KR,ko;q=0.9' } }); }
+        try { searchResponse = await drugFetch(`https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(baseName)}`, { signal: sCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0', Accept: 'text/html', 'Accept-Language': 'ko-KR,ko;q=0.9' } }); }
         finally { clearTimeout(st); }
         if (!searchResponse.ok) return null;
         const items = parseMedList(await searchResponse.text());
@@ -289,10 +301,10 @@ async function tryConnectDIFallback(drugName: string, fileName: string): Promise
         if (!best || best.score < 40) return null;
         const iCtrl = new AbortController(); const it = setTimeout(() => iCtrl.abort(), 8000);
         let imgResponse: Response;
-        try { imgResponse = await fetch(best.imgUrl!, { signal: iCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
+        try { imgResponse = await drugFetch(best.imgUrl!, { signal: iCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
         finally { clearTimeout(it); }
-        if (!imgResponse.ok || !imgResponse.headers.get('content-type')?.includes('image')) return null;
-        const result = await uploadAndReturn(Buffer.from(await imgResponse.arrayBuffer()), 'image/jpeg', fileName);
+        if (!imgResponse.ok) return null;
+        const result = await uploadAndReturn(Buffer.from(await imgResponse.arrayBuffer()), fileName);
         let pillVisual = null;
         try { const dHtml = await fetchConnectDIDetailHTML(best.detailUrl); if (dHtml) pillVisual = extractPillVisual(dHtml); } catch {}
         return { ...result, pillVisual };
@@ -302,7 +314,7 @@ async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {
     try {
         const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
         let res: Response;
-        try { res = await fetch(url, { signal: ctrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
+        try { res = await drugFetch(url, { signal: ctrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
         finally { clearTimeout(t); }
         if (!res.ok) return null;
         let html = await res.text();
@@ -313,7 +325,7 @@ async function fetchConnectDIDetailHTML(url: string): Promise<string | null> {
                 const detailUrl = dp.startsWith('http') ? dp : `https://www.connectdi.com${dp.startsWith('/') ? '' : '/mobile/drug/'}${dp}`;
                 const dCtrl = new AbortController(); const dt = setTimeout(() => dCtrl.abort(), 8000);
                 let dRes: Response;
-                try { dRes = await fetch(detailUrl, { signal: dCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
+                try { dRes = await drugFetch(detailUrl, { signal: dCtrl.signal, headers: { Referer: 'https://www.connectdi.com/', 'User-Agent': 'Mozilla/5.0' } }); }
                 finally { clearTimeout(dt); }
                 if (dRes.ok) html = await dRes.text();
             }
@@ -345,9 +357,44 @@ function extractPillVisual(html: string) {
         return Object.keys(pillVisual).length > 0 ? pillVisual : null;
     } catch { return null; }
 }
-async function uploadAndReturn(buffer: Buffer, contentType: string, fileName: string) {
-    const { error: uploadError } = await storage.upload(fileName, buffer, { contentType, upsert: true });
-    if (uploadError) throw uploadError;
+const isAllowedDrugUrl = (raw: string): boolean => {
+    try { return isDrugImageHost(new URL(raw)); } catch { return false; }
+};
+
+/**
+ * 외부 요청은 전부 이걸로 — safeFetch 가 hop 마다 내부 주소를 막고, 마지막 도착지도 약품 허용목록 안이어야 한다.
+ * 첫 URL 만 보던 검사는 허용 호스트의 리다이렉트로 우회됐다(PLAN_SECURITY_REVIEW_261023 #2).
+ */
+async function drugFetch(url: string, init: RequestInit): Promise<Response> {
+    const res = await safeFetch(url, init);
+    if (res.url && !isAllowedDrugUrl(res.url)) {
+        await res.body?.cancel().catch(() => {});
+        throw new Error('redirected outside drug image hosts');
+    }
+    return res;
+}
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/** 헤더 대신 바이트로 형식을 정한다 — content-type 은 원본 서버가 아무렇게나 줄 수 있다. */
+function sniffImageType(b: Buffer): string | null {
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+    if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+    if (b.length >= 6 && /^GIF8[79]a$/.test(b.subarray(0, 6).toString('latin1'))) return 'image/gif';
+    if (b.length >= 12 && b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+    return null;
+}
+
+async function uploadAndReturn(buffer: Buffer, fileName: string) {
+    if (buffer.length > MAX_IMAGE_BYTES) throw new Error('image too large');
+    const contentType = sniffImageType(buffer);
+    if (!contentType) throw new Error('not an image');
+    // 공용 캐시라 처음 저장된 사진을 아무도 바꾸지 못하게 한다(upsert 금지). 이미 있으면 그걸 쓴다.
+    const { error: uploadError } = await storage.upload(fileName, buffer, { contentType, upsert: false });
+    if (uploadError && !isAlreadyExists(uploadError)) throw uploadError;
     const { data: { publicUrl } } = storage.getPublicUrl(fileName);
     return { publicUrl };
+}
+function isAlreadyExists(err: any): boolean {
+    return String(err?.statusCode) === '409' || /already exists|duplicate/i.test(String(err?.message ?? ''));
 }
