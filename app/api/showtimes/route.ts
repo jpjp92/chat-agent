@@ -7,7 +7,7 @@ import { consumeAuxQuota } from '../../../server/aux-quota';
  * 상영시간표 조회 API — MovieRenderer가 지점별로 호출(마운트/드롭다운 변경 시).
  *   GET /api/showtimes?chain=cgv|lotte|mega&code=XXX&nm=지점명[&nocache=1]
  *
- * 롯데·메가박스는 direct JSON, CGV는 browserless(Cloudflare 우회 + HMAC 서명).
+ * 롯데·메가박스는 direct JSON. CGV 는 HMAC 서명 직접 호출, 막히면 browserless 폴백(10-24 Vercel 에서 직접 통과 확인).
  * SWR 인메모리 캐시: fresh 120s 그대로 / stale 30분 즉시 반환 + 백그라운드 갱신.
  * 한국 정부/극장 API 접근을 위해 서울 리전 고정(law-tool과 동일 이유).
  *
@@ -84,7 +84,7 @@ const CGV_SECRET = 'ydqXY0ocnFLmJGHr_zNzFcpjwAsXq_8JcBNURAkRscg';
 const CGV_MOV_PATH = '/api/v1/cnm/atkt/searchMovScnInfo';
 
 /**
- * 브라우저 없이 서명만 붙여 부른다 — 10-24 로컬(가정 IP)에서 Cloudflare 통과 확인.
+ * 브라우저 없이 서명만 붙여 부른다 — 10-24 로컬·Vercel Preview 모두 Cloudflare 통과(79ms). 06-10 옛 주소(api.cgv.co.kr)는 403 이었다.
  * 데이터센터 IP 는 챌린지를 받을 수 있어 실패하면 null → browserless 로 넘긴다. 어느 경로였는지 로그로 남긴다.
  */
 async function fetchCgvDirect(siteNo: string, dates: string[]): Promise<{ date: string; rows: any[] } | null> {
