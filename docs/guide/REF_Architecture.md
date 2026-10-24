@@ -47,7 +47,7 @@ flowchart TB
 
     subgraph ShowtimesAPI ["/api/showtimes"]
         SWR["SWR cache 120s/30min"]
-        ChainFetch["Lotte/Megabox direct + CGV browserless"]
+        ChainFetch["Lotte/Megabox direct + CGV 서명 direct (browserless 폴백)"]
     end
 
     subgraph External ["External"]

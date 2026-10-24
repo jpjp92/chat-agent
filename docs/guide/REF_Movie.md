@@ -5,13 +5,13 @@ Reference prompts for testing the `json:movie` renderer and the multiplex showti
 > 최종 수정: 2026-08-23
 
 > 기술 상세(스파이크·엔드포인트 발견·캐시·CGV 콜드 최적화): [`../logs/DEV_260610.md`](../logs/2026/06/DEV_260610.md), [`../logs/DEV_260611.md`](../logs/2026/06/DEV_260611.md) §6
-> ⚠️ CGV 조회는 `BROWSERLESS_KEY` 필요 (Cloudflare Bot Management 우회 — 실 헤드리스 Chrome). 롯데·메가박스는 direct JSON.
+> CGV 상영표는 HMAC 서명 **직접 호출**이 기본(10-24~), 막히면 browserless 폴백 — `BROWSERLESS_KEY` 는 폴백용으로 유지. 롯데·메가박스는 direct JSON.
 
 ---
 
 ## 2단 데이터 구조 (클라이언트 페치)
 
-다른 렌더러와 달리 영화 카드는 **상영시간표를 도구가 직접 가져오지 않는다.** `movieTool`은 지역에 맞는 3사 기본 지점만 담은 가벼운 `json:movie`를 반환하고(즉시 챗 응답 종료), 실제 상영표는 `MovieRenderer`가 마운트·지점변경 시 `/api/showtimes`를 호출해 채운다(스켈레톤 → 카드). CGV browserless ~2.5s 지연이 챗 함수 밖에 머물러 응답이 빠르고, 지점 드롭다운 재조회와 동일 엔드포인트를 재사용한다.
+다른 렌더러와 달리 영화 카드는 **상영시간표를 도구가 직접 가져오지 않는다.** `movieTool`은 지역에 맞는 3사 기본 지점만 담은 가벼운 `json:movie`를 반환하고(즉시 챗 응답 종료), 실제 상영표는 `MovieRenderer`가 마운트·지점변경 시 `/api/showtimes`를 호출해 채운다(스켈레톤 → 카드). 상영표 조회 지연(CGV 폴백 시 browserless ~2.5s)이 챗 함수 밖에 머물러 응답이 빠르고, 지점 드롭다운 재조회와 동일 엔드포인트를 재사용한다.
 
 ```
 영화 질의 → router(movie_search) → generator(movieTool) → json:movie{region,defaults}
@@ -138,7 +138,7 @@ node scripts/test-branch-list.mjs   # 로컬 전용 — data/theater-branches.js
 ```
 
 - **언제**: 분기 1회, 또는 카드 드롭다운에서 지점이 빠졌다는 신고 시.
-- **요구**: `BROWSERLESS_KEY`(CGV browserless 스크랩). 롯데·메가박스는 direct.
+- **요구**: 없음(3사 direct). CGV 지점 목록도 서명 직접 호출(10-24 확인, 173곳 동일) — 막히면 `BROWSERLESS_KEY` 로 폴백하고 실행 로그에 `[CGV] path:` 가 남는다.
 - **안전장치**: 스크랩 결과가 임계치 미만(`CGV<150`/`롯데<115`/`메가<100`)이면 **기존 파일을 덮지 않고 exit 1**(붕괴 방지). 통과 시 tmp→rename 원자적 교체.
 - **정규화(생성 시)**: HTML 엔티티 디코드 + 쓰레기(`href`·빈 값)·영구 폐점(`영업종료`) 제거. `휴관`은 라벨 유지. 롯데 DivisionCode 2(중복) 제거.
 
@@ -147,10 +147,10 @@ node scripts/test-branch-list.mjs   # 로컬 전용 — data/theater-branches.js
 ## Tips
 
 - **3사 색상**: CGV 빨강(`#e6002d`) · 롯데시네마 블루(`#2563eb`) · 메가박스 보라(`#6b3fa0`). 롯데는 흰 배지 아웃라인(적색 중복 회피).
-- **fetch 방식**: 롯데(`GetPlaySequence`)·메가박스(`schedulePage.do`)는 direct JSON(~0.1~0.3s, 좌석수 포함). **CGV만 browserless**(Cloudflare가 Node TLS 지문 차단 — direct HMAC 서명도 403).
+- **fetch 방식**: 3사 모두 direct(~0.1s). 롯데(`GetPlaySequence`)·메가박스(`schedulePage.do`)는 direct JSON, CGV 는 서버에서 HMAC 서명을 붙여 `cgv.co.kr/api/v1/…/searchMovScnInfo` 직접 호출(`fetchCgvDirect`, Vercel 실측 79ms). 06-10 엔 옛 주소 `api.cgv.co.kr` 직접 호출이 Cloudflare 403 이라 browserless 를 썼다 — 403·JSON 아님이면 지금도 browserless 로 폴백하고 `[showtimes] cgv path` 로그에 경로가 남는다 → [DEV_261024 §5](../logs/2026/10/DEV_261024.md)
 - **CGV API 주소(2026-10-18 이전)**: `api.cgv.co.kr/cnm/atkt/*` → **`cgv.co.kr/api/v1/*`**(같은 오리진). 상영시간 `GET /api/v1/cnm/atkt/searchMovScnInfo`(HMAC 서명, 서명 대상은 `/api/v1` 포함 전체 경로), 지점 `GET /api/v1/booking/searchRegnList`(서명 불필요, `regnGrpNm`·`bzplcOperStusNm` 운영 상태 포함). 예전 주소는 페이지 안 fetch 가 "Failed to fetch" 로 막혀 **오류 없이 0편**이 됐다 → [DEV_261018 §8](../logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신)
 - **SWR 캐시 + 스켈레톤**: fresh 120s / stale 30분(즉시 반환 + 백그라운드 갱신). CGV 콜드 7.3s → 웜 0.003s. 빠른 2사도 최소 320ms 스켈레톤 표시로 "번쩍" 방지, 3사 로딩 상태 일관.
-- **CGV 콜드 ~2.5s**: `domcontentloaded` + 이미지/폰트/CSS 리소스 차단 + `cgv.co.kr/robots.txt` 직접 goto(10-18 API 이전 후 같은 오리진). 남은 floor=browserless 기동(실 Chrome spin-up).
+- **CGV browserless 폴백 콜드 ~2.5s**: `domcontentloaded` + 이미지/폰트/CSS 리소스 차단 + `cgv.co.kr/robots.txt` 직접 goto(10-18 API 이전 후 같은 오리진). 남은 floor=browserless 기동(실 Chrome spin-up).
 - **채팅 변형 카드**: 칩 모바일 1열 / 데스크톱 2열, 패널 경량화(체인색 상단 액센트), 영화 `MOVIE_CAP=3` + 더보기, 회차 `CHIP_CAP=8` + 더보기.
 - **좌석 부족 강조**: 잔여/총석 15% 미만이면 칩 테두리·좌석수 적색.
 - **오늘 0건 시 내일 폴백**: 오늘 상영 회차 없으면 자동으로 내일 조회 후 `내일` 배지 표시.

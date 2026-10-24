@@ -55,12 +55,17 @@
   - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
 - [ ] 🔴 **보안 재검토(10-23) 처리** (①~③ 10-24 완료, ④ 남음) — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
   - [x] ✅ 10-24 ① `sync-drug-image` — `upsert: false` · 약 이름 정규화 · 매직바이트 판별 · `drugFetch`(safeFetch + 최종 허용목록) → [DEV_261024 §1](logs/2026/10/DEV_261024.md)
-  - [x] ✅ 10-24 ② 게스트 일일 한도 `consume_aux_quota`(캐시 미스만 셈, fail-closed) · SQL 운영 적용 완료 → [DEV_261024 §2](logs/2026/10/DEV_261024.md). 남은 것: 배포 후 게스트 소진 확인
-  - [x] ✅ 10-24 ③ 직접 받기 30MB 상한(초과 PDF 는 isPdf 만, 그 외 413) → [DEV_261024 §3](logs/2026/10/DEV_261024.md). 파싱 취소(워커)는 남음
-  - [ ] ④ client-log 제어문자·auth 본문 · 키 로그 마스킹 · CGV 시크릿 env · 세션 트리거 소유권 술어 · CI 에 `npm run verify`
+  - [x] ✅ 10-24 ② 게스트 일일 한도 `consume_aux_quota`(캐시 미스만 셈, fail-closed) · SQL 운영 적용 완료 · chat-agent-dev 게스트로 `fetch_url`·`showtimes` 집계 확인 → [DEV_261024 §2](logs/2026/10/DEV_261024.md). 남은 것: 상영표 한도(20, 질문당 체인 3개) 조정 여부
+  - [x] ✅ 10-24 ③ 직접 받기 30MB 상한(초과 PDF 는 isPdf 만, 그 외 413) → [DEV_261024 §3](logs/2026/10/DEV_261024.md). 파싱 취소·워커 분리는 **재검토**(필요성·방식 미정 → [PLAN §3-2](plans/PLAN_SECURITY_REVIEW_261023.md))
+  - [ ] ④ client-log 제어문자·auth 본문 · 키 로그 마스킹 · CGV 시크릿 env(10-24부터 직접 호출 `CGV_SECRET` 과 browserless 코드 두 곳) · 세션 트리거 소유권 술어 · CI 에 `npm run verify`
   - [ ] ⬜ `xlsx` 수동 추적 — CDN 타르볼이라 Dependabot 이 갱신 PR 을 못 올린다. 분기마다 SheetJS 릴리스 확인
   - ⏸ `SUPABASE_KEY`(실제 service_role) 이름 정리는 Storage 보안 AWS 이전 때 함께
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+  - ✅ 2026-10-24 **CGV 상영표 browserless 제거(직접 서명 호출 우선)** — 06-10 엔 옛 주소가 403 이었으나 새 `cgv.co.kr/api/v1/` 은 Vercel 에서도 통과(79ms). 막히면 browserless 폴백 → [DEV_261024 §5](logs/2026/10/DEV_261024.md)
+  - ✅ 2026-10-24 **GPT 약 질문 두 번째 턴 빈 답(`max_messages`)** — 정리 단계 웹 검색 강제 해제, 미완료 응답이 게스트 "무료 이용량" 안내로 바뀌던 분류 수정 → [DEV_261024 §6](logs/2026/10/DEV_261024.md)
+  - ✅ 2026-10-24 **GPT 약 카드 URL 깨짐**(인코딩에 히브리어 등) — 카드 URL 3필드를 도구 값으로 덮어씀. Gemini 는 측정 0건이라 보류 → [DEV_261024 §7](logs/2026/10/DEV_261024.md)
+  - [ ] 🟡 약 답변 출처에 식약처 링크(`mfds_url`) 붙이기 — §6 이후 GPT 약 첫 턴에 웹 출처가 빠질 수 있다
+  - ⬜ 액제·시럽 약 카드 — 낱알식별 DB 밖이라 카드 없이 웹 근거 답(설계대로, §8). 원하면 허가정보·e약은요 API
   - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
   - ✅ 2026-10-17 인증 계약 완료 — 무인증·위조 토큰 통과 라우트 4개에 `requireProfile`, proxy-image 는 약품 호스트 허용목록, 하니스 `test-route-auth` 가 새 무인증 라우트를 막는다 → [PLAN_PUBLIC_ROUTE_AUTH_261017](plans/PLAN_PUBLIC_ROUTE_AUTH_261017.md) · [DEV_261017](logs/2026/10/DEV_261017.md). **남은 것: 호출 제한(쿼터)**, sync-drug-image `safeFetch`(MEDIUM-4)

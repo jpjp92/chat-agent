@@ -6,7 +6,7 @@
 --    회원은 RPC 를 부르지 않는다 — 적용 전 배포해도 회원 경로는 그대로다.
 --
 -- 왜 필요한가: fetch-url(ScrapingBee·browserless·OpenAI) · sync-drug-image(외부 다운로드 + 공용 Storage 쓰기)
---   · showtimes(browserless) 가 requireProfile 만 거친다. 익명 세션은 무료·자동 발급이라 인증만으로는
+--   · showtimes(CGV browserless 폴백) 가 requireProfile 만 거친다. 익명 세션은 무료·자동 발급이라 인증만으로는
 --   유료 호출 반복을 막지 못한다. 캐시 히트는 비용이 없어 세지 않는다 — 라우트가 캐시 미스 뒤에만 부른다.
 --
 -- 위협 모델은 tts-quota.sql 과 같다: 테이블은 RLS on·정책 없음 · 한도는 함수 안 상수 ·

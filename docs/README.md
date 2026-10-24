@@ -23,7 +23,7 @@
 
 ## 최근 문서
 
-- **2026-10-24** — [보안 재검토 ①~③ 처리](logs/2026/10/DEV_261024.md) — 약품 이미지 덮어쓰기 차단·매직바이트·hop별 SSRF · 보조 라우트 게스트 일일 한도(`aux-quota.sql`, 운영 적용) · 직접 받기 30MB 상한. ④ 남음
+- **2026-10-24** — [보안 재검토 ①~③ 처리](logs/2026/10/DEV_261024.md) — 약품 이미지 덮어쓰기 차단·매직바이트·hop별 SSRF · 보조 라우트 게스트 일일 한도(`aux-quota.sql`, 운영 적용) · 직접 받기 30MB 상한(chat-agent-dev 검증). 같은 날 CGV 상영표 browserless 제거(직접 서명 79ms) · GPT 약 두 번째 턴 빈 답(`max_messages`) · GPT 약 카드 URL 깨짐 수정. ④ 남음
 - **2026-10-23** — [보안 재검토 검증](plans/PLAN_SECURITY_REVIEW_261023.md) — 외부 리뷰 10항목을 dev HEAD 로 확인(9 맞음 · 포이즈닝 과장). 1순위 `sync-drug-image` 약품 이미지 덮어쓰기·SSRF, 수정 미착수
 - **2026-10-23** — [라우터 2차 개선](logs/2026/10/DEV_261023.md) — 오답 원인(법령 규칙의 LLM 덮어쓰기 · 주제 목록식 의도 정의 · law_qa 범위)을 고쳐 6세트 417/420. R5 결정(행정·금융 절차는 general). gpt-6-luna 라우터는 같은 정확도에 0.8s 느려 Gemini 유지. Jev 가격 정리([PLAN §17-5·§18](plans/PLAN_DECISION_ROUTER_261019.md)). 오후: [REF_ROUTER_LABELS](guide/REF_ROUTER_LABELS.md) — **라우터 정답 기준** 신설(골든셋·LLM judge 공용), 골든셋 v1 85문장, 날씨 후속 정의를 코드 설계에 맞춤
 - **2026-10-20** — [TTS 폴백 교체](plans/PLAN_TTS_STREAMING_261002.md) — OpenAI `gpt-4o-mini-tts`(2027-01-06 제거) → `gemini-3.8-flash-tts`. 공식 대체 `gpt-realtime-2.1-mini` 는 실측에서 날짜·뜻을 바꿔 읽어 탈락(§10-2). 2.5·3.1 TTS 는 11-17 종료. [Decisions 하이브리드 재평가](plans/PLAN_DECISION_ROUTER_261019.md) — 넣는다면 병렬, 비용 차이 월 1달러 미만, 전송 범위 확대(§17)
