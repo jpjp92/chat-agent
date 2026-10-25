@@ -53,13 +53,13 @@
   - [ ] 배포 후 로그 확인: `[speech] gemini failed before first byte — falling back to gemini-flash` 가 얼마나 찍히는지. 폴백은 Lite 보다 느리다(2,000자 약 54s vs 29s)
   - [ ] 🟡 **TTS 단가 2027-01-01 두 배**(Lite $6 → $12, Flash $9 → $18 /1M 오디오) — 회원 한도 20,000자/일(≈$0.4 → $0.8/일/회원)을 그 전에 다시 본다 → [REF_TTS §2](guide/REF_TTS.md)
   - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
-- [ ] 🔴 **보안 재검토(10-23) 처리** (①~③ 10-24 완료, ④ 10-25 완료·env/SQL 적용, 배포 확인 남음) — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
+- [ ] 🔴 **보안 재검토(10-23) 처리** (①~③ 10-24 완료, ④ 10-25 완료·배포 확인) — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
   - [x] ✅ 10-24 ① `sync-drug-image` — `upsert: false` · 약 이름 정규화 · 매직바이트 판별 · `drugFetch`(safeFetch + 최종 허용목록) → [DEV_261024 §1](logs/2026/10/DEV_261024.md)
   - [x] ✅ 10-24 ② 게스트 일일 한도 `consume_aux_quota`(캐시 미스만 셈, fail-closed) · SQL 운영 적용 완료 · chat-agent-dev 게스트로 `fetch_url`·`showtimes` 집계 확인 → [DEV_261024 §2](logs/2026/10/DEV_261024.md). 남은 것: 상영표 한도(20, 질문당 체인 3개) 조정 여부
   - [x] ✅ 10-24 ③ 직접 받기 30MB 상한(초과 PDF 는 isPdf 만, 그 외 413) → [DEV_261024 §3](logs/2026/10/DEV_261024.md). 파싱 취소·워커 분리는 **재검토**(필요성·방식 미정 → [PLAN §3-2](plans/PLAN_SECURITY_REVIEW_261023.md))
-  - [x] ✅ 10-25 ④ client-log 제어문자·auth 본문 · 키 로그 순번 · CGV 키 env `CGV_HMAC_SECRET` · 세션 트리거 소유권 술어 · CI `npm run verify` → [DEV_261025](logs/2026/10/DEV_261025.md). env·SQL 적용 완료. 남은 것: 배포 후 CGV 상영표·세션 정렬·CI 첫 실행 확인 ·: client-log 레이트리밋 방식
+  - [x] ✅ 10-25 ④ client-log 제어문자·auth 본문 · 키 로그 순번 · CGV 키 env `CGV_HMAC_SECRET` · 세션 트리거 소유권 술어 · CI `npm run verify` → [DEV_261025](logs/2026/10/DEV_261025.md). env·SQL 적용 · chat-agent-dev 에서 CGV·세션 정렬·CI 확인 완료. 남은 것:: client-log 레이트리밋 방식
   - **다음 검토 순서 (10-25 정리)**
-    1. ✅ ④ 작은 정리 — 10-25 완료(env·SQL 적용). 배포 후 CI 첫 실행 확인
+    1. ✅ ④ 작은 정리 — 10-25 완료·chat-agent-dev 확인
     2. ✅ 약 답 출처에 `mfds_url` — 10-25 완료(§2)
     3. 사용량 보고 판단 — 게스트 상영표 한도(20, 질문당 3) · `aux_usage` 며칠치 집계
     4. 보류 — PDF 파싱 취소·워커 분리 재검토(PLAN §3-2) · Gemini 약 카드 스트림 버퍼링(깨짐 관측 시) · 상영표 Supabase 캐시 · 액제 카드
