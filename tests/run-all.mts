@@ -11,6 +11,9 @@
  *    `package.json` 에 등재하는 것을 잊으면 **조용히 안 돌던** 구멍이 있었다.
  *    실전 호출이 드는 것들은 `tests/manual/` 에 있고 하위 디렉터리는 훑지 않으므로
  *    여기 걸리지 않는다 — 그래서 `tests/manual/` 의 파일에 `test-` 접두를 쓰면 안 된다.
+ *
+ * **CI(`CI=true`)에선 통과한 하니스 출력을 접는다** — 37개 전부 찍으면 실패 위치를 로그에서 찾기 어렵다.
+ *    실패한 하니스만 출력 전체를 보여준다. 로컬은 그대로 전부 찍는다.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -27,12 +30,20 @@ if (harnesses.length === 0) {
     process.exit(1);
 }
 
+const QUIET = process.env.CI === 'true';
 const failed: string[] = [];
 const started = Date.now();
 
 for (const file of harnesses) {
-    console.log(`\n${'─'.repeat(72)}\n▶ ${file}\n${'─'.repeat(72)}`);
-    const r = spawnSync('npx', ['tsx', new URL(file, HERE).pathname], { stdio: 'inherit', shell: false });
+    const header = `\n${'─'.repeat(72)}\n▶ ${file}\n${'─'.repeat(72)}`;
+    if (!QUIET) console.log(header);
+    const r = spawnSync('npx', ['tsx', new URL(file, HERE).pathname], {
+        stdio: QUIET ? ['inherit', 'pipe', 'pipe'] : 'inherit', shell: false, maxBuffer: 64 * 1024 * 1024,
+    });
+    if (QUIET) {
+        if (r.status === 0) console.log(`✅ ${file}`);
+        else { console.log(header); process.stdout.write(r.stdout ?? ''); process.stderr.write(r.stderr ?? ''); }
+    }
     // signal 로 죽은 경우 status 는 null 이다 — 통과로 세면 안 된다
     if (r.status !== 0) failed.push(`${file}${r.signal ? ` (signal ${r.signal})` : ` (exit ${r.status})`}`);
 }
