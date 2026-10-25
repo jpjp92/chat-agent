@@ -15,7 +15,8 @@ as $$
 begin
   update public.chat_sessions
      set updated_at = now()
-   where id = new.session_id;
+   where id = new.session_id
+     and user_id = (select auth.uid());  -- security definer 라 RLS 를 안 탄다. 남의 세션은 건드리지 않게 술어로 묶는다
   return new;
 end;
 $$;

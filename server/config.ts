@@ -53,12 +53,15 @@ export const isDailyQuotaError = (err: any): boolean => {
     );
 };
 
+// 로그에 키 조각을 남기지 않는다 — 끝 6자리도 여러 로그를 모으면 키 식별·추측 단서가 된다.
+const keyLabel = (apiKey: string) => apiKey === paidKey() ? 'paid' : `#${API_KEYS.indexOf(apiKey)}`;
+
 /**
  * API 키를 RPM rate-limit 으로 표시 (60s 쿨다운).
  */
 export const markKeyRateLimited = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + RATE_LIMIT_COOLDOWN_MS);
-    console.warn(`[Config] API key ...${apiKey.slice(-6)} rate-limited (RPM). Cooling down for 60s.`);
+    console.warn(`[Config] API key ${keyLabel(apiKey)} rate-limited (RPM). Cooling down for 60s.`);
 };
 
 /**
@@ -67,7 +70,7 @@ export const markKeyRateLimited = (apiKey: string) => {
  */
 export const markKeyDailyExhausted = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + DAILY_LIMIT_COOLDOWN_MS);
-    console.error(`[Config] API key ...${apiKey.slice(-6)} daily quota exhausted (RPD). Disabled for 24h.`);
+    console.error(`[Config] API key ${keyLabel(apiKey)} daily quota exhausted (RPD). Disabled for 24h.`);
 };
 
 /**
@@ -75,7 +78,7 @@ export const markKeyDailyExhausted = (apiKey: string) => {
  */
 export const markKeyInvalid = (apiKey: string) => {
     rateLimitedUntil.set(apiKey, Date.now() + DAILY_LIMIT_COOLDOWN_MS);
-    console.error(`[Config] API key ...${apiKey.slice(-6)} marked invalid (401/403). Disabled for 24h.`);
+    console.error(`[Config] API key ${keyLabel(apiKey)} marked invalid (401/403). Disabled for 24h.`);
 };
 
 /**

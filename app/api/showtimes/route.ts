@@ -80,7 +80,8 @@ async function fetchMegabox(brchNo: string, today: string, tomorrow: string): Pr
 }
 
 // ── CGV (서명 직접 호출 → 막히면 browserless) ─────────────────
-const CGV_SECRET = 'ydqXY0ocnFLmJGHr_zNzFcpjwAsXq_8JcBNURAkRscg';
+// CGV 프런트 JS 에 공개된 서명 키지만 저장소에 박아두지 않는다. 없으면 직접·browserless 둘 다 서명을 못 한다.
+const CGV_SECRET = process.env.CGV_HMAC_SECRET || '';
 const CGV_MOV_PATH = '/api/v1/cnm/atkt/searchMovScnInfo';
 
 /**
@@ -88,6 +89,7 @@ const CGV_MOV_PATH = '/api/v1/cnm/atkt/searchMovScnInfo';
  * 데이터센터 IP 는 챌린지를 받을 수 있어 실패하면 null → browserless 로 넘긴다. 어느 경로였는지 로그로 남긴다.
  */
 async function fetchCgvDirect(siteNo: string, dates: string[]): Promise<{ date: string; rows: any[] } | null> {
+  if (!CGV_SECRET) return null;
   const { createHmac } = await import('node:crypto');
   try {
     for (const ymd of dates) {
@@ -118,6 +120,7 @@ async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow:
   console.info('[showtimes] cgv path', { path: direct ? 'direct' : 'browserless', siteNo, rows: direct?.rows.length });
   if (direct) return cgvRowsToMovies(direct, siteNm);
   if (!KEY) throw new Error('BROWSERLESS_KEY 미설정');
+  if (!CGV_SECRET) throw new Error('CGV_HMAC_SECRET 미설정');
   const code = `
   export default async function ({ page }) {
     await page.setUserAgent(${JSON.stringify(UA)});
@@ -128,8 +131,7 @@ async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow:
     await page.setRequestInterception(true);
     page.on('request', rq => { const t = rq.resourceType(); (t === 'image' || t === 'font' || t === 'stylesheet' || t === 'media') ? rq.abort() : rq.continue(); });
     try { await page.goto('https://cgv.co.kr/robots.txt', { waitUntil: 'domcontentloaded', timeout: 20000 }); } catch {}
-    const result = await page.evaluate(async (dates, siteNo) => {
-      const SECRET = 'ydqXY0ocnFLmJGHr_zNzFcpjwAsXq_8JcBNURAkRscg';
+    const result = await page.evaluate(async (dates, siteNo, SECRET) => {
       async function sig(msg){ const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']); const s=await crypto.subtle.sign('HMAC',k,new TextEncoder().encode(msg)); return btoa(String.fromCharCode(...new Uint8Array(s))); }
       async function get(pathname, query){ const ts=Math.floor(Date.now()/1000).toString(); const sg=await sig(ts+'|'+pathname+'|'+''); const r=await fetch('https://cgv.co.kr'+pathname+(query?'?'+query:''),{headers:{'X-TIMESTAMP':ts,'X-SIGNATURE':sg,'Accept':'application/json'},credentials:'include'}); return r.json(); }
       for (const ymd of dates) {
@@ -138,7 +140,7 @@ async function fetchCgv(siteNo: string, siteNm: string, today: string, tomorrow:
         if ((mov.data||[]).length) return { date: ymd, rows: mov.data };
       }
       return { date: dates[0], rows: [] };
-    }, ${JSON.stringify([today, tomorrow])}, ${JSON.stringify(String(siteNo))});
+    }, ${JSON.stringify([today, tomorrow])}, ${JSON.stringify(String(siteNo))}, ${JSON.stringify(CGV_SECRET)});
     return { data: result, type:'application/json' };
   }`;
   const res = await fetch(`${BASE}/function?token=${encodeURIComponent(KEY)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, context: {} }), signal: AbortSignal.timeout(90000) });

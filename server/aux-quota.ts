@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isAuthError, unauthorized } from '../lib/supabase/route';
 
-export type AuxKind = 'fetch_url' | 'drug_image' | 'showtimes';
+type AuxKind = 'fetch_url' | 'drug_image' | 'showtimes';
 
 /**
  * 보조 라우트의 게스트 일일 한도 — 유료·외부 호출 **직전**(캐시 미스 뒤)에 부른다(docs/guide/db/aux-quota.sql).

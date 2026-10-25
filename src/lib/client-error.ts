@@ -11,19 +11,21 @@ type ClientErrorScope =
     // 인증이 붙은 보조 라우트(fetch-url·sync-drug-image·showtimes)의 401 — 화면엔 조용히 폴백돼 여기서만 드러난다.
     | 'auth.route';
 
-const pick = (err: unknown, extra?: { status?: number; body?: string }) => {
+const pick = (scope: ClientErrorScope, err: unknown, extra?: { status?: number; body?: string }) => {
     const e = err as any;
+    // 인증 오류 본문은 보내지 않는다(서버도 버린다). auth.route 의 body 는 라우트 이름 상수다.
+    const keepMessage = scope === 'auth.route' || !scope.startsWith('auth.');
     return {
         code: e?.code != null ? String(e.code) : undefined,
         status: extra?.status ?? (typeof e?.status === 'number' ? e.status : undefined),
-        message: String(extra?.body ?? e?.message ?? err ?? '').slice(0, 500),
+        message: keepMessage ? String(extra?.body ?? e?.message ?? err ?? '').slice(0, 500) : undefined,
     };
 };
 
 export const reportClientError = (scope: ClientErrorScope, err: unknown, extra?: { status?: number; body?: string }) => {
     console.error(`[${scope}] failed`);
     try {
-        const payload = JSON.stringify({ scope, ...pick(err, extra) });
+        const payload = JSON.stringify({ scope, ...pick(scope, err, extra) });
         const sent = typeof navigator !== 'undefined' && navigator.sendBeacon
             && navigator.sendBeacon('/api/client-log', new Blob([payload], { type: 'application/json' }));
         if (!sent) void fetch('/api/client-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
