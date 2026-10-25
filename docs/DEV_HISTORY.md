@@ -10,8 +10,19 @@
 >
 > 📌 **검증 스크립트는 원칙적으로 링크가 아니라 인라인 코드로 적습니다** — `scripts/test-*` 는 `.gitignore` 대상이라(`.gitignore` §54–86: `audit-`·`test-`·`debug-`·`check-`·`verify-` 등 접두사) **레포에 올라가지 않습니다.** 클론한 환경에는 없으므로 링크로 걸면 항상 깨집니다. 실행 방법과 결과는 해당 날짜의 `docs/logs/` 로그 본문에 남깁니다.
 >
-> **회귀 하니스 36종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
+> **회귀 하니스 37종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
+- **2026-10-25 · 보안 재검토 ④ · CI 검증 · 약 답 식약처 출처** → [DEV_261025](logs/2026/10/DEV_261025.md) · [PLAN_SECURITY_REVIEW §3](plans/PLAN_SECURITY_REVIEW_261023.md)
+  - ④ 작은 정리: client-log 제어문자 전부 제거·인증 오류는 code/status 만 · 키 로그는 끝 6자리 대신 순번 · CGV 서명 키 env `CGV_HMAC_SECRET` · 세션 갱신 트리거에 소유권 술어(SQL 재적용).
+  - CI `Verify` 워크플로(dev push·PR 에 `npm run verify`). 첫 실행에서 gitignore 된 스크립트 링크 4개가 걸려 인라인 코드로 강등. CI 에선 통과 하니스 출력을 접는다.
+  - 약 카드 답 출처 칩이 비던 것(카드 답 6건 중 5건 0개) → 카드 `mfds_url` 로 "식약처 의약품안전나라" 칩. 웹 출처에 이미 식약처가 있으면 생략.
+  - chat-agent-dev 확인: CGV 상영표 · 세션 정렬 · CI 통과 · 타세놀정 식약처 칩.
+- **2026-10-24 · 보안 재검토 ①~③ · CGV 직접 호출 · GPT 약 질문 수정** → [DEV_261024](logs/2026/10/DEV_261024.md) · [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
+  - ① `sync-drug-image`: 덮어쓰기 차단(`upsert: false`) · 매직바이트 판별 · 리다이렉트마다 SSRF 재검사 + 약품 호스트 허용목록.
+  - ② 보조 라우트 게스트 일일 한도(`consume_aux_quota`, 캐시 미스만 셈, fail-closed). ③ 직접 받기 30MB 상한.
+  - CGV 상영표를 browserless 대신 서명 직접 호출로(Vercel 79ms). 막히면 browserless 폴백.
+  - GPT 약 질문 두 번째 턴 빈 답(`max_messages`) → 정리 단계 웹 검색 강제 해제. GPT 약 카드 URL 깨짐 → 도구 값으로 덮어씀.
+  - 판콜에이내복액 카드 없음은 설계대로(낱알식별 DB 는 고형제만).
 - **2026-10-23 · 라우터 2차 개선(오답 근본 원인) · Jev 가격 · 라우터 LLM 비교** → [DEV_261023](logs/2026/10/DEV_261023.md) · [PLAN_DECISION_ROUTER §18](plans/PLAN_DECISION_ROUTER_261019.md)
   - 새 생활 분야 세트의 고정 오답 3건을 퓨샷 없이 원인으로 고쳤다.
     - 법령 규칙이 LLM 의 general 판정을 덮어쓰던 것을 막았다(LLM 실패 때만).

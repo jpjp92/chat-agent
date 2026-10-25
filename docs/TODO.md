@@ -61,8 +61,9 @@
   - **다음 검토 순서 (10-25 정리)**
     1. ✅ ④ 작은 정리 — 10-25 완료·chat-agent-dev 확인
     2. ✅ 약 답 출처에 `mfds_url` — 10-25 완료(§2)
-    3. 사용량 보고 판단 — 게스트 상영표 한도(20, 질문당 3) · `aux_usage` 며칠치 집계
-    4. 보류 — PDF 파싱 취소·워커 분리 재검토(PLAN §3-2) · Gemini 약 카드 스트림 버퍼링(깨짐 관측 시) · 상영표 Supabase 캐시 · 액제 카드
+    3. client-log 레이트리밋 — 공개 라우트라 사용자 단위 불가. IP 기준 vs Vercel Firewall 규칙 중 결정([PLAN §3](plans/PLAN_SECURITY_REVIEW_261023.md))
+    4. 사용량 보고 판단 — 게스트 상영표 한도(20, 질문당 3) · `aux_usage` 며칠치 집계
+    5. 보류 — PDF 파싱 취소·워커 분리 재검토(PLAN §3-2) · Gemini 약 카드 스트림 버퍼링(깨짐 관측 시) · 상영표 Supabase 캐시 · 액제 카드
   - [ ] ⬜ `xlsx` 수동 추적 — CDN 타르볼이라 Dependabot 이 갱신 PR 을 못 올린다. 분기마다 SheetJS 릴리스 확인
   - ⏸ `SUPABASE_KEY`(실제 service_role) 이름 정리는 Storage 보안 AWS 이전 때 함께
 - [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
