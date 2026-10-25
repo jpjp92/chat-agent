@@ -3,6 +3,7 @@ import { interleaveWeatherSummaries } from './weather-summary';
 import { isInternalLlmEvent } from './internal-llm';
 import type { WeatherLang } from '../../lib/weather-labels';
 import { checkTodayClaim } from './today-guard';
+import { drugCardSources } from './drug-card-urls';
 import { STATUS_EVENT, statusForRouter } from './status-event';
 
 /**
@@ -252,7 +253,9 @@ export function createStreamDispatch(
             if (urlBlockMatch) { let added = false; urlBlockMatch[1].split('\n').forEach((line: string) => { const [url, ...tp] = line.split(' | '); const title = tp.join(' | ').trim() || url; if (url?.startsWith('http') && !st.allSources.some((e: any) => e.uri === url)) { st.allSources.push({ title, uri: url }); added = true; } }); if (added) sendEvent({ sources: st.allSources }); }
           }
         }
-        const finalSources: any[] = finalOutput?.groundingSources || [];
+        // 약 카드의 식약처 상세 페이지도 출처로 — 두 공급자 모두 여기서 최종 본문을 갖고 있다. 웹 출처에 식약처가 있으면 생략
+        const stateFinal: any[] = finalOutput?.groundingSources || [];
+        const finalSources: any[] = [...stateFinal, ...drugCardSources(st.fullAiResponse, [...st.allSources, ...stateFinal])];
         if (finalSources.length > 0) { let added = false; finalSources.forEach((s: any) => { if (s?.uri && !st.allSources.some((e: any) => e.uri === s.uri)) { st.allSources.push(s); added = true; } }); if (added) sendEvent({ sources: st.allSources }); }
       }
     };

@@ -1,5 +1,5 @@
-/** 약 카드 URL 덮어쓰기 — server/agent/drug-card-urls.ts (DEV_261024 §7) */
-import { parseDrugCandidates, repairDrugCardUrls } from '../server/agent/drug-card-urls';
+/** 약 카드 URL 덮어쓰기 · 식약처 출처 — server/agent/drug-card-urls.ts (DEV_261024 §7 · DEV_261025) */
+import { drugCardSources, parseDrugCandidates, repairDrugCardUrls } from '../server/agent/drug-card-urls';
 let pass = 0, fail = 0;
 const check = (name: string, ok: boolean) => { ok ? pass++ : fail++; console.log(`${ok ? '✅' : '❌'} ${name}`); };
 
@@ -30,6 +30,18 @@ check('이미 맞으면 원문 그대로', repairDrugCardUrls(okCard, two) === o
 check('도구 출력 없으면 원문', repairDrugCardUrls(broken, '') === broken);
 const noImg = tool([{ name: '어떤액', img: 'null', seq: '9' }]);
 check('도구 이미지 null → 카드도 null', read(repairDrugCardUrls(card({ name: '어떤액', image_url: 'https://made.up/x.jpg', mfds_url: null, connectdi_url: null }), noImg)).image_url === null);
+
+const src = drugCardSources(okCard);
+check('출처 — 카드의 식약처 상세 페이지', src.length === 1 && src[0].uri.endsWith('itemSeq=1') && src[0].title === '식약처 의약품안전나라 · 게보린정');
+check('출처 — 같은 카드 둘이면 하나', drugCardSources(okCard + '\n\n' + okCard).length === 1);
+check('출처 — mfds_url null 이면 없음', drugCardSources(unknown).length === 0);
+check('출처 — nedrug 상세 모양이 아니면 버림', drugCardSources(card({ name: 'x', mfds_url: 'https://evil.test/?itemSeq=1' })).length === 0
+    && drugCardSources(card({ name: 'x', mfds_url: 'https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=1%20x' })).length === 0);
+check('출처 — 웹 출처에 식약처 상세가 있으면 생략', drugCardSources(okCard, [{ title: '식품의약품안전처 의약품', uri: 'https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=197900277' }]).length === 0);
+check('출처 — mfds.go.kr 다른 페이지도 생략', drugCardSources(okCard, [{ title: 'x', uri: 'https://www.mfds.go.kr/brd/m_99/view.do?seq=1' }]).length === 0);
+check('출처 — Gemini 리다이렉트(제목이 도메인)도 생략', drugCardSources(okCard, [{ title: 'nedrug.mfds.go.kr', uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/AB' }]).length === 0);
+check('출처 — 다른 사이트만 있으면 붙임', drugCardSources(okCard, [{ title: '약학정보원', uri: 'https://www.health.kr/drug/x' }, { title: 'notmfds.go.kr.evil.test', uri: 'https://x.test' }]).length === 1);
+check('출처 — 카드 없는 답·깨진 JSON', drugCardSources('그냥 답').length === 0 && drugCardSources('```json:drug\n{깨짐\n```').length === 0);
 
 console.log(`\n통과 ${pass} · 실패 ${fail}`);
 if (fail) process.exit(1);

@@ -104,4 +104,6 @@ Implications:
 - **pharm.or.kr 딥링크**: `pharm_url` 필드가 있으면 약품 카드 하단에 "약학정보원" 버튼 표시
 - **ConnectDI 이미지**: `image_url`은 MFDS nedrug 이미지 URL 또는 ConnectDI에서 파싱한 URL
 - **소스 칩**: DDG fallback 시 하단 소스 칩으로 출처 URL 표시됨
+- **식약처 칩**(10-25): 약 카드 답은 카드 `mfds_url`(nedrug 상세)이 "식약처 의약품안전나라 · 약 이름" 칩으로 붙는다. 웹 출처에 이미 `mfds.go.kr` 가 있으면 생략. `connectdi.com` 칩은 화면이 따로 붙인다(`ChatMessage.tsx`) → [DEV_261025 §2](../logs/2026/10/DEV_261025.md)
+- **카드 URL**: GPT 카드의 `image_url`·`mfds_url`·`connectdi_url` 은 도구 값으로 덮어쓴다(모델이 인코딩을 깨뜨림) → [DEV_261024 §7](../logs/2026/10/DEV_261024.md)
 - **각인 검색 팁**: 각인은 대소문자 구분 없이 입력, 뒷면 생략 가능

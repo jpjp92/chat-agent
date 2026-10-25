@@ -53,3 +53,32 @@ export const repairDrugCardUrls = (text: string, toolOutput: string): string => 
         return changed ? '```json:drug\n' + JSON.stringify(card, null, 2) + '\n```' : whole;
     });
 };
+
+const MFDS_DETAIL_PREFIX = 'https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=';
+
+/**
+ * 답에 실린 약 카드의 식약처 상세 페이지를 출처로 돌려준다. 카드 근거는 식약처 함수 결과인데 출처 칩엔
+ * 웹 검색 결과만 올라, 정리 단계 검색을 `auto` 로 푼 뒤(DEV_261024 §6) GPT 답은 출처가 비기도 한다.
+ * Gemini 카드는 URL 보정을 거치지 않으므로 nedrug 상세 주소 모양일 때만 믿는다.
+ * 웹 검색이 이미 식약처 페이지를 인용했으면 붙이지 않는다 — 같은 근거가 칩 두 개로 보인다(10-25 GPT 게보린정).
+ */
+const isMfdsSource = (s: { title?: string; uri?: string }): boolean => {
+    const host = (() => { try { return new URL(String(s?.uri)).hostname; } catch { return ''; } })();
+    // Gemini 출처는 grounding 리다이렉트 주소라 도메인이 제목에만 있다
+    return [host, String(s?.title ?? '').trim()].some(h => /(^|\.)mfds\.go\.kr$/.test(h));
+};
+
+export const drugCardSources = (text: string, existing: { title?: string; uri?: string }[] = []): { title: string; uri: string }[] => {
+    if (existing.some(isMfdsSource)) return [];
+    const out: { title: string; uri: string }[] = [];
+    for (const m of (text || '').matchAll(/```json:drug\s*\n([\s\S]*?)\n```/g)) {
+        let card: any;
+        try { card = JSON.parse(m[1]); } catch { continue; }
+        const uri = card?.mfds_url;
+        if (typeof uri !== 'string' || !uri.startsWith(MFDS_DETAIL_PREFIX) || !/^\d+$/.test(uri.slice(MFDS_DETAIL_PREFIX.length))) continue;
+        if (out.some(s => s.uri === uri)) continue;
+        const name = typeof card.name === 'string' && card.name.trim() ? ` · ${card.name.trim()}` : '';
+        out.push({ title: `식약처 의약품안전나라${name}`, uri });
+    }
+    return out;
+};
