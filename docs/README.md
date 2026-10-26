@@ -23,6 +23,7 @@
 
 ## 최근 문서
 
+- **2026-10-26** — [길게 누르기 메뉴 가림 · 조직 활동 질문 오라우팅](logs/2026/10/DEV_261026.md) — 복사·수정 메뉴를 body 포털로 · 회사 근황 질문("뉴럴링크 BCI 최근 연구 동향")이 논문 검색으로 가던 것을 `paper_search` 정의 반례로. 골든셋 회귀 89/89(두 모델)
 - **2026-10-25** — [보안 재검토 ④ 작은 정리](logs/2026/10/DEV_261025.md) — client-log 제어문자·auth 본문 차단 · 키 로그 순번 · CGV 키 env `CGV_HMAC_SECRET` · 세션 트리거 소유권 술어 · CI `npm run verify`. env·SQL 적용 완료. 같은 날 약 카드 답 출처에 식약처 상세 링크
 - **2026-10-24** — [보안 재검토 ①~③ 처리](logs/2026/10/DEV_261024.md) — 약품 이미지 덮어쓰기 차단·매직바이트·hop별 SSRF · 보조 라우트 게스트 일일 한도(`aux-quota.sql`, 운영 적용) · 직접 받기 30MB 상한(chat-agent-dev 검증). 같은 날 CGV 상영표 browserless 제거(직접 서명 79ms) · GPT 약 두 번째 턴 빈 답(`max_messages`) · GPT 약 카드 URL 깨짐 수정. ④ 남음
 - **2026-10-23** — [보안 재검토 검증](plans/PLAN_SECURITY_REVIEW_261023.md) — 외부 리뷰 10항목을 dev HEAD 로 확인(9 맞음 · 포이즈닝 과장). 1순위 `sync-drug-image` 약품 이미지 덮어쓰기·SSRF, 수정 미착수

@@ -22,7 +22,7 @@
 | `law_qa` | 법이 답하는 질문 — 권리·의무, 허용 여부, 처벌, 분쟁 대처 | **행정·금융 절차**(세금 신고·공제, 보험 청구·보장, 지원금·금융상품 신청, 기한·서류) → general (R5) · 변호사 비용·법조 진로 → general |
 | `movie_search` | 극장 상영시간표·지금 상영작 | 줄거리·리뷰·관객수·OTT 추천 → general |
 | `weather` | 장소의 현재 날씨·단기 예보 | 계절·현상(장마·태풍·미세먼지) → general+검색 · 날씨 단어가 든 노래·관용구 → general |
-| `paper_search` | 논문·연구를 찾아 달라 — 생체·의학 분야(pubmed) | 논문 쓰는 법·인용 형식 → general · 인문·역사·법 분야 논문 → general(두 DB 밖) |
+| `paper_search` | 논문·연구를 찾아 달라 — 생체·의학 분야(pubmed) | 논문 쓰는 법·인용 형식 → general · 특정 회사·인물이 **무엇을 하는지**("뉴럴링크 BCI 최근 연구 동향") → general(그들의 논문 요청은 유지) · 인문·역사·법 분야 논문 → general(두 DB 밖) |
 | `arxiv_search` | 논문을 찾아 달라 — 수학·물리·컴퓨팅·공학 분야 | 공부 순서·강의 추천 → general |
 | `biology` · `chemistry` · `physics` · `astronomy` · `data_viz` | 구조·분자·시뮬레이션·하늘 지도·차트를 **보여 달라**. astronomy 는 **오늘 밤 하늘 어디에 보이는지**(별자리·행성 위치)도 포함 | 같은 주제의 설명·이유 → general. 분자 수준 현상의 이유(소금이 녹는 이유)는 `alt: chemistry` |
 | `general` | 나머지 전부 — 코드·글쓰기·추천·상식·잡담 | |

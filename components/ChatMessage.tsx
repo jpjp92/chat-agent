@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import ErrorBoundary from './ErrorBoundary';
 import SourceBar from './SourceBar';
 import 'katex/dist/katex.min.css';
@@ -974,8 +975,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
         </div>
       </div>
 
-      {/* 커스텀 컨텍스트 메뉴 */}
-      {contextMenu.visible && (
+      {/* 커스텀 컨텍스트 메뉴 — body 로 포털: 메시지 루트의 animate-in 이 쌓임 맥락을 만들어 다음 턴 메시지가 메뉴 위에 그려진다 */}
+      {contextMenu.visible && typeof document !== 'undefined' && createPortal(
         <div 
           className="fixed z-[9999] min-w-[140px] overflow-hidden rounded-2xl bg-white/80 dark:bg-[#262626]/90 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 shadow-2xl animate-in zoom-in-95 duration-200"
           style={{ 
@@ -1017,7 +1018,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

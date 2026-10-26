@@ -514,3 +514,13 @@ export const ROUTER_BIO_EXPLAIN: RouterCase[] = [
     { q: '세포 분열 과정 설명해줘', want: 'general', alt: ['biology'], note: '정상 생리 — 골든셋 bio-3 에서 옮김' },
     { q: 'DNA랑 RNA 차이가 뭐야', want: 'general', alt: ['biology'], note: 'causes 세트와 같은 문장 — 10-23 문구 수정 중 medical_qa 로 흔들렸다' },
 ];
+
+/** 조직 활동 vs 논문 — 10-26 `neural link의 bci 최근연구 동향 알려줘` 가 arxiv_search 로 갔다(2018 논문 1편·빈손). 이 문장으로 paper_search 정의를 고쳤으므로 튜닝 세트다. */
+export const ROUTER_ORG_ACTIVITY: RouterCase[] = [
+    { q: 'neural link의 bci 최근연구 동향 알려줘', want: 'general', note: '원문 — 회사 활동' },
+    { q: 'OpenAI 요즘 뭐 연구해?', want: 'general', note: '회사 활동' },
+    { q: '삼성전자 반도체 연구 근황', want: 'general', note: '회사 활동' },
+    { q: '뉴럴링크가 낸 논문 찾아줘', want: 'arxiv_search', alt: ['paper_search'], note: '대조 — 회사 논문' },
+    { q: 'BCI 최근 연구 동향 알려줘', want: 'arxiv_search', alt: ['paper_search'], note: '대조 — 분야 전반' },
+    { q: '딥마인드 알파폴드 관련 논문 있어?', want: 'arxiv_search', alt: ['paper_search'], note: '대조 — 회사 + 논문' },
+];

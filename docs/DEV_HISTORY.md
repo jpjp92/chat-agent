@@ -12,6 +12,9 @@
 >
 > **회귀 하니스 37종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
+- **2026-10-26 · 길게 누르기 메뉴 · 조직 활동 질문 라우팅** → [DEV_261026](logs/2026/10/DEV_261026.md)
+  - 복사·수정 메뉴가 다음 턴 메시지에 가려짐 — 메시지 루트 `animate-in` 쌓임 맥락. body 포털로.
+  - 회사 근황 질문이 "연구" 때문에 arXiv 로 감 — `paper_search` 정의에 "조직이 무엇을 하는가 → general" 반례. 튜닝 6/6(두 모델) · 골든셋 89/89.
 - **2026-10-25 · 보안 재검토 ④ · CI 검증 · 약 답 식약처 출처** → [DEV_261025](logs/2026/10/DEV_261025.md) · [PLAN_SECURITY_REVIEW §3](plans/PLAN_SECURITY_REVIEW_261023.md)
   - ④ 작은 정리: client-log 제어문자 전부 제거·인증 오류는 code/status 만 · 키 로그는 끝 6자리 대신 순번 · CGV 서명 키 env `CGV_HMAC_SECRET` · 세션 갱신 트리거에 소유권 술어(SQL 재적용).
   - CI `Verify` 워크플로(dev push·PR 에 `npm run verify`). 첫 실행에서 gitignore 된 스크립트 링크 4개가 걸려 인라인 코드로 강등. CI 에선 통과 하니스 출력을 접는다.
