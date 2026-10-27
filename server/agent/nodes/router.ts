@@ -582,9 +582,10 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         needsSearch = false;
     } else if (intent === "general") {
         const ruleDecision = classifySearchNeed(textContent);
+        // OFF 규칙은 LLM 판정이 없을 때만 쓴다 — `코드` 가 제품명 "클로드 코드" 에 걸려 검색이 꺼지고
+        // 최근 제품의 존재를 단정·부정하는 답이 나갔다(DEV_261027). ON 규칙은 검색 누락 방어라 유지.
         if (ruleDecision === "on") needsSearch = true;
-        else if (ruleDecision === "off") needsSearch = false;
-        else needsSearch = llmNeedsSearch ?? true; // gray → LLM 판정, 없으면 default-on
+        else needsSearch = llmNeedsSearch ?? (ruleDecision !== "off");
     }
 
     // cardShown 은 진단에 필수 — 이 값이 false면 후속 판정 블록 자체가 안 돌아 llmFollowUp 이 무시된다

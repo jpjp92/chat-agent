@@ -28,7 +28,7 @@ const SET = args.find(a => a.startsWith('--set='))?.slice(6) ?? 'domains2';
 const cases = await import('./router-cases.mts');
 const SETS: Record<string, { q: string; want: string; alt?: string[] }[]> = {
     final: cases.ROUTER_FINAL, domains: cases.ROUTER_DOMAINS, domains2: cases.ROUTER_DOMAINS2, causes: cases.ROUTER_CAUSES, law: cases.ROUTER_LAW_BOUNDARY, wobble: cases.ROUTER_WOBBLE, golden: (await import('./router-golden.mts')).GOLDEN_V1, base: [...cases.MISROUTED, ...cases.MUST_KEEP],
-    holdout3: cases.HOLDOUT3, fresh: cases.ROUTER_FRESH, org: cases.ROUTER_ORG_ACTIVITY,
+    holdout3: cases.HOLDOUT3, fresh: cases.ROUTER_FRESH, org: cases.ROUTER_ORG_ACTIVITY, searchoff: cases.ROUTER_SEARCH_OFF_RULE,
 };
 const CASES = SETS[SET];
 if (!CASES) { console.error(`세트 없음: ${SET} (${Object.keys(SETS).join('|')})`); process.exit(1); }

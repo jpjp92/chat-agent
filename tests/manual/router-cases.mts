@@ -524,3 +524,11 @@ export const ROUTER_ORG_ACTIVITY: RouterCase[] = [
     { q: 'BCI 최근 연구 동향 알려줘', want: 'arxiv_search', alt: ['paper_search'], note: '대조 — 분야 전반' },
     { q: '딥마인드 알파폴드 관련 논문 있어?', want: 'arxiv_search', alt: ['paper_search'], note: '대조 — 회사 + 논문' },
 ];
+
+/** 검색 OFF 규칙이 LLM 을 덮어쓰던 문장 — 10-27 `클로드 코드…` 가 `코드` 에 걸려 검색 off → 최근 제품 존재를 부정. intent 는 전부 general, 볼 것은 Router decided 의 needsSearch. */
+export const ROUTER_SEARCH_OFF_RULE: RouterCase[] = [
+    { q: '클로드 코드에서 코덱스 연결해서 사용하는 방법', want: 'general', note: '원문 — needsSearch=true 여야' },
+    { q: '커서 에디터에서 MCP 서버 연결하는 법', want: 'general', note: 'needsSearch=true 여야' },
+    { q: '파이썬 리스트 정렬 코드 짜줘', want: 'general', note: '대조 — needsSearch=false 여야' },
+    { q: '이 함수 디버그해줘 왜 None 나와', want: 'general', note: '대조 — needsSearch=false 여야' },
+];

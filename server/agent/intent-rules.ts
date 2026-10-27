@@ -216,6 +216,7 @@ export const classifyIntentByRules = (text: string, hasImage: boolean): IntentTy
 type SearchDecision = "on" | "off" | "gray";
 
 // 강한 OFF 신호 (검색 불필요): 코드·번역·창작·계산
+// 라우터 LLM 이 판정하면 OFF 는 쓰이지 않는다 — 라우터 장애 때 폴백만(DEV_261027: `코드` 가 "클로드 코드" 에 걸렸다).
 // 주의: "설명해/차이/원리/개념/어떻게 작동"은 강한 OFF에서 제외 → gray로 위임.
 //   "gpt 5.5 설명해줘"처럼 최근·불확실 엔티티 설명은 검증 검색이 필요하므로
 //   하드 OFF로 단정하지 말고 라우터 LLM(needs_search) 판정에 맡긴다. (DEV_260624 §5, A안)
