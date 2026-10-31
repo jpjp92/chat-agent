@@ -199,12 +199,14 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `render-paper-card.mts` | 논문 카드 — **실제로 렌더한 HTML** 을 본다. 철회/초록없음 칸이 정말 그려지는가, 두 칸이 섞이지 않는가, 4개 언어 문구, 빈손 분기, 옛 카드 하위호환. 위 하니스와 겹치지 않는다(정규식은 "코드가 파일에 있다" 까지만 말한다) |
 | `test-model-labels.mts` | 모델 선택 UI 문자열 — **리팩터링 전 골든** 대조(섹션 3 + 모델 6 × 4개 언어 × 라벨/설명), 컴포넌트로 문자열이 되돌아오지 않는 구조 보장, 빈 값·언어 폴백, 렌더 지점 배선 |
 | `test-doc-links.mts` | **문서 링크·앵커·행번호** — `docs/**` 의 상대링크를 전수 검사한다. 파일 부재와 `.md` 앵커 부재는 실패, 코드 `#L` 행번호는 **`docs/logs/` 안에서만 경고**(날짜 로그는 그날의 기록이라 코드가 움직였다고 고치지 않는다). 코드블록·인라인 코드는 제외한다 — 안 거르면 인용 마커 예시 `[1](A)` 가 대량 오탐이다. 계기: [DEV_260913](../docs/logs/2026/09/DEV_260913.md) |
+| `test-doc-index.mts` | **문서 인덱스 등록** — 날짜 로그가 월 `README`·`DEV_HISTORY` 에, 계획서가 `PLAN_INDEX` 에, `REF_*` 가 `guide/README` 에, `.sql` 이 `guide/db/README` 에, 하니스가 이 파일에 올라 있는지. 링크 검사기는 *있는 링크가 깨졌나* 를 보고 이쪽은 *있어야 할 링크가 없나* 를 본다(10-31 누락 6건) |
 | `test-key-tier.mts` | **Gemini 키 등급** — 회원 유료 키 우선·실패 시 무료 로테이션·게스트는 무료만(PLAN_GEMINI_PAID_FIRST) |
 | `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
 | `test-google-id.mts` | **Google 로그인(GIS ID 토큰)** — nonce 원문/SHA-256 일치, 충돌 판정, link 는 게스트에게만, 계정 전환 버튼 없음, 충돌 시 토큰 재사용, 클라이언트 ID 없으면 리다이렉트 폴백, CSP · 카카오 link/signIn, 충돌 재시도는 시도한 공급자로 (DEV_261011 §5·§6) |
 | `test-openai-pdf.mts` | **GPT PDF 직접** — PDF part → Responses `input_file`(업로드·링크 `file_url`, 인라인 `file_data`, image_url 분기보다 먼저), 핀은 영상·오디오만, 링크 다운로드 400 만 2.5 재시도, generator 배선 (DEV_261011) |
 | `test-route-auth.mts` | **API 라우트 인증 소스 계약** — 공개 허용목록(`client-log`·`proxy-image`) 밖의 모든 라우트가 토큰을 실제로 검증하는지(`requireProfile` 또는 user-scoped DB/Storage), 인증이 본문 파싱·직행 분기보다 앞인지, proxy-image 가 약품 호스트 허용목록을 쓰는지(DEV_261017) |
 | `test-drug-card-urls.mts` | **약 카드 URL 덮어쓰기** — 모델이 깨뜨린 `image_url`·`mfds_url`·`connectdi_url` 을 `[MFDS_DRUG_DATA]` 후보 값으로(후보 선택·못 고르면 원문·null 처리, DEV_261024 §7) |
+| `test-drug-imprint.mts` | **MFDS 각인 정리** — `PRINT_BACK` 이 "마크" 일 때 `MARK_CODE_*_ANAL` 분석값으로 "마크(dHP)" 를 만들고 비전 호출을 생략하는지(마그네스정, 2026-10-18) |
 | `test-openai-text-repair.mts` | **OpenAI 최종 텍스트 보정** — 사설 영역 인용 표지·`turn0search0` 잔재 제거, 울타리 없는 약 카드 JSON 을 `json:drug` 로 감싸기(다른 JSON·산문은 그대로, DEV_261018 §9) |
 | `test-law-plan.mts` | **법령 조회 계획** — `law_qa` 기본 body, 조사 뗀 토큰 조문 매칭(DEV_261018 §11) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |

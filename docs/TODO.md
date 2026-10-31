@@ -66,7 +66,13 @@
     5. 보류 — PDF 파싱 취소·워커 분리 재검토(PLAN §3-2) · Gemini 약 카드 스트림 버퍼링(깨짐 관측 시) · 상영표 Supabase 캐시 · 액제 카드
   - [ ] ⬜ `xlsx` 수동 추적 — CDN 타르볼이라 Dependabot 이 갱신 PR 을 못 올린다. 분기마다 SheetJS 릴리스 확인
   - ⏸ `SUPABASE_KEY`(실제 service_role) 이름 정리는 Storage 보안 AWS 이전 때 함께
-- [ ] 🔴 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별로 public/authenticated 계약을 먼저 정하고 rate limit을 붙인다.
+- [ ] 🔴 **보안 검토(10-31) 처리 — 의존성·형상** → [PLAN_SECURITY_REVIEW_261031](plans/PLAN_SECURITY_REVIEW_261031.md). 앱 코드는 변동 없고(인증 계약 하니스 **16/16** 실행 확인) 신규 지적은 전부 의존성·형상이다
+  - [ ] 🔴 `npm ci` — `node_modules` 가 락파일보다 낡다(`xlsx` 0.20.3 → 설치본 **0.18.5**, `next` 16.4.2 → 16.3.5, `katex` 0.16.47 → 0.16.28). 프로덕션은 `npm ci` 라 무관하지만 **로컬 개발과 로컬 `npm audit` 이 다른 트리에서 돈다**
+  - [ ] 🔴 `zod` → `>=4.6.6` — 런타임 HIGH 4건 중 **실제 도달 가능한 유일한 건**(LangChain 도구 스키마가 LLM 생성 인자를 검증). 한 번의 bump 으로 `zod`·`kordoc`(상속) 2건 해소
+  - [ ] 🟡 KaTeX trust 우회(`GHSA-238p-pmpm-9mq7`) — `katex` 0.19.x 는 semver-major 라 수동. ⚠️ `audit fix` 의 `rehype-katex 1.2.0` 제안은 **다운그레이드라 따르면 안 된다**. 10-25 의 "KaTeX XSS 닫힘" 결론을 정정한 건이다
+  - [ ] 🟡 상한·쿼터 발동이 프로덕션 로그에 안 남는다 — 30MB 상한·RPM 레이트리밋 신호가 `console.warn` 인데 `removeConsole` 이 지운다. `exclude: ['error','warn']` 한 줄로도 해결
+  - [ ] ⬜ `kordoc` 의존성 확인 — MCP SDK·Express 를 프로덕션 트리로 끌어와 audit 런타임 HIGH 3건의 근원(도달은 불가). 상위 버전이 optional 로 돌렸는지
+- [ ] 🟡 **서버 경계 하드닝 — 공개 POST 라우트 인증·쿼터 정책** (인증 계약 10-17 완료 · 게스트 쿼터 10-24 완료 → 남은 것은 `client-log` 레이트리밋) → [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md). `fetch-url`·`sync-drug-image` 두 건에서 시작했지만 전수 감사 결과 무인증 라우트는 8개였다. 라우트별 public/authenticated 계약은 `test-route-auth` 하니스가 강제하고, 보조 라우트 rate limit 은 `consume_aux_quota` 가 맡는다.
   - ✅ 2026-10-24 **CGV 상영표 browserless 제거(직접 서명 호출 우선)** — 06-10 엔 옛 주소가 403 이었으나 새 `cgv.co.kr/api/v1/` 은 Vercel 에서도 통과(79ms). 막히면 browserless 폴백 → [DEV_261024 §5](logs/2026/10/DEV_261024.md)
   - ✅ 2026-10-24 **GPT 약 질문 두 번째 턴 빈 답(`max_messages`)** — 정리 단계 웹 검색 강제 해제, 미완료 응답이 게스트 "무료 이용량" 안내로 바뀌던 분류 수정 → [DEV_261024 §6](logs/2026/10/DEV_261024.md)
   - ✅ 2026-10-24 **GPT 약 카드 URL 깨짐**(인코딩에 히브리어 등) — 카드 URL 3필드를 도구 값으로 덮어씀. Gemini 는 측정 0건이라 보류 → [DEV_261024 §7](logs/2026/10/DEV_261024.md)

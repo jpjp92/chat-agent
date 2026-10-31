@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-10-23
+> 최종 갱신: 2026-10-31
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -8,7 +8,7 @@
 
 | 영역 | 현재 정책 | 상세 |
 |---|---|---|
-| 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.8/3.5/2.5 및(3.7 은 퇴역 예정 → 3.8 로 보냄, 2026-10-18) **GPT-6 luna**/GPT-5.6 luna 선택 가능(GPT-5.4 mini 는 2026-09-23 legacy 강등 — 목록에서만 내렸고 계속 동작한다). **채팅 모델로서 3.8 은 계획만 있고 코드에 없다**(TTS 는 이미 3.8 Flash Lite TTS 사용) — 선택 옵션 공개는 하드닝 1·2 뒤 | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
+| 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.8/3.5/2.5 및(3.7 은 퇴역 예정 → 3.8 로 보냄, 2026-10-18) **GPT-6 luna**/GPT-5.6 luna 선택 가능(GPT-5.4 mini 는 2026-09-23 legacy 강등 — 목록에서만 내렸고 계속 동작한다). ✅ 3.8 은 2026-10-18 부터 **선택 옵션에 노출**된다(`CHAT_MODEL_OPTIONS` 최상단, 기본은 여전히 3.6). TTS 는 3.8 Flash Lite TTS | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
 | Gemini 키 등급 | **회원은 유료 키(`API_KEY_TIER1`) 우선** → 실패 시 무료 로테이션 + 2.5 강등, 게스트·무인증 라우트는 무료만. 10-05 운영 on(`GEMINI_PAID_FIRST=true`) | [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md), [DEV_261005](logs/2026/10/DEV_261005.md) |
 | 로그인 | 익명 게스트 → **Google(GIS ID 토큰, 앱 도메인으로 표시)·카카오(리다이렉트)**. 대화 있는 게스트는 link(같은 uuid), 아니면 로그인. 콘솔 설정(Google Cloud·Supabase dev/prod·Kakao Developers)까지 한곳에 | [REF_Auth](guide/REF_Auth.md), [DEV_261011 §5·§6](logs/2026/10/DEV_261011.md) |
 | GPT 라우팅 | 일반 텍스트·URL·이미지·검색과 로컬 도구 9종(법령은 `law_search`·`law_qa` 공용), **PDF(10-11, `input_file` 직접)**는 선택 GPT 유지. 영상·오디오와 알약 Vision만 Gemini 2.5 capability fallback | [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) |
@@ -18,11 +18,12 @@
 | 검색 grounding | tier 로 판정(400 물리제약 > 300 사용자 명시 > 200 근거제공 > 100 분류기). **400 은 Gemini 전용** — OpenAI 는 이미지와 web_search 를 함께 보낼 수 있어 신호를 내지 않는다 | [2026-09-02 로그](logs/2026/09/DEV_260902.md), [검색 정책 계획](plans/PLAN_SEARCH_POLICY_260815.md) |
 | 함수 타임아웃 | 🔴 **60s 는 플랫폼 한계가 아니다** — Hobby 도 fluid 기본·최대 **300s** 다. `/api/chat` 은 `maxDuration=300`, Gemini 일반 25s·무거운 미디어 90s, OpenAI **120s(호출당)**. 새 경로를 만들 때 **60 을 베껴 오지 말 것** — 이 정정이 세 번 필요했다 | [2026-08-08 §9](logs/2026/08/DEV_260808.md), [2026-09-28 §11](logs/2026/09/DEV_260928.md) |
 | 오늘 날짜 | 주입된 `[CURRENT_SYSTEM_TIME]` 이 **유일한 출처**이고 블록은 base **맨 앞**(실측). 자정 직후 Gemini 2.5 가 기사 날짜로 "오늘" 을 재추론하는 실패는 **문구로 세 번 못 고쳤다** → 출력 사후 검증이 정정을 덧붙인다 | [2026-09-28 §13·§14](logs/2026/09/DEV_260928.md), [today-guard.ts](../server/agent/today-guard.ts) |
-| 자동 검증 | `npm test` 회귀 하니스 36종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
-| 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). ✅ 10-10 `summarize-title` 인증 + **anon 키 Bearer 우회 차단**(chat 포함, 프로필 행 필수), SSRF 공용 판정 `server/ssrf.ts`(IPv6 대괄호·DNS·리다이렉트 hop 재검사) — [DEV_261010](logs/2026/10/DEV_261010.md). 🔴 **무인증 라우트 4개** 남음 — `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. SSRF 남은 공백은 DNS 재바인딩 | [TODO §보안](TODO.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md), [보안 검토 §3.4](logs/2026/09/DEV_260903.md) |
+| 자동 검증 | `npm test` 회귀 하니스 38종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). ✅ 10-10 `summarize-title` 인증 + **anon 키 Bearer 우회 차단**(chat 포함, 프로필 행 필수), SSRF 공용 판정 `server/ssrf.ts`(IPv6 대괄호·DNS·리다이렉트 hop 재검사) — [DEV_261010](logs/2026/10/DEV_261010.md). ✅ 10-17 **무인증 라우트 해소** — `fetch-url`·`showtimes`·`sync-drug-image` 는 `requireProfile`(토큰 실검증), `proxy-image`·`client-log` 는 공개 + 허용목록. 계약 하니스 `test-route-auth` 가 CI 에서 강제(10-31 실행 **16/16**). ✅ 10-24 보조 라우트 **게스트 일일 한도**(`aux-quota.sql`). SSRF 남은 공백은 DNS 재바인딩 | [TODO §보안](TODO.md), [PLAN_SECURITY_REVIEW_261031](plans/PLAN_SECURITY_REVIEW_261031.md), [DEV_261017](logs/2026/10/DEV_261017.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md) |
 
 ## 최근 문서
 
+- **2026-10-31** — [보안 검토(로컬 실행 검증)](plans/PLAN_SECURITY_REVIEW_261031.md) — `npm audit`·인증 계약 하니스·락파일 대조를 **실제로 실행**한 첫 회차. 앱 코드 변동 없음(하니스 16/16). 🔴 `node_modules` 가 락파일보다 낡아 로컬이 취약한 `xlsx` 0.18.5 로 돈다(프로덕션은 `npm ci` 라 무관). 런타임 HIGH 4건 중 도달 가능한 것은 **`zod` 하나**. ⚖️ 10-25 의 "KaTeX XSS 닫힘" 결론 정정. 같은 날 [문서 감사](logs/2026/10/DEV_261031.md) — 인덱스 등록 누락 6건·내용 불일치 4건 정리 + 신규 하니스 `test-doc-index`
 - **2026-10-27** — [검색 OFF 규칙이 LLM 을 덮어씀](logs/2026/10/DEV_261027.md) — "클로드 코드…" 가 `코드` 키워드로 검색 off → 최근 제품 존재를 단정·부정. OFF 규칙은 라우터 장애 때만, 판정은 LLM
 - **2026-10-26** — [길게 누르기 메뉴 가림 · 조직 활동 질문 오라우팅](logs/2026/10/DEV_261026.md) — 복사·수정 메뉴를 body 포털로 · 회사 근황 질문("뉴럴링크 BCI 최근 연구 동향")이 논문 검색으로 가던 것을 `paper_search` 정의 반례로. 골든셋 회귀 89/89(두 모델)
 - **2026-10-25** — [보안 재검토 ④ 작은 정리](logs/2026/10/DEV_261025.md) — client-log 제어문자·auth 본문 차단 · 키 로그 순번 · CGV 키 env `CGV_HMAC_SECRET` · 세션 트리거 소유권 술어 · CI `npm run verify`. env·SQL 적용 완료. 같은 날 약 카드 답 출처에 식약처 상세 링크

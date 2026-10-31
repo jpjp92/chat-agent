@@ -15,6 +15,7 @@
 | [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블, Storage, URL 캐시, MFDS | 2026-08-23 현행화 |
 | [Document](REF_Document.md) | 업로드, HWP 파싱, PDF(GPT 직접 `input_file`)·영상 capability fallback | 2026-10-11 GPT PDF 직접 |
 | [Search Routing](REF_SearchRouting.md) | 검색 on/off tier 정책(공급자별 400), 이미지+검색 탈출구, 논문↔소프트웨어 산출물 3층 방어 + **테스트 질의 카탈로그** | 2026-09-03 신규 |
+| [라우터 정답 기준](REF_ROUTER_LABELS.md) | 라우터 의도 **정답 라벨 정의** — 사람과 LLM judge 가 같은 기준을 본다. "사용자가 무엇을 받고 싶은가" 원칙, 렌더러·조회 의도 경계, `alt` 로 둘 다 인정하는 경우 | 2026-10-23 신규 |
 | [CI/CD](REF_CICD.md) | GitHub Actions와 dev/main 배포 흐름 | 기능 변경 시 별도 검증 필요 |
 
 ## 도구·렌더러
