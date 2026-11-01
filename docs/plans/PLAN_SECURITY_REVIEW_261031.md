@@ -137,4 +137,10 @@ server/config.ts:64              console.warn('[Config] API key … rate-limited
 - **KaTeX** — 권고 자체가 "다른 prototype pollution 이 먼저 있어야 하는 gadget"이라 적는다. 명시적 `trust: false` 가 막는지는 **권고가 확인하지 않는다** → 넣더라도 보조 방어로만 기록한다. 우리 쪽 오염 경로 미확인 + 패치판 경로 없음 → **Low 수용**, `rehype-katex` 가 0.18.2+ 를 받으면 재검토.
 - **`next`** — 10-14 보안 릴리스 패치판은 16.4.1, 락파일 16.4.2 는 그 이후. 16.4.3 은 버그 수정 백포트로 보고됨(제3자 출처만) → 필수 아님.
 
-처리: `npm ci` · `zod ^4.6.7`(중첩 사본 포함 4.3.x 0개) · `removeConsole` 에 `warn` 보존. `npm audit --omit=dev` 에서 zod·kordoc 이 빠졌다. 남은 것은 `markdown-it`(kordoc, `parse()` 만 호출)·`body-parser`·`fast-uri`(MCP SDK, 서버 미기동)·glob·minimatch·gaxios(도구 경로)·KaTeX(Low). `kordoc` 4.24.36 bump 은 HWP 실물 확인이 필요해 별도.
+처리: `npm ci` · `zod ^4.6.7`(중첩 사본 포함 4.3.x 0개) · `removeConsole` 에 `warn` 보존. ~~`npm audit --omit=dev` 에서 zod·kordoc 이 빠졌다~~ — 틀렸다(11-01 재확인): `kordoc` 안의 `zod@3.25.76` 이 권고 범위(<4.6.6)에 남는다. 다만 우리가 쓰는 진입점 `dist/index.cjs` 에는 zod 가 없고 MCP·CLI 진입점만 쓴다 → 도달 불가. 남은 것은 `markdown-it`(kordoc, `parse()` 만 호출)·~~`body-parser`·`fast-uri`~~(11-01 Dependabot 건으로 범위 내 갱신, 아래)·glob·minimatch·gaxios(도구 경로)·KaTeX(Low). `kordoc` 4.24.36 bump 은 HWP 실물 확인이 필요해 별도.
+
+### 6-1. Dependabot body-parser(#119 High) · fast-uri(#118·#121 Moderate)
+
+- **실제 경로** — Dependabot 은 `kordoc 3.18.1` 경로로 표시하지만 현재 트리는 `@google/genai` → `@modelcontextprotocol/sdk` → `express@5.2.1` → `body-parser@2.3.0`(그리고 `ngl` → `molstar` → `express`), `fast-uri` 는 MCP SDK → `ajv` 경유다.
+- **도달** — 권고는 압축 본문 뒤 trailing bytes 로 미처리 예외 → 프로세스 종료. Express 서버를 띄우는 코드가 없고 우리 API 는 Next.js 라우트라 body-parser 를 타지 않는다 → 도달 불가.
+- **처리** — 상위 범위(`express` 의 `^2.3.0`, `ajv` 의 `^3.0.1`) 안이라 `npm update body-parser fast-uri` 로 락파일만 갱신: `body-parser` 2.4.0 · `fast-uri` 3.1.9 · `iconv-lite` 0.7.3(body-parser 의존). `package.json` 변경 없음, 하니스 38/0.
