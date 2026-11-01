@@ -83,16 +83,16 @@ body-parser    2.3.0   →  2.2.2
 - **직접적인 XSS 벡터는 여전히 없다.** `dangerouslySetInnerHTML`·`.innerHTML`·`rehype-raw` 사용 0건이고(`components/ChatMessage.tsx:556` 의 "rehypeRaw 가 없어…" 주석이 부재를 확인한다), `react-markdown` 은 raw HTML 을 이스케이프한다.
 - 다만 **심층 방어 한 겹이 약해졌다.** 이 렌더 경로에는 `fetch-url`·웹 검색을 거친 **공격자 영향권 텍스트가 LLM 출력으로 섞여 들어온다.** 프로토타입 오염 싱크가 생기면 `$$\href{javascript:…}{x}$$` 가 살아난다. 등급이 low 인 이유는 그 선행 조건 때문이고, 현재 싱크는 확인되지 않았다.
 
-🔴 **수정이 까다롭다** — `npm audit` 이 제안하는 `rehype-katex 1.2.0` 은 현재 7.0.1 에서의 **다운그레이드라 잘못된 제안**이다. 올바른 경로는 `katex 0.19.x` + 그것을 peer 로 받는 `rehype-katex` 버전 확인이며 semver-major 라 수동 처리해야 한다.
+🔴 **수정이 까다롭다** — `npm audit` 이 제안하는 `rehype-katex 1.2.0` 은 현재 7.0.1 에서의 **다운그레이드라 잘못된 제안**이다. ~~올바른 경로는 `katex 0.19.x` + 그것을 peer 로 받는 `rehype-katex` 버전 확인~~ — 11-01 확인 결과 그런 버전이 없다. `rehype-katex` 최신이 7.0.1 이고 `katex ^0.16` 에 묶여 있어 정상 경로로는 패치판(0.18.2+)이 렌더링 경로에 들어오지 않는다 → §6.
 
 ## 4. 처리 계획
 
 | 순서 | 항목 | 근거 | 내용 | 사용자 작업 |
 |---|---|---|---|---|
-| 1 | `npm ci` | §2-1 | 로컬이 취약한 `xlsx` 0.18.5·`next` 16.3.5 로 돈다. 형상을 맞추면 이후 `npm audit` 결과도 신뢰할 수 있다 | 없음 |
-| 2 | `zod` → `>=4.6.6` | §2-2 | 실제 도달 가능한 유일한 런타임 HIGH. 한 번의 bump 으로 `zod`·`kordoc`(상속) 2건 해소 | 없음 |
-| 3 | KaTeX trust 우회 | §3 | semver-major 라 수동. **`audit fix` 의 `rehype-katex 1.2.0` 제안은 다운그레이드라 따르면 안 된다** | 없음 |
-| 4 | 상한·쿼터 발동 로그 | §5 | 통제는 있는데 발동이 프로덕션 로그에 안 남는다. `removeConsole` 의 `exclude: ['error','warn']` 한 줄로도 해결 | 없음 |
+| 1 | ✅ 11-01 `npm ci` | §2-1 | 로컬이 취약한 `xlsx` 0.18.5·`next` 16.3.5 로 돈다. 형상을 맞추면 이후 `npm audit` 결과도 신뢰할 수 있다 | 없음 |
+| 2 | ✅ 11-01 `zod` → `^4.6.7` | §2-2 | 실제 도달 가능한 유일한 런타임 HIGH. 한 번의 bump 으로 `zod`·`kordoc`(상속) 2건 해소 | 없음 |
+| 3 | ⚖️ KaTeX trust 우회 — Low 수용(§6) | §3 | semver-major 라 수동. **`audit fix` 의 `rehype-katex 1.2.0` 제안은 다운그레이드라 따르면 안 된다** | 없음 |
+| 4 | ✅ 11-01 상한·쿼터 발동 로그 | §5 | 통제는 있는데 발동이 프로덕션 로그에 안 남는다. `removeConsole` 의 `exclude: ['error','warn']` 한 줄로도 해결 | 없음 |
 | 5 | `kordoc` 의존성 확인 | §2-3 | 상위 버전이 MCP SDK 를 optional 로 돌렸는지. audit 노이즈 3건의 근원 | 없음 |
 
 보류 항목(client-log 레이트리밋 · PDF 파싱 취소 · `SUPABASE_KEY` 네이밍 · `xlsx` 수동 추적)은 [PLAN_SECURITY_REVIEW_261023 §3](PLAN_SECURITY_REVIEW_261023.md) 과 [TODO](../TODO.md) 의 순서를 그대로 따른다. 현재 코드에서 넷 다 그대로임을 확인했다.
@@ -127,3 +127,14 @@ server/config.ts:64              console.warn('[Config] API key … rate-limited
 - **`.gitignore` env 규칙** — `.env`·`.env.local` 이 한 번도 커밋되지 않았음을 git 이력으로 확인.
 - **`npm ci` 기반 CI** — 프로덕션이 로컬 형상 드리프트의 영향을 받지 않는 이유다(§2-1).
 - 그리고 10-23 §4 그대로: `requireProfile` 의 실제 토큰 검증 · `server/drug-image-hosts.ts` 공용 허용목록 · `aux-quota.sql` 의 원자 판정과 fail-closed · `sniffImageType` + `upsert: false` · `readCapped` 의 선언값·스트림 이중 검사 · `server/ssrf.ts` hop 별 재검사 · RLS `USING`/`WITH CHECK` · `is_guest`·`message_count` 컬럼 GRANT · dev 페이지 production `notFound()` · `isEvalSupported: false`.
+
+## 6. 11-01 후속 — 권고 원문 팩트체크와 처리
+
+권고 원문(GitHub Advisory)·레지스트리로 §2·§3 을 다시 확인했다 → [DEV_261101](../logs/2026/11/DEV_261101.md).
+
+- **`sharp` GHSA-wq5f-xc86-pv6w**(High 8.9, librsvg use-after-free, SVG 디코딩 시) — 0.35.5 미만 영향. 락파일은 0.35.5 였지만 **로컬 설치본이 0.34.5** 였다. 우리 코드는 `sharp` 직접 사용·`next/image`·`images` 설정이 모두 없어 입력 경로가 사실상 없고, 프로덕션은 락파일 기준이라 무관. `npm ci` 이유가 하나 더 있었던 셈이다.
+- **`zod` 도달 범위 하향** — §2-2 는 "가능"으로 적었지만, 요청 본문 검증에 zod 를 쓰는 곳이 없다. LangChain 도구 스키마뿐이고 배열 스키마는 `weather-tool.ts` 의 `cities` 하나, 인자는 LLM 이 만든다. 권고는 실패 원소가 많은 대형 배열 → issue 객체 무제한 누적. 실위험은 낮지만 같은 메이저라 올렸다.
+- **KaTeX** — 권고 자체가 "다른 prototype pollution 이 먼저 있어야 하는 gadget"이라 적는다. 명시적 `trust: false` 가 막는지는 **권고가 확인하지 않는다** → 넣더라도 보조 방어로만 기록한다. 우리 쪽 오염 경로 미확인 + 패치판 경로 없음 → **Low 수용**, `rehype-katex` 가 0.18.2+ 를 받으면 재검토.
+- **`next`** — 10-14 보안 릴리스 패치판은 16.4.1, 락파일 16.4.2 는 그 이후. 16.4.3 은 버그 수정 백포트로 보고됨(제3자 출처만) → 필수 아님.
+
+처리: `npm ci` · `zod ^4.6.7`(중첩 사본 포함 4.3.x 0개) · `removeConsole` 에 `warn` 보존. `npm audit --omit=dev` 에서 zod·kordoc 이 빠졌다. 남은 것은 `markdown-it`(kordoc, `parse()` 만 호출)·`body-parser`·`fast-uri`(MCP SDK, 서버 미기동)·glob·minimatch·gaxios(도구 경로)·KaTeX(Low). `kordoc` 4.24.36 bump 은 HWP 실물 확인이 필요해 별도.

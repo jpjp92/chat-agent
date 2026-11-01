@@ -12,7 +12,8 @@ const nextConfig: NextConfig = {
   // pdfjs-dist 도 같은 이유로 서버 번들에서 뺀다 — fetch-url 이 링크 PDF 텍스트를 노드에서 추출한다(DEV_261014).
   // 브라우저 번들(lib/pdf-text.ts, 업로드 PDF)은 이 설정과 무관하다.
   serverExternalPackages: ['kordoc', 'pdfjs-dist'],
-  // 프로덕션 빌드에서 console.log/info/debug/warn 제거(브라우저 콘솔 내부 태그·구조 노출 최소화).
+  // 프로덕션 빌드에서 console.log/info/debug 제거(브라우저 콘솔 내부 태그·구조 노출 최소화).
+  // warn 은 남긴다 — 30MB 상한·RPM 제한 같은 통제의 발동 신호다 → PLAN_SECURITY_REVIEW_261031 §5
   //
   // 주의: 이 설정은 **클라이언트뿐 아니라 서버 코드에도 적용된다** — 켜져 있으면 `[SearchPolicy]`·
   // `[LangGraph] Router decided` 같은 판정 근거 로그가 프로덕션에 남지 않는다(클라이언트 console.log 는
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
   // Turbopack dev가 컴파일 직후 에러 없이 exit 0으로 죽는다. 그래서 키 전체를 조건부 스프레드로 둔다.
   ...(process.env.KEEP_LOGS === '1'
     ? {}
-    : { compiler: { removeConsole: { exclude: ['error'] } } }),
+    : { compiler: { removeConsole: { exclude: ['error', 'warn'] } } }),
   // 보안 헤더 (vercel.json 에서 이전)
   async headers() {
     return [

@@ -12,6 +12,8 @@
 >
 > **회귀 하니스 38종**(`npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
+- **2026-11-01 · 보안 권고 원문 팩트체크 · `npm ci`·`zod`·`warn` 로그 보존** → [DEV_261101](logs/2026/11/DEV_261101.md) · [PLAN_SECURITY_REVIEW_261031 §6](plans/PLAN_SECURITY_REVIEW_261031.md)
+  - 권고 원문으로 재확인 — 로컬 `sharp` 가 0.34.5(librsvg RCE 권고 대상, 프로덕션 무관), `zod` 실도달은 LLM 생성 인자뿐, KaTeX 는 패치판 경로가 없어 Low 수용. 하니스 38/0.
 - **2026-10-31 · 보안 검토(로컬 실행 검증) · 문서 인덱스 누락과 등록 하니스** → [DEV_261031](logs/2026/10/DEV_261031.md) · [PLAN_SECURITY_REVIEW_261031](plans/PLAN_SECURITY_REVIEW_261031.md)
   - 이전 회차는 클라우드에서 코드만 읽었다. 이번엔 `npm audit`·인증 계약 하니스·락파일 대조를 **실제로 실행**했다 — 계약 하니스 **16/16 통과**, `.env` 류는 git 이력에 없음.
   - 🔴 `node_modules` 가 락파일보다 낡다(`xlsx` 0.20.3 → **설치본 0.18.5**, `next` 16.4.2 → 16.3.5). 프로덕션은 `npm ci` 라 무관하지만 로컬 개발이 다른 트리에서 돈다 → `npm ci`.
