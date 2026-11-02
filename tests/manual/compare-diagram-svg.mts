@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { build } from 'esbuild';
+import { spawnSync } from 'node:child_process';
 import { DiagramRenderer } from '../../components/DiagramRenderer';
 import { DiagramSvg } from './prototypes/DiagramSvg';
 import { SAMPLES } from './prototypes/diagram-samples';
@@ -29,9 +29,11 @@ for (const s of SAMPLES) {
 }
 
 const entry = path.resolve('tests/manual/prototypes/compare-entry.tsx');
-const res = await build({ entryPoints: [entry], bundle: true, write: false, format: 'iife', minify: true,
-    jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'error' });
-const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
+// esbuild 는 직접 의존성이 아니다(tsx·vite 경유) — import 대신 CLI 로 부른다
+const res = spawnSync('npx', ['esbuild', entry, '--bundle', '--minify', '--format=iife', '--jsx=automatic',
+    '--define:process.env.NODE_ENV="production"', '--log-level=error'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+if (res.status !== 0) { console.error(res.stderr); process.exit(1); }
+const js = res.stdout.replace(/<\/script/gi, '<\\/script');
 fs.writeFileSync(OUT, `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Diagram 렌더러 비교</title><script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script>tailwind.config={darkMode:'class'}</script></head><body><div id="root"></div><script>${js}</script></body></html>`);

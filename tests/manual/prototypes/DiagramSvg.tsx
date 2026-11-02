@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 
 interface Force { label: string; angle: number; magnitude: number; color: string }
 interface CollisionObject { label: string; mass?: string; velocity: number; color: string }
-export interface DiagramData {
+interface DiagramData {
     title?: string;
     type: 'inclined_plane' | 'free_body' | 'projectile' | 'collision';
     angle?: number; showBaseline?: boolean; showAngle?: boolean; forces?: Force[];
