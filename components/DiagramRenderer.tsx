@@ -519,10 +519,11 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const parallel = findForce(['평행', 'parallel', 'sinθ']);
         if (parallel) {
             const len = parallel.magnitude * forceScale;
-            const px = boxCenterX + len * Math.cos(angleRad);
+            // 빗면은 오른쪽이 높으므로 빗면 아래 방향은 화면 좌표 (−cos, +sin)
+            const px = boxCenterX - len * Math.cos(angleRad);
             const py = boxCenterY + len * Math.sin(angleRad);
             drawForceArrow(boxCenterX, boxCenterY, px, py, parallel.color, parallel.label,
-                { x: px + 15, y: py + 10, align: 'left', baseline: 'middle' });
+                { x: px - 15, y: py + 10, align: 'right', baseline: 'middle' });
         }
         const perpendicular = findForce(['수직 분력', 'perpendicular', 'cosθ']);
         if (perpendicular) {
@@ -535,10 +536,11 @@ export const DiagramRenderer: React.FC<DiagramRendererProps> = ({ data, language
         const friction = findForce(['마찰', 'friction']);
         if (friction) {
             const len = friction.magnitude * forceScale;
-            const fx = boxCenterX - len * Math.cos(angleRad);
+            // 마찰은 미끄러져 내려가려는 운동을 막으므로 빗면 위 방향 (+cos, −sin)
+            const fx = boxCenterX + len * Math.cos(angleRad);
             const fy = boxCenterY - len * Math.sin(angleRad);
             drawForceArrow(boxCenterX, boxCenterY, fx, fy, friction.color, friction.label,
-                { x: fx - 15, y: fy - 15, align: 'right', baseline: 'middle' });
+                { x: fx + 15, y: fy - 15, align: 'left', baseline: 'middle' });
         }
     };
 
