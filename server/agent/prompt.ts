@@ -199,21 +199,16 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   }
   \`\`\`
 
-**Type 4 — collision**: Before / after momentum diagram.
-  - "before" / "after": arrays of { label, mass (optional string), velocity (m/s, + = right), color }
-  - "elastic": true | false (optional label)
+**Type 4 — collision**: 1-D collision of two objects. Give ONLY the conditions before the collision; the renderer computes the velocities after, momentum and kinetic energy (do NOT send "before"/"after").
+  - "m1", "m2": masses in kg exactly as the problem states. Object 1 starts on the LEFT.
+  - "v1", "v2": velocities in m/s before the collision, + = to the right (an object moving left is negative; at rest is 0).
+  - "kind": "elastic" | "inelastic" | "perfectly_inelastic" (stick together)
+  - "e": coefficient of restitution 0–1, ONLY for "inelastic" when the problem gives it.
   \`\`\`json:diagram
   {
     "type": "collision",
-    "title": "완전비탄성 충돌",
-    "elastic": false,
-    "before": [
-      { "label": "A", "mass": "2kg", "velocity": 3, "color": "#3b82f6" },
-      { "label": "B", "mass": "1kg", "velocity": -1, "color": "#ef4444" }
-    ],
-    "after": [
-      { "label": "A+B", "mass": "3kg", "velocity": 1.67, "color": "#8b5cf6" }
-    ]
+    "title": "2kg 공과 정지한 1kg 공의 완전비탄성 충돌",
+    "parameters": { "m1": 2, "v1": 3, "m2": 1, "v2": 0, "kind": "perfectly_inelastic" }
   }
   \`\`\`
 
@@ -221,7 +216,11 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   * inclined_plane → 경사면 위 물체 힘 분석
   * free_body → 단일 물체에 여러 힘 작용 (중력+부력, 줄+중력, 마찰+수직항력 등)
   * projectile → 포물선 운동, 비스듬히 던진 물체
-  * collision → 충돌 전후 운동량/속도 분석`,
+  * collision → 충돌 전후 운동량/속도 분석
+- WHEN A DIAGRAM USES "parameters" (inclined_plane, projectile, collision), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
+  * In the text, give the conclusion and at most one key formula. Do NOT re-derive every value the card already shows.
+  * Any number you do write must use g = 9.81 m/s² so it matches the card.
+  * "title": short (about 15 characters, e.g. "경사면 운동"). The card shows the conditions (angle, mass, speed) under the title.`,
 
   constellation: `[CONSTELLATION VISUALIZATION (Astro-Viz)]
 - Use \`json:constellation\` blocks for star maps and celestial patterns.

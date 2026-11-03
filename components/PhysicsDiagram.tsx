@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { incline, type Vec } from '../lib/physics/model';
 import { projectileScene } from '../lib/physics/projectile-scene';
+import { collisionScene } from '../lib/physics/collision-scene';
+import type { CollisionParams } from '../lib/physics/model';
 import { inclineScene } from '../lib/physics/incline-scene';
 import { RANGE, SLIDER, sliderRange, type PhysicsData } from '../lib/physics/params';
 
@@ -22,6 +24,10 @@ const I18N = {
         angle: '경사각 θ', mass: '질량 m', mu: '마찰계수 μ', launch: '발사각 θ', speed: '초기속력 v₀', time: '시간 t',
         weight: '중력 mg', normalF: '수직항력 N', parallel: '경사 성분 mg sinθ', accel: '가속도 a', T: '비행 시간 T', H: '최고 높이 H', R: '사거리 R', v: '현재 속력 |v|',
         slides: '미끄러짐', stays: '정지(정지 마찰로 평형)', ideal: '이상화 모델 · g = 9.81 m/s²', muNote: ' · μs=μk 로 단순화', projNote: '발사·착지 높이 0 m · 가로·세로 같은 축척',
+        collision: '충돌', before: '충돌 전', after: '충돌 후', still: '정지', m1: '질량 m₁', m2: '질량 m₂', v1: '속도 v₁', v2: '속도 v₂', e: '반발계수 e',
+        elastic: '탄성 충돌', inelastic: '비탄성 충돌', perfectly_inelastic: '완전비탄성 충돌', noHit: '서로 멀어져 충돌하지 않음',
+        pBefore: '운동량 (전)', pAfter: '운동량 (후)', keLoss: '운동에너지 손실', after1: '충돌 후 v₁′', after2: '충돌 후 v₂′', afterV: '충돌 후 함께 V',
+        colNote: '1차원 · 오른쪽이 + 방향 · 화살표 길이는 속도에 비례', hintCol: '슬라이더로 질량·속도를 바꿔 보세요',
         desc: {
             weight: '중력 — 질량 × g, 언제나 수직 아래.', normal: '수직항력 — 면이 물체를 미는 힘. 면에 수직이고 크기는 mg cosθ.',
             friction: '마찰력 — 미끄러짐을 막는 방향(경사 위쪽).', parallel: '중력의 경사 방향 성분. 별도의 힘이 아니라 mg 를 나눈 것.',
@@ -35,6 +41,10 @@ const I18N = {
         angle: 'Angle θ', mass: 'Mass m', mu: 'Friction μ', launch: 'Launch θ', speed: 'Speed v₀', time: 'Time t',
         weight: 'Gravity mg', normalF: 'Normal N', parallel: 'Along slope mg sinθ', accel: 'Accel. a', T: 'Flight time T', H: 'Max height H', R: 'Range R', v: 'Speed |v|',
         slides: 'slides', stays: 'stays (static friction balances)', ideal: 'Idealized model · g = 9.81 m/s²', muNote: ' · μs=μk assumed', projNote: 'Launch and landing at 0 m · equal axis scale',
+        collision: 'Collision', before: 'Before', after: 'After', still: 'at rest', m1: 'Mass m₁', m2: 'Mass m₂', v1: 'Velocity v₁', v2: 'Velocity v₂', e: 'Restitution e',
+        elastic: 'Elastic collision', inelastic: 'Inelastic collision', perfectly_inelastic: 'Perfectly inelastic', noHit: 'Moving apart — no collision',
+        pBefore: 'Momentum (before)', pAfter: 'Momentum (after)', keLoss: 'KE lost', after1: 'After v₁′', after2: 'After v₂′', afterV: 'After, together V',
+        colNote: '1-D · right is + · arrow length ∝ speed', hintCol: 'Change mass and velocity with the sliders',
         desc: {
             weight: 'Gravity — mass × g, always straight down.', normal: 'Normal force — the surface pushing back, perpendicular to it, magnitude mg cosθ.',
             friction: 'Friction — opposes sliding (up the slope).', parallel: 'Component of gravity along the slope — part of mg, not a separate force.',
@@ -135,7 +145,7 @@ const InclineView: React.FC<{ init: { angleDeg: number; massKg: number; mu?: num
     const sc = inclineScene({ angleDeg: angle, massKg: mass, mu }, { tab, narrow });
     const vb = sc.viewBox, [o, top, foot] = sc.wedge, rad = (angle * Math.PI) / 180;
     return (
-        <Card title={title ?? t.incline} t={t} sub={`Physics · ${hasMu ? `μ = ${mu.toFixed(2)}` : t.noFriction}`}
+        <Card title={title ?? t.incline} t={t} sub={`${angle}° · ${+mass.toFixed(2)} kg · ${hasMu ? `μ ${mu.toFixed(2)}` : t.noFriction}`}
             detail={sel ? `${LABEL[sel]} — ${t.desc[sel]}` : null}
             onReset={() => { setAngle(init.angleDeg); setMass(init.massKg); setMu(init.mu ?? 0); setSel(null); }}
             note={`${t.ideal}${hasMu ? t.muNote : ''}`}
@@ -184,7 +194,7 @@ const ProjectileView: React.FC<{ init: { launchDeg: number; speed: number }; tit
     const pick = (id: string) => setSel(s => (s === id ? null : id));
     const muted = 'fill-slate-500 dark:fill-slate-400';
     return (
-        <Card title={title ?? t.projectile} t={t} hint={t.hintMotion} sub="Physics · g = 9.81 m/s²" note={t.projNote}
+        <Card title={title ?? t.projectile} t={t} hint={t.hintMotion} sub={`${deg}° · ${speed} m/s · g 9.81`} note={t.projNote}
             detail={sel ? `${LABEL[sel]} — ${t.desc[sel]}${sel === 'velocity' ? ` vₓ=${f2(now.vel.x)}, vᵧ=${f2(now.vel.y)} m/s` : ''}` : null}
             onReset={() => { setDeg(init.launchDeg); setSpeed(init.speed); setFrac(0.5); setSel(null); }}
             formula={[`x(t) = v₀ cosθ · t = ${f2(now.pos.x)} m`, `y(t) = v₀ sinθ · t − ½gt² = ${f2(now.pos.y)} m`,
@@ -213,9 +223,59 @@ const ProjectileView: React.FC<{ init: { launchDeg: number; speed: number }; tit
     );
 };
 
+const CollisionView: React.FC<{ init: CollisionParams; title?: string; t: T }> = ({ init, title, t }) => {
+    const [m1, setM1] = useState(init.m1), [m2, setM2] = useState(init.m2), [v1, setV1] = useState(init.v1), [v2, setV2] = useState(init.v2);
+    const [e, setE] = useState(init.e ?? 0.5);
+    const narrow = useNarrow();
+    const sc = collisionScene({ m1, v1, m2, v2, kind: init.kind, e }, { narrow, rowBefore: t.before, rowAfter: t.after, still: t.still });
+    const r = sc.model, vb = sc.viewBox;
+    const sv = (v: number) => `${v > 0 ? '+' : ''}${f2(v)} m/s`;
+    return (
+        <Card title={title ?? t[init.kind]} t={t} hint={r.collides ? t.hintCol : t.noHit} detail={null}
+            sub={`${t[init.kind]}${init.kind === 'inelastic' ? ` · e ${e.toFixed(2)}` : ''}`} note={t.colNote}
+            onReset={() => { setM1(init.m1); setM2(init.m2); setV1(init.v1); setV2(init.v2); setE(init.e ?? 0.5); }}
+            formula={[
+                `p = m₁v₁ + m₂v₂ = ${f2(m1)}·${f2(v1)} + ${f2(m2)}·${f2(v2)} = ${f2(r.pBefore)} kg·m/s`,
+                ...(r.collides ? [
+                    `e = ${f2(r.e)}  (v₂′ − v₁′ = e (v₁ − v₂))`,
+                    r.merged ? `V = p / (m₁ + m₂) = ${f2(r.u1)} m/s` : `v₁′ = ${f2(r.u1)} m/s,  v₂′ = ${f2(r.u2)} m/s`,
+                ] : [t.noHit]),
+                `KE = ${f2(r.keBefore)} J → ${f2(r.keAfter)} J (−${f2(r.keLoss)} J)`,
+            ]}>
+            <svg viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} role="img" aria-label={`m₁ ${m1} kg ${sv(v1)}, m₂ ${m2} kg ${sv(v2)}`} className="w-full h-auto block mt-2 text-slate-400 dark:text-slate-500">
+                <line x1={vb.x} y1={sc.divider + 20} x2={vb.x + vb.w} y2={sc.divider + 20} stroke="currentColor" strokeDasharray="4 6" strokeOpacity={0.6} />
+                {sc.balls.map(b => <circle key={b.id} cx={b.c.x} cy={b.c.y} r={b.r} fill={b.color} fillOpacity={0.8} stroke="#fff" strokeOpacity={0.7} strokeWidth={2} />)}
+                {sc.arrows.map(a => {
+                    const s = Math.sign(a.to.x - a.from.x), hl = 12;
+                    return (<g key={a.id}>
+                        <line x1={a.from.x} y1={a.from.y} x2={a.to.x - s * hl * 0.6} y2={a.to.y} stroke={a.color} strokeWidth={3} strokeLinecap="round" />
+                        <polygon points={`${a.to.x},${a.to.y} ${a.to.x - s * hl},${a.to.y - 6} ${a.to.x - s * hl},${a.to.y + 6}`} fill={a.color} />
+                    </g>);
+                })}
+                {sc.labels.map(l => (
+                    <text key={l.id} x={l.x} y={l.y} fontSize={l.fontSize} textAnchor="middle" dominantBaseline="middle" fontWeight={l.kind === 'm' ? 400 : 700}
+                        className={l.kind === 'row' ? 'fill-slate-700 dark:fill-slate-200' : l.kind === 'm' ? 'fill-slate-500 dark:fill-slate-400' : 'fill-slate-800 dark:fill-slate-100'}>{l.text}</text>))}
+            </svg>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 mt-2">
+                <Slider label={t.m1} value={m1} range={sliderRange(SLIDER.massKg, init.m1)} step={0.5} unit=" kg" onChange={setM1} />
+                <Slider label={t.m2} value={m2} range={sliderRange(SLIDER.massKg, init.m2)} step={0.5} unit=" kg" onChange={setM2} />
+                <Slider label={t.v1} value={v1} range={sliderRange(SLIDER.velocity, init.v1)} step={0.5} unit=" m/s" onChange={setV1} />
+                <Slider label={t.v2} value={v2} range={sliderRange(SLIDER.velocity, init.v2)} step={0.5} unit=" m/s" onChange={setV2} />
+                {init.kind === 'inelastic' && <Slider label={t.e} value={e} range={RANGE.mu} step={0.05} unit="" onChange={setE} />}
+            </div>
+            <Metrics items={[
+                ...(r.merged ? [[t.afterV, sv(r.u1)] as [string, string]] : [[t.after1, sv(r.u1)] as [string, string], [t.after2, sv(r.u2)] as [string, string]]),
+                [t.pBefore, `${f2(r.pBefore)} kg·m/s`], [t.keLoss, `${f2(r.keLoss)} J`],
+                ...(r.merged ? [[t.pAfter, `${f2(r.pAfter)} kg·m/s`] as [string, string]] : []),
+            ]} />
+        </Card>
+    );
+};
+
 export const PhysicsDiagram: React.FC<{ data: PhysicsData; language?: Lang }> = ({ data, language = 'ko' }) => {
     // es·fr 문구는 아직 없다 — 기호가 대부분이라 영어로 둔다
     const t = language === 'ko' ? I18N.ko : I18N.en;
+    if (data.type === 'collision') return <CollisionView init={data.parameters} title={data.title} t={t} />;
     return data.type === 'projectile'
         ? <ProjectileView init={data.parameters} title={data.title} t={t} />
         : <InclineView init={data.parameters} title={data.title} t={t} />;

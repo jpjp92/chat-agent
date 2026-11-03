@@ -53,3 +53,21 @@ export const projectile = ({ launchDeg, speed }: ProjectileParams) => {
     };
     return { vx, vy, T, R, H, at };
 };
+
+export type CollisionKind = 'elastic' | 'inelastic' | 'perfectly_inelastic';
+export interface CollisionParams { m1: number; v1: number; m2: number; v2: number; kind: CollisionKind; e?: number }
+/**
+ * 1차원 충돌 — 1 이 왼쪽, 오른쪽(+)이 양의 방향. 반발계수 e 로 세 종류를 한 식에 둔다(탄성 1, 완전비탄성 0).
+ * LLM 이 충돌 후 속도를 직접 쓰던 canvas 형식은 계산이 틀려도 그대로 그려졌다 — 여기서 계산한다.
+ */
+export const collision = ({ m1, v1, m2, v2, kind, e: eIn }: CollisionParams) => {
+    const e = kind === 'elastic' ? 1 : kind === 'perfectly_inelastic' ? 0 : Math.min(1, Math.max(0, eIn ?? 0.5));
+    // 서로 다가가지 않으면 부딪히지 않는다
+    const collides = v1 > v2;
+    const M = m1 + m2, P = m1 * v1 + m2 * v2;
+    const u1 = collides ? (P + m2 * e * (v2 - v1)) / M : v1;
+    const u2 = collides ? (P + m1 * e * (v1 - v2)) / M : v2;
+    const ke = (a: number, b: number) => 0.5 * m1 * a * a + 0.5 * m2 * b * b;
+    const keBefore = ke(v1, v2), keAfter = ke(u1, u2);
+    return { e, collides, merged: collides && e === 0, u1, u2, pBefore: P, pAfter: m1 * u1 + m2 * u2, keBefore, keAfter, keLoss: keBefore - keAfter };
+};

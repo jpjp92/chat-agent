@@ -3,10 +3,11 @@
  * 방향은 LLM 이 아니라 이 코드가 정하므로(PLAN_PHYSICS_SVG_261103) 방향 오류는 여기서만 잡힌다.
  * 라벨 겹침은 5°~60° × 탭 2 × 폭 2 × 마찰 3 전 장면을 본다 — 각도 하나만 보면 37°~48° 같은 구간 회귀를 놓친다.
  */
-import { incline, projectile, G } from '../lib/physics/model.js';
+import { incline, projectile, collision, G } from '../lib/physics/model.js';
 import { inclineScene } from '../lib/physics/incline-scene.js';
 import { overlaps, inside, hitsSegment } from '../lib/physics/layout.js';
 import { projectileScene } from '../lib/physics/projectile-scene.js';
+import { collisionScene } from '../lib/physics/collision-scene.js';
 import { normalizePhysics } from '../lib/physics/params.js';
 
 let fail = 0;
@@ -79,6 +80,43 @@ ok(`라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
     ok('포물선 viewBox 는 시간 슬라이더와 무관', unstable === 0, `${unstable}개 조건에서 흔들림`);
 }
 
+// 충돌 — 운동량 보존은 모든 종류, 운동에너지 보존은 탄성만
+{
+    const c = collision({ m1: 2, v1: 3, m2: 1, v2: 0, kind: 'perfectly_inelastic' });
+    ok('2kg·3m/s → 정지 1kg 완전비탄성 = 함께 2 m/s', c.merged && near(c.u1, 2, 1e-9) && near(c.u2, 2, 1e-9) && near(c.keLoss, 3, 1e-9));
+    const el = collision({ m1: 1, v1: 4, m2: 1, v2: 0, kind: 'elastic' });
+    ok('같은 질량 탄성 — 속도 교환', near(el.u1, 0, 1e-9) && near(el.u2, 4, 1e-9) && near(el.keLoss, 0, 1e-9));
+    let bad = 0;
+    for (const kind of ['elastic', 'inelastic', 'perfectly_inelastic'] as const) for (const [m1, v1, m2, v2] of [[2, 3, 1, 0], [1, 5, 4, -2], [10, 1, 0.5, -8], [3, -1, 2, -4]]) {
+        const r = collision({ m1, v1, m2, v2, kind, e: 0.4 });
+        if (!near(r.pBefore, r.pAfter, 1e-9) || r.keLoss < -1e-9 || (kind === 'elastic' && !near(r.keLoss, 0, 1e-9)) || r.u1 > r.u2 + 1e-9) bad++;
+    }
+    ok('운동량 보존 · 에너지 증가 없음 · 충돌 후 1 이 2 를 통과하지 않음 — 12 조합', bad === 0, `${bad}개`);
+    const miss = collision({ m1: 1, v1: 1, m2: 1, v2: 3, kind: 'elastic' });
+    ok('서로 멀어지면 충돌 없음 — 속도 그대로', !miss.collides && miss.u1 === 1 && miss.u2 === 3);
+
+    let lb = 0, lt = 0;
+    const fails: string[] = [];
+    for (const narrow of [false, true]) for (const kind of ['elastic', 'inelastic', 'perfectly_inelastic'] as const)
+        for (const m1 of [0.5, 2, 20]) for (const m2 of [0.5, 2, 20]) for (const [v1, v2] of [[3, 0], [5, -5], [20, -1], [-1, -6], [1, 3], [0.05, 0]]) {
+            lt++;
+            const sc = collisionScene({ m1, v1, m2, v2, kind, e: 0.5 }, { narrow, rowBefore: '충돌 전', rowAfter: '충돌 후', still: '정지' });
+            const why: string[] = [];
+            sc.labels.forEach((l, i) => {
+                if (!inside(l.rect, sc.viewBox)) why.push(`${l.text} 잘림`);
+                sc.labels.slice(i + 1).forEach(m => { if (overlaps(l.rect, m.rect)) why.push(`${l.text}↔${m.text}`); });
+                sc.balls.forEach(b => { if (overlaps(l.rect, { x: b.c.x - b.r, y: b.c.y - b.r, w: b.r * 2, h: b.r * 2 })) why.push(`${l.text}↔${b.id}`); });
+                sc.arrows.forEach(a => { if (hitsSegment(l.rect, a.from, a.to)) why.push(`${l.text}↔${a.id} 화살표`); });
+            });
+            sc.arrows.forEach(a => sc.balls.filter(b => b.id !== a.id && b.c.y === a.from.y).forEach(b => {
+                if (hitsSegment({ x: b.c.x - b.r, y: b.c.y - b.r, w: b.r * 2, h: b.r * 2 }, a.from, a.to)) why.push(`${a.id} 화살표↔${b.id}`);
+            }));
+            if (why.length) { lb++; if (fails.length < 12) fails.push(`${narrow ? '모바일' : 'PC'} ${kind} m ${m1}/${m2} v ${v1}/${v2}: ${why.join(', ')}`); }
+        }
+    fails.forEach(f => console.log('🔴', f));
+    ok(`충돌 라벨 겹침·잘림 — ${lt}개 장면`, lb === 0, `${lb}개`);
+}
+
 // 형식 판정 — 옛 대화(forces 형식)는 canvas 로 남아야 한다
 ok('forces 형식은 SVG 대상 아님', normalizePhysics({ type: 'inclined_plane', angle: 30, forces: [] }) === null);
 ok('parameters 경사면 → 범위로 잘림', JSON.stringify(normalizePhysics({ type: 'inclined_plane', parameters: { angleDeg: 80, massKg: 0, mu: 2 } })?.parameters)
@@ -87,6 +125,9 @@ ok('100kg 은 자르지 않는다(카드 mg = 981 N)', normalizePhysics({ type: 
 ok('μ 없으면 마찰 없는 경사면', normalizePhysics({ type: 'inclined_plane', parameters: { angleDeg: 30, massKg: 2 } })?.parameters.hasOwnProperty('mu') === false);
 ok('숫자 아닌 값은 null(canvas 로)', normalizePhysics({ type: 'inclined_plane', parameters: { angleDeg: '30도', massKg: 2 } }) === null);
 ok('parameters 포물선', normalizePhysics({ type: 'projectile', parameters: { launchDeg: 45, speed: 20 } })?.type === 'projectile');
+ok('충돌 parameters', normalizePhysics({ type: 'collision', parameters: { m1: 2, v1: 3, m2: 1, v2: 0, kind: 'perfectly_inelastic' } })?.type === 'collision');
+ok('옛 충돌 before/after 형식은 canvas', normalizePhysics({ type: 'collision', before: [], after: [] }) === null);
+ok('충돌 kind 모르면 canvas', normalizePhysics({ type: 'collision', parameters: { m1: 2, v1: 3, m2: 1, v2: 0, kind: 'sticky' } }) === null);
 ok('free_body 는 SVG 대상 아님', normalizePhysics({ type: 'free_body', parameters: { angleDeg: 30 } }) === null);
 
 console.log(`\n✅ 통과 · 실패 ${fail}`);

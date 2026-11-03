@@ -243,7 +243,7 @@ const GOLDEN: Record<string, { len: number; sha: string }> = {
     medical_qa:      { len: 27886, sha: 'aad7ef09720fbeae' },
     biology:         { len: 18872, sha: '70daf026598e58a2' },
     chemistry:       { len: 21290, sha: 'da77b190676c0327' },
-    physics:         { len: 23617, sha: '49abf99bfbc361bf' },
+    physics:         { len: 24311, sha: 'f823416802c15ca3' },
     astronomy:       { len: 19647, sha: 'b7654c5ae21a9857' },
     data_viz:        { len: 20978, sha: '6366b700696f24a0' },
     pharmacy_search: { len: 17867, sha: 'f3232c13d840e32a' },
