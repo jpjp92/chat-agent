@@ -3,11 +3,12 @@
  * 방향은 LLM 이 아니라 이 코드가 정하므로(PLAN_PHYSICS_SVG_261103) 방향 오류는 여기서만 잡힌다.
  * 라벨 겹침은 5°~60° × 탭 2 × 폭 2 × 마찰 3 전 장면을 본다 — 각도 하나만 보면 37°~48° 같은 구간 회귀를 놓친다.
  */
-import { incline, projectile, collision, G } from '../lib/physics/model.js';
+import { incline, projectile, collision, freeBody, FORCE_KINDS, G } from '../lib/physics/model.js';
 import { inclineScene } from '../lib/physics/incline-scene.js';
 import { overlaps, inside, hitsSegment } from '../lib/physics/layout.js';
 import { projectileScene } from '../lib/physics/projectile-scene.js';
 import { collisionScene } from '../lib/physics/collision-scene.js';
+import { freeBodyScene } from '../lib/physics/freebody-scene.js';
 import { normalizePhysics } from '../lib/physics/params.js';
 
 let fail = 0;
@@ -117,6 +118,38 @@ ok(`라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
     ok(`충돌 라벨 겹침·잘림 — ${lt}개 장면`, lb === 0, `${lb}개`);
 }
 
+// 자유물체도 — 알짜힘, 평형 판정, 라벨 배치
+{
+    const float = freeBody([{ kind: 'gravity', angleDeg: 270, magnitudeN: 49.05 }, { kind: 'buoyancy', angleDeg: 90, magnitudeN: 49 }]);
+    ok('물에 뜬 공(49.05 vs 49 N) — 반올림 차는 평형', float.balanced && float.known);
+    const push = freeBody([{ kind: 'gravity', angleDeg: 270, magnitudeN: 10 }, { kind: 'normal', angleDeg: 90, magnitudeN: 10 }, { kind: 'applied', angleDeg: 0, magnitudeN: 5 }, { kind: 'friction', angleDeg: 180, magnitudeN: 2 }]);
+    ok('수평으로 민 상자 — 알짜힘 3 N 오른쪽', !push.balanced && near(push.netMag!, 3, 1e-9) && near(push.netDeg!, 0, 1e-9));
+    ok('크기 일부 없음 — 알짜힘 내지 않음', freeBody([{ kind: 'gravity', angleDeg: 270, magnitudeN: 10 }, { kind: 'tension', angleDeg: 90 }]).net === null);
+
+    // 각도 조합: 흔한 배치(상하·좌우·대각) + 같은 방향 중복 + 30° 간격 다수
+    const sets: number[][] = [[270, 90], [270, 90, 0, 180], [270, 90, 0], [270, 120, 60], [270, 45, 135, 0, 180], [270, 270, 90], [0, 30, 60, 90, 120, 150, 180, 210],
+        [270, 90, 180], [250, 110, 20], [270, 0], [90], [300, 60, 180, 270, 90, 0]];
+    let bad = 0, total = 0;
+    const fails: string[] = [];
+    for (const narrow of [false, true]) for (const shape of ['circle', 'rectangle'] as const) for (const showNet of [false, true]) for (const mags of ['equal', 'mixed', 'none'] as const)
+        for (const angles of sets) {
+            total++;
+            const forces = angles.map((a, i) => ({ kind: FORCE_KINDS[i % FORCE_KINDS.length], angleDeg: a,
+                ...(mags === 'none' ? {} : { magnitudeN: mags === 'equal' ? 10 : [49, 30, 5, 12, 80, 2, 20, 9][i] }) }));
+            const sc = freeBodyScene(forces, { narrow, shape, showNet });
+            const why: string[] = [];
+            sc.labels.forEach((l, i) => {
+                if (!inside(l.rect, sc.viewBox)) why.push(`${l.text} 잘림`);
+                if (overlaps(l.rect, sc.body)) why.push(`${l.text}↔물체`);
+                sc.labels.slice(i + 1).forEach(m => { if (overlaps(l.rect, m.rect)) why.push(`${l.text}↔${m.text}`); });
+                sc.arrows.forEach(a => { if (hitsSegment(l.rect, a.from, a.to)) why.push(`${l.text}↔${a.id}`); });
+            });
+            if (why.length) { bad++; if (fails.length < 12) fails.push(`${narrow ? '모바일' : 'PC'} ${shape} net=${showNet} ${mags} [${angles}]: ${why.join(', ')}`); }
+        }
+    fails.forEach(f => console.log('🔴', f));
+    ok(`자유물체도 라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
+}
+
 // 형식 판정 — 옛 대화(forces 형식)는 canvas 로 남아야 한다
 ok('forces 형식은 SVG 대상 아님', normalizePhysics({ type: 'inclined_plane', angle: 30, forces: [] }) === null);
 ok('parameters 경사면 → 범위로 잘림', JSON.stringify(normalizePhysics({ type: 'inclined_plane', parameters: { angleDeg: 80, massKg: 0, mu: 2 } })?.parameters)
@@ -128,7 +161,10 @@ ok('parameters 포물선', normalizePhysics({ type: 'projectile', parameters: { 
 ok('충돌 parameters', normalizePhysics({ type: 'collision', parameters: { m1: 2, v1: 3, m2: 1, v2: 0, kind: 'perfectly_inelastic' } })?.type === 'collision');
 ok('옛 충돌 before/after 형식은 canvas', normalizePhysics({ type: 'collision', before: [], after: [] }) === null);
 ok('충돌 kind 모르면 canvas', normalizePhysics({ type: 'collision', parameters: { m1: 2, v1: 3, m2: 1, v2: 0, kind: 'sticky' } }) === null);
-ok('free_body 는 SVG 대상 아님', normalizePhysics({ type: 'free_body', parameters: { angleDeg: 30 } }) === null);
+ok('옛 free_body(최상위 forces) 는 canvas', normalizePhysics({ type: 'free_body', forces: [{ label: '중력', angle: 270, magnitude: 1 }] }) === null);
+ok('free_body parameters', normalizePhysics({ type: 'free_body', parameters: { forces: [{ kind: 'gravity', angleDeg: 270, magnitudeN: 49 }, { kind: 'buoyancy', angleDeg: 90 }] } })?.type === 'free_body');
+ok('free_body kind 모르면 canvas', normalizePhysics({ type: 'free_body', parameters: { forces: [{ kind: 'magic', angleDeg: 90 }] } }) === null);
+ok('free_body 각도 정규화(-90 → 270)', (normalizePhysics({ type: 'free_body', parameters: { forces: [{ kind: 'gravity', angleDeg: -90 }] } }) as { parameters: { forces: { angleDeg: number }[] } } | null)?.parameters.forces[0].angleDeg === 270);
 
 console.log(`\n✅ 통과 · 실패 ${fail}`);
 if (fail) process.exit(1);

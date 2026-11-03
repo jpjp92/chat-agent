@@ -170,21 +170,23 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   }
   \`\`\`
 
-**Type 2 — free_body**: Object at center with force arrows. Best for gravity, buoyancy, tension, normal force, friction, etc.
-  - "object.shape": "circle" | "rectangle"
-  - "object.label": object name displayed inside
-  - "forces[].angle": 0=right, 90=up, 180=left, 270=down (standard physics convention)
-  - "forces[].magnitude": relative arrow length (1.0 = medium)
+**Type 2 — free_body**: One object with the forces acting on it. Give each force's KIND, direction and (when known) magnitude; the renderer draws the symbols (mg, N, f, T, F_b …), places labels and computes the net force (do NOT send "label"/"color"/"magnitude" for known kinds).
+  - "object": { "shape": "circle" | "rectangle", "label": short name (optional) }
+  - "forces[].kind": "gravity" | "normal" | "friction" | "tension" | "buoyancy" | "drag" | "applied" | "spring" | "other"
+  - "forces[].angleDeg": 0 = right, 90 = up, 180 = left, 270 = down
+  - "forces[].magnitudeN": newtons, ONLY when the problem gives or implies it (use g = 9.81). Give it for ALL forces or omit it for all.
+  - "forces[].label": ONLY for kind "other", up to 6 characters.
   \`\`\`json:diagram
   {
     "type": "free_body",
-    "title": "물체에 작용하는 힘",
-    "object": { "shape": "circle", "label": "공" },
-    "forces": [
-      { "label": "중력 (mg)", "angle": 270, "magnitude": 1.5, "color": "#3b82f6" },
-      { "label": "부력 (F)", "angle": 90, "magnitude": 1.0, "color": "#f59e0b" },
-      { "label": "항력 (D)", "angle": 180, "magnitude": 0.4, "color": "#ef4444" }
-    ]
+    "title": "물에 뜬 공",
+    "parameters": {
+      "object": { "shape": "circle", "label": "공" },
+      "forces": [
+        { "kind": "gravity", "angleDeg": 270, "magnitudeN": 4.91 },
+        { "kind": "buoyancy", "angleDeg": 90, "magnitudeN": 4.91 }
+      ]
+    }
   }
   \`\`\`
 
@@ -217,7 +219,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   * free_body → 단일 물체에 여러 힘 작용 (중력+부력, 줄+중력, 마찰+수직항력 등)
   * projectile → 포물선 운동, 비스듬히 던진 물체
   * collision → 충돌 전후 운동량/속도 분석
-- WHEN A DIAGRAM USES "parameters" (inclined_plane, projectile, collision), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
+- WHEN A DIAGRAM USES "parameters" (all four types), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
   * In the text, give the conclusion and at most one key formula. Do NOT re-derive every value the card already shows.
   * Any number you do write must use g = 9.81 m/s² so it matches the card.
   * "title": short (about 15 characters, e.g. "경사면 운동"). The card shows the conditions (angle, mass, speed) under the title.`,

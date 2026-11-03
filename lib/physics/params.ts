@@ -3,15 +3,16 @@
  * 각도는 배치 하니스가 검증한 범위로 자른다(그 밖은 도형이 퇴화). 질량·속력은 화살표 길이가 정규화돼 그림이 깨지지 않으므로
  * 넓게 받는다 — 20kg 로 자르자 "100kg 물체" 답의 카드가 mg 196 N(실제 981 N)으로 나왔다.
  */
-import type { CollisionKind, CollisionParams } from './model';
+import { FORCE_KINDS, type BodyForce, type CollisionKind, type CollisionParams } from './model';
 
 export type PhysicsData =
     | { type: 'inclined_plane'; title?: string; parameters: { angleDeg: number; massKg: number; mu?: number } }
     | { type: 'projectile'; title?: string; parameters: { launchDeg: number; speed: number } }
-    | { type: 'collision'; title?: string; parameters: CollisionParams };
+    | { type: 'collision'; title?: string; parameters: CollisionParams }
+    | { type: 'free_body'; title?: string; parameters: { object: { shape: 'circle' | 'rectangle'; label?: string }; forces: BodyForce[] } };
 
 export const RANGE = {
-    angleDeg: [5, 60], massKg: [0.1, 10000], mu: [0, 1], launchDeg: [10, 80], speed: [1, 200], velocity: [-200, 200],
+    angleDeg: [5, 60], massKg: [0.1, 10000], mu: [0, 1], launchDeg: [10, 80], speed: [1, 200], velocity: [-200, 200], forceN: [0, 1e7],
 } as const;
 
 const num = (v: unknown, [lo, hi]: readonly [number, number]) =>
@@ -44,6 +45,23 @@ export const normalizePhysics = (data: unknown): PhysicsData | null => {
         const e = p.e === undefined ? undefined : num(p.e, RANGE.mu);
         if (e === null) return null;
         return { type: 'collision', title, parameters: kind === 'inelastic' && e !== undefined ? { m1, v1, m2, v2, kind, e } : { m1, v1, m2, v2, kind } };
+    }
+    if (d.type === 'free_body') {
+        const raw = Array.isArray(p.forces) ? p.forces : null;
+        // 8개 넘게 그리면 라벨 자리가 없다 — 그런 답은 canvas 로
+        if (!raw || raw.length === 0 || raw.length > 8) return null;
+        const forces: BodyForce[] = [];
+        for (const f of raw as Record<string, unknown>[]) {
+            const kind = FORCE_KINDS.find(k => k === f?.kind);
+            if (!kind || typeof f.angleDeg !== 'number' || !Number.isFinite(f.angleDeg)) return null;
+            const magnitudeN = f.magnitudeN === undefined ? undefined : num(f.magnitudeN, RANGE.forceN);
+            if (magnitudeN === null) return null;
+            const label = kind === 'other' && typeof f.label === 'string' ? f.label.slice(0, 6) : undefined;
+            forces.push({ kind, angleDeg: ((f.angleDeg % 360) + 360) % 360, ...(magnitudeN !== undefined ? { magnitudeN } : {}), ...(label ? { label } : {}) });
+        }
+        const o = (p.object ?? {}) as Record<string, unknown>;
+        const shape = o.shape === 'rectangle' ? 'rectangle' : 'circle';
+        return { type: 'free_body', title, parameters: { object: { shape, ...(typeof o.label === 'string' ? { label: o.label.slice(0, 8) } : {}) }, forces } };
     }
     return null;
 };

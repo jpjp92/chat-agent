@@ -71,3 +71,25 @@ export const collision = ({ m1, v1, m2, v2, kind, e: eIn }: CollisionParams) => 
     const keBefore = ke(v1, v2), keAfter = ke(u1, u2);
     return { e, collides, merged: collides && e === 0, u1, u2, pBefore: P, pAfter: m1 * u1 + m2 * u2, keBefore, keAfter, keLoss: keBefore - keAfter };
 };
+
+export const FORCE_KINDS = ['gravity', 'normal', 'friction', 'tension', 'buoyancy', 'drag', 'applied', 'spring', 'other'] as const;
+export type ForceKind = typeof FORCE_KINDS[number];
+export interface BodyForce { kind: ForceKind; angleDeg: number; magnitudeN?: number; label?: string }
+/**
+ * 자유물체도 — 각도는 물리 관례(0 = 오른쪽, 90 = 위). 크기가 전부 있을 때만 알짜힘을 낸다:
+ * 일부만 있으면 나머지를 0 으로 볼 수도, 같다고 볼 수도 없다.
+ */
+export const freeBody = (forces: BodyForce[]) => {
+    const vecs = forces.map(f => {
+        const t = rad(f.angleDeg), m = f.magnitudeN ?? 1;
+        return v(m * Math.cos(t), m * Math.sin(t));
+    });
+    const known = forces.length > 0 && forces.every(f => f.magnitudeN !== undefined);
+    const net = known ? vecs.reduce((a, b) => v(a.x + b.x, a.y + b.y), v(0, 0)) : null;
+    const netMag = net ? Math.hypot(net.x, net.y) : null;
+    // 크기 합의 0.5% 미만이면 평형으로 본다 — LLM 이 49.05 와 49 를 섞어 쓰는 반올림을 흡수
+    const scale = forces.reduce((s, f) => s + (f.magnitudeN ?? 0), 0);
+    const balanced = netMag !== null && netMag <= Math.max(1e-9, scale * 0.005);
+    const netDeg = net && !balanced ? (Math.atan2(net.y, net.x) * 180) / Math.PI : null;
+    return { vecs, known, net, netMag, netDeg, balanced };
+};

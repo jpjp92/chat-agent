@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { incline, type Vec } from '../lib/physics/model';
 import { projectileScene } from '../lib/physics/projectile-scene';
 import { collisionScene } from '../lib/physics/collision-scene';
-import type { CollisionParams } from '../lib/physics/model';
+import { freeBodyScene } from '../lib/physics/freebody-scene';
+import type { BodyForce, CollisionParams } from '../lib/physics/model';
 import { inclineScene } from '../lib/physics/incline-scene';
 import { RANGE, SLIDER, sliderRange, type PhysicsData } from '../lib/physics/params';
 
@@ -28,11 +29,15 @@ const I18N = {
         elastic: '탄성 충돌', inelastic: '비탄성 충돌', perfectly_inelastic: '완전비탄성 충돌', noHit: '서로 멀어져 충돌하지 않음',
         pBefore: '운동량 (전)', pAfter: '운동량 (후)', keLoss: '운동에너지 손실', after1: '충돌 후 v₁′', after2: '충돌 후 v₂′', afterV: '충돌 후 함께 V',
         colNote: '1차원 · 오른쪽이 + 방향 · 화살표 길이는 속도에 비례', hintCol: '슬라이더로 질량·속도를 바꿔 보세요',
+        freeBody: '자유물체도', net: '알짜힘', balanced: '평형 (알짜힘 0)', showNet: '알짜힘 표시', fbNote: '각도: 0° = 오른쪽, 90° = 위',
+        fbNoteRel: '크기가 주어지지 않아 화살표 길이는 같게 그림', forceCount: (n: number) => `힘 ${n}개`,
         desc: {
             weight: '중력 — 질량 × g, 언제나 수직 아래.', normal: '수직항력 — 면이 물체를 미는 힘. 면에 수직이고 크기는 mg cosθ.',
             friction: '마찰력 — 미끄러짐을 막는 방향(경사 위쪽).', parallel: '중력의 경사 방향 성분. 별도의 힘이 아니라 mg 를 나눈 것.',
             perpendicular: '중력의 면 수직 성분. 수직항력과 크기가 같고 방향이 반대.', velocity: '순간 속도. 공기 저항이 없어 수평 성분은 일정.',
             gravity: '중력 가속도 9.81 m/s² — 언제나 아래, 크기 일정.', v0: '초기 속도 — 발사각 θ 방향, 크기 v₀.',
+            tension: '장력 — 줄이 물체를 당기는 힘, 줄 방향.', buoyancy: '부력 — 밀어낸 유체의 무게만큼 위로.', drag: '항력 — 유체 속 운동을 거스르는 힘.',
+            applied: '가한 힘 — 외부에서 미는·당기는 힘.', spring: '탄성력 — 늘어나거나 줄어든 반대 방향.', other: '문제에서 주어진 힘.', net: '알짜힘 — 모든 힘의 벡터 합. 가속도 방향과 같다.',
         } as Record<string, string>,
     },
     en: {
@@ -45,11 +50,15 @@ const I18N = {
         elastic: 'Elastic collision', inelastic: 'Inelastic collision', perfectly_inelastic: 'Perfectly inelastic', noHit: 'Moving apart — no collision',
         pBefore: 'Momentum (before)', pAfter: 'Momentum (after)', keLoss: 'KE lost', after1: 'After v₁′', after2: 'After v₂′', afterV: 'After, together V',
         colNote: '1-D · right is + · arrow length ∝ speed', hintCol: 'Change mass and velocity with the sliders',
+        freeBody: 'Free-body diagram', net: 'Net force', balanced: 'Balanced (net force 0)', showNet: 'Show net force', fbNote: 'Angles: 0° = right, 90° = up',
+        fbNoteRel: 'No magnitudes given — arrows drawn equal length', forceCount: (n: number) => `${n} forces`,
         desc: {
             weight: 'Gravity — mass × g, always straight down.', normal: 'Normal force — the surface pushing back, perpendicular to it, magnitude mg cosθ.',
             friction: 'Friction — opposes sliding (up the slope).', parallel: 'Component of gravity along the slope — part of mg, not a separate force.',
             perpendicular: 'Component of gravity into the surface — equal and opposite to N.', velocity: 'Instantaneous velocity. No air drag, so the horizontal part is constant.',
             gravity: 'Gravitational acceleration 9.81 m/s² — always down, constant.', v0: 'Initial velocity — along θ, magnitude v₀.',
+            tension: 'Tension — pull along the string.', buoyancy: 'Buoyancy — weight of displaced fluid, upward.', drag: 'Drag — opposes motion through a fluid.',
+            applied: 'Applied force — an external push or pull.', spring: 'Spring force — opposite to stretch or compression.', other: 'Force given in the problem.', net: 'Net force — vector sum of all forces; same direction as acceleration.',
         } as Record<string, string>,
     },
 };
@@ -101,11 +110,15 @@ const Slider: React.FC<{ label: string; value: number; range: readonly [number, 
     </label>
 );
 
+// 힘 기호의 아래첨자(F_b) — 밑줄을 그대로 보이면 기호로 읽히지 않는다
+const Sym: React.FC<{ s: string }> = ({ s }) => { const [a, b] = s.split('_'); return b ? <>{a}<sub>{b}</sub></> : <>{s}</>; };
+const SvgSym: React.FC<{ s: string }> = ({ s }) => { const [a, b] = s.split('_'); return b ? <><tspan>{a}</tspan><tspan dy="0.3em" fontSize="0.7em">{b}</tspan></> : <>{s}</>; };
+
 const Metrics: React.FC<{ items: [string, string][] }> = ({ items }) => (
     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mt-2">
-        {items.map(([k, v]) => (
-            <div key={k} className="rounded-xl bg-slate-50 dark:bg-white/[0.05] px-2 sm:px-3 py-1 sm:py-2 min-w-0">
-                <dt className="text-[9px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate">{k}</dt>
+        {items.map(([k, v], i) => (
+            <div key={i} className="rounded-xl bg-slate-50 dark:bg-white/[0.05] px-2 sm:px-3 py-1 sm:py-2 min-w-0">
+                <dt className="text-[9px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate"><Sym s={k} /></dt>
                 <dd className="text-xs sm:text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{v}</dd>
             </div>))}
     </dl>
@@ -272,10 +285,71 @@ const CollisionView: React.FC<{ init: CollisionParams; title?: string; t: T }> =
     );
 };
 
+const FB_COLOR: Record<string, string> = { gravity: '#e8963c', normal: '#2fb58a', friction: '#e0558b', tension: '#5aa9f0', buoyancy: '#22b8cf',
+    drag: '#a78bfa', applied: '#f43f5e', spring: '#84cc16', other: '#94a3b8', net: '#f59e0b' };
+
+const FreeBodyView: React.FC<{ init: { object: { shape: 'circle' | 'rectangle'; label?: string }; forces: BodyForce[] }; title?: string; t: T }> = ({ init, title, t }) => {
+    const [sel, setSel] = useState<string | null>(null);
+    const [showNet, setShowNet] = useState(false);
+    const narrow = useNarrow();
+    const sc = freeBodyScene(init.forces, { narrow, shape: init.object.shape, showNet });
+    const fb = sc.model, vb = sc.viewBox;
+    const lab = (id: string) => sc.labels.find(l => l.id === id)!;
+    const name = (i: number) => (i < 0 ? 'ΣF' : lab(`f${i}`).text);
+    const descOf = (id: string) => {
+        if (id === 'net') return `ΣF — ${t.desc.net}`;
+        const f = init.forces[Number(id.slice(1))];
+        return `${name(Number(id.slice(1)))} — ${t.desc[f.kind === 'gravity' ? 'weight' : f.kind]}${f.magnitudeN !== undefined ? ` ${f2(f.magnitudeN)} N` : ''}`;
+    };
+    const netText = fb.known ? (fb.balanced ? t.balanced : `${f2(fb.netMag!)} N · ${Math.round(((fb.netDeg! % 360) + 360) % 360)}°`) : null;
+    return (
+        <Card title={title ?? t.freeBody} t={t} sub={`${init.object.label ? `${init.object.label} · ` : ''}${t.forceCount(init.forces.length)}`}
+            note={fb.known ? t.fbNote : `${t.fbNote} · ${t.fbNoteRel}`} detail={sel ? descOf(sel) : null}
+            onReset={() => { setSel(null); setShowNet(false); }}
+            formula={[
+                ...init.forces.map((f, i) => `${name(i)} = ${f.magnitudeN !== undefined ? `${f2(f.magnitudeN)} N` : '?'} @ ${f.angleDeg}°`),
+                ...(fb.known && fb.net ? [`ΣF = (${f2(fb.net.x)}, ${f2(fb.net.y)}) N → ${netText}`] : []),
+            ]}>
+            {fb.known && !fb.balanced && (
+                <label className="mt-3 flex items-center gap-2 text-[11px] sm:text-[13px] text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showNet} onChange={e => setShowNet(e.target.checked)} className="accent-amber-500" />{t.showNet}
+                </label>)}
+            <svg viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} role="img" aria-label={init.forces.map((_, i) => name(i)).join(', ')} className="w-full h-auto block mt-2 text-slate-400 dark:text-slate-500">
+                {init.object.shape === 'circle'
+                    ? <circle cx={sc.c.x} cy={sc.c.y} r={sc.body.w / 2} fill="#8b7cf0" fillOpacity={0.75} stroke="#c9c0ff" strokeWidth={2} />
+                    : <rect x={sc.body.x} y={sc.body.y} width={sc.body.w} height={sc.body.h} rx={8} fill="#8b7cf0" fillOpacity={0.75} stroke="#c9c0ff" strokeWidth={2} />}
+                {sc.arrows.map(a => {
+                    const dx = a.to.x - a.from.x, dy = a.to.y - a.from.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, hl = 12, col = FB_COLOR[a.kind];
+                    // 화살표가 물체 가운데에서 나가므로 이름은 화살표 위에 테두리 글자로 얹는다(아래 별도 레이어)
+                    const on = sel === a.id, l = lab(a.id);
+                    return (
+                        <g key={a.id} role="button" tabIndex={0} aria-label={descOf(a.id)} aria-pressed={on} opacity={sel !== null && !on ? 0.3 : 1}
+                            className="cursor-pointer transition-opacity" onClick={() => setSel(s => (s === a.id ? null : a.id))}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(s => (s === a.id ? null : a.id)); } }}>
+                            <line x1={a.from.x} y1={a.from.y} x2={a.to.x} y2={a.to.y} stroke="transparent" strokeWidth={22} />
+                            <line x1={a.from.x} y1={a.from.y} x2={a.to.x - ux * hl * 0.6} y2={a.to.y - uy * hl * 0.6} stroke={col} strokeWidth={on ? 4.5 : 3}
+                                strokeDasharray={a.net ? '7 5' : undefined} strokeLinecap="round" />
+                            <polygon points={`${a.to.x},${a.to.y} ${a.to.x - hl * ux + 6 * uy},${a.to.y - hl * uy - 6 * ux} ${a.to.x - hl * ux - 6 * uy},${a.to.y - hl * uy + 6 * ux}`} fill={col} />
+                            <text x={l.x} y={l.y} fill={col} fontSize={l.fontSize} fontWeight={700} textAnchor="middle" dominantBaseline="middle"
+                                className="[paint-order:stroke] stroke-white dark:stroke-slate-900 [stroke-width:4px]"><SvgSym s={l.text} /></text>
+                        </g>);
+                })}
+                {init.object.label && <text x={sc.c.x} y={sc.c.y} fontSize={narrow ? 22 : 13} textAnchor="middle" dominantBaseline="middle" fontWeight={600}
+                    fill="#fff" stroke="#6d5fd6" strokeWidth={4} style={{ paintOrder: 'stroke' }} pointerEvents="none">{init.object.label}</text>}
+            </svg>
+            {fb.known && <Metrics items={[
+                ...init.forces.slice(0, 7).map((f, i) => [name(i), f.magnitudeN !== undefined ? `${f2(f.magnitudeN)} N` : `${f.angleDeg}°`] as [string, string]),
+                ...(netText ? [[t.net, fb.balanced ? '0 N' : `${f2(fb.netMag!)} N`] as [string, string]] : []),
+            ]} />}
+        </Card>
+    );
+};
+
 export const PhysicsDiagram: React.FC<{ data: PhysicsData; language?: Lang }> = ({ data, language = 'ko' }) => {
     // es·fr 문구는 아직 없다 — 기호가 대부분이라 영어로 둔다
     const t = language === 'ko' ? I18N.ko : I18N.en;
     if (data.type === 'collision') return <CollisionView init={data.parameters} title={data.title} t={t} />;
+    if (data.type === 'free_body') return <FreeBodyView init={data.parameters} title={data.title} t={t} />;
     return data.type === 'projectile'
         ? <ProjectileView init={data.parameters} title={data.title} t={t} />
         : <InclineView init={data.parameters} title={data.title} t={t} />;
