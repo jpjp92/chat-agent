@@ -2,12 +2,12 @@
  * 경사면 도해의 화면 배치 — 도형·화살표·라벨 위치와 viewBox 를 계산한다. 렌더러와 겹침 하니스가 같은 함수를 쓴다.
  * 라벨은 후보 자리를 차례로 시험해 상자·다른 라벨·다른 화살표와 겹치지 않는 첫 자리에 둔다(라벨 3~5개라 탐욕법으로 충분).
  */
-import { incline, type Vec, type InclineParams } from './physics-model';
+import { incline, type Vec, type InclineParams } from './model';
+import { textRect, overlaps, hitsSegment, bounds, fitViewBox, type Rect } from './layout';
 
-export type Rect = { x: number; y: number; w: number; h: number };
-export interface SceneArrow { id: string; from: Vec; to: Vec; label: string; dashed: boolean }
-export interface SceneLabel { id: string; x: number; y: number; rect: Rect; text: string; fontSize: number }
-export interface InclineScene {
+interface SceneArrow { id: string; from: Vec; to: Vec; label: string; dashed: boolean }
+interface SceneLabel { id: string; x: number; y: number; rect: Rect; text: string; fontSize: number }
+interface InclineScene {
     viewBox: Rect; floorY: number; wedge: Vec[]; angleLabel: Vec;
     block: { c: Vec; w: number; h: number; rot: number; rect: Rect };
     arrows: SceneArrow[]; labels: SceneLabel[];
@@ -16,24 +16,6 @@ export interface InclineScene {
 const FULL: Record<string, string> = { weight: 'mg', normal: 'N', friction: 'f', parallel: 'mg sinθ', perpendicular: 'mg cosθ' };
 // 모바일은 라벨 면적을 줄인다 — 전체 이름은 지표 카드·범례에 있다
 const SHORT: Record<string, string> = { ...FULL, parallel: 'mg∥', perpendicular: 'mg⊥' };
-
-const textRect = (cx: number, cy: number, text: string, fs: number): Rect => {
-    const w = [...text].length * fs * 0.62 + 6, h = fs * 1.15;
-    return { x: cx - w / 2, y: cy - h / 2, w, h };
-};
-export const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-const hitsSegment = (r: Rect, p: Vec, q: Vec) => {
-    for (let i = 0; i <= 12; i++) {
-        const x = p.x + (q.x - p.x) * i / 12, y = p.y + (q.y - p.y) * i / 12;
-        if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return true;
-    }
-    return false;
-};
-const bounds = (pts: Vec[], rects: Rect[]): Rect => {
-    const xs = [...pts.map(p => p.x), ...rects.flatMap(r => [r.x, r.x + r.w])], ys = [...pts.map(p => p.y), ...rects.flatMap(r => [r.y, r.y + r.h])];
-    const x = Math.min(...xs), y = Math.min(...ys);
-    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
-};
 
 export const inclineScene = (p: InclineParams, opts: { tab: 'forces' | 'components'; narrow: boolean }): InclineScene => {
     const r = incline(p), t = (p.angleDeg * Math.PI) / 180;
@@ -81,9 +63,6 @@ export const inclineScene = (p: InclineParams, opts: { tab: 'forces' | 'componen
     // viewBox 를 내용에 맞춘다(가로세로 비율 고정) — 완경사에서 위쪽 빈 공간이 도해를 작게 만들었다
     const wedge = [{ x: ox, y: oy }, top, { x: top.x, y: oy }];
     const content = bounds([...wedge, ...arrows.map(a => a.to)], [blockRect, ...labels.map(l => l.rect), ...fixed]);
-    const aspect = opts.narrow ? 620 / 380 : 760 / 440, pad = opts.narrow ? 20 : 30;
-    let w = content.w + pad * 2, h = content.h + pad * 2;
-    if (w / h > aspect) h = w / aspect; else w = h * aspect;
-    const viewBox = { x: content.x + content.w / 2 - w / 2, y: content.y + content.h / 2 - h / 2, w, h };
+    const viewBox = fitViewBox(content, opts.narrow);
     return { viewBox, floorY: oy, wedge, angleLabel, block: { c, w: bw, h: bh, rot: -p.angleDeg, rect: blockRect }, arrows, labels };
 };

@@ -18,6 +18,7 @@ import { Role, Message, UserProfile } from '../types';
 import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
 import { toSpeakableText } from '../lib/tts-speakable';
+import { normalizePhysics } from '../lib/physics/params';
 import { splitInlineDisplayMath } from '../utils/mathNormalize';
 
 
@@ -29,6 +30,7 @@ const ChartRenderer = lazy(() => import('./ChartRenderer'));
 const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
 const BioRenderer = lazy(() => import('./BioRenderer'));
 const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
+const PhysicsDiagram = lazy(() => import('./PhysicsDiagram').then(module => ({ default: module.PhysicsDiagram })));
 const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
 const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
 const PharmacyRenderer = lazy(() => import('./PharmacyRenderer').then(module => ({ default: module.PharmacyRenderer })));
@@ -726,10 +728,12 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
             );
           }
           if (part.type === 'diagram') {
+            // parameters 형식만 SVG — 옛 대화의 forces 형식은 canvas 그대로
+            const physics = normalizePhysics(part.data);
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  <DiagramRenderer data={part.data} language={language} />
+                  {physics ? <PhysicsDiagram data={physics} language={language} /> : <DiagramRenderer data={part.data} language={language} />}
                 </Suspense>
               </ErrorBoundary>
             );

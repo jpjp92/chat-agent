@@ -158,20 +158,15 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   diagram: `[PHYSICS DIAGRAMS (Diagram-Viz)]
 - Use \`json:diagram\` blocks for all physics illustrations. Four types available:
 
-**Type 1 — inclined_plane**: Wedge + box with labeled force vectors.
+**Type 1 — inclined_plane**: Give ONLY the physical quantities. The renderer computes every arrow direction, length and label (do NOT send "forces" for this type).
+  - "angleDeg": incline angle in degrees (5–60)
+  - "massKg": mass in kg exactly as the problem states. If none is given, use 1.
+  - "mu": friction coefficient (0–1). OMIT it entirely for a frictionless incline.
   \`\`\`json:diagram
   {
     "type": "inclined_plane",
-    "title": "경사면 힘 분석",
-    "angle": 30,
-    "showBaseline": true,
-    "showAngle": true,
-    "forces": [
-      { "label": "중력 (mg)", "angle": 90, "magnitude": 1.5, "color": "#0066CC" },
-      { "label": "수직항력 (N)", "angle": -60, "magnitude": 1.3, "color": "#FFA500" },
-      { "label": "평행 분력 (mg sinθ)", "angle": 30, "magnitude": 0.75, "color": "#00CC00" },
-      { "label": "마찰력 (f)", "angle": 210, "magnitude": 0.5, "color": "#FF0000" }
-    ]
+    "title": "30° 경사면 위 2kg 물체",
+    "parameters": { "angleDeg": 30, "massKg": 2, "mu": 0.2 }
   }
   \`\`\`
 
@@ -193,17 +188,14 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   }
   \`\`\`
 
-**Type 3 — projectile**: Parabolic trajectory with velocity decomposition.
-  - "launchAngle": degrees from horizontal (e.g. 45)
-  - "label": object name shown at launch point
-  - "showComponents": true shows vₓ/v₀y decomposition and θ angle (default true)
+**Type 3 — projectile**: Give ONLY the launch conditions. The renderer computes the trajectory, range, height and time.
+  - "launchDeg": launch angle from horizontal in degrees (10–80)
+  - "speed": initial speed in m/s exactly as the problem states. If none is given, use 20.
   \`\`\`json:diagram
   {
     "type": "projectile",
-    "title": "포물선 운동 (45°)",
-    "launchAngle": 45,
-    "label": "공",
-    "showComponents": true
+    "title": "포물선 운동 (45°, 20 m/s)",
+    "parameters": { "launchDeg": 45, "speed": 20 }
   }
   \`\`\`
 

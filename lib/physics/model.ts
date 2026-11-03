@@ -9,7 +9,7 @@ const v = (x: number, y: number): Vec => ({ x, y });
 const rad = (d: number) => (d * Math.PI) / 180;
 
 export interface InclineParams { angleDeg: number; massKg: number; mu?: number }
-export interface InclineResult {
+interface InclineResult {
     /** 단위 벡터 — 경사 위쪽, 면 바깥 법선 */
     upSlope: Vec; normal: Vec;
     weight: number; normalForce: number; parallel: number; perpendicular: number;

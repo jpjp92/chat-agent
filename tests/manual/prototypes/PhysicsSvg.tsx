@@ -3,8 +3,8 @@
  * 계산은 physics-model.ts, 여기서는 물리 좌표 → 화면 좌표(y 반전)와 그리기만 한다.
  */
 import React, { useState } from 'react';
-import { incline, projectile, type Vec } from './physics-model';
-import { inclineScene } from './incline-scene';
+import { incline, projectile, type Vec } from '../../../lib/physics/model';
+import { inclineScene } from '../../../lib/physics/incline-scene';
 
 export type PhysicsData =
     | { type: 'inclined_plane'; title?: string; parameters: { angleDeg: number; massKg: number; mu?: number } }
