@@ -1,11 +1,12 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { incline, type Vec } from '../lib/physics/model';
 import { projectileScene } from '../lib/physics/projectile-scene';
 import { collisionScene } from '../lib/physics/collision-scene';
 import { freeBodyScene } from '../lib/physics/freebody-scene';
 import type { BodyForce, CollisionParams } from '../lib/physics/model';
 import { inclineScene } from '../lib/physics/incline-scene';
+import { downloadPhysicsPng } from './physics-export';
 import { RANGE, SLIDER, sliderRange, type PhysicsData } from '../lib/physics/params';
 
 /**
@@ -20,11 +21,11 @@ const LABEL: Record<string, string> = { weight: 'mg', normal: 'N', friction: 'f'
 
 const I18N = {
     ko: {
-        incline: '경사면 위 물체의 운동', projectile: '포물선 운동', formula: '계산 및 해석', reset: '초기화', hint: '화살표를 누르면 그 힘의 뜻을 보여 줍니다', hintMotion: '화살표를 누르면 설명을 보여 줍니다',
+        incline: '경사면 위 물체의 운동', projectile: '포물선 운동', formula: '계산 및 해석', reset: '초기화', download: '이미지로 저장', assume: '계산 조건', hint: '화살표를 누르면 그 힘의 뜻을 보여 줍니다', hintMotion: '화살표를 누르면 설명을 보여 줍니다',
         forces: '작용하는 힘', components: '중력 성분 분해', noFriction: '마찰 없는 경사면', scale: '화살표 길이는 힘의 크기에 비례',
         angle: '경사각 θ', mass: '질량 m', mu: '마찰계수 μ', launch: '발사각 θ', speed: '초기속력 v₀', time: '시간 t',
         weight: '중력 mg', normalF: '수직항력 N', parallel: '경사 성분 mg sinθ', accel: '가속도 a', T: '비행 시간 T', H: '최고 높이 H', R: '사거리 R', v: '현재 속력 |v|',
-        slides: '미끄러짐', stays: '정지(정지 마찰로 평형)', ideal: '이상화 모델 · g = 9.81 m/s²', muNote: ' · μs=μk 로 단순화', projNote: '발사·착지 높이 0 m · 가로·세로 같은 축척',
+        slides: '미끄러짐', stays: '정지(정지 마찰로 평형)', ideal: 'g = 9.81 m/s² · 공기저항 무시', muNote: ' · 정지·운동 마찰계수 같다고 가정', projNote: 'g = 9.81 m/s² · 공기저항 무시 · 발사·착지 높이 0 m · 가로·세로 같은 축척',
         collision: '충돌', before: '충돌 전', after: '충돌 후', still: '정지', m1: '질량 m₁', m2: '질량 m₂', v1: '속도 v₁', v2: '속도 v₂', e: '반발계수 e',
         elastic: '탄성 충돌', inelastic: '비탄성 충돌', perfectly_inelastic: '완전비탄성 충돌', noHit: '서로 멀어져 충돌하지 않음',
         pBefore: '운동량 (전)', pAfter: '운동량 (후)', keLoss: '운동에너지 손실', after1: '충돌 후 v₁′', after2: '충돌 후 v₂′', afterV: '충돌 후 함께 V',
@@ -41,11 +42,11 @@ const I18N = {
         } as Record<string, string>,
     },
     en: {
-        incline: 'Block on an Inclined Plane', projectile: 'Projectile Motion', formula: 'Calculation', reset: 'Reset', hint: 'Tap an arrow to see what that force means', hintMotion: 'Tap an arrow for an explanation',
+        incline: 'Block on an Inclined Plane', projectile: 'Projectile Motion', formula: 'Calculation', reset: 'Reset', download: 'Save image', assume: 'Assumptions', hint: 'Tap an arrow to see what that force means', hintMotion: 'Tap an arrow for an explanation',
         forces: 'Forces', components: 'Gravity components', noFriction: 'Frictionless incline', scale: 'Arrow length is proportional to force',
         angle: 'Angle θ', mass: 'Mass m', mu: 'Friction μ', launch: 'Launch θ', speed: 'Speed v₀', time: 'Time t',
         weight: 'Gravity mg', normalF: 'Normal N', parallel: 'Along slope mg sinθ', accel: 'Accel. a', T: 'Flight time T', H: 'Max height H', R: 'Range R', v: 'Speed |v|',
-        slides: 'slides', stays: 'stays (static friction balances)', ideal: 'Idealized model · g = 9.81 m/s²', muNote: ' · μs=μk assumed', projNote: 'Launch and landing at 0 m · equal axis scale',
+        slides: 'slides', stays: 'stays (static friction balances)', ideal: 'g = 9.81 m/s² · no air resistance', muNote: ' · static = kinetic friction', projNote: 'g = 9.81 m/s² · no air resistance · launch and landing at 0 m · equal axis scale',
         collision: 'Collision', before: 'Before', after: 'After', still: 'at rest', m1: 'Mass m₁', m2: 'Mass m₂', v1: 'Velocity v₁', v2: 'Velocity v₂', e: 'Restitution e',
         elastic: 'Elastic collision', inelastic: 'Inelastic collision', perfectly_inelastic: 'Perfectly inelastic', noHit: 'Moving apart — no collision',
         pBefore: 'Momentum (before)', pAfter: 'Momentum (after)', keLoss: 'KE lost', after1: 'After v₁′', after2: 'After v₂′', afterV: 'After, together V',
@@ -124,26 +125,36 @@ const Metrics: React.FC<{ items: [string, string][] }> = ({ items }) => (
     </dl>
 );
 
-const Card: React.FC<{ title: string; sub: string; t: T; hint?: string; children: React.ReactNode; formula: string[]; note: string; onReset: () => void; detail: string | null }> =
-    ({ title, sub, t, hint, children, formula, note, onReset, detail }) => {
+const Card: React.FC<{ title: string; sub: string; t: T; hint?: string; children: React.ReactNode; formula: string[]; note: string; caution?: string;
+    file: string; onReset: () => void; detail: string | null }> =
+    ({ title, sub, t, hint, children, formula, note, caution, file, onReset, detail }) => {
     const [open, setOpen] = useState(false);
+    const fig = useRef<HTMLElement>(null);
+    // 계산 가정은 하단 고정 문구가 아니라 "계산 및 해석" 안에 둔다 — 매번 보이는 각주가 카드 밀도만 높였다
+    const save = () => {
+        const svg = fig.current?.querySelector<SVGSVGElement>('svg[role=img]');
+        if (svg) downloadPhysicsPng(svg, { title, sub, filename: `physics-${file}.png` }).catch(e => console.error('[PhysicsDiagram] PNG 저장 실패', e));
+    };
     return (
-        <figure className="w-full my-4 sm:my-6 rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] shadow-2xl shadow-slate-200/30 dark:shadow-none px-4 sm:px-6 py-4">
+        <figure ref={fig} className="w-full my-4 sm:my-6 rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] shadow-2xl shadow-slate-200/30 dark:shadow-none px-4 sm:px-6 py-4">
             <header className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h3 className="break-keep text-[13px] sm:text-[15px] font-bold text-slate-800 dark:text-slate-100">{title}</h3>
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">{sub}</p>
                 </div>
-                <span className="text-[10px] sm:text-[11px] rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 px-2 py-0.5 flex-shrink-0">Interactive</span>
+                <button onClick={save} title={t.download} aria-label={t.download}
+                    className="text-slate-400 hover:text-indigo-500 transition-colors p-1 flex-shrink-0">
+                    <i className="fa-solid fa-download text-xs" aria-hidden />
+                </button>
             </header>
             {children}
+            {caution && <p className="mt-1 text-[10px] sm:text-[11px] text-amber-600 dark:text-amber-400 break-keep">{caution}</p>}
             <p className="text-[11px] sm:text-[13px] text-slate-600 dark:text-slate-300 mt-2 min-h-5" aria-live="polite">{detail ?? hint ?? t.hint}</p>
-            <button className="mt-2 text-[11px] sm:text-[13px] text-slate-700 dark:text-slate-200" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? '▾' : '▸'} {t.formula}</button>
-            {open && <pre className="mt-1 text-xs leading-relaxed whitespace-pre-wrap rounded-xl bg-slate-50 dark:bg-white/[0.05] text-slate-700 dark:text-slate-200 p-3">{formula.join('\n')}</pre>}
-            <footer className="mt-3 flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="break-keep">{note}</span>
-                <button onClick={onReset} className="flex-shrink-0 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-1">↺ {t.reset}</button>
-            </footer>
+            <div className="mt-2 flex items-center justify-between gap-3">
+                <button className="text-[11px] sm:text-[13px] text-slate-700 dark:text-slate-200" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? '▾' : '▸'} {t.formula}</button>
+                <button onClick={onReset} className="flex-shrink-0 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">↺ {t.reset}</button>
+            </div>
+            {open && <pre className="mt-1 text-xs leading-relaxed whitespace-pre-wrap rounded-xl bg-slate-50 dark:bg-white/[0.05] text-slate-700 dark:text-slate-200 p-3">{[...formula, '', `${t.assume}: ${note}`].join('\n')}</pre>}
         </figure>
     );
 };
@@ -161,7 +172,7 @@ const InclineView: React.FC<{ init: { angleDeg: number; massKg: number; mu?: num
         <Card title={title ?? t.incline} t={t} sub={`${angle}° · ${+mass.toFixed(2)} kg · ${hasMu ? `μ ${mu.toFixed(2)}` : t.noFriction}`}
             detail={sel ? `${LABEL[sel]} — ${t.desc[sel]}` : null}
             onReset={() => { setAngle(init.angleDeg); setMass(init.massKg); setMu(init.mu ?? 0); setSel(null); }}
-            note={`${t.ideal}${hasMu ? t.muNote : ''}`}
+            note={`${t.ideal}${hasMu ? t.muNote : ''}`} file={`inclined-plane-${angle}deg-${+mass.toFixed(2)}kg`}
             formula={[
                 `mg = ${f2(mass)} × 9.81 = ${f2(r.weight)} N`,
                 `N = mg cosθ = ${f2(r.normalForce)} N`,
@@ -207,7 +218,7 @@ const ProjectileView: React.FC<{ init: { launchDeg: number; speed: number }; tit
     const pick = (id: string) => setSel(s => (s === id ? null : id));
     const muted = 'fill-slate-500 dark:fill-slate-400';
     return (
-        <Card title={title ?? t.projectile} t={t} hint={t.hintMotion} sub={`${deg}° · ${speed} m/s · g 9.81`} note={t.projNote}
+        <Card title={title ?? t.projectile} t={t} hint={t.hintMotion} sub={`${deg}° · ${speed} m/s`} note={t.projNote} file={`projectile-${deg}deg-${speed}mps`}
             detail={sel ? `${LABEL[sel]} — ${t.desc[sel]}${sel === 'velocity' ? ` vₓ=${f2(now.vel.x)}, vᵧ=${f2(now.vel.y)} m/s` : ''}` : null}
             onReset={() => { setDeg(init.launchDeg); setSpeed(init.speed); setFrac(0.5); setSel(null); }}
             formula={[`x(t) = v₀ cosθ · t = ${f2(now.pos.x)} m`, `y(t) = v₀ sinθ · t − ½gt² = ${f2(now.pos.y)} m`,
@@ -245,7 +256,7 @@ const CollisionView: React.FC<{ init: CollisionParams; title?: string; t: T }> =
     const sv = (v: number) => `${v > 0 ? '+' : ''}${f2(v)} m/s`;
     return (
         <Card title={title ?? t[init.kind]} t={t} hint={r.collides ? t.hintCol : t.noHit} detail={null}
-            sub={`${t[init.kind]}${init.kind === 'inelastic' ? ` · e ${e.toFixed(2)}` : ''}`} note={t.colNote}
+            sub={`${t[init.kind]}${init.kind === 'inelastic' ? ` · e ${e.toFixed(2)}` : ''}`} note={t.colNote} file={`collision-${init.kind.replace(/_/g, '-')}`}
             onReset={() => { setM1(init.m1); setM2(init.m2); setV1(init.v1); setV2(init.v2); setE(init.e ?? 0.5); }}
             formula={[
                 `p = m₁v₁ + m₂v₂ = ${f2(m1)}·${f2(v1)} + ${f2(m2)}·${f2(v2)} = ${f2(r.pBefore)} kg·m/s`,
@@ -304,7 +315,7 @@ const FreeBodyView: React.FC<{ init: { object: { shape: 'circle' | 'rectangle'; 
     const netText = fb.known ? (fb.balanced ? t.balanced : `${f2(fb.netMag!)} N · ${Math.round(((fb.netDeg! % 360) + 360) % 360)}°`) : null;
     return (
         <Card title={title ?? t.freeBody} t={t} sub={`${init.object.label ? `${init.object.label} · ` : ''}${t.forceCount(init.forces.length)}`}
-            note={fb.known ? t.fbNote : `${t.fbNote} · ${t.fbNoteRel}`} detail={sel ? descOf(sel) : null}
+            note={t.fbNote} caution={fb.known ? undefined : t.fbNoteRel} file="free-body" detail={sel ? descOf(sel) : null}
             onReset={() => { setSel(null); setShowNet(false); }}
             formula={[
                 ...init.forces.map((f, i) => `${name(i)} = ${f.magnitudeN !== undefined ? `${f2(f.magnitudeN)} N` : '?'} @ ${f.angleDeg}°`),
