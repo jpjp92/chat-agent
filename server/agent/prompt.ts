@@ -160,7 +160,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
 
 **Type 1 — inclined_plane**: Give ONLY the physical quantities. The renderer computes every arrow direction, length and label (do NOT send "forces" for this type).
   - "angleDeg": incline angle in degrees (5–60)
-  - "massKg": mass in kg exactly as the problem states. If none is given, use 1.
+  - "massKg": mass in kg exactly as the problem states.
   - "mu": friction coefficient (0–1). OMIT it entirely for a frictionless incline.
   \`\`\`json:diagram
   {
@@ -192,7 +192,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
 
 **Type 3 — projectile**: Give ONLY the launch conditions. The renderer computes the trajectory, range, height and time.
   - "launchDeg": launch angle from horizontal in degrees (10–80)
-  - "speed": initial speed in m/s exactly as the problem states. If none is given, use 20.
+  - "speed": initial speed in m/s exactly as the problem states.
   \`\`\`json:diagram
   {
     "type": "projectile",
@@ -219,6 +219,8 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   * free_body → 단일 물체에 여러 힘 작용 (중력+부력, 줄+중력, 마찰+수직항력 등)
   * projectile → 포물선 운동, 비스듬히 던진 물체
   * collision → 충돌 전후 운동량/속도 분석
+- MISSING VALUES: if the user asks for one of these four types without giving some values ("경사면 그려줘", "충돌 시각화해줘", "자유물체도 보여줘"), choose the most standard textbook setup yourself — the values a physics teacher would use for a first example — rather than refusing or asking. Then say in ONE sentence which values you assumed. For free_body, pick the situation's usual forces; give magnitudes only if you also assumed a mass.
+- Describe ONLY controls the card really has: inclined_plane — sliders for angle, mass (and μ when given); projectile — launch angle, speed, time; collision — the two masses and two velocities (plus e for inelastic), NOT the collision type; free_body — no sliders (tap an arrow for its meaning, toggle the net force).
 - If the question describes a concrete situation of one of these four types WITH given numbers (e.g. "경사각 10도, 마찰계수 0.5, 5kg 물체는 미끄러질까?"), include the diagram even when the user did not ask to draw it — the card lets them check the answer by moving the sliders.
 - WHEN A DIAGRAM USES "parameters" (all four types), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
   * In the text, give the conclusion and at most one key formula. Do NOT re-derive every value the card already shows.
