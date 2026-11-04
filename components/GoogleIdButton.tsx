@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GOOGLE_CLIENT_ID, loadGoogleIdentity, makeRawNonce, sha256Hex, gisLocale, type GoogleCredential } from '../src/lib/google-id';
 
 interface Props {
@@ -21,6 +21,8 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
     // 콜백은 최신 것을 쓰되, 버튼은 언어·테마가 바뀔 때만 다시 그린다.
     const cb = useRef({ onCredential, onUnavailable });
     cb.current = { onCredential, onUnavailable };
+    // GIS 가 iframe 을 그리기 전까지 같은 크기의 알약 자리표시자 — 빈칸에서 버튼이 툭 튀어나오지 않게
+    const [ready, setReady] = useState(false);
 
     useEffect(() => {
         if (!GOOGLE_CLIENT_ID) { cb.current.onUnavailable(); return; }
@@ -54,6 +56,10 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
                     locale: gisLocale(language),
                     width: Math.min(box.current.clientWidth || 320, 400),
                 });
+                // renderButton 은 iframe 을 넣고 바로 돌아온다 — iframe 이 그려질 짧은 틈을 자리표시자가 덮는다
+                const frame = box.current.querySelector('iframe');
+                if (frame) frame.addEventListener('load', () => { if (!cancelled) setReady(true); }, { once: true });
+                setTimeout(() => { if (!cancelled) setReady(true); }, 1500);
             } catch (e) {
                 console.error('[GoogleIdButton] GIS unavailable — falling back to redirect OAuth', e);
                 if (!cancelled) cb.current.onUnavailable();
@@ -63,11 +69,16 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
     }, [language, isDark]);
 
     return (
-        <div
-            ref={box}
-            className={`w-full min-h-[44px] flex justify-center ${disabled ? 'pointer-events-none opacity-60' : ''}`}
-            aria-busy={disabled}
-        />
+        <div className="relative w-full min-h-[44px]">
+            {!ready && (
+                <div aria-hidden className="absolute inset-x-0 top-0 mx-auto h-10 max-w-[400px] rounded-full bg-white border border-slate-200 dark:border-white/10 animate-pulse" />
+            )}
+            <div
+                ref={box}
+                className={`w-full min-h-[44px] flex justify-center transition-opacity duration-200 ${!ready ? 'opacity-0' : disabled ? 'opacity-60' : 'opacity-100'} ${disabled ? 'pointer-events-none' : ''}`}
+                aria-busy={disabled}
+            />
+        </div>
     );
 };
 

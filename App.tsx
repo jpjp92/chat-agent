@@ -16,6 +16,7 @@ import { consumeOAuthError } from './lib/supabase/client';
 import { useChatSessions } from './src/hooks/useChatSessions';
 import { useChatStream } from './src/hooks/useChatStream';
 import { resolveStoredModel, type ChatModelId } from './src/lib/models';
+import { loadGoogleIdentity } from './src/lib/google-id';
 // katex CSS 는 ChatMessage.tsx(지연 로드 청크) 안에서 import 한다 — 초기 CSS 를 키우지 않으려고
 
 const App: React.FC = () => {
@@ -110,6 +111,17 @@ const App: React.FC = () => {
   // link 는 **게스트**에게만. guestHasData 는 정식 사용자에게도 참이다(자기 대화) — 정식 사용자가
   // 이 모달에 오면 지금 계정에 다른 Google 신원이 붙는다 → DEV_261011 §5
   const shouldLinkGuest = (currentUser?.is_guest ?? true) && guestHasData;
+
+  // 게스트는 언젠가 로그인 모달을 연다 — GIS 스크립트를 한가할 때 미리 받아 두면 모달에서 구글 버튼이 카카오보다 늦게 뜨지 않는다
+  const isGuest = currentUser?.is_guest ?? true;
+  useEffect(() => {
+    if (!isGuest || isAuthLoading) return;
+    const run = () => { loadGoogleIdentity().catch(() => { /* 실패해도 모달에서 다시 시도하고, 안 되면 리다이렉트 버튼 */ }); };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) { const id = w.requestIdleCallback(run, { timeout: 4000 }); return () => w.cancelIdleCallback?.(id); }
+    const t = setTimeout(run, 2000);
+    return () => clearTimeout(t);
+  }, [isGuest, isAuthLoading]);
 
 
 
