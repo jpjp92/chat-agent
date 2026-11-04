@@ -532,3 +532,16 @@ export const ROUTER_SEARCH_OFF_RULE: RouterCase[] = [
     { q: '파이썬 리스트 정렬 코드 짜줘', want: 'general', note: '대조 — needsSearch=false 여야' },
     { q: '이 함수 디버그해줘 왜 None 나와', want: 'general', note: '대조 — needsSearch=false 여야' },
 ];
+
+/** 설명 + 그림 복합 요청 — 11-04 "경사면에서 물체가 미끄러지는 원리를 그림과 수식으로…" 가 두 모델 모두 ASCII 로(general 추정). 대조는 그림 없는 설명·계산, 물리 밖 그림. */
+export const ROUTER_VISUAL_EXPLAIN: RouterCase[] = [
+    { q: '경사면에서 물체가 미끄러지는 원리를 그림과 수식으로 쉽게 설명해줘', want: 'physics', note: '원문' },
+    { q: '경사면 운동을 수식과 도해로 설명해줘', want: 'physics', note: '' },
+    { q: '포물선 운동 궤적을 그려서 보여줘', want: 'physics', note: '' },
+    { q: '두 물체 충돌 전후를 비교해서 그림으로 보여줘', want: 'physics', note: '' },
+    { q: '세포 구조를 그림으로 설명해줘', want: 'biology', note: '다른 렌더러도 같은 정의' },
+    { q: '경사면에서 물체가 왜 미끄러져?', want: 'general', note: '대조 — 그림 요청 없음' },
+    { q: '질량 5kg 물체의 경사면 가속도를 계산해줘', want: 'general', alt: ['physics'], note: '대조 — 계산(도해는 physics 일 때 프롬프트가 붙임)' },
+    { q: '힘든 하루를 그림으로 표현해줘', want: 'general', note: '대조 — 물리 밖 그림' },
+    { q: '인터넷 속도를 그래프로 비교해줘', want: 'data_viz', alt: ['general'], note: '대조 — 속도 단어' },
+];
