@@ -3,7 +3,7 @@
  * 방향은 LLM 이 아니라 이 코드가 정하므로(PLAN_PHYSICS_SVG_261103) 방향 오류는 여기서만 잡힌다.
  * 라벨 겹침은 5°~60° × 탭 2 × 폭 2 × 마찰 3 전 장면을 본다 — 각도 하나만 보면 37°~48° 같은 구간 회귀를 놓친다.
  */
-import { incline, projectile, collision, freeBody, FORCE_KINDS, G } from '../lib/physics/model.js';
+import { incline, projectile, collision, freeBody, fixFrictionDirection, FORCE_KINDS, G } from '../lib/physics/model.js';
 import { inclineScene } from '../lib/physics/incline-scene.js';
 import { overlaps, inside, hitsSegment } from '../lib/physics/layout.js';
 import { projectileScene } from '../lib/physics/projectile-scene.js';
@@ -124,6 +124,14 @@ ok(`라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
     ok('물에 뜬 공(49.05 vs 49 N) — 반올림 차는 평형', float.balanced && float.known);
     const push = freeBody([{ kind: 'gravity', angleDeg: 270, magnitudeN: 10 }, { kind: 'normal', angleDeg: 90, magnitudeN: 10 }, { kind: 'applied', angleDeg: 0, magnitudeN: 5 }, { kind: 'friction', angleDeg: 180, magnitudeN: 2 }]);
     ok('수평으로 민 상자 — 알짜힘 3 N 오른쪽', !push.balanced && near(push.netMag!, 3, 1e-9) && near(push.netDeg!, 0, 1e-9));
+    // 11-04 Gemini: 30° 경사면 물체를 free_body 로, 마찰을 150° 로 넣어 ΣF 11.88 N(실제 6.41 N 빗면 아래)
+    const slope = fixFrictionDirection([{ kind: 'gravity', angleDeg: 270, magnitudeN: 19.62 }, { kind: 'normal', angleDeg: 120, magnitudeN: 16.99 }, { kind: 'friction', angleDeg: 150, magnitudeN: 3.4 }]);
+    const sf = freeBody(slope);
+    ok('경사면 마찰 150° → 빗면 위 30° 로, ΣF 6.41 N 빗면 아래(210°)', slope[2].angleDeg === 30 && near(sf.netMag!, 9.81 - 3.4, 0.01) && near(sf.netDeg!, -150, 0.5));
+    const pushed = fixFrictionDirection([{ kind: 'gravity', angleDeg: 270, magnitudeN: 10 }, { kind: 'normal', angleDeg: 90, magnitudeN: 10 }, { kind: 'applied', angleDeg: 0, magnitudeN: 5 }, { kind: 'friction', angleDeg: 0, magnitudeN: 2 }]);
+    ok('수평으로 민 상자 — 마찰을 미는 방향(0°)으로 넣어도 반대(180°)로', pushed[3].angleDeg === 180);
+    const rest = fixFrictionDirection([{ kind: 'gravity', angleDeg: 270 }, { kind: 'normal', angleDeg: 90 }, { kind: 'friction', angleDeg: 170 }]);
+    ok('면을 따라 미는 힘 없음 — 가까운 면 방향(180°)으로만', rest[2].angleDeg === 180);
     ok('크기 일부 없음 — 알짜힘 내지 않음', freeBody([{ kind: 'gravity', angleDeg: 270, magnitudeN: 10 }, { kind: 'tension', angleDeg: 90 }]).net === null);
 
     // 각도 조합: 흔한 배치(상하·좌우·대각) + 같은 방향 중복 + 30° 간격 다수
@@ -148,6 +156,10 @@ ok(`라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
         }
     fails.forEach(f => console.log('🔴', f));
     ok(`자유물체도 라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
+    const horiz = [{ kind: 'applied' as const, angleDeg: 0, magnitudeN: 10 }, { kind: 'friction' as const, angleDeg: 180, magnitudeN: 2 }];
+    const off = freeBodyScene(horiz, { narrow: true, shape: 'rectangle', showNet: false }), on = freeBodyScene(horiz, { narrow: true, shape: 'rectangle', showNet: true });
+    ok('알짜힘 표시를 켜고 꺼도 viewBox 그대로', JSON.stringify(off.viewBox) === JSON.stringify(on.viewBox));
+    ok('가로 힘만 있으면 납작하게(세로/가로 < 0.6)', off.viewBox.h / off.viewBox.w < 0.6, `${(off.viewBox.h / off.viewBox.w).toFixed(2)}`);
 }
 
 // 형식 판정 — 옛 대화(forces 형식)는 canvas 로 남아야 한다

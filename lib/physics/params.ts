@@ -3,7 +3,7 @@
  * 각도는 배치 하니스가 검증한 범위로 자른다(그 밖은 도형이 퇴화). 질량·속력은 화살표 길이가 정규화돼 그림이 깨지지 않으므로
  * 넓게 받는다 — 20kg 로 자르자 "100kg 물체" 답의 카드가 mg 196 N(실제 981 N)으로 나왔다.
  */
-import { FORCE_KINDS, type BodyForce, type CollisionKind, type CollisionParams } from './model';
+import { FORCE_KINDS, fixFrictionDirection, type BodyForce, type CollisionKind, type CollisionParams } from './model';
 
 export type PhysicsData =
     | { type: 'inclined_plane'; title?: string; parameters: { angleDeg: number; massKg: number; mu?: number } }
@@ -61,7 +61,7 @@ export const normalizePhysics = (data: unknown): PhysicsData | null => {
         }
         const o = (p.object ?? {}) as Record<string, unknown>;
         const shape = o.shape === 'rectangle' ? 'rectangle' : 'circle';
-        return { type: 'free_body', title, parameters: { object: { shape, ...(typeof o.label === 'string' ? { label: o.label.slice(0, 8) } : {}) }, forces } };
+        return { type: 'free_body', title, parameters: { object: { shape, ...(typeof o.label === 'string' ? { label: o.label.slice(0, 8) } : {}) }, forces: fixFrictionDirection(forces) } };
     }
     return null;
 };

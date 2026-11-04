@@ -176,6 +176,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - "forces[].angleDeg": 0 = right, 90 = up, 180 = left, 270 = down
   - "forces[].magnitudeN": newtons, ONLY when the problem gives or implies it (use g = 9.81). Give it for ALL forces or omit it for all.
   - "forces[].label": ONLY for kind "other", up to 6 characters.
+  - An object ON AN INCLINE is "inclined_plane", not free_body — that type computes every direction itself.
   \`\`\`json:diagram
   {
     "type": "free_body",

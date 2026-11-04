@@ -93,3 +93,26 @@ export const freeBody = (forces: BodyForce[]) => {
     const netDeg = net && !balanced ? (Math.atan2(net.y, net.x) * 180) / Math.PI : null;
     return { vecs, known, net, netMag, netDeg, balanced };
 };
+
+/**
+ * 마찰 방향 바로잡기 — 마찰은 접촉면을 따라(수직항력에 수직), 다른 힘이 면을 따라 미는 쪽의 반대로 작용한다.
+ * 자유물체도는 각도를 LLM 이 정하는데, 경사면 물체의 마찰을 수직항력과 수직이 아닌 방향으로 넣어(11-04 Gemini, 150°)
+ * 알짜힘이 11.88 N(실제 6.41 N)으로 나왔다. 면을 따라 미는 힘이 없으면(정지·평형) 주어진 각에 가까운 면 방향으로만 맞춘다.
+ */
+export const fixFrictionDirection = (forces: BodyForce[]): BodyForce[] => {
+    const normal = forces.find(f => f.kind === 'normal');
+    if (!normal) return forces;
+    const tan = [(normal.angleDeg + 270) % 360, (normal.angleDeg + 90) % 360];
+    const ux = Math.cos(rad(tan[0])), uy = Math.sin(rad(tan[0]));
+    // 마찰 외 힘들이 면 방향(tan[0])으로 미는 성분 — 크기가 없으면 1 로 본다(방향만 필요)
+    const push = forces.filter(f => f.kind !== 'friction').reduce((s, f) => {
+        const m = f.magnitudeN ?? 1, t = rad(f.angleDeg);
+        return s + m * (Math.cos(t) * ux + Math.sin(t) * uy);
+    }, 0);
+    const diff = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+    return forces.map(f => {
+        if (f.kind !== 'friction') return f;
+        const angleDeg = Math.abs(push) > 1e-6 ? (push > 0 ? tan[1] : tan[0]) : (diff(f.angleDeg, tan[0]) <= diff(f.angleDeg, tan[1]) ? tan[0] : tan[1]);
+        return { ...f, angleDeg };
+    });
+};

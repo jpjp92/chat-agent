@@ -34,15 +34,21 @@ export const freeBodyScene = (forces: BodyForce[], opts: { narrow: boolean; shap
         const L = len(f, ux, uy);
         return { id: `f${i}`, i, kind: f.kind, from, to: { x: from.x + ux * L, y: from.y + uy * L } };
     });
-    if (opts.showNet && fb.net && !fb.balanced && fb.netMag) {
+    // 알짜힘 화살표 끝은 표시 여부와 상관없이 계산해 viewBox 에 넣는다 — 체크박스를 켜고 끌 때 도해가 흔들리지 않게
+    let netTip: Vec | null = null;
+    if (fb.net && !fb.balanced && fb.netMag) {
         const ux = fb.net.x / fb.netMag, uy = -fb.net.y / fb.netMag, L = edge(ux, uy) + Math.max(24, 120 * Math.min(1, fb.netMag / maxN));
-        arrows.push({ id: 'net', i: -1, kind: 'net', from: c, to: { x: c.x + ux * L, y: c.y + uy * L }, net: true });
+        netTip = { x: c.x + ux * L, y: c.y + uy * L };
+        if (opts.showNet) arrows.push({ id: 'net', i: -1, kind: 'net', from: c, to: netTip, net: true });
     }
 
-    // viewBox 는 화살표 끝 + 라벨 여유 — 알짜힘 표시를 켜고 끌 때 흔들리지 않게 최대 길이 원을 넣는다
-    const R = Math.max(half.w, half.h) * 1.5 + 120 + fs * 2.4;
-    const content = bounds([...arrows.map(a => a.to), { x: c.x - R, y: c.y }, { x: c.x + R, y: c.y }, { x: c.x, y: c.y - R }, { x: c.x, y: c.y + R }], [body]);
-    const viewBox = fitViewBox(content, opts.narrow, opts.narrow ? 620 / 520 : 760 / 520);
+    // viewBox 는 실제 화살표 끝 + 라벨 여유. 예전엔 최대 길이 원을 통째로 넣어, 가로 힘만 있는 도해(F·f)가
+    // 위아래로 절반 넘게 비었다(11-04 모바일). 가로로 긴 도해는 760/300 까지 납작해지는 것을 허용한다
+    const m = fs * 2.6;
+    const tips = [...arrows.map(a => a.to), ...(netTip ? [netTip] : [])];
+    const raw = bounds(tips, [body]);
+    const content = { x: raw.x - m, y: raw.y - m, w: raw.w + m * 2, h: raw.h + m * 2 };
+    const viewBox = fitViewBox(content, opts.narrow, opts.narrow ? 620 / 340 : 760 / 300);
 
     const labels: Label[] = [];
     const text = (a: Arrow) => a.net ? 'ΣF' : forces[a.i].kind === 'other' && forces[a.i].label ? forces[a.i].label!.slice(0, 6) : FORCE_SYMBOL[a.kind];
