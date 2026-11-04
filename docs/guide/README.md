@@ -27,7 +27,7 @@
 | 의약품·약국·병원·동물병원 | [Drug](REF_Drug.md), [Pharmacy](REF_Pharmacy.md), [Hospital](REF_Hospital.md), [Vet](REF_Vet.md) |
 | 법령 | [Law](REF_Law.md) |
 | 논문·근거 (PubMed·arXiv) | [Paper](REF_Paper.md) — **arXiv 검색어 3계약**(AND 조립 · 범용어 금지 · 제목 구절 폴백)과 로컬 확인 체크리스트 A~K · 실측 기록 |
-| 차트·과학 시각화 | [Chart](REF_Chart.md), [Biology](REF_Biology.md), [Chemistry](REF_Chemistry.md), [Physics](REF_Physics.md), [Diagram](REF_Diagram.md), [Constellation](REF_Constellation.md) |
+| 차트·과학 시각화 | [Chart](REF_Chart.md), [Biology](REF_Biology.md), [Chemistry](REF_Chemistry.md), [Physics](REF_Physics.md), [Constellation](REF_Constellation.md) |
 
 ## 설계 참고자료
 

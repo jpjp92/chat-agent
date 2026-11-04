@@ -66,7 +66,7 @@ Which intent a message should get (the rules behind the router tests and golden 
 | 🌦️ Weather | Current + 5-day forecast | KMA (Korea), OpenWeather (global) |
 | 🧪 Chemistry | 2D molecule structures | smiles-drawer |
 | 🧬 Biology | 3D protein structures | NGL Viewer (PDB) |
-| 📐 Physics | Diagrams | Canvas 2D |
+| 📐 Physics | Interactive diagrams — incline, projectile, collision, free-body (values computed in code) | SVG + `lib/physics` |
 | ✨ Astronomy | Constellations and sky maps | Canvas + astronomy-engine |
 | 📊 Chart | 9 chart types | ApexCharts |
 
@@ -117,7 +117,7 @@ Step-by-step diagrams (agent flow, URL fetch fallbacks, pill ID, DB/Storage, TTS
 | --- | --- |
 | Frontend | React 19, Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion |
 | Markdown | react-markdown, remark-gfm, remark-math + rehype-katex |
-| Visualization | ApexCharts, smiles-drawer, NGL Viewer, Canvas, astronomy-engine |
+| Visualization | ApexCharts, smiles-drawer, NGL Viewer, SVG (physics), Canvas (sky map), astronomy-engine |
 | Backend | Next.js Route Handlers on Vercel, LangGraph.js, LangChain |
 | AI | Google GenAI SDK, OpenAI Responses API |
 | Data | Supabase (PostgreSQL + Storage) → [REF_DB](docs/guide/REF_DB.md) |

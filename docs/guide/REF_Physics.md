@@ -1,122 +1,102 @@
-# Diagram-Viz: 물리 다이어그램 테스트 가이드
+# Physics: 물리 도해 (`json:diagram`)
 
-`json:diagram` 렌더러로 출력되는 4종 물리 다이어그램 테스트 프롬프트 모음.  
-Canvas 2D 기반 정적 교육용 일러스트 — Matter.js 시뮬레이션은 제거됨.
+인터랙티브 SVG 카드 4종 — 경사면·포물선·충돌·자유물체도. **LLM 은 물리량만 넘기고, 화살표 방향·길이·라벨 자리·결과값은 코드가 계산한다.**
+AI 시안 5개 중 4개가 경사면 벡터 방향을 틀렸고(DEV_261103), canvas 시절에는 LLM 이 쓴 라벨 문자열을 키워드로 찾다가 "중력 (19.6 N)" 의 `N)` 을 수직항력으로 오인했다.
 
----
-
-## 다이어그램 타입 요약
-
-| type | 용도 |
+| 구성 | 위치 |
 |------|------|
-| `inclined_plane` | 경사면 위 물체 + 힘 화살표 |
-| `free_body` | 단일 물체에 작용하는 여러 힘 (자유물체도) |
-| `projectile` | 포물선 궤적 + 속도 분해 |
-| `collision` | 충돌 전·후 속도/운동량 패널 |
+| 물리 계산 | `lib/physics/model.ts` — `incline` · `projectile` · `collision` · `freeBody` |
+| 화면 배치(라벨 후보 탐색·viewBox) | `lib/physics/*-scene.ts`, 공용 `layout.ts` |
+| 형식 판정·범위 | `lib/physics/params.ts` — `normalizePhysics` |
+| 렌더러 | `components/PhysicsDiagram.tsx` (Tailwind, `dark:`, ko/en — es·fr 은 en) |
+| 분기 | `components/ChatMessage.tsx` — 판정 통과는 SVG, 실패(옛 형식)는 `LegacyDiagramNotice` 안내 |
+| 프롬프트 | `server/agent/prompt.ts` `diagram` 조각 — physics 의도일 때만 실린다 |
+| 하니스 | `tests/test-physics-diagram.mts` — 방향 내적·수치 검산·라벨 겹침(경사면 672·포물선 600·충돌 324·자유물체도 288 장면) |
+| 계획·경위 | [PLAN_PHYSICS_SVG_261103](../plans/PLAN_PHYSICS_SVG_261103.md) · [DEV_261103](../logs/2026/11/DEV_261103.md) |
+
+canvas 렌더러(`DiagramRenderer.tsx`)는 11-04 제거. 옛 형식(`forces` 최상위 · `before/after` · `launchAngle`) 블록은 "같은 질문을 다시 하면 새 도해로" 안내 카드로 보인다(운영 잔량 11건).
 
 ---
 
-## 1. inclined_plane — 경사면 힘 다이어그램
+## 의도 분류
 
-```
-"30도 경사면에서 물체에 작용하는 힘을 다이어그램으로 보여줘"
-"45도 경사면의 힘 분석 그려줘"
-"마찰이 없는 경사면에서 중력과 수직항력 다이어그램"
-"경사각 30도, 마찰계수 0.3인 경사면 힘 다이어그램"
-"수직항력과 중력의 관계를 경사면에서 그려줘"
-"mg sinθ와 mg cosθ 분력 시각화 (θ=40도)"
-```
+`physics` 의도일 때만 도해 프롬프트가 실린다. 라우터 정의: "show a physics diagram or simulation — forces on an object (free-body, inclined plane), projectile, collision, …". 설명만 원하면 `general`, **설명을 그림과 함께** 원하면 `physics`([REF_ROUTER_LABELS](REF_ROUTER_LABELS.md) 규칙 3).
 
 ---
 
-## 2. free_body — 자유 물체 다이어그램
+## 스키마
 
-단일 물체에 여러 힘이 동시에 작용하는 경우.  
-angle 규칙: **0=오른쪽, 90=위, 180=왼쪽, 270=아래 (물리 표준)**
+공통: `{ "type": …, "title": 15자 안팎, "parameters": { … } }`. 카드 부제에 조건(각도·질량 등)이 표시되므로 제목은 짧게.
 
-```
-"물속에 잠긴 공에 작용하는 중력, 부력, 항력을 자유물체도로 그려줘"
-"줄에 매달린 물체에 작용하는 중력과 장력 다이어그램"
-"낙하산을 편 물체가 받는 중력과 공기저항 자유물체도"
-"작용·반작용 벽에 기댄 물체의 힘 다이어그램"
-"천장에 매달린 물체에 작용하는 모든 힘 자유물체도"
-"수평면 위 물체에 마찰력·수직항력·중력이 동시에 작용하는 상황 그려줘"
+### inclined_plane — 경사면
+
+```json
+{ "type": "inclined_plane", "title": "경사면 운동", "parameters": { "angleDeg": 30, "massKg": 2, "mu": 0.2 } }
 ```
 
----
+- `angleDeg` 5~60 (밖은 잘린다 — 라벨 배치를 검증한 범위), `massKg` 문제 값 그대로(0.1~10000), `mu` 0~1. **마찰 없는 경사면은 `mu` 생략**(0 을 넣으면 마찰 슬라이더가 생긴다).
+- 오른쪽이 높은 경사면. 탭 "작용하는 힘"(mg·N·f) / "중력 성분 분해"(mg sinθ·mg cosθ). 정지·미끄러짐 판정(μs=μk 단순화).
 
-## 3. projectile — 포물선 운동
+### projectile — 포물선
 
-```
-"45도로 던진 공의 포물선 운동을 다이어그램으로 그려줘"
-"초기 속도 분해(수평·수직 성분)와 포물선 궤적 보여줘"
-"30도 각도로 발사한 물체의 포물선 궤적과 최고점·착지점 표시해줘"
-"포물선 운동에서 최고점 높이 H와 수평 이동 거리 R 표시해줘"
-"60도 각도 포물선 운동, 속도 성분 분해 포함해서 그려줘"
+```json
+{ "type": "projectile", "title": "포물선 운동", "parameters": { "launchDeg": 45, "speed": 20 } }
 ```
 
----
+- `launchDeg` 10~80, `speed` 문제 값 그대로(1~200 m/s). 없으면 20.
+- 가로·세로 같은 축척, 시간 슬라이더, θ 호·v₀ 화살표, H 치수선(발사점 왼쪽), 비행 시간·최고 높이·사거리.
 
-## 4. collision — 충돌 분석
+### collision — 1차원 충돌
 
-```
-"2kg 물체가 3m/s로 1kg 정지 물체와 완전비탄성 충돌하는 과정 다이어그램"
-"완전탄성충돌에서 운동량 보존 전후 비교 그려줘"
-"질량이 같은 두 물체의 정면 충돌 전후 속도 변화 다이어그램"
-"무거운 공이 가벼운 정지된 공에 충돌 후 속도 변화 그림"
-"비탄성 충돌에서 충돌 전후 운동에너지 손실 다이어그램"
+```json
+{ "type": "collision", "title": "완전비탄성 충돌", "parameters": { "m1": 2, "v1": 3, "m2": 1, "v2": 0, "kind": "perfectly_inelastic" } }
 ```
 
----
+- 1 이 왼쪽, + 가 오른쪽(왼쪽으로 가면 음수). `kind`: `elastic` | `inelastic` | `perfectly_inelastic`. `e`(반발계수 0~1)는 `inelastic` 이고 문제에 있을 때만.
+- 충돌 후 속도는 운동량 보존 + 반발계수로 렌더러가 계산. 서로 다가가지 않으면 "충돌하지 않음".
 
-## 스키마 참조
+### free_body — 자유물체도
 
-### free_body
 ```json
 {
-  "type": "free_body",
-  "title": "물에 잠긴 공",
-  "object": { "shape": "circle", "label": "공" },
-  "forces": [
-    { "label": "중력 (mg)", "angle": 270, "magnitude": 1.5, "color": "#3b82f6" },
-    { "label": "부력 (F)",  "angle": 90,  "magnitude": 1.0, "color": "#f59e0b" },
-    { "label": "항력 (D)",  "angle": 180, "magnitude": 0.4, "color": "#ef4444" }
-  ]
+  "type": "free_body", "title": "물에 뜬 공",
+  "parameters": {
+    "object": { "shape": "circle", "label": "공" },
+    "forces": [
+      { "kind": "gravity", "angleDeg": 270, "magnitudeN": 4.91 },
+      { "kind": "buoyancy", "angleDeg": 90, "magnitudeN": 4.91 }
+    ]
+  }
 }
 ```
 
-### projectile
-```json
-{
-  "type": "projectile",
-  "title": "포물선 운동 (45°)",
-  "launchAngle": 45,
-  "label": "공",
-  "showComponents": true
-}
-```
-
-### collision
-```json
-{
-  "type": "collision",
-  "title": "완전비탄성 충돌",
-  "elastic": false,
-  "before": [
-    { "label": "A", "mass": "2kg", "velocity": 3,    "color": "#3b82f6" },
-    { "label": "B", "mass": "1kg", "velocity": 0,    "color": "#ef4444" }
-  ],
-  "after": [
-    { "label": "A+B", "mass": "3kg", "velocity": 2.0, "color": "#8b5cf6" }
-  ]
-}
-```
+- `kind`: `gravity`·`normal`·`friction`·`tension`·`buoyancy`·`drag`·`applied`·`spring`·`other` → 기호 mg·N·f·T·F_b·D·F·F_s. `label` 은 `other` 만(6자).
+- `angleDeg`: 0 = 오른쪽, 90 = 위(물리 표준). `magnitudeN` 은 **전부 주거나 전부 생략** — 전부 있을 때만 알짜힘 계산(합의 0.5% 미만은 평형). 없으면 같은 길이 + 각주.
+- 힘 1~8개. 같은 방향(±8°) 화살표는 옆으로 비켜 그린다.
 
 ---
 
-## Tips
+## 테스트 프롬프트
 
-- **color 권장**: 중력 `#3b82f6`(파랑), 수직항력 `#f59e0b`(주황), 마찰력 `#ef4444`(빨강), 부력 `#10b981`(초록)
-- **free_body angle**: 물리 표준 (90=위). 경사면 type의 angle(90=아래)과 반대이므로 주의
-- **magnitude**: 상대적 비율값 (1.0 = 중간 화살표), 실제 수치가 아님
-- **collision velocity**: 양수=오른쪽, 음수=왼쪽. 단위는 m/s 표기 권장
+| 질문 | 기대 |
+|------|------|
+| 경사각 30도 빗면에서 마찰계수 0.2인 2kg 물체에 작용하는 힘 그려줘 | a 3.21 m/s², f 는 빗면 위쪽 |
+| 경사각 10도, 마찰계수 0.5, 5kg 물체는 미끄러질까? | 도해 포함, 정지(a 0) |
+| 마찰 없는 37도 경사면 위 물체의 힘 분석해줘 | a 5.90, μ 슬라이더·f 없음 |
+| 100kg 물체가 30도 경사면에 있을 때 힘 그려줘 | mg 981.00 N(잘리지 않음) |
+| 초속 20m/s, 발사각 60도 포물선 운동 그려줘 | T 3.53 · H 15.29 · R 35.31 |
+| 10도로 낮게 던진 공의 궤적 보여줘 | 속력 기본 20, v₀ 라벨이 화살표 끝 |
+| 2kg 공이 3m/s로 정지한 1kg 공과 완전비탄성 충돌하는 상황 그려줘 | 함께 +2.00 m/s, 손실 3.00 J |
+| 5kg 물체가 2m/s, 1kg 물체가 반대 방향 6m/s, 반발계수 0.5로 충돌 | 0 · +4.00 m/s, 손실 20.00 J |
+| 물에 뜬 공에 작용하는 힘 그려줘 | 평형(알짜힘 0) |
+| 10kg 상자를 40N으로 수평으로 밀고 마찰계수 0.3일 때 자유물체도 | ΣF 10.57 N 오른쪽 |
+| 경사면에서 물체가 미끄러지는 원리를 그림과 수식으로 쉽게 설명해줘 | physics 의도 → 경사면 카드 |
+| 경사면에서 물체가 왜 미끄러져? | general — 텍스트 답 |
+
+화면 확인: 모바일 폭(축약 라벨 `mg∥`·`H`·`R`, 슬라이더 한 줄씩, 지표 2×2) · 라이트/다크 · 영어 질문은 영어 카드.
+
+---
+
+## 답변 본문 규칙 (프롬프트)
+
+카드가 값·계산을 보여 주므로 본문은 결론과 핵심 식 하나만. 숫자를 쓰면 g = 9.81(카드와 일치). 수치 조건이 있는 예/아니오 질문에도 도해를 붙인다.
