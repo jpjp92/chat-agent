@@ -219,6 +219,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   * free_body → 단일 물체에 여러 힘 작용 (중력+부력, 줄+중력, 마찰+수직항력 등)
   * projectile → 포물선 운동, 비스듬히 던진 물체
   * collision → 충돌 전후 운동량/속도 분석
+- If the question describes a concrete situation of one of these four types WITH given numbers (e.g. "경사각 10도, 마찰계수 0.5, 5kg 물체는 미끄러질까?"), include the diagram even when the user did not ask to draw it — the card lets them check the answer by moving the sliders.
 - WHEN A DIAGRAM USES "parameters" (all four types), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
   * In the text, give the conclusion and at most one key formula. Do NOT re-derive every value the card already shows.
   * Any number you do write must use g = 9.81 m/s² so it matches the card.

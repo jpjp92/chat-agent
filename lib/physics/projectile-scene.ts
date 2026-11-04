@@ -47,7 +47,9 @@ export const projectileScene = (p: ProjectileParams, opts: { frac: number; narro
         { id: 'velocity', from: ball, to: { x: ball.x + now.vel.x * VS, y: ball.y - now.vel.y * VS } },
         { id: 'gravity', from: ball, to: { x: ball.x, y: ball.y + GLEN } },
     ];
-    const segs: [Vec, Vec][] = [...arrows.map(a => [a.from, a.to] as [Vec, Vec]), [{ x: hx, y: oy }, { x: hx, y: peak.y }], [{ x: hx, y: peak.y }, peak]];
+    // 최고점 가로 점선은 장애물에서 뺀다 — 라벨은 배경색 테두리라 가는 점선 위에 얹혀도 읽힌다.
+    // 넣어 두면 낮은 발사각에서 v₀ 화살표 위가 전부 막혀 라벨이 바닥 아래로 밀렸다
+    const segs: [Vec, Vec][] = [...arrows.map(a => [a.from, a.to] as [Vec, Vec]), [{ x: hx, y: oy }, { x: hx, y: peak.y }]];
 
     const labels: Label[] = [...fixed];
     const ok = (rc: Rect) => inside(rc, viewBox) && !overlaps(rc, ballRect) && !labels.some(l => overlaps(rc, l.rect))

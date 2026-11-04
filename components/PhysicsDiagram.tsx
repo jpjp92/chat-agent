@@ -102,7 +102,7 @@ const Arrow: React.FC<{ id: string; from: Vec; to: Vec; dashed?: boolean; sel: s
 
 const Slider: React.FC<{ label: string; value: number; range: readonly [number, number]; step: number; unit: string; onChange: (n: number) => void }> =
     ({ label, value, range, step, unit, onChange }) => (
-    <label className="grid grid-cols-[4.75rem_minmax(0,1fr)_3.5rem] sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-2.5 text-[11px] sm:text-[13px] min-h-8 sm:min-h-11 min-w-0">
+    <label className="grid grid-cols-[4.75rem_minmax(0,1fr)_3.5rem] sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-2.5 text-[11px] sm:text-[13px] min-h-9 sm:min-h-11 min-w-0">
         <span className="text-slate-600 dark:text-slate-300">{label}</span>
         <input type="range" min={range[0]} max={range[1]} step={step} value={value} aria-label={label} onChange={e => onChange(Number(e.target.value))}
             className="w-full min-w-0 accent-indigo-500" />
