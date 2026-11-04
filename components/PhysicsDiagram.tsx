@@ -62,6 +62,48 @@ const I18N = {
             applied: 'Applied force — an external push or pull.', spring: 'Spring force — opposite to stretch or compression.', other: 'Force given in the problem.', net: 'Net force — vector sum of all forces; same direction as acceleration.',
         } as Record<string, string>,
     },
+    es: {
+        incline: 'Cuerpo en un plano inclinado', projectile: 'Movimiento parabólico', formula: 'Cálculos y explicación', reset: 'Restablecer', download: 'Guardar imagen', assume: 'Supuestos', hint: 'Toca una flecha para ver qué significa esa fuerza', hintMotion: 'Toca una flecha para ver la explicación',
+        forces: 'Fuerzas', components: 'Componentes del peso', noFriction: 'Plano sin fricción', scale: 'La longitud de la flecha es proporcional a la fuerza',
+        angle: 'Ángulo θ', mass: 'Masa m', mu: 'Fricción μ', launch: 'Ángulo θ', speed: 'Rapidez v₀', time: 'Tiempo t',
+        weight: 'Peso mg', normalF: 'Normal N', parallel: 'Componente mg sinθ', accel: 'Aceleración a', T: 'Tiempo de vuelo T', H: 'Altura máx. H', R: 'Alcance R', v: 'Rapidez |v|',
+        slides: 'se desliza', stays: 'en reposo (la fricción estática equilibra)', ideal: 'g = 9.81 m/s² · sin resistencia del aire', muNote: ' · fricción estática = cinética', projNote: 'g = 9.81 m/s² · sin resistencia del aire · lanzamiento y caída a 0 m · misma escala en ambos ejes',
+        collision: 'Colisión', before: 'Antes', after: 'Después', still: 'en reposo', m1: 'Masa m₁', m2: 'Masa m₂', v1: 'Velocidad v₁', v2: 'Velocidad v₂', e: 'Restitución e',
+        elastic: 'Colisión elástica', inelastic: 'Colisión inelástica', perfectly_inelastic: 'Perfectamente inelástica', noHit: 'Se alejan — no hay colisión',
+        pBefore: 'Momento (antes)', pAfter: 'Momento (después)', keLoss: 'Energía cinética perdida', after1: 'Después v₁′', after2: 'Después v₂′', afterV: 'Después, juntos V',
+        colNote: '1-D · derecha es + · longitud de flecha ∝ rapidez', hintCol: 'Cambia la masa y la velocidad con los controles',
+        freeBody: 'Diagrama de cuerpo libre', net: 'Fuerza neta', balanced: 'Equilibrio (fuerza neta 0)', showNet: 'Mostrar fuerza neta', fbNote: 'Ángulos: 0° = derecha, 90° = arriba',
+        fbNoteRel: 'Sin magnitudes — flechas de igual longitud', forceCount: (n: number) => `${n} fuerzas`,
+        desc: {
+            weight: 'Peso — masa × g, siempre hacia abajo.', normal: 'Fuerza normal — la superficie empuja, perpendicular a ella, de magnitud mg cosθ.',
+            friction: 'Fricción — se opone al deslizamiento (hacia arriba del plano).', parallel: 'Componente del peso a lo largo del plano — parte de mg, no otra fuerza.',
+            perpendicular: 'Componente del peso hacia la superficie — igual y opuesta a N.', velocity: 'Velocidad instantánea. Sin aire, la parte horizontal es constante.',
+            gravity: 'Aceleración de la gravedad 9.81 m/s² — siempre hacia abajo, constante.', v0: 'Velocidad inicial — en la dirección θ, magnitud v₀.',
+            tension: 'Tensión — tira a lo largo de la cuerda.', buoyancy: 'Empuje — el peso del fluido desplazado, hacia arriba.', drag: 'Arrastre — se opone al movimiento en un fluido.',
+            applied: 'Fuerza aplicada — un empuje o tirón externo.', spring: 'Fuerza elástica — opuesta al estiramiento o compresión.', other: 'Fuerza dada en el problema.', net: 'Fuerza neta — suma vectorial de todas las fuerzas; misma dirección que la aceleración.',
+        } as Record<string, string>,
+    },
+    fr: {
+        incline: 'Objet sur un plan incliné', projectile: 'Mouvement parabolique', formula: 'Calculs et explications', reset: 'Réinitialiser', download: 'Enregistrer l’image', assume: 'Hypothèses', hint: 'Touchez une flèche pour voir ce que représente cette force', hintMotion: 'Touchez une flèche pour voir l’explication',
+        forces: 'Forces', components: 'Composantes du poids', noFriction: 'Plan sans frottement', scale: 'La longueur des flèches est proportionnelle à la force',
+        angle: 'Angle θ', mass: 'Masse m', mu: 'Frottement μ', launch: 'Angle θ', speed: 'Vitesse v₀', time: 'Temps t',
+        weight: 'Poids mg', normalF: 'Réaction N', parallel: 'Composante mg sinθ', accel: 'Accélération a', T: 'Durée du vol T', H: 'Hauteur max. H', R: 'Portée R', v: 'Vitesse |v|',
+        slides: 'glisse', stays: 'immobile (le frottement statique équilibre)', ideal: 'g = 9.81 m/s² · sans frottement de l’air', muNote: ' · frottement statique = dynamique', projNote: 'g = 9.81 m/s² · sans frottement de l’air · départ et arrivée à 0 m · même échelle sur les deux axes',
+        collision: 'Collision', before: 'Avant', after: 'Après', still: 'au repos', m1: 'Masse m₁', m2: 'Masse m₂', v1: 'Vitesse v₁', v2: 'Vitesse v₂', e: 'Restitution e',
+        elastic: 'Collision élastique', inelastic: 'Collision inélastique', perfectly_inelastic: 'Parfaitement inélastique', noHit: 'Ils s’éloignent — pas de collision',
+        pBefore: 'Quantité de mvt (avant)', pAfter: 'Quantité de mvt (après)', keLoss: 'Énergie cinétique perdue', after1: 'Après v₁′', after2: 'Après v₂′', afterV: 'Après, ensemble V',
+        colNote: '1-D · la droite est + · longueur des flèches ∝ vitesse', hintCol: 'Modifiez la masse et la vitesse avec les curseurs',
+        freeBody: 'Diagramme des forces', net: 'Force résultante', balanced: 'Équilibre (résultante 0)', showNet: 'Afficher la résultante', fbNote: 'Angles : 0° = droite, 90° = haut',
+        fbNoteRel: 'Intensités non données — flèches de même longueur', forceCount: (n: number) => `${n} forces`,
+        desc: {
+            weight: 'Poids — masse × g, toujours vers le bas.', normal: 'Réaction normale — la surface repousse, perpendiculaire à elle, d’intensité mg cosθ.',
+            friction: 'Frottement — s’oppose au glissement (vers le haut du plan).', parallel: 'Composante du poids le long du plan — une partie de mg, pas une autre force.',
+            perpendicular: 'Composante du poids vers la surface — égale et opposée à N.', velocity: 'Vitesse instantanée. Sans air, la composante horizontale est constante.',
+            gravity: 'Accélération de la pesanteur 9.81 m/s² — toujours vers le bas, constante.', v0: 'Vitesse initiale — dans la direction θ, intensité v₀.',
+            tension: 'Tension — tire le long du fil.', buoyancy: 'Poussée d’Archimède — le poids du fluide déplacé, vers le haut.', drag: 'Traînée — s’oppose au mouvement dans un fluide.',
+            applied: 'Force appliquée — une poussée ou traction extérieure.', spring: 'Force de rappel — opposée à l’allongement ou à la compression.', other: 'Force donnée dans l’énoncé.', net: 'Force résultante — somme vectorielle des forces ; même direction que l’accélération.',
+        } as Record<string, string>,
+    },
 };
 type T = typeof I18N.ko;
 const f2 = (n: number) => n.toFixed(2);
@@ -357,8 +399,7 @@ const FreeBodyView: React.FC<{ init: { object: { shape: 'circle' | 'rectangle'; 
 };
 
 export const PhysicsDiagram: React.FC<{ data: PhysicsData; language?: Lang }> = ({ data, language = 'ko' }) => {
-    // es·fr 문구는 아직 없다 — 기호가 대부분이라 영어로 둔다
-    const t = language === 'ko' ? I18N.ko : I18N.en;
+    const t: T = I18N[language] ?? I18N.ko;
     if (data.type === 'collision') return <CollisionView init={data.parameters} title={data.title} t={t} />;
     if (data.type === 'free_body') return <FreeBodyView init={data.parameters} title={data.title} t={t} />;
     return data.type === 'projectile'
