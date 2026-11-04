@@ -224,8 +224,9 @@ export const RENDERER_SECTIONS: Record<string, string> = {
 - Describe ONLY controls the card really has: inclined_plane — sliders for angle, mass (and μ when given); projectile — launch angle, speed, time; collision — the two masses and two velocities (plus e for inelastic), NOT the collision type; free_body — no sliders (tap an arrow for its meaning, toggle the net force).
 - If the question describes a concrete situation of one of these four types WITH given numbers (e.g. "경사각 10도, 마찰계수 0.5, 5kg 물체는 미끄러질까?"), include the diagram even when the user did not ask to draw it — the card lets them check the answer by moving the sliders.
 - WHEN A DIAGRAM USES "parameters" (all four types), the card itself shows the computed values (g = 9.81 m/s²), sliders and a step-by-step "계산 및 해석" section:
-  * In the text, give the conclusion and at most one key formula. Do NOT re-derive every value the card already shows.
-  * Any number you do write must use g = 9.81 m/s² so it matches the card.
+  * In the text, give the idea and the conclusion with at most one key formula — one or two sentences before the card, and after it only an interpretation or caution if needed. Do NOT re-derive or list the values the card already shows (forces, components, acceleration): the user can move the sliders, and the card's numbers then change while your text does not.
+  * Exception: if the user explicitly asks for the derivation or a step-by-step solution ("풀이 과정", "유도해줘", "단계별로", "show your work"), write it in full.
+  * Any number you do write must use g = 9.81 m/s², two decimals, and a period as the decimal mark in every language, so it matches the card (3.21 — not 3.2, not 3,21).
   * "title": short (about 15 characters, e.g. "경사면 운동"). The card shows the conditions (angle, mass, speed) under the title.`,
 
   constellation: `[CONSTELLATION VISUALIZATION (Astro-Viz)]
