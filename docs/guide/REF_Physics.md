@@ -8,7 +8,7 @@ AI 시안 5개 중 4개가 경사면 벡터 방향을 틀렸고(DEV_261103), can
 | 물리 계산 | `lib/physics/model.ts` — `incline` · `projectile` · `collision` · `freeBody` |
 | 화면 배치(라벨 후보 탐색·viewBox) | `lib/physics/*-scene.ts`, 공용 `layout.ts` |
 | 형식 판정·범위 | `lib/physics/params.ts` — `normalizePhysics` |
-| 렌더러 | `components/PhysicsDiagram.tsx` (Tailwind, `dark:`, ko/en — es·fr 은 en) |
+| 렌더러 | `components/PhysicsDiagram.tsx` (Tailwind, `dark:`, ko·en·es·fr — 키 누락은 타입 검사가 잡는다. 소수점은 언어와 무관하게 `.`) |
 | PNG 저장 | `components/physics-export.ts` — 카드 SVG 복제 + 계산된 색을 속성으로 옮김 + 제목·조건 줄, 2배 래스터. 파일명 `physics-inclined-plane-30deg-2kg.png` 식 |
 | 분기 | `components/ChatMessage.tsx` — 판정 통과는 SVG, 실패(옛 형식)는 `LegacyDiagramNotice` 안내 |
 | 프롬프트 | `server/agent/prompt.ts` `diagram` 조각 — physics 의도일 때만 실린다 |
@@ -74,6 +74,7 @@ canvas 렌더러(`DiagramRenderer.tsx`)는 11-04 제거. 옛 형식(`forces` 최
 - `kind`: `gravity`·`normal`·`friction`·`tension`·`buoyancy`·`drag`·`applied`·`spring`·`other` → 기호 mg·N·f·T·F_b·D·F·F_s. `label` 은 `other` 만(6자).
 - `angleDeg`: 0 = 오른쪽, 90 = 위(물리 표준). `magnitudeN` 은 **전부 주거나 전부 생략** — 전부 있을 때만 알짜힘 계산(합의 0.5% 미만은 평형). 없으면 같은 길이 + 각주.
 - 힘 1~8개. 같은 방향(±8°) 화살표는 옆으로 비켜 그린다.
+- 화살표는 물체 가운데서 나가되 물체 밖 길이만 크기에 비례(경사면 밖 최소 14px — 화살촉 길이, 자유물체도 24px). 작은 힘이 상자에 묻히지 않게.
 - 수직항력이 있으면 마찰 방향은 코드가 바로잡는다(면 방향, 다른 힘이 면을 따라 미는 쪽의 반대 — `fixFrictionDirection`). 경사면 위 물체는 `inclined_plane` 으로.
 
 ---
@@ -147,6 +148,9 @@ physics 의도지만 맞는 카드가 없다 — 차트·근사 도해·텍스�
 ### F. 화면·내보내기
 
 - 영어: `Draw projectile motion at 45 degrees, 20 m/s` → 영어 카드, 저장 버튼 "Save image", "Assumptions" 줄
+- 스페인어: `Dibuja las fuerzas sobre un bloque de 2 kg en un plano inclinado de 30° con μ = 0.2` → "Fuerzas"·"Ángulo θ"·"Restablecer"
+- 프랑스어: `Montre une collision parfaitement inélastique entre 2 kg à 3 m/s et 1 kg au repos` → "Avant/Après"·"Réinitialiser"
+- 풀이 요청: `경사각 30도 마찰계수 0.2 2kg 물체 가속도 풀이 과정까지 보여줘` → 카드 + 본문 단계별 풀이(예외 규칙)
 - 경사면 카드에서 경사각 45° 로 바꾸고 저장 → `physics-inclined-plane-45deg-2kg.png`, 그림·제목 줄이 45°
 - 화살표 하나 선택 후 저장 → 나머지 흐린 채로 저장 · 라이트/다크 각각 테마 색
 - 모바일(iPhone 폭): 축약 라벨(`mg∥`·`H`·`R`), 슬라이더 한 줄씩·칸 정렬, 지표 2×2, 헤더 제목과 저장 아이콘 겹침 없음
