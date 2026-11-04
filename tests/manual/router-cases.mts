@@ -545,3 +545,35 @@ export const ROUTER_VISUAL_EXPLAIN: RouterCase[] = [
     { q: '힘든 하루를 그림으로 표현해줘', want: 'general', note: '대조 — 물리 밖 그림' },
     { q: '인터넷 속도를 그래프로 비교해줘', want: 'data_viz', alt: ['general'], note: '대조 — 속도 단어' },
 ];
+
+/**
+ * 일반 물리 질문 — 의도와 기대 응답 형태. note 의 "→" 뒤가 응답 기대(카드 4종 · 차트 · 텍스트).
+ * 기준: 설명·계산만 원하면 general(텍스트), 그림을 원하면 physics. physics 인데 카드 4종 밖이면 차트나 텍스트(아직 카드 없음).
+ */
+export const ROUTER_PHYSICS_CONCEPTS: RouterCase[] = [
+    // 개념 설명 — 그림 요청 없음 → general · 텍스트
+    { q: '뉴턴 제2법칙이 뭐야?', want: 'general', note: '→ 텍스트(F = ma)' },
+    { q: '관성이 뭔지 쉽게 설명해줘', want: 'general', note: '→ 텍스트' },
+    { q: '운동량 보존 법칙 설명해줘', want: 'general', note: '→ 텍스트' },
+    { q: '마찰력은 왜 생겨?', want: 'general', note: '→ 텍스트' },
+    { q: '작용 반작용 예시 알려줘', want: 'general', note: '→ 텍스트' },
+    { q: '일과 에너지의 관계가 뭐야', want: 'general', note: '→ 텍스트' },
+    { q: '왜 무거운 물체와 가벼운 물체가 동시에 떨어져?', want: 'general', note: '→ 텍스트(공기저항 없을 때)' },
+    { q: '하늘은 왜 파래?', want: 'general', note: '→ 텍스트(레일리 산란) — 물리지만 역학 아님' },
+    // 계산 — 그림 요청 없음 → general, 단 physics 도 허용(그 경우 카드가 붙는다)
+    { q: '10m 높이에서 떨어뜨린 공이 땅에 닿는 시간은?', want: 'general', alt: ['physics'], note: '→ 텍스트 계산(1.43 s)' },
+    { q: '시속 72km로 달리던 차가 5초 만에 멈추면 가속도는?', want: 'general', alt: ['physics'], note: '→ 텍스트 계산(−4 m/s²)' },
+    // 그림 요청 + 카드 4종 → physics · 카드
+    { q: '뉴턴 제2법칙을 그림으로 설명해줘', want: 'physics', note: '→ 자유물체도 카드(가정 값 한 문장)' },
+    { q: '작용 반작용을 그림으로 보여줘', want: 'physics', note: '→ 자유물체도 카드' },
+    { q: '운동량 보존을 시각화해서 보여줘', want: 'physics', note: '→ 충돌 카드' },
+    { q: '수평으로 던진 공의 궤적 그려줘', want: 'physics', note: '→ 포물선 카드(수평 발사는 10° 하한으로 근사 — 주의)' },
+    // 그림 요청 + 카드 밖 → physics · 차트 또는 텍스트(카드 없음)
+    { q: '단진자 운동 시뮬레이션 보여줘', want: 'physics', note: '→ 카드 없음: 차트(시간–변위) 또는 텍스트' },
+    { q: '용수철 진동 그래프 그려줘', want: 'physics', alt: ['data_viz'], note: '→ 차트' },
+    { q: '자유낙하 속도-시간 그래프 보여줘', want: 'physics', alt: ['data_viz'], note: '→ 차트' },
+    { q: '등속 원운동 구심력 그림으로 설명해줘', want: 'physics', note: '→ 카드 없음: 자유물체도로 근사 또는 텍스트' },
+    // 물리 밖 · 경계
+    { q: '전기회로 옴의 법칙 설명해줘', want: 'general', note: '→ 텍스트' },
+    { q: '양자역학 불확정성 원리 쉽게 알려줘', want: 'general', note: '→ 텍스트' },
+];
