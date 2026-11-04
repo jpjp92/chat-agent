@@ -29,8 +29,8 @@ import { splitInlineDisplayMath } from '../utils/mathNormalize';
 const ChartRenderer = lazy(() => import('./ChartRenderer'));
 const ChemicalRenderer = lazy(() => import('./ChemicalRenderer'));
 const BioRenderer = lazy(() => import('./BioRenderer'));
-const DiagramRenderer = lazy(() => import('./DiagramRenderer').then(module => ({ default: module.DiagramRenderer })));
 const PhysicsDiagram = lazy(() => import('./PhysicsDiagram').then(module => ({ default: module.PhysicsDiagram })));
+const LegacyDiagramNotice = lazy(() => import('./PhysicsDiagram').then(module => ({ default: module.LegacyDiagramNotice })));
 const ConstellationRenderer = lazy(() => import('./ConstellationRenderer'));
 const DrugRenderer = lazy(() => import('./DrugRenderer').then(module => ({ default: module.DrugRenderer })));
 const PharmacyRenderer = lazy(() => import('./PharmacyRenderer').then(module => ({ default: module.PharmacyRenderer })));
@@ -728,12 +728,12 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
             );
           }
           if (part.type === 'diagram') {
-            // parameters 형식만 SVG — 옛 대화의 forces 형식은 canvas 그대로
+            // parameters 형식만 그린다 — 옛 형식(forces·before/after)은 canvas 를 지우며 안내로 바꿨다(DEV_261103 4-C)
             const physics = normalizePhysics(part.data);
             return (
               <ErrorBoundary key={idx}>
                 <Suspense fallback={<LoadingFallback />}>
-                  {physics ? <PhysicsDiagram data={physics} language={language} /> : <DiagramRenderer data={part.data} language={language} />}
+                  {physics ? <PhysicsDiagram data={physics} language={language} /> : <LegacyDiagramNotice language={language} />}
                 </Suspense>
               </ErrorBoundary>
             );

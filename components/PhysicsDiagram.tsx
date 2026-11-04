@@ -10,7 +10,7 @@ import { RANGE, SLIDER, sliderRange, type PhysicsData } from '../lib/physics/par
 
 /**
  * 물리 도해 SVG — json:diagram 의 `parameters` 형식(PLAN_PHYSICS_SVG_261103).
- * 좌표·라벨 자리는 lib/physics 가 계산하고 여기서는 그리기만 한다. 옛 `forces` 형식은 DiagramRenderer canvas 가 그린다.
+ * 좌표·라벨 자리는 lib/physics 가 계산하고 여기서는 그리기만 한다. 옛 형식은 그리지 않고 LegacyDiagramNotice 로 안내한다.
  */
 
 type Lang = 'ko' | 'en' | 'es' | 'fr';
@@ -354,3 +354,16 @@ export const PhysicsDiagram: React.FC<{ data: PhysicsData; language?: Lang }> = 
         ? <ProjectileView init={data.parameters} title={data.title} t={t} />
         : <InclineView init={data.parameters} title={data.title} t={t} />;
 };
+
+// 옛 형식 도해(canvas 시절 forces·before/after) — 질량·마찰계수가 없어 새 도해로 옮길 수 없다. 운영 잔량 11건(11-04)
+const LEGACY: Record<string, string> = {
+    ko: '이전 형식의 도해라 표시할 수 없습니다. 같은 질문을 다시 하면 새 도해로 보여 드립니다.',
+    en: 'This diagram uses an older format and can’t be shown. Ask again to get the new diagram.',
+    es: 'Este diagrama usa un formato antiguo. Vuelve a preguntar para ver el nuevo.',
+    fr: 'Ce schéma utilise un ancien format. Repose la question pour obtenir le nouveau.',
+};
+export const LegacyDiagramNotice: React.FC<{ language?: Lang }> = ({ language = 'ko' }) => (
+    <div className="w-full my-4 rounded-2xl border border-dashed border-slate-300 dark:border-white/10 px-4 py-3 text-xs sm:text-[13px] text-slate-500 dark:text-slate-400">
+        <i className="fa-solid fa-diagram-project mr-2" aria-hidden />{LEGACY[language] ?? LEGACY.ko}
+    </div>
+);

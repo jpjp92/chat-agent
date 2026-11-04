@@ -3,7 +3,6 @@
   "entry": [
     "tests/*.mts",
     "tests/manual/**/*.{mts,mjs,ts}",
-    "tests/manual/prototypes/*-entry.tsx",
     "tests/lib/server-only-stub.ts",
     "docs/**/*.mjs"
   ],
