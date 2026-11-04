@@ -41,6 +41,7 @@ flowchart TB
 - **로그인·로그아웃 뒤엔 새로고침**하되 주소의 `#access_token…` 을 버린다(`location.replace`). 리다이렉트(implicit) 로그인 뒤 토큰이 해시에 남고,
   그대로 `reload()` 하면 끝난 세션 토큰을 다시 싣는다(카카오 → 로그아웃 → Google 실패, 10-11). 세션 확보 직후에도 `stripAuthHash()`.
 - **폴백**: `NEXT_PUBLIC_GOOGLE_CLIENT_ID` 가 없거나 GIS 스크립트가 막히면(6s) 기존 Google 리다이렉트 버튼. 로그인이 깨지지 않는다.
+- **표시 지연**(11-04): GIS 버튼은 모달이 열린 뒤 스크립트·iframe 을 받아야 떠서 카카오(우리 `<button>`)보다 늦었다. 게스트는 앱 유휴 시간에 `loadGoogleIdentity()` 선로딩(`App.tsx`), 버튼 자리는 iframe `load`(최대 1.5s)까지 같은 크기 알약 자리표시자(`GoogleIdButton.tsx`).
 
 ## 3. 공급자별
 
