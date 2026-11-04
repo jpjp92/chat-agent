@@ -30,8 +30,18 @@ export const inclineScene = (p: InclineParams, opts: { tab: 'forces' | 'componen
     // 회전한 상자의 외접 사각형
     const ex = (Math.abs(Math.cos(t)) * bw + Math.abs(Math.sin(t)) * bh) / 2, ey = (Math.abs(Math.sin(t)) * bw + Math.abs(Math.cos(t)) * bh) / 2;
     const blockRect = { x: c.x - ex, y: c.y - ey, w: ex * 2, h: ey * 2 };
-    const k = 130 / r.weight;
-    const tip = (v: Vec) => S({ x: centerP.x + v.x * k, y: centerP.y + v.y * k });
+    // 화살표는 상자 가운데서 나가되, 상자 밖으로 보이는 길이만 힘에 비례한다. 가운데부터 비례로 그리면
+    // 작은 힘(30°·μ0.2 의 f 3.4 N ≈ 22px)이 상자 반폭(38px) 안에 묻혀 보이지 않았다(11-04 모바일)
+    const k = 110 / r.weight;
+    const edge = (d: Vec) => {
+        const a = Math.abs(d.x * r.upSlope.x + d.y * r.upSlope.y), b = Math.abs(d.x * r.normal.x + d.y * r.normal.y);
+        return Math.min(a > 1e-9 ? bw / 2 / a : Infinity, b > 1e-9 ? bh / 2 / b : Infinity);
+    };
+    const tip = (v: Vec) => {
+        // 상자 밖 길이 최소 14px — 화살촉(12px)을 그릴 수 있는 최소. μ 0.05·60° 의 f(0.7 N)가 3px 로 방향이 안 보였다
+        const m = Math.hypot(v.x, v.y) || 1, d = { x: v.x / m, y: v.y / m }, L = edge(d) + Math.max(14, m * k);
+        return S({ x: centerP.x + d.x * L, y: centerP.y + d.y * L });
+    };
     const vecs = opts.tab === 'forces' ? r.forces : [r.forces[0], ...r.components];
     const arrows: SceneArrow[] = vecs.map(f => ({ id: f.id, from: c, to: tip(f.vec), label: names[f.id], dashed: f.id === 'parallel' || f.id === 'perpendicular' }));
 

@@ -54,6 +54,20 @@ for (const narrow of [false, true]) for (const tab of ['forces', 'components'] a
 }
 fails.forEach(f => console.log('🔴', f));
 ok(`라벨 겹침·잘림 — ${total}개 장면`, bad === 0, `${bad}개`);
+// 작은 힘도 상자 밖으로 나와야 한다 — 11-04 모바일에서 f(3.4 N)가 상자 반폭 안에 묻혔다
+{
+    let hidden = 0;
+    for (const tab of ['forces', 'components'] as const) for (const mu of [0.05, 0.2, 0.9]) for (let a = 5; a <= 60; a += 5) {
+        const sc = inclineScene({ angleDeg: a, massKg: 2, mu }, { tab, narrow: true });
+        const t = (sc.block.rot * Math.PI) / 180;
+        for (const ar of sc.arrows) {
+            const dx = ar.to.x - sc.block.c.x, dy = ar.to.y - sc.block.c.y;
+            const lx = dx * Math.cos(-t) - dy * Math.sin(-t), ly = dx * Math.sin(-t) + dy * Math.cos(-t);
+            if (Math.abs(lx) < sc.block.w / 2 + 4 && Math.abs(ly) < sc.block.h / 2 + 4) hidden++;
+        }
+    }
+    ok('경사면 화살표 끝이 전부 상자 밖', hidden === 0, `${hidden}개 묻힘`);
+}
 
 // 포물선 — 발사각 10°~80° × 속력 3 × 시각 5 × 폭 2. 시간 슬라이더 위치마다 라벨이 화살표·공·서로를 피해야 한다
 {
