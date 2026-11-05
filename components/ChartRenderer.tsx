@@ -76,6 +76,11 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     };
     const t = i18n[language] || i18n.en;
     const { type, title } = chartData;
+    // 부모가 렌더마다 JSON 을 다시 파싱해 새 객체를 넘긴다 — 객체 동일성으로 메모하면 무관한 리렌더마다
+    // 차트를 부수고 다시 그려 애니메이션이 반복됐다. 내용 문자열로 메모한다
+    const dataKey = JSON.stringify(chartData);
+    // 등장 애니메이션은 처음 한 번만 — 테마·화면 폭 변경으로 다시 그릴 때는 바로 그린다
+    const hasAnimated = useRef(false);
 
     // --- 데이터 정규화 (Normalization) ---
     const { series, categories, isPie, isRadar, isTreemap, isHeatmap } = useMemo(() => {
@@ -85,7 +90,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         const isTreemapType = type === 'treemap';
         const isHeatmapType = type === 'heatmap';
         let normSeries: any = [];
-        let normCategories: string[] = chartData.data?.categories || [];
+        // LLM 이 범주를 숫자로 보내면(변위 [-0.4, …, 0.4]) Apex 가 숫자 축으로 바꿔 눈금을 정수로 반올림하고
+        // 끝 구간 선이 어긋난다 — 범주는 문자열로 고정해 받은 그대로 고르게 놓는다
+        let normCategories: string[] = (chartData.data?.categories || []).map((c: unknown) =>
+            typeof c === 'number' && Number.isFinite(c) ? String(Number(c.toFixed(4))) : String(c));
 
         if (!chartData.data || !chartData.data.series)
             return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
@@ -99,8 +107,12 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     normSeries = chartData.data.series.map(s => s.data[0] || 0);
                     if (normCategories.length === 0) normCategories = chartData.data.series.map(s => s.name || 'Unnamed');
                 }
+            } else if (Array.isArray(firstSeries.data) && firstSeries.data[0] && typeof firstSeries.data[0] === 'object' && 'x' in firstSeries.data[0]) {
+                // 트리맵과 같은 [{x,y}] 모양도 받는다 — 못 받으면 "series-1 0" 빈 도넛이 나왔다
+                normSeries = firstSeries.data.map((d: any) => Number(d?.y) || 0);
+                normCategories = firstSeries.data.map((d: any) => String(d?.x ?? ''));
             } else {
-                normSeries = [0, 0, 0];
+                normSeries = [];
             }
         } else if (isTreemapType) {
             const rawSeries = chartData.data.series;
@@ -162,7 +174,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 const n = Number(v);
                 return Number.isFinite(n) ? n : null;
             };
-            normSeries = rawSeries.map(s => ({
+            const mapped = rawSeries.map(s => ({
                 name: s.name,
                 data: (s.data || []).map(d => {
                     if (typeof d === 'object' && d !== null) {
@@ -171,10 +183,30 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     return toY(d);
                 })
             }));
+            // 프롬프트 규칙("흩어진 수치로 차트 금지")을 모델이 어겨 null 투성이 선이 나왔다(점 1~2개짜리 시리즈).
+            // 선·영역은 값 2개 미만 시리즈를 빼고, 남은 시리즈 중 값 3개 이상이 하나도 없으면 그리지 않는다 — 본문이 이미 수치를 말한다
+            const filled = (sr: { data: any[] }) => sr.data.filter(v => v !== null && (typeof v !== 'object' || v.y !== null)).length;
+            normSeries = (type === 'line' || type === 'area') ? mapped.filter(sr => filled(sr) >= 2) : mapped;
+            if ((type === 'line' || type === 'area') && !normSeries.some((sr: any) => filled(sr) >= 3)) normSeries = [];
+        }
+
+        // 선·영역·막대가 categories 없이 {x,y} 점으로 오면 아래 안전장치가 가짜 범주 "1".."n" 을 만들어
+        // 숫자 x 축 눈금과 섞였다(y = x² 의 −3~−1 눈금이 빈칸). 첫 시리즈의 x 를 범주로 삼고 y 만 남긴다
+        const isXY = (sr: any) => Array.isArray(sr?.data) && sr.data.length > 0 && sr.data.every((d: any) => d && typeof d === 'object' && 'x' in d);
+        // categories 가 같이 와도 {x,y} 의 x 가 실제 위치다 — 둘이 섞이면 Apex 가 숫자 축으로 바꿔 눈금이 어긋난다
+        if ((type === 'line' || type === 'area' || type === 'bar') && normSeries.length > 0 && normSeries.every(isXY)) {
+            const xs: string[] = normSeries[0].data.map((d: any) =>
+                typeof d.x === 'number' && Number.isFinite(d.x) ? String(Number(d.x.toFixed(4))) : String(d.x));
+            normCategories = xs;
+            normSeries = normSeries.map((sr: any) => {
+                const byX = new Map(sr.data.map((d: any) => [typeof d.x === 'number' ? String(Number(d.x.toFixed(4))) : String(d.x), d.y]));
+                return { ...sr, data: xs.map(x => (byX.has(x) ? byX.get(x) : null)) };
+            });
         }
 
         // 카테고리 안전장치
-        if (!isPieType && !isTreemapType && !isHeatmapType && normCategories.length === 0 && normSeries.length > 0) {
+        // 산점도는 숫자 x 축이다 — 가짜 범주를 주면 눈금이 "1..n" 으로 덮인다
+        if (!isPieType && !isTreemapType && !isHeatmapType && type !== 'scatter' && normCategories.length === 0 && normSeries.length > 0) {
             const dataLength = normSeries[0].data?.length || 0;
             if (dataLength > 0) {
                 normCategories = Array.from({ length: dataLength }, (_, i) => `${i + 1}`);
@@ -182,7 +214,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         }
 
         return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
-    }, [chartData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dataKey]);
 
     useEffect(() => {
         if (series.length === 0) return;
@@ -219,7 +252,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 background: 'transparent',
                 toolbar: { show: false },
                 animations: {
-                    enabled: true,
+                    enabled: !hasAnimated.current,
                     easing: 'easeinout',
                     speed: 800,
                 }
@@ -247,6 +280,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     // 레이더 라벨은 회전하면 안 된다(다각형 둘레에 배치됨)
                     rotate: isRadar ? 0 : xRotate,
                     hideOverlappingLabels: true,
+                    // {x,y} 점의 x 가 숫자면 Apex 가 숫자 축으로 바꾸고 눈금을 정수로 반올림한다 —
+                    // 변위 −0.4~0.4 m 가 "-1 -1 … 0 0" 으로 나왔다. 범주 문자열은 그대로 둔다
+                    formatter: (value: any) =>
+                        typeof value === 'number' && Number.isFinite(value) ? String(Number(value.toFixed(2))) : value,
                 },
                 axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' }
             },
@@ -304,10 +341,15 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 fontSize: legendFontSize,
                 labels: { colors: isDark ? '#e2e8f0' : '#334155' }
             },
+            // 결측으로 끊긴 선에서는 앞뒤가 null 인 점이 선 없이 사라진다 — 그때만 점 표시
+            // 산점도는 점이 곧 데이터다 — 0 을 넘기면 아무것도 안 보인다(라이브러리 기본값 유지)
+            markers: { size: type === 'scatter' ? 6 : (type === 'line' || type === 'area') && series.some((sr: any) => (sr.data || []).some((v: any) => v === null || v?.y === null)) ? 4 : 0 },
             stroke: {
                 show: true,
                 width: (isPie || isTreemap || isHeatmap) ? 0 : 3,
-                curve: 'smooth'
+                // 'smooth' 는 점마다 접선을 수평으로 둬 직선 데이터(F = −kx 등)도 계단 물결이 된다 —
+                // monotoneCubic 은 직선은 직선으로, 극값에서 넘치지 않는다
+                curve: 'monotoneCubic'
             },
             plotOptions: {
                 bar: { borderRadius: 4, columnWidth: '60%' },
@@ -355,6 +397,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             const chart = new ApexCharts(chartRef.current, options);
             chart.render();
             chartInstance.current = chart;
+            hasAnimated.current = true;
         }
 
         return () => {
@@ -378,6 +421,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         }
     };
 
+    if (series.length === 0) return null;
     const dataCount = categories.length;
     const chartMinWidth = dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
 
