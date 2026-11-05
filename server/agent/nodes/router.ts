@@ -557,7 +557,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         }
     }
 
-    // 검색 필요 판정 (general 인텐트만).
+    // 검색 필요 판정 (general·data_viz).
     // 다른 intent(medical_qa·renderer·검색계열 등)는 generator의 게이트가 검색 on/off를 직접 제어하므로
     // 여기서는 산출하지 않고 default(true)에 맡긴다. general만 rule→(gray)LLM→default-on 순으로 결정.
     // 기획: docs/plans/PLAN_LATENCY_SEARCH_ROUTING.md (4, 6-1, 9 안전판)
@@ -580,7 +580,9 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
         // 화면 논문 카드(히스토리 json:paper)가 근거다 — 검색을 켜면 카드에 없는 논문을 끌어와
         // 인용 번호가 가리키는 대상이 어긋난다. 날씨 카드와 같은 이유로 off.
         needsSearch = false;
-    } else if (intent === "general") {
+    } else if (intent === "general" || intent === "data_viz") {
+        // data_viz 도 같은 판정 — 빠지면 default(true)로 남아 y = x² 같은 함수 그래프에도 검색이 붙었다
+        // (게이트는 data_viz 에 라우터 판정을 따르게 했지만 그 값이 여기서 계산되지 않았다)
         const ruleDecision = classifySearchNeed(textContent);
         // OFF 규칙은 LLM 판정이 없을 때만 쓴다 — `코드` 가 제품명 "클로드 코드" 에 걸려 검색이 꺼지고
         // 최근 제품의 존재를 단정·부정하는 답이 나갔다(DEV_261027). ON 규칙은 검색 누락 방어라 유지.

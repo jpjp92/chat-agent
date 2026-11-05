@@ -652,5 +652,10 @@ e('배선: langchain-path 가 shouldAddWebSearchToPaperFollowup 를 호출한다
 e('배선: langchain-path 가 searchWebTool 을 논문 경로에 연결한다',
     /paper_search[\s\S]{0,400}searchWebTool/.test(lcSrc), true);
 
+// 게이트가 data_viz 에 라우터 판정을 따르게 해도, 라우터가 그 값을 계산하지 않으면 default(true)로 남는다(11-05 실측)
+const routerSrc = readFileSync(new URL('../server/agent/nodes/router.ts', import.meta.url), 'utf8');
+e('배선: router 가 data_viz 에도 needsSearch 를 계산한다',
+    /intent === "general" \|\| intent === "data_viz"\)[\s\S]{0,400}classifySearchNeed/.test(routerSrc), true);
+
 console.log(`\nPart E: ${ePass}/${ePass + eFail}`);
 if (eFail > 0) process.exitCode = 1;
