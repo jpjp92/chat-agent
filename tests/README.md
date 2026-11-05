@@ -189,6 +189,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
+| `test-turn-log.mts` | 요청당 `[turn]` 로그 — 블록 n/ok 판정·열거값 밖 → other·이메일·URL·가짜 `[turn]` 줄 미포함·오류는 코드만·키 집합 고정·`turnMeta` 가 클라이언트 SSE 로 안 나감 |
 | `test-paper-card.mts` | 논문 카드 — 근거 등급 판정(추정 금지)·초록 결론 추출과 꼬리 보일러플레이트 제거·철회 판정(정반대 값 구분)·검색어 붕괴 방어·인용할 수 없는 논문의 분리·**멀티턴 후속 판정**(재조회 vs 카드 대화)·**카드 범위 밖 인용 마커 제거**(스트림 배선 포함)·프롬프트 계약·배선. **소스를 정규식으로** 본다 |
 | `test-stream-dispatch.mts` | **SSE 이벤트 루프** — 가짜 이벤트를 넣고 나온 프레임을 본다. 카드 8종이 각자 나가는가, **else-if 체인에서 앞 분기가 뒤를 삼키지 않는가**, law_qa 억제, sports 게이트, generator 밖 토큰 차단, 청크 경계 인용, 출처 중복 제거. 모델도 네트워크도 없다 | §9 는 **빈 카드 선전송 금지** — 카드를 먼저 보내면 `fullAiResponse` 가 채워져 생성기의 산문이 통째로 폐기된다(§6.30). §10 은 **오늘 날짜 사후 검증**([today-guard.ts](../server/agent/today-guard.ts), DEV_260928 §14) — 오검출 방어 6건이 핵심이다(정상 답변에 정정이 달라붙으면 안 된다). 🔴 날짜를 리터럴로 쓰지 않고 오늘에서 **상대**로 만든다 — 고정 날짜는 그날 하루만 맞고 이후엔 조용히 초록으로 남는다
 | `test-theaters.mts` | **상영관 지역 매칭** — `"성남"` 이 CGV **울산성남**(울산 남구)을 물어온 게 계기다. 다른 도시 지점 배제 4건, 같은 도시 안 비접두 매칭 유지(동수원·북포항), 별칭, 시·도 단위 질의 차단. 데이터는 `data/theater-branches.json` 이라 네트워크 없다 |

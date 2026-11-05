@@ -65,6 +65,16 @@
 - `server/agent/tools.ts:36` searchWebTool 0건 시 질의
 → 길이·건수만 남기도록 바꾼다(디버깅 가치는 로컬 개발에서만 원문 — `NODE_ENV !== 'production'` 분기).
 
+### 운영에 남는 warn·error 로그 검토(11-05)
+운영 빌드는 `console.log/info/debug` 를 지우고 `warn`·`error`(101곳)만 남긴다. 사용자 내용이 섞일 수 있는 4곳의 도입 경위를 git 이력으로 확인했다.
+
+| 로그 | 도입 | 의도 | 판단 |
+|---|---|---|---|
+| `[Chat API] Model request failed` — 공급자 `error.message` 원문 (`app/api/chat/route.ts`) | 08-23 `9056a2a` | **의도적** — [DEV_260823 §9](../logs/2026/08/DEV_260823.md) 오류 공개 정책(원문은 서버 로그, UI 는 4개 언어 안내만). `chat-error-policy.ts` 분류가 메시지 문자열에 의존해 오진 시 원문이 필요 | **유지 + 300자 제한**(11-05 적용) |
+| `[weatherTool] 조회 실패:` 도시 이름 (`weather-tool.ts:31`) | 07-06 `2214f55` | 일반 디버그 — 어느 도시에서 지오코딩이 실패하는지가 단서 | **유지**(도시 단위·실패 때만) |
+| `Vision Node JSON parse failed` 응답 앞 100자 (`vision.ts:108`) | 05-26 `2240f21` | JSON 파싱 실패 디버그 | **유지**(각인·색 — 개인정보 아님) |
+| `User/Assistant message save error` — Supabase 오류 객체 전체 (`route.ts`) | 05-26 `2f488cb` | 일반 오류 로그 | **정리**(11-05 적용, `dbErrorSummary`) — `details` 에 제약 위반 값(`Key (session_id)=(…)`)이 들어간다. `code`·`message`·`hint` 만 |
+
 ## 4. 구현 단계
 
 | 단계 | 내용 | 파일 |
