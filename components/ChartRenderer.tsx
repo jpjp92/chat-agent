@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import ApexCharts from 'apexcharts';
+import { numericAxisOptions, numericTickLabel, resolveXAxis, type XScale } from './chart-axis';
 
 interface ChartData {
     type: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'radar' | 'treemap' | 'heatmap';
@@ -83,7 +84,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const hasAnimated = useRef(false);
 
     // --- 데이터 정규화 (Normalization) ---
-    const { series, categories, isPie, isRadar, isTreemap, isHeatmap } = useMemo(() => {
+    const { series, categories, isPie, isRadar, isTreemap, isHeatmap, xScale } = useMemo(() => {
         const type = chartData.type;
         const isPieType = type === 'pie' || type === 'donut';
         const isRadarType = type === 'radar';
@@ -96,7 +97,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             typeof c === 'number' && Number.isFinite(c) ? String(Number(c.toFixed(4))) : String(c));
 
         if (!chartData.data || !chartData.data.series)
-            return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
+            return { series: [], categories: [], isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType, xScale: 'category' as XScale };
 
         if (isPieType) {
             const firstSeries = chartData.data.series[0];
@@ -190,30 +191,23 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             if ((type === 'line' || type === 'area') && !normSeries.some((sr: any) => filled(sr) >= 3)) normSeries = [];
         }
 
-        // 선·영역·막대가 categories 없이 {x,y} 점으로 오면 아래 안전장치가 가짜 범주 "1".."n" 을 만들어
-        // 숫자 x 축 눈금과 섞였다(y = x² 의 −3~−1 눈금이 빈칸). 첫 시리즈의 x 를 범주로 삼고 y 만 남긴다
-        const isXY = (sr: any) => Array.isArray(sr?.data) && sr.data.length > 0 && sr.data.every((d: any) => d && typeof d === 'object' && 'x' in d);
-        // categories 가 같이 와도 {x,y} 의 x 가 실제 위치다 — 둘이 섞이면 Apex 가 숫자 축으로 바꿔 눈금이 어긋난다
-        if ((type === 'line' || type === 'area' || type === 'bar') && normSeries.length > 0 && normSeries.every(isXY)) {
-            const xs: string[] = normSeries[0].data.map((d: any) =>
-                typeof d.x === 'number' && Number.isFinite(d.x) ? String(Number(d.x.toFixed(4))) : String(d.x));
-            normCategories = xs;
-            normSeries = normSeries.map((sr: any) => {
-                const byX = new Map(sr.data.map((d: any) => [typeof d.x === 'number' ? String(Number(d.x.toFixed(4))) : String(d.x), d.y]));
-                return { ...sr, data: xs.map(x => (byX.has(x) ? byX.get(x) : null)) };
-            });
+        // x 축이 실제 좌표인지 범주인지 — 숫자 x 를 범주로 놓으면 간격이 사라진다(PLAN_CHART_AXIS_261105)
+        let xScale: XScale = 'category';
+        if (!isPieType && !isTreemapType && !isHeatmapType && !isRadarType && normSeries.length > 0) {
+            const ax = resolveXAxis(type, normSeries, normCategories);
+            normSeries = ax.series; normCategories = ax.categories; xScale = ax.scale;
         }
 
         // 카테고리 안전장치
-        // 산점도는 숫자 x 축이다 — 가짜 범주를 주면 눈금이 "1..n" 으로 덮인다
-        if (!isPieType && !isTreemapType && !isHeatmapType && type !== 'scatter' && normCategories.length === 0 && normSeries.length > 0) {
+        // numeric 축(산점도 포함)엔 가짜 범주를 주지 않는다 — 눈금이 "1..n" 으로 덮인다
+        if (!isPieType && !isTreemapType && !isHeatmapType && xScale !== 'numeric' && normCategories.length === 0 && normSeries.length > 0) {
             const dataLength = normSeries[0].data?.length || 0;
             if (dataLength > 0) {
                 normCategories = Array.from({ length: dataLength }, (_, i) => `${i + 1}`);
             }
         }
 
-        return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType };
+        return { series: normSeries, categories: normCategories, isPie: isPieType, isRadar: isRadarType, isTreemap: isTreemapType, isHeatmap: isHeatmapType, xScale };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dataKey]);
 
@@ -238,10 +232,13 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
         const gridPadding    = isRadar
             ? { top: 10, right: isMobile ? 50 : 80, bottom: 20, left: isMobile ? 50 : 80 }
             : isMobile
-            ? { top: 0, right: 8, bottom: 0, left: 0 }
-            : { top: 0, right: 20, bottom: 0, left: 10 };
+            // numeric 축은 끝 눈금이 데이터 끝과 같아 끝 라벨·마커가 카드 밖으로 잘린다 — 오른쪽 여백을 더 준다
+            ? { top: 0, right: xScale === 'numeric' ? 16 : 8, bottom: 0, left: 0 }
+            : { top: 0, right: xScale === 'numeric' ? 24 : 20, bottom: 0, left: 10 };
         // 레이더 다각형 반지름: 라벨이 그리드 패딩 안에 들어오도록 작게
         const radarSize      = isMobile ? 60 : isTablet ? 80 : 100;
+
+        const numericXaxis = xScale === 'numeric' ? numericAxisOptions(series, isMobile) : {};
 
         const options: any = {
             chart: {
@@ -270,7 +267,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 // 절대 넘기지 않는다: ApexCharts 가 여러 곳에서 가드 없이 `.categories.length` 를 읽어
                 // undefined 면 렌더 전체가 죽고 빈 차트 카드만
                 // 남는다.
-                categories: isHeatmap ? [] : categories,
+                categories: isHeatmap || xScale === 'numeric' ? [] : categories,
+                ...numericXaxis,
                 labels: {
                     style: {
                         colors: isDark ? '#94a3b8' : '#64748b',
@@ -278,12 +276,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                         fontSize: isRadar ? (isMobile ? '8px' : '10px') : xFontSize,
                     },
                     // 레이더 라벨은 회전하면 안 된다(다각형 둘레에 배치됨)
-                    rotate: isRadar ? 0 : xRotate,
+                    rotate: isRadar || xScale === 'numeric' ? 0 : xRotate,
                     hideOverlappingLabels: true,
-                    // {x,y} 점의 x 가 숫자면 Apex 가 숫자 축으로 바꾸고 눈금을 정수로 반올림한다 —
-                    // 변위 −0.4~0.4 m 가 "-1 -1 … 0 0" 으로 나왔다. 범주 문자열은 그대로 둔다
-                    formatter: (value: any) =>
-                        typeof value === 'number' && Number.isFinite(value) ? String(Number(value.toFixed(2))) : value,
+                    // numeric 축 눈금은 깔끔한 간격(chart-axis) 그대로 — 범주 문자열은 그대로
+                    formatter: (value: any) => (xScale === 'numeric' ? numericTickLabel(value) : value),
                 },
                 axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' }
             },
@@ -349,7 +345,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 width: (isPie || isTreemap || isHeatmap) ? 0 : 3,
                 // 'smooth' 는 점마다 접선을 수평으로 둬 직선 데이터(F = −kx 등)도 계단 물결이 된다 —
                 // monotoneCubic 은 직선은 직선으로, 극값에서 넘치지 않는다
-                curve: 'monotoneCubic'
+                // numeric 축은 straight — Apex 의 monotoneCubic 이 숫자 축에서 데이터 최솟값 아래로 꺼진다
+                // (0,1,4,100 이 x=1 직후 0 아래로 2.4px, PLAN_CHART_AXIS_261105 §2). 범주 축은 매끄럽게 유지
+                curve: xScale === 'numeric' ? 'straight' : 'monotoneCubic'
             },
             plotOptions: {
                 bar: { borderRadius: 4, columnWidth: '60%' },
@@ -406,7 +404,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 chartInstance.current = null;
             }
         };
-    }, [series, categories, isPie, isDark, type, title, isTreemap, isHeatmap, isMobile, isTablet]);
+    }, [series, categories, isPie, isDark, type, title, isTreemap, isHeatmap, isMobile, isTablet, xScale]);
 
     const handleDownload = async () => {
         if (!chartInstance.current) return;
@@ -423,7 +421,8 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
 
     if (series.length === 0) return null;
     const dataCount = categories.length;
-    const chartMinWidth = dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
+    // 가로 스크롤은 범주 축만 — numeric 축(함수·산점도)은 점 개수와 무관하게 전체 범위를 한 화면에
+    const chartMinWidth = xScale !== 'numeric' && dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
 
     return (
         <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
@@ -454,7 +453,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 <div className="p-2 sm:p-4 flex-1 relative min-h-[220px] sm:min-h-[270px] lg:min-h-[320px]">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-                    <div className={`w-full ${dataCount > 10 ? 'overflow-x-auto custom-scrollbar' : 'overflow-x-hidden'}`}>
+                    <div className={`w-full ${dataCount > 10 ? 'overflow-x-auto custom-scrollbar' : 'overflow-x-hidden'} overflow-y-hidden`}>
                         <div style={{ minWidth: chartMinWidth, width: '100%' }}>
                             <div ref={chartRef} className="w-full" />
                         </div>
