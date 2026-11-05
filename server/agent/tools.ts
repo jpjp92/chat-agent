@@ -33,7 +33,8 @@ export const searchWebTool = tool(
             //    **전 검색에서 출처 URL 이 0건**이 됐다. 순수 함수라 하니스로 고정된다.
             const results = parseDdgHtml(html);
             if (results.length === 0) {
-                console.warn('[Agent Tool] searchWebTool: 파싱 결과 0건 — DDG HTML 구조가 또 바뀌었을 수 있다. 질의:', query);
+                // 질의는 사용자 질문에서 나온다 — 운영 로그엔 길이만(PLAN_TURN_LOG_261105 §3)
+                console.warn('[Agent Tool] searchWebTool: 파싱 결과 0건 — DDG HTML 구조가 또 바뀌었을 수 있다. 질의', process.env.NODE_ENV === 'production' ? `${String(query).length}자` : query);
             }
             return formatDdgResults(query, results);
         } catch (e: any) {

@@ -353,7 +353,10 @@ async function searchPapers(query: string, limit: number): Promise<{
     if (!ids.length) {
         const broader = broadenQuery(query);
         if (broader && broader !== query.trim()) {
-            console.log(`[paperTool] 0건 → 검색어를 넓혀 재시도: "${query}" → "${broader}"`);
+            // 검색어는 사용자 질문에서 나온다 — 운영 로그엔 길이만(PLAN_TURN_LOG_261105 §3)
+            console.log(process.env.NODE_ENV === 'production'
+                ? `[paperTool] 0건 → 검색어를 넓혀 재시도 (${query.length}자 → ${broader.length}자)`
+                : `[paperTool] 0건 → 검색어를 넓혀 재시도: "${query}" → "${broader}"`);
             searchJson = await run(broader);
             ids = searchJson?.esearchresult?.idlist ?? [];
             total = Number(searchJson?.esearchresult?.count ?? 0);
