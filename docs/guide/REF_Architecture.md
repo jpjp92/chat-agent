@@ -329,7 +329,7 @@ DB 스키마 상세: [REF_DB.md](REF_DB.md) · 로그인(게스트 → Google·�
 | `paper_search` | 공급자별 function calling + PubMed E-utilities/CrossRef → `json:paper` (카드는 도구 출력으로 고정, 산문은 모델) | 선택 공급자 |
 | `arxiv_search` | 같은 카드·다른 출처. 라우터가 고르지 않고 `paper_source` 에서 파생된다 | 선택 공급자 |
 | `medical_qa` | 선택 공급자 일반 생성 + 필요 시 검색 | 선택 모델; Gemini는 모델별 search capability 적용 |
-| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | 선택 공급자 renderer 경로 | 선택 모델; Search 기본 OFF |
+| `biology` / `chemistry` / `physics` / `astronomy` / `data_viz` | 선택 공급자 renderer 경로 | 선택 모델; Search 기본 OFF — 단 `data_viz` 는 라우터 `needs_search` 를 따른다(실제 통계는 검색, 11-05) |
 | `general` | 선택 공급자 생성 + `needsSearch` 3-gate classifier | 선택 모델 |
 
 ### 🔴 도구 정의는 **두 벌**이다 — 한쪽만 고치면 조용히 반쪽이 된다
