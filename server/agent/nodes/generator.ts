@@ -47,6 +47,9 @@ export const createGeneratorNode = (
 ) => {
     // 이름을 붙여 둔다 — GPT 가 PDF 링크를 못 받으면 같은 노드를 2.5 로 한 번 다시 부른다(openAIPdfFallback).
     const generate = async (state: AgentStateType): Promise<any> => {
+        // [turn] 로그용 내부 이벤트 — 디스패치가 상태에만 담고 클라이언트로 보내지 않는다(stream-dispatch trackingEvent).
+        // 값은 열거값·모델 ID 만. 여러 번 보내면 뒤 값이 이긴다(폴백·재시도가 모델을 바꾼다)
+        const turnMeta = (meta: { provider?: 'gemini' | 'openai'; model?: string; search?: boolean; searchBy?: string }) => { if (sendEvent) sendEvent({ turnMeta: meta }); };
         console.log('[LangGraph] Entering Generator Node');
         console.log('[LangGraph] Selected provider model | intent:', state.intent, '| model:', state.model);
 
@@ -190,7 +193,7 @@ export const createGeneratorNode = (
         const localFunctionTool = getLocalFunctionTool(state.intent);
         if ((!useLangChain || localFunctionTool) && isOpenAIChatModel(resolvedModel)) {
             const { hasMultimodalContent, hasDocumentContent } = buildSdkContents(state.messages, false);
-            const { useGoogleSearch: searchRequested, hasUrlContent } = decideGoogleSearch({
+            const { useGoogleSearch: searchRequested, searchBy, hasUrlContent } = decideGoogleSearch({
                 webContent: state.webContent,
                 messages: state.messages,
                 intent: state.intent,
@@ -207,6 +210,7 @@ export const createGeneratorNode = (
             // 로컬 함수와 hosted web_search를 한 호출에 섞지 않는다. drug_info의 보조 웹
             // 검색은 기존 도구 내부에서 수행되며, 나머지 로컬 intent는 단일 책임 함수만 강제한다.
             const useWebSearch = !localFunctionTool && searchRequested;
+            turnMeta({ provider: 'openai', model: resolvedModel, search: useWebSearch, searchBy: useWebSearch || !localFunctionTool ? searchBy : 'none' });
             if (useWebSearch) await emitStatus('searching');
             // 논문 카드 + 명시 검색 요청이면 종합 단계에 웹 검색을 붙인다(판정은 레지스트리에).
             const functionTool = withExplicitSearchFollowup(localFunctionTool, latestUserText);
@@ -323,7 +327,7 @@ export const createGeneratorNode = (
 
                     // Google Search 게이트 — grounding 여부 판정 (multimodal/youtube/url/renderer/doc/general).
                     // useGoogleSearch 와 아래에서 쓰는 부가 값(토큰 상한·진단 로그)을 돌려준다.
-                    const { useGoogleSearch, hasUrlContent, rendererIntents, explicitSearchRequested } = decideGoogleSearch({
+                    const { useGoogleSearch, searchBy, hasUrlContent, rendererIntents, explicitSearchRequested } = decideGoogleSearch({
                         webContent: state.webContent,
                         messages: state.messages,
                         intent: state.intent,
@@ -376,6 +380,7 @@ export const createGeneratorNode = (
                     if (pinMedia) {
                         console.log('[LangGraph] Image/video turn → pinning to', SEARCH_FALLBACK_MODEL, '(free-tier', resolvedModel, 'multimodal exceeds 60s cap)');
                     }
+                    turnMeta({ provider: 'gemini', model: effectiveModel, search: useGoogleSearch, searchBy });
                     console.log('[LangGraph] Starting SDK stream | model:', effectiveModel, '| useGoogleSearch:', useGoogleSearch, '| maxTokens:', effectiveMaxTokens, '| contentsLen:', sdkContents.length);
 
                     // Thinking config — 모델별 분기(상세는 generation-config.ts):
@@ -543,6 +548,7 @@ export const createGeneratorNode = (
                             // 더 견고한 2.5-flash로 1회 폴백한다 (tool 없이; useGoogleSearch면 grounding 유지).
                             if (finishReason === 'MALFORMED_FUNCTION_CALL' && effectiveModel !== SEARCH_FALLBACK_MODEL) {
                                 console.warn('[LangGraph] MALFORMED_FUNCTION_CALL on', effectiveModel, '— retrying on', SEARCH_FALLBACK_MODEL);
+                                turnMeta({ model: SEARCH_FALLBACK_MODEL });
                                 const mfRetry = await genai.models.generateContent({
                                     model: SEARCH_FALLBACK_MODEL,
                                     contents: sdkContents,
@@ -591,6 +597,7 @@ export const createGeneratorNode = (
                         console.warn('[LangGraph] tool_code hallucination detected — retrying with Google Search grounding');
                         try {
                             const groundModel = needsSearchFallback ? SEARCH_FALLBACK_MODEL : effectiveModel;
+                            turnMeta({ model: groundModel, search: true });
                             const groundRetry = await genai.models.generateContent({
                                 model: groundModel,
                                 contents: sdkContents,
@@ -751,6 +758,7 @@ export const createGeneratorNode = (
                         fbContents.push({ role: 'model', parts: [{ text: String(msg.content) }] });
                     }
                 }
+                turnMeta({ provider: 'gemini', model: SERVER_MODELS.FLASH_3_5 });
                 const fbResponse = await fbGenai.models.generateContent({
                     model: SERVER_MODELS.FLASH_3_5,
                     contents: fbContents,
@@ -778,6 +786,9 @@ export const createGeneratorNode = (
 
         // LangChain 경로: drug_id/drug_info 등 커스텀 도구가 필요한 인텐트, 그리고 SDK 경로가
         // 완전히 실패했을 때의 비스트리밍 폴백. 여기서 반드시 반환하거나 throw 한다.
+        // 도구 경로 — 검색은 도구 내부 판단이라 게이트 판정이 없다. SDK 실패 폴백이면 위 값이 남되 모델만 갱신
+        if (useLangChain) turnMeta({ provider: 'gemini', model: resolvedModel, search: false, searchBy: 'none' });
+        else turnMeta({ model: resolvedModel });
         return await runLangChainPath({
             state,
             finalInstruction,

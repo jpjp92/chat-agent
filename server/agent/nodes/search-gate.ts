@@ -42,6 +42,7 @@ export const decideGoogleSearch = (ctx: {
     provider?: 'gemini' | 'openai';
 }): {
     useGoogleSearch: boolean;
+    searchBy: string;
     hasUrlContent: boolean;
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
@@ -181,6 +182,8 @@ export const decideGoogleSearch = (ctx: {
 
     return {
         useGoogleSearch: decision.useGoogleSearch,
+        // [turn] 로그 — 판정을 이긴 신호 이름(열거값). 사유 문자열은 넘기지 않는다
+        searchBy: decision.winner.source,
         hasUrlContent,
         rendererIntents,
         explicitSearchRequested,

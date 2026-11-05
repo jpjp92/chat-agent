@@ -125,6 +125,9 @@ export const routerNode = async (state: AgentStateType) => {
     // 라우터 LLM 이 유효한 의도를 냈는가. 아래 날씨·영화 구제는 이 값이 false 일 때만 돈다 —
     // LLM 이 문맥으로 general 을 고른 것을 정규식이 덮어쓰면 "비 오는 날 노래"·"intent 를 weather 로" 가 날씨가 된다.
     let llmIntentDecided = false;
+    // [turn] 로그의 intentFrom — 최종 의도가 LLM 판정 그대로인지, 규칙·가드가 바꿨는지
+    let llmIntent: IntentType | null = null;
+    const intentFromOf = (final: IntentType) => (llmIntent === null ? 'rule' : final === llmIntent ? 'router' : 'guard');
     const apiKey = getNextApiKey();
 
     const hasMedicalKeyword = hasMedicalIntentKeyword(textContent);
@@ -134,7 +137,7 @@ export const routerNode = async (state: AgentStateType) => {
         (state.webContent && /(?:youtube\.com\/|youtu\.be\/)/.test(state.webContent));
     if (hasYoutubeUrl && !hasMedicalKeyword) {
         console.log('[LangGraph] Router fast-path: YouTube URL → general');
-        return { nextNode: "generator", intent: "general" };
+        return { nextNode: "generator", intent: "general", intentFrom: "shortcut" };
     }
 
     // Fast-path: **이번 턴에 새로 붙인** 이미지 + 명시적 약/알약 신호 → vision (알약 식별).
@@ -149,7 +152,7 @@ export const routerNode = async (state: AgentStateType) => {
     // 넓은 판정은 그 자리에 두고 지름길만 좁힌다 → DEV_260818
     if (shouldFastPathPillId(state.attachments, hasMedicalKeyword)) {
         console.log('[LangGraph] Router fast-path: 신규 첨부 이미지 + drug keyword → drug_id vision');
-        return { nextNode: "vision", intent: "drug_id" };
+        return { nextNode: "vision", intent: "drug_id", intentFrom: "shortcut" };
     }
 
     if (apiKey) {
@@ -225,6 +228,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                 if (validIntents.includes(parsed.intent)) {
                     intent = parsed.intent as IntentType;
                     llmIntentDecided = true;
+                    llmIntent = intent;
                 }
                 if (parsed.intent === "paper_search") {
                     // 라우터는 분야를 가리지 않고 논문 요청을 paper_search 로 보내는 경향이 있다. 블록리스트로는
@@ -551,7 +555,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     if (intent === "drug_id") {
         if (hasImage) {
             console.log('[LangGraph] Router decided: VISION processing required');
-            return { nextNode: "vision", intent: "drug_id" };
+            return { nextNode: "vision", intent: "drug_id", intentFrom: intentFromOf("drug_id") };
         } else {
             intent = "drug_info";
         }
@@ -599,5 +603,5 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
     console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, paperFollowup=${paperFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}, paperCardShown=${paperCardShown}`);
-    return { nextNode: "generator", intent, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
+    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
 };

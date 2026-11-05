@@ -39,6 +39,8 @@ export interface DispatchState {
     pinnedPaperUrls: string[];
     /** 마지막으로 보낸 진행 상태 — 같은 상태를 두 번 보내지 않는다(재시도 루프가 검색을 다시 켜도). */
     lastStatus: string;
+    /** [turn] 로그 재료 — 클라이언트로 보내지 않는다(turn-log.ts 가 열거값으로 다시 거른다) */
+    turn: { intentFrom?: string; provider?: string; model?: string; search?: boolean; searchBy?: string };
 }
 
 export interface StreamDispatch {
@@ -72,6 +74,7 @@ export function createStreamDispatch(
         pinnedPaperCount: 0,
         pinnedPaperUrls: [],
         lastStatus: '',
+        turn: {},
     };
     /** 진행 상태(server/agent/status-event.ts) — 본문이 이미 나가기 시작했으면 의미가 없으니 보내지 않는다. */
     const sendStatus = (kind: string | null) => {
@@ -158,6 +161,7 @@ export function createStreamDispatch(
         // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
         const ri = data?.output?.intent;
         if (typeof ri === 'string') st.detectedIntent = ri;
+        if (typeof data?.output?.intentFrom === 'string') st.turn.intentFrom = data.output.intentFrom;
         sendStatus(statusForRouter(data?.output));
       } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && st.lcCitationBuffer) {
         // 스트림 끝이라 뒤에 `(` 가 올 일이 없다 → 보류분에도 가짜 번호 제거를 적용해 flush.
@@ -262,6 +266,8 @@ export function createStreamDispatch(
     };
 
     const trackingEvent = (data: any) => {
+        // 내부 전용 — 생성기가 실제 모델·검색 판정을 알린다. 클라이언트 SSE 로 새지 않게 여기서 끊는다
+        if (data?.turnMeta) { Object.assign(st.turn, data.turnMeta); return; }
         if (data?.text) st.fullAiResponse += data.text;
         sendEvent(data);
     };

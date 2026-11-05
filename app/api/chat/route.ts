@@ -12,7 +12,8 @@ import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched, deriveLastTurnSourceLabels } from '../../../server/agent/history';
 import { classifyChatError, forGuest } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
-import { createStreamDispatch } from '../../../server/agent/stream-dispatch';
+import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
+import { logTurn } from '../../../server/agent/turn-log';
 
 export const runtime = 'nodejs';
 // 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
@@ -79,6 +80,11 @@ export async function POST(req: NextRequest) {
   const keyTier = profile.is_guest === false ? 'paid-first' : 'free';
   const stream = runWithKeyTier(keyTier, () => new ReadableStream({
     async start(controller) {
+      // [turn] 로그 — 종료 경로마다 결과만 정하고 finally 에서 한 번 남긴다(PLAN_TURN_LOG_261105)
+      const turnStartedAt = Date.now();
+      let turnOutcome: 'ok' | 'empty' | 'error' | 'url_fetch_failed' = 'ok';
+      let turnErr: unknown;
+      let turnState: DispatchState | null = null;
       const sendEvent = (data: any) => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch {}
       };
@@ -183,6 +189,7 @@ export async function POST(req: NextRequest) {
             French: `Je n'ai pas pu récupérer le contenu exact de cette URL : ${failedUrl}\n\nLa page semble bloquée.`,
           };
           const failMsg = pickByLang(msgs, langName);
+          turnOutcome = 'url_fetch_failed';
           sendEvent({ text: failMsg });
           sendEvent({ done: true });
           if (session_id) {
@@ -197,6 +204,7 @@ export async function POST(req: NextRequest) {
         // tz 는 오늘 날짜 사후 검증(today-guard)의 기준 — initialState 와 같은 값을 넘긴다.
         const dispatch = createStreamDispatch(sendEvent, { timeZone: timeZone || 'Asia/Seoul', lang: publicLang as 'ko' | 'en' | 'es' | 'fr' });
         const st = dispatch.state;
+        turnState = st;
         const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
         const streamEvents = await graph.streamEvents(initialState, { version: 'v2' });
 
@@ -222,6 +230,7 @@ export async function POST(req: NextRequest) {
             console.error('[Chat API] DB save failed:', dbError.message);
           }
         } else if (!fullAiResponse) {
+          turnOutcome = 'empty';
           console.error('[Chat API] Empty model response', {
             model: finalModel,
             status: 502,
@@ -246,7 +255,17 @@ export async function POST(req: NextRequest) {
           geminiDailyQuota: isDailyQuotaError(error) || isAllKeysDailyExhausted(),
         }), profile.is_guest === true);
         sendEvent({ error: CHAT_ERRORS[errorType][publicLang] });
+        turnOutcome = 'error';
+        turnErr = error;
       } finally {
+        const ts: DispatchState | null = turnState;
+        logTurn({
+          intent: ts?.detectedIntent, intentFrom: ts?.turn.intentFrom,
+          provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
+          search: ts?.turn.search, searchBy: ts?.turn.searchBy,
+          sources: ts?.allSources.length, text: ts?.fullAiResponse ?? '',
+          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr,
+        });
         clearInterval(heartbeatInterval);
         process.off('unhandledRejection', unhandledRejectionGuard);
         controller.close();

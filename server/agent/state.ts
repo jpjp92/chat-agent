@@ -152,6 +152,12 @@ export const GraphState = Annotation.Root({
         default: () => "general",
     }),
 
+    // 최종 의도를 누가 정했는지 — [turn] 로그 전용(router·rule·guard·shortcut). 라우팅에는 쓰지 않는다
+    intentFrom: Annotation<string>({
+        reducer: (x, y) => y ?? x,
+        default: () => "rule",
+    }),
+
     // Google Search 응답에서 추출한 grounding 출처 (generator 노드가 채움).
     groundingSources: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? y : x),
