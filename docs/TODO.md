@@ -381,7 +381,7 @@
 - [x] canvas 잔여 버그 — canvas 제거로 해소
 - [ ] 카드 추가 후보 — 단진자·용수철(단순조화운동, 1순위) · 등속 원운동 · 수평 발사(포물선 `heightM`). TC: `ROUTER_PHYSICS_CONCEPTS`
 - [x] 차트 — 직선 데이터가 곡선 보간으로 물결(용수철 F = −kx) → `monotoneCubic` 외 차트 보정 묶음([DEV_261105](logs/2026/11/DEV_261105.md))
-- [ ] 의도 · `json:diagram` 생성 여부 구조화 로그(Codex P1 — 응답 200 과 기능 성공 구분) → 계획 [PLAN_TURN_LOG_261105](plans/PLAN_TURN_LOG_261105.md) — **L0 구현(11-05)**, 로컬·dev 로그 확인 남음
+- [ ] 의도 · `json:diagram` 생성 여부 구조화 로그(Codex P1 — 응답 200 과 기능 성공 구분) → 계획 [PLAN_TURN_LOG_261105](plans/PLAN_TURN_LOG_261105.md) — **L0 구현·운영 확인(11-05)**. Hobby 로그 보관 약 30분 → 추이는 L3
 - [ ] 자유물체도·충돌 타입(v2 계산, 충돌 `u2` 일반화)
 
 ### 0-h. 10-19~10-20 미배포 변경 — 배포 후 확인
