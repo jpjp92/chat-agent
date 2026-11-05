@@ -11,9 +11,15 @@
 
 type GroundedSource = { title: string; uri: string; citationNumber?: number };
 
-/** 모델이 지어낸 맨 대괄호 번호만 제거한다. `[1](url)` 형태의 실제 링크는 남긴다. */
-export const stripFabricatedCitations = (text: string): string =>
-    text.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
+/**
+ * 모델이 지어낸 맨 대괄호 번호만 제거한다. `[1](url)` 형태의 실제 링크는 남긴다.
+ * `:`·`[`·`,` 바로 뒤의 대괄호는 인용이 아니라 JSON 배열이다 — 이걸 안 가리자 차트 `"data": [438, 406, …]`
+ * 가 통째로 지워져 빈 차트가 나갔다. `before` 는 스트리밍에서 이미 보낸 본문의 끝(청크 경계 너머 문맥).
+ */
+export const stripFabricatedCitations = (text: string, before = ''): string => {
+    const ctx = before.slice(-40);
+    return (ctx + text).replace(/(?<![:\[,]\s*)\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '').slice(ctx.length);
+};
 
 /** grounding redirect URL 패턴 — 사람이 읽을 수 없는 불투명 리다이렉트라 본문 노출은 항상 버그다. */
 const GROUNDING_REDIRECT_URL = String.raw`https?:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s)\]]+`;

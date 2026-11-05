@@ -104,7 +104,9 @@ const dispatchSource = fs.readFileSync(new URL('../server/agent/stream-dispatch.
 check('디스패치가 OpenAI 번호 인용을 Gemini 정규식과 분리',
     dispatchSource.includes("output?.provider === 'openai'"));
 // Gemini도 groundingSupports 기반 실제 링크를 심으므로, 가짜 번호 제거는 맨 대괄호에만 적용한다.
-check('가짜 인용 제거가 실제 링크를 훼손하지 않음', dispatchSource.includes('(?!\\()/g'));
+// 정규식은 gemini-citations.ts 한 곳에 있다(디스패치는 그걸 부른다) — 동작은 test-gemini-citations.mts
+check('가짜 인용 제거가 실제 링크를 훼손하지 않음', dispatchSource.includes('stripFabricatedCitations(t, st.fullAiResponse)')
+    && fs.readFileSync(new URL('../server/agent/gemini-citations.ts', import.meta.url), 'utf8').includes('(?!\\()/g'));
 check('OpenAI quota 전용 안내 분기',
     chatRouteSource.includes('classifyChatError(error'));
 check('OpenAI quota 사용자 안내 문구',

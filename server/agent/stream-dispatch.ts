@@ -1,6 +1,7 @@
 import { cardHasResults, pendingCardBlocks, dropMarkersOutsideRange, repairPaperMarkerLinks, PINNED_CARD_INTENT_SET } from './card-tool-output';
 import { interleaveWeatherSummaries } from './weather-summary';
 import { isInternalLlmEvent } from './internal-llm';
+import { stripFabricatedCitations } from './gemini-citations';
 import type { WeatherLang } from '../../lib/weather-labels';
 import { checkTodayClaim } from './today-guard';
 import { drugCardSources } from './drug-card-urls';
@@ -90,7 +91,7 @@ export function createStreamDispatch(
     // 붙이라고 지시한다 — 지우면 산문과 카드를 잇는 끈이 사라진다. 이 턴은 Google grounding 이 붙지 않고
     // (allTools=[paperTool]) 도구 결과만 근거라, 이 방어가 막으려는 "grounding URL 을 가리키는 가짜 번호"가
     // 생길 경로가 없다.
-    const stripFabricated = (t: string) => t.replace(/\s?\[\d+(?:,\s*\d+)*\](?!\()/g, '');
+    const stripFabricated = (t: string) => stripFabricatedCitations(t, st.fullAiResponse);
     // 실제 스트리밍이 쓰는 건 이쪽이다 — 논문 턴에서만 위 규칙을 건너뛴다.
     // 논문 턴에서는 마커를 지우는 대신 **카드 범위 밖만** 걷어낸다(건수를 모르면 그대로 통과).
     // 논문 턴: 먼저 링크형 번호를 URL 로 교정하고(카드 밖 논문 인용은 마커를 뗀다),
