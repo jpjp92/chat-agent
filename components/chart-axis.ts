@@ -87,7 +87,10 @@ export const numericAxisOptions = (series: Array<{ data?: unknown[] }>, isMobile
     const lo = Math.min(...xs), hi = Math.max(...xs);
     if (hi === lo) return { type: 'numeric', min: lo - 1, max: hi + 1, tickAmount: 2 };
     const maxTicks = isMobile ? 6 : 10;
-    const e = Math.floor(Math.log10(hi - lo));
+    // ±1e308 같은 값이면 범위가 Infinity → e 가 Infinity 가 되어 아래 루프가 끝나지 않는다(모델 JSON 은 신뢰 못 함)
+    const span = hi - lo;
+    if (!Number.isFinite(span)) return { type: 'numeric', min: lo, max: hi, tickAmount: isMobile ? 4 : 6 };
+    const e = Math.floor(Math.log10(span));
     let best: { min: number; max: number; n: number; ext: number } | null = null;
     for (let k = e - 2; k <= e + 1; k++) {
         for (const m of [1, 2, 5]) {

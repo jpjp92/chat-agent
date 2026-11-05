@@ -66,6 +66,8 @@ const o2 = numericAxisOptions(a4.series, false) as any;
 check(`불규칙 연도 축 1970~2030·간격 10 (${o2.min}~${o2.max}/${o2.tickAmount})`, o2.min === 1970 && o2.max === 2030 && o2.tickAmount === 6);
 const o3 = numericAxisOptions(a1.series, false) as any;
 check(`0~10 축 그대로 (${o3.min}~${o3.max})`, o3.min === 0 && o3.max === 10);
+const o4 = numericAxisOptions([{ data: [{ x: -1e308 }, { x: 1e308 }] }], false) as any;
+check('범위가 Infinity 인 x 도 루프 없이 반환', o4.type === 'numeric');
 check('부동소수 눈금 정리', numericTickLabel(0.30000000000000004) === '0.3' && numericTickLabel('-2') === '-2');
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
