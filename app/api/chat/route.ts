@@ -35,6 +35,10 @@ const CHAT_ERRORS: Record<string, Record<string, string>> = {
   generic:        { ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.', en: 'Failed to generate a response. Please try again.', es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.', fr: 'Échec de la génération de la réponse. Veuillez réessayer.' },
 };
 
+// Supabase 오류의 `details` 에는 제약 위반 값(`Key (session_id)=(…)`)이 그대로 들어간다 — 운영 로그엔 빼고 남긴다
+const dbErrorSummary = (e: { code?: string; message?: string; hint?: string | null } | null | undefined) =>
+  ({ code: e?.code, message: e?.message, hint: e?.hint ?? undefined });
+
 export async function POST(req: NextRequest) {
   // 스트림을 열기 전에 인증을 확인한다. SSE 는 헤더가 나간 뒤 상태코드를 바꿀 수 없다.
   // 메시지 저장은 이 user-scoped 클라이언트로만 하며, RLS 가 세션 소유권을 강제한다.
@@ -157,7 +161,7 @@ export async function POST(req: NextRequest) {
         db.from('chat_messages').insert({
           session_id, role: 'user', content: prompt,
           attachment_url: mainAttachment?.storageUrl || (mainAttachment?.data?.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null))
-        }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', error); });
+        }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', dbErrorSummary(error)); });
       }
 
       const initialState = {
@@ -225,7 +229,7 @@ export async function POST(req: NextRequest) {
               session_id, role: 'assistant', content: fullAiResponse,
               grounding_sources: allSources.length > 0 ? allSources : null
             });
-            if (msgError) console.error('[Chat API] Assistant message save error:', msgError);
+            if (msgError) console.error('[Chat API] Assistant message save error:', dbErrorSummary(msgError));
           } catch (dbError: any) {
             console.error('[Chat API] DB save failed:', dbError.message);
           }
@@ -249,7 +253,8 @@ export async function POST(req: NextRequest) {
           code: error?.code,
           type: error?.type,
           name: error?.name,
-          message: error?.message ?? String(error),
+          // 원문은 의도적(DEV_260823 §9 — 오류 분류 오진 추적용). 길이만 자른다(PLAN_TURN_LOG_261105 §3)
+          message: String(error?.message ?? error).slice(0, 300),
         });
         const errorType = forGuest(classifyChatError(error, {
           geminiDailyQuota: isDailyQuotaError(error) || isAllKeysDailyExhausted(),
