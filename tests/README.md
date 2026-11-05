@@ -190,6 +190,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-chart-axis.mts` | 차트 x축 판정 — 숫자 x·불규칙 숫자 범주는 numeric(간격 보존), 등간격·문자열·막대는 category, 깔끔한 눈금 간격·양끝 배수. 픽셀 간격은 `manual/check-chart-axis-pixels.py` |
+| `test-chart-format.mts` | 차트 숫자 표시 — y축 만·억(영어 k·M·B) 축약, 툴팁 원본 수치+단위, 이미 축약된 단위(`만 명`) 재축약 안 함, 점 적은 numeric 선만 관측점 마커, `null` 보존 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
 | `test-turn-log.mts` | 요청당 `[turn]` 로그 — 블록 n/ok 판정·열거값 밖 → other·이메일·URL·가짜 `[turn]` 줄 미포함·오류는 코드만·키 집합 고정·`turnMeta` 가 클라이언트 SSE 로 안 나감 |
 | `test-paper-card.mts` | 논문 카드 — 근거 등급 판정(추정 금지)·초록 결론 추출과 꼬리 보일러플레이트 제거·철회 판정(정반대 값 구분)·검색어 붕괴 방어·인용할 수 없는 논문의 분리·**멀티턴 후속 판정**(재조회 vs 카드 대화)·**카드 범위 밖 인용 마커 제거**(스트림 배선 포함)·프롬프트 계약·배선. **소스를 정규식으로** 본다 |

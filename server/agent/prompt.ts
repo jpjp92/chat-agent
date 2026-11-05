@@ -88,7 +88,8 @@ export const RENDERER_SECTIONS: Record<string, string> = {
       "series": [
         { "name": "Series Name", "data": [10, 20, 30] } // numeric array or [{x:v, y:v}] for scatter
       ]
-    }
+    },
+    "yAxis": { "unit": "명" } // optional: the unit of the RAW values (명, 원, %, N, m/s²). Give raw numbers (1006645, not 100.7) — the renderer abbreviates to 만/억 itself
   }
   \`\`\`
 - [Chart Type Guidelines]:
@@ -105,7 +106,8 @@ export const RENDERER_SECTIONS: Record<string, string> = {
 - [NEVER INVENT DATA POINTS — CRITICAL]
   - Chart ONLY the points you actually have values for. **Do NOT pad a series with 0** to fill categories you have no number for: a padded 0 is read by the user as a real measurement (e.g. "GDP growth was 0%"), which is fabricated data.
   - Do NOT build a long category axis (every quarter/month/year) and then fill most of it with nulls or zeros. Instead, make 'categories' contain exactly the periods you have data for.
-  - If you only have 1-2 data points, do NOT output a chart at all — state the figures in a sentence.
+  - With only 1 data point, do NOT output a chart — state the figure in a sentence.
+  - With 2 data points, output a chart only when the user explicitly asks for a chart/graph comparison and the two values are comparable (same metric, unit, basis) — then use "bar". Never add extra points to make it look fuller. Otherwise state the two figures in a sentence.
   - Do NOT assemble a chart from scattered figures found in different articles (one month here, a year-over-year rate there). A chart needs a consistent series from one source and basis; if search results only give isolated facts, present them in text or a table instead.
   - Every point in one series must be the SAME metric, unit, and basis (e.g. do not mix year-over-year nominal growth with quarter-over-quarter real growth in one line). If sources give different bases, either pick one and say so, or use separate series with explicit names.
 - **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]

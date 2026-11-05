@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import ApexCharts from 'apexcharts';
 import { numericAxisOptions, numericTickLabel, resolveXAxis, type XScale } from './chart-axis';
+import { formatAxisValue, formatTooltipValue, markerSize, sanitizeUnit } from './chart-format';
 
 interface ChartData {
     type: 'bar' | 'line' | 'area' | 'pie' | 'donut' | 'scatter' | 'radar' | 'treemap' | 'heatmap';
@@ -12,6 +13,8 @@ interface ChartData {
             data: any[];
         }>;
     };
+    /** 원자료 단위(명·원·%) — 축약(만·억)은 chart-format 이 한다 */
+    yAxis?: { unit?: string };
 }
 
 interface ChartRendererProps {
@@ -70,13 +73,14 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const isTablet = screenWidth >= 480 && screenWidth < 768;
 
     const i18n = {
-        ko: { title: '데이터 시각화', download: 'PNG 다운로드' },
-        en: { title: 'Data Visualization', download: 'Download PNG' },
-        es: { title: 'Visualización de Datos', download: 'Descargar PNG' },
-        fr: { title: 'Visualisation des Données', download: 'Télécharger PNG' }
+        ko: { title: '데이터 시각화', download: 'PNG 다운로드', unit: '단위' },
+        en: { title: 'Data Visualization', download: 'Download PNG', unit: 'Unit' },
+        es: { title: 'Visualización de Datos', download: 'Descargar PNG', unit: 'Unidad' },
+        fr: { title: 'Visualisation des Données', download: 'Télécharger PNG', unit: 'Unité' }
     };
     const t = i18n[language] || i18n.en;
     const { type, title } = chartData;
+    const yUnit = sanitizeUnit(chartData.yAxis?.unit);
     // 부모가 렌더마다 JSON 을 다시 파싱해 새 객체를 넘긴다 — 객체 동일성으로 메모하면 무관한 리렌더마다
     // 차트를 부수고 다시 그려 애니메이션이 반복됐다. 내용 문자열로 메모한다
     const dataKey = JSON.stringify(chartData);
@@ -293,8 +297,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     // 돌려준다(위 xaxis 메모 참고).
                     formatter: (value: any) => {
                         if (isHeatmap) return value;
-                        if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
-                        return value;
+                        return formatAxisValue(value, language, yUnit);
                     }
                 }
             },
@@ -337,9 +340,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 fontSize: legendFontSize,
                 labels: { colors: isDark ? '#e2e8f0' : '#334155' }
             },
-            // 결측으로 끊긴 선에서는 앞뒤가 null 인 점이 선 없이 사라진다 — 그때만 점 표시
-            // 산점도는 점이 곧 데이터다 — 0 을 넘기면 아무것도 안 보인다(라이브러리 기본값 유지)
-            markers: { size: type === 'scatter' ? 6 : (type === 'line' || type === 'area') && series.some((sr: any) => (sr.data || []).some((v: any) => v === null || v?.y === null)) ? 4 : 0 },
+            // 산점도·결측 선·점 적은 numeric 선만 점 표시 — 규칙은 chart-format markerSize
+            markers: { size: markerSize(type, xScale, series) },
+            // 툴팁은 축약 없이 원본 수치 + 단위(1,006,645명). 히트맵은 Apex 기본(행·열 이름이 함께 나온다)
+            ...(isHeatmap ? {} : { tooltip: { y: { formatter: (v: unknown) => formatTooltipValue(v, yUnit) } } }),
             stroke: {
                 show: true,
                 width: (isPie || isTreemap || isHeatmap) ? 0 : 3,
@@ -404,7 +408,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 chartInstance.current = null;
             }
         };
-    }, [series, categories, isPie, isDark, type, title, isTreemap, isHeatmap, isMobile, isTablet, xScale]);
+    }, [series, categories, isPie, isDark, type, title, isTreemap, isHeatmap, isMobile, isTablet, xScale, yUnit, language]);
 
     const handleDownload = async () => {
         if (!chartInstance.current) return;
@@ -437,6 +441,11 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                         <h3 className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate leading-none">
                             {title || t.title}
                         </h3>
+                        {yUnit && (
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-none whitespace-nowrap flex-shrink-0">
+                                · {t.unit}: {yUnit}
+                            </span>
+                        )}
                     </div>
                     {/* p-2 -m-2: 터치 영역은 ~26px 로 넓히되 아이콘 위치는 헤더 여백선에 그대로 둔다. */}
                     <button

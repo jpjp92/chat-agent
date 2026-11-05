@@ -240,12 +240,12 @@ console.log('\n── 골든 해시 ──');
 const GOLDEN: Record<string, { len: number; sha: string }> = {
     drug_id:         { len: 23962, sha: 'a720d6807286aeeb' },
     drug_info:       { len: 25021, sha: '4e72a7a634812070' },
-    medical_qa:      { len: 28158, sha: '7ca9ab232989ec0b' },
+    medical_qa:      { len: 28585, sha: '597adc989b53631e' },
     biology:         { len: 18872, sha: '70daf026598e58a2' },
-    chemistry:       { len: 21562, sha: 'bf9e4bebd07c374a' },
-    physics:         { len: 26417, sha: '7ddafefbc0704243' },
+    chemistry:       { len: 21989, sha: '561154fd024f9da1' },
+    physics:         { len: 26844, sha: '7a991d1c852fa097' },
     astronomy:       { len: 19647, sha: 'b7654c5ae21a9857' },
-    data_viz:        { len: 21387, sha: '0c68bdd0b061c2eb' },
+    data_viz:        { len: 21814, sha: 'eb5cf47962214224' },
     pharmacy_search: { len: 17867, sha: 'f3232c13d840e32a' },
     hospital_search: { len: 17561, sha: '538d5529a5e210ba' },
     vet_search:      { len: 17572, sha: '7754ec04888f2d19' },
@@ -255,7 +255,7 @@ const GOLDEN: Record<string, { len: number; sha: string }> = {
     weather:         { len: 18576, sha: 'a924010ae38bd26d' },
     paper_search:    { len: 23772, sha: 'f9d8e371513293c2' },
     arxiv_search:    { len: 21414, sha: '556eaeae07ce133f' },
-    general:         { len: 21329, sha: 'da0fd84d8ba52cef' },
+    general:         { len: 21756, sha: 'ae6a81f709d602a9' },
 };
 // 의도가 늘었는데 골든을 안 박으면 하니스는 조용히 초록이다 — 개수 자체를 건다.
 check('골든이 모든 의도를 덮는다', Object.keys(GOLDEN).length === ALL_INTENTS.length,
@@ -270,26 +270,26 @@ for (const [intent, want] of Object.entries(GOLDEN)) {
 // **턴 조건 골든** — 빈 턴만 고정하면 턴 규칙을 추출할 때 바이트 동일을 증명할 수 없다.
 //    규칙이 얹힌 상태의 해시를 함께 박아야 "규칙을 파일로 옮겼을 뿐"이 검사된다(§10 Step 2).
 const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: string }> = {
-    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 21660, sha: '9d97b8e564d53183' },
+    reformat: { state: { ...emptyState('general'), reformatTurn: true }, len: 22087, sha: '7eca71125fc0929f' },
     weatherFollowup: { state: { ...emptyState('weather'), weatherFollowup: true }, len: 19291, sha: '925a37318707c50f' },
     paperFollowup: { state: { ...emptyState('paper_search'), paperFollowup: true }, len: 24462, sha: '9f86bf41fc94d0bb' },
     cardFollowup: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet',
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 22143, sha: '0977d04032ade028',
+        }, len: 22570, sha: '5fdfe349b5f8a76d',
     },
     cardSearchTurn: {
         state: {
             ...emptyState('general'), cardFollowup: 'vet', needsSearch: true,
             cardContexts: { vet: '```json:vet\n{"count":1}\n```' },
-        }, len: 22404, sha: 'd0f731b83adc662b',
+        }, len: 22831, sha: '71a207775b654cff',
     },
     movieSearch: {
         state: {
             ...emptyState('general'), movieSearchTurn: true,
             movieContext: '현재 화면에 표시된 영화 상영시간표: 오디세이 / CGV 강남',
-        }, len: 21966, sha: '78e716f4f6d24385',
+        }, len: 22393, sha: '55925ed565b16867',
     },
 
     // 아래 둘은 2026-09-25(8단계 2차)에 추가했다. 그전까지 **모든 턴 골든이
@@ -300,7 +300,7 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
     //    붙이는 쪽이라 **별도로 찍어야** 한다.
     urlSummary: {
         state: { ...emptyState('general'), webContent: '[URL_CONTENT]\n기사 본문 예시입니다.' },
-        len: 23596, sha: 'd84217cfd2f6d388',
+        len: 24023, sha: '4f555545502200a1',
     },
     // 두 게이트가 **동시에** 켜지는 유일한 골든 — `full` base 가 실제로 나가는 경로다.
     youtubeVideo: {
@@ -311,7 +311,7 @@ const TURN_GOLDEN: Record<string, { state: AssemblyState; len: number; sha: stri
                 { type: 'text', text: '이 영상 요약해줘' },
                 { fileData: { fileUri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', mimeType: 'video/mp4' } },
             ] })],
-        }, len: 27063, sha: '8582256bc9388768',
+        }, len: 27490, sha: '9fc093c3170e6d9f',
     },
 };
 for (const [name, want] of Object.entries(TURN_GOLDEN)) {
