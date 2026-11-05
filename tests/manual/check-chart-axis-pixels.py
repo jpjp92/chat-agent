@@ -25,6 +25,8 @@ CASES = [
     ('AX-05', 'bar', [{'name': 'n', 'data': [27, 26, 25, 23, 24, 25]}], ['2020', '2021', '2022', '2023', '2024', '2025'], 360),
     ('AX-06', 'scatter', [{'name': 'p', 'data': [{'x': 1, 'y': 2}, {'x': 2, 'y': 4}, {'x': 3, 'y': 1}]}], [], 360),
     ('AX-07', 'line', [{'name': '매출', 'data': [5, 6, 7, 6, 8, 9, 7, 8, 10, 9, 11, 12]}], [f'{i}월' for i in range(1, 13)], 360),
+    # 모델이 함수 샘플을 {x,y} 대신 등간격 숫자 범주 61개로 보낸 경우(11-05 실화면: 스크롤로 −3~−1.3 만 보임)
+    ('AX-08', 'line', [{'name': 'y', 'data': [round((-3 + i * 0.1) ** 2, 2) for i in range(61)]}], [f'{-3 + i * 0.1:.1f}' for i in range(61)], 360),
 ]
 
 PAGE = """<!doctype html><meta charset=utf-8><body style="margin:0;font-family:sans-serif">
@@ -80,6 +82,10 @@ def main():
         check('AX-05 연도 막대 6개 등간격(category)', res['AX-05']['scale'] == 'category' and len(x) == 6 and max(d) - min(d) < 1.5, d)
         check('AX-06 산점도 numeric·마커 3개', res['AX-06']['scale'] == 'numeric' and len(xs('AX-06')) == 3)
         check('AX-07 12개월 범주 가로 스크롤 유지', res['AX-07']['scale'] == 'category' and scrolls('AX-07'))
+        ends = pg.evaluate('''() => { const p = document.querySelector('#card-AX-08 .apexcharts-line path, #card-AX-08 path.apexcharts-line');
+          const c = document.querySelector('#card-AX-08').getBoundingClientRect(); const b = p.getBoundingClientRect();
+          return [b.left >= c.left - 1, b.right <= c.right + 1]; }''')
+        check('AX-08 등간격 숫자 범주 61개 → numeric·스크롤 없음·선 전체가 카드 안', res['AX-08']['scale'] == 'numeric' and not scrolls('AX-08') and all(ends), ends)
         # 선이 데이터 최솟값 아래로 꺼지지 않는다(Apex monotoneCubic 결함 회피 확인)
         dip = pg.evaluate('''() => { const p = document.querySelector('#card-AX-01 .apexcharts-line path, #card-AX-01 path.apexcharts-line');
           const L = p.getTotalLength(); let m = -1; for (let i = 0; i <= 400; i++) m = Math.max(m, p.getPointAtLength(L * i / 400).y);

@@ -56,6 +56,15 @@ check('막대 {x,y} 숫자 → category', a9.scale === 'category' && a9.categori
 const a10 = resolveXAxis('line', [{ data: [{ x: '-3', y: 9 }, { x: '0', y: 0 }, { x: '3', y: 9 }] }], []);
 check('숫자 문자열 x → numeric', a10.scale === 'numeric' && (a10.series[0].data[0] as any).x === -3);
 
+const fx = Array.from({ length: 61 }, (_, i) => (-3 + i * 0.1).toFixed(1));
+const a11 = resolveXAxis('line', [{ data: fx.map(x => Number(x) ** 2) }], fx);
+check('등간격 숫자 범주 61개(함수 0.1 간격) → numeric(스크롤 없음)', a11.scale === 'numeric' && (a11.series[0].data[0] as any).x === -3);
+const o5 = numericAxisOptions(a11.series, true) as any;
+check(`  축 −3~3 (${o5.min}~${o5.max})`, o5.min === -3 && o5.max === 3);
+const a12 = resolveXAxis('line', [{ data: Array(10).fill(1) }], Array.from({ length: 10 }, (_, i) => String(2016 + i)));
+check('등간격 연도 10개 → category 유지', a12.scale === 'category');
+const a13 = resolveXAxis('bar', [{ data: Array(16).fill(1) }], Array.from({ length: 16 }, (_, i) => String(2010 + i)));
+check('막대 연도 16개 → category 유지', a13.scale === 'category');
 check('isEvenlySpaced 내림차순', isEvenlySpaced([3, 2, 1, 0]));
 check('isEvenlySpaced 같은 값 반복은 불균등', !isEvenlySpaced([1, 1, 1]));
 

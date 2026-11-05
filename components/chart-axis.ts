@@ -40,6 +40,9 @@ export const isEvenlySpaced = (xs: number[]): boolean => {
     return true;
 };
 
+// 범주 축이 가로 스크롤 없이 놓이는 최대 개수(ChartRenderer 의 `dataCount > 10` 와 같은 값)
+const DENSE_CATEGORY_MAX = 10;
+
 export const resolveXAxis = (type: string, series: Series[], categories: string[]): AxisResult => {
     const numericCapable = type === 'line' || type === 'area' || type === 'scatter';
     const allPts = series.length > 0 && series.every(s => s.data.length > 0 && s.data.every(isPt));
@@ -61,11 +64,13 @@ export const resolveXAxis = (type: string, series: Series[], categories: string[
         return { scale: 'category', series: out, categories: xs, integerX: false };
     }
 
-    // ② 숫자 범주 + 값 배열 — 간격이 불균등할 때만 numeric(등간격은 범주가 왜곡 없고 라벨이 정확)
+    // ② 숫자 범주 + 값 배열 — 간격이 불균등하면 numeric(범주는 간격을 지운다). 등간격은 라벨이 정확한
+    //    범주로 두되, 10 개를 넘으면 범주 축은 가로 스크롤이 생겨 함수 샘플(−3.0, −2.9 … 61개)이
+    //    한 화면에 안 들어온다 — 그때도 numeric
     const catNums = categories.map(toNum);
     if (numericCapable && categories.length >= 2 && catNums.every(n => n !== null)) {
         const xs = catNums as number[];
-        if (!isEvenlySpaced(xs)) {
+        if (!isEvenlySpaced(xs) || xs.length > DENSE_CATEGORY_MAX) {
             const out = series.map(s => ({
                 ...s,
                 data: xs.map((x, i) => ({ x, y: (s.data[i] as Y) ?? null })),
