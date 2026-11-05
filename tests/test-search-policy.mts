@@ -386,6 +386,16 @@ const GATE_CASES: GateCase[] = [
         ctx: { intent: 'astronomy', messages: [human('오리온자리 최신 관측 검색해서 알려줘')], latestUserText: '오리온자리 최신 관측 검색해서 알려줘' },
     },
     {
+        name: 'data_viz + 라우터 검색 필요 → on (통계를 학습 지식으로 그리지 않는다)',
+        want: true,
+        ctx: { intent: 'data_viz', needsSearch: true, messages: [human('한국 연도별 출생아 수 그래프')], latestUserText: '한국 연도별 출생아 수 그래프' },
+    },
+    {
+        name: 'data_viz + 라우터 검색 불필요 → off',
+        want: false,
+        ctx: { intent: 'data_viz', needsSearch: false, messages: [human('y = x^2 그래프 그려줘')], latestUserText: 'y = x^2 그래프 그려줘' },
+    },
+    {
         name: '첨부 문서 → off',
         want: false,
         ctx: { webContent: '[EXTRACTED_CONTENT: ...]', messages: [human('이 문서 요약해줘')], latestUserText: '이 문서 요약해줘' },

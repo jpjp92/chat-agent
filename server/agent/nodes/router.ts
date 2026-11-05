@@ -181,8 +181,8 @@ The next five intents DRAW A VISUAL. Pick one only when the user wants to SEE or
 - "general"         : everything else (code, writing, general chat, web search, video summary, etc.)
 
 Also decide "needs_search": whether answering the LATEST user message needs up-to-date Google Search grounding.
-- true  : real-time / current info (news, weather, prices, stocks, "latest/today/now", recent events), a person's current status or role, rankings, company metrics, the user explicitly asks to search or cite sources, OR the message asks about a specific named product/model/version/person that may be recent or that you are not certain exists (verify before denying existence).
-- false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math, or summarizing/processing what was already discussed in this conversation.
+- true  : real-time / current info (news, weather, prices, stocks, "latest/today/now", recent events), a person's current status or role, rankings, company metrics, real-world statistics or historical figures to be charted (population, prices, index values by year), the user explicitly asks to search or cite sources, OR the message asks about a specific named product/model/version/person that may be recent or that you are not certain exists (verify before denying existence).
+- false : timeless knowledge, well-established concept/term explanation, code, translation, writing, math (including plotting a function like y = x²), or summarizing/processing what was already discussed in this conversation.
 
 Also decide "follow_up" — ONLY meaningful when a result CARD is already displayed (see NOTE below); otherwise output "unrelated".
 - "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, which city is cooler / which movie starts earliest, seats left, which theater has it).

@@ -138,7 +138,9 @@ export const decideGoogleSearch = (ctx: {
     // 렌더러 인텐트는 구조화 JSON 을 바로 만들어야 한다. Google Search 를 켜 두면
     // 검색 메모 → 요약 두 단계로 흘러 시각화 블록이 통째로 빠질 수 있다
     // (3.5 two-track 에서 실제로 났다).
-    if (rendererIntents.has(intent) && !explicitSearchRequested) {
+    // data_viz 는 예외 — 그리는 값이 실제 통계·시세면 학습 지식으로 그리면 틀린다(출생아 2024년 "21만 예측",
+    // 실제 238,317명). 검색 여부는 라우터 needs_search 에 맡긴다(y = x² 같은 계산 차트는 거기서 off).
+    if (rendererIntents.has(intent) && intent !== 'data_viz' && !explicitSearchRequested) {
         signals.push({ tier: TIER.CONTEXT_GROUNDED, verdict: 'off', source: 'renderer', reason: '구조화 출력 보존' });
     }
 
@@ -169,7 +171,8 @@ export const decideGoogleSearch = (ctx: {
         latestUserText,
         prevSearched,
         needsSearch,
-        isGeneralIntent: intent === 'general',
+        // data_viz 도 라우터 판정을 따른다 — 위 렌더러 off 에서 뺀 이유(통계는 검색)와 짝
+        isGeneralIntent: intent === 'general' || intent === 'data_viz',
     }));
 
     // ── 정책 적용 ────────────────────────────────────────────────────────
