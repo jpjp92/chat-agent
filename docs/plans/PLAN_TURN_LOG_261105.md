@@ -1,6 +1,6 @@
 # PLAN_TURN_LOG_261105 — 요청당 구조화 로그(`[turn]`)
 
-> 작성 2026-11-05 · 상태: **계획(미구현)** · 관련 TODO §0-i "의도·`json:diagram` 생성 여부 구조화 로그"(Codex P1)
+> 작성 2026-11-05 · 상태: **L0 구현(11-05, 로컬 확인 전)** · 관련 TODO §0-i "의도·`json:diagram` 생성 여부 구조화 로그"(Codex P1)
 > 배경: [DEV_261105](../logs/2026/11/DEV_261105.md) — 차트 블록 누락(검색 on), 인용 제거가 JSON 배열을 지움, 값 부족 차트 숨김이 모두 **응답 200** 으로 끝나 로그로는 성공처럼 보였다. 사용자가 원문을 붙여 줘서야 찾았다.
 
 ---
@@ -77,6 +77,13 @@
 | 6 | 문서 — REF_Architecture 로깅 절, 집계 방법(§6) | `docs/guide/` |
 
 비용: 요청당 본문 한 번 훑기 + 블록 수만큼 `JSON.parse`. 유료 API 호출 없음.
+
+### 구현 메모(11-05)
+- 생성기 → 디스패치는 내부 이벤트 `sendEvent({ turnMeta })` — 요청별 콜백이라 전역 상태 없음(동시 요청 섞임 없음). 디스패치 `trackingEvent` 가 받아 `st.turn` 에 병합하고 **클라이언트로 보내지 않는다**(하니스 고정). 폴백·재시도는 다시 보내 뒤 값이 이긴다.
+- `intentFrom`: 라우터가 LLM 판정 값을 기억해 최종 의도와 비교(같으면 `router`, 다르면 `guard`, LLM 판정 없음 `rule`, 지름길 `shortcut`).
+- `model` 은 `server/models.ts`(server-only) 를 하니스가 못 불러와 목록 대신 형태 `^(gemini|gpt)-[a-z0-9.-]{1,40}$` 로 제한 — 줄바꿈·따옴표·공백 불가.
+- **운영 빌드 `removeConsole`** 이 `console.log` 를 지운다(error·warn 만 남김) → `[turn]` 은 `process.stdout.write`.
+- 남은 점: 라우트의 `[Chat API] Model request failed` 오류 로그는 `error.message` 를 그대로 찍는다(§3-4 원칙과 다름). 공급자 메시지에 프롬프트 일부가 섞일 수 있어 다음에 정리 후보.
 
 ## 5. 검증
 

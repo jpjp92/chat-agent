@@ -586,6 +586,7 @@ flowchart LR
 | 모델·도구 오류 | 클라에는 현지화 안내 문구만, 원문은 서버 로그 | [chat-error-policy.ts](../../server/chat-error-policy.ts) |
 | 브라우저 쪽 오류(업로드 PUT·로그인) | 콘솔에는 `[scope] failed` 만, 원본은 `sendBeacon` → `/api/client-log` → Vercel 로그 `[client-error]`. 수신은 scope 허용 목록·2KB 상한·줄바꿈 제거 | [client-error.ts](../../src/lib/client-error.ts) · [client-log](../../app/api/client-log/route.ts) |
 | 콘솔 로그 | 프로덕션 빌드는 `console.log/info/debug/warn` 제거(서버·클라 공통). 진단 시 `KEEP_LOGS=1` | [next.config.ts](../../next.config.ts) |
+| 요청당 결과 로그 `[turn]` | 요청마다 JSON 한 줄(의도·판정 출처·검색·모델·출처 수·블록 n/ok·결과). 필드는 허용 목록·열거값만, 질문·답·URL·세션 ID 없음, 오류는 코드만. `removeConsole` 을 피해 stdout 직접 기록. 내부 이벤트 `turnMeta` 는 디스패치가 끊어 클라이언트로 안 나감 | [turn-log.ts](../../server/agent/turn-log.ts) · [PLAN_TURN_LOG_261105](../plans/PLAN_TURN_LOG_261105.md) |
 
 ## Streaming & Source Handling
 
