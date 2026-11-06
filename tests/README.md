@@ -153,6 +153,20 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
   **그라운딩이 주입 날짜를 덮어쓰는가** — §5-a 의 기각 가설을 재확인한다. 답: 덮어쓰지 않는다
   (검색 ON/OFF 6회 모두 주입값, `src=10` 포함). ⚠️ 첫 시도는 ON 팔에서 `src=0` 이 나와 **무효**였다
   (순수 날짜 질문은 검색을 안 붙인다) — 질문을 바꿔 검색을 실제로 붙인 뒤에야 조건이 성립한다
+- `TIER1=1 npx tsx tests/manual/probe-chart-source-tiers.mts`: 차트 질문의 grounding **출처 도메인 분포**와
+  출처 구간이 `json:chart` 블록을 덮는지(6 호출, 유료). 11-06: 덮은 횟수 0/6 — 출처는 본문에만 붙는다
+- `TIER1=1 npx tsx tests/manual/probe-chart-text-consistency.mts [outDir]`: 출처 붙은 본문의 (시점, 수치) 와
+  차트 같은 시점 값 비교(16 호출, 유료). 원문은 outDir 에 저장(redirect URL 제외) — PLAN_CHART_SOURCE_261106 §3
+- `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-chart-app-path.mts [outDir] [runs]`: 위 비교를
+  **앱 경로**(route.ts 와 같은 그래프·디스패치 — 라우터·검색 게이트·강등)로. 실제 모델·검색 여부를 함께 기록.
+  11-06: 강등 0/16 · 실제 불일치 0/42(자동 7 은 전부 오탐) — 위험은 환율 시점 오류·기준 혼재
+- `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-chart-router-search.mts`: 통계 차트 질문 16개의
+  라우터 **검색 판정만**(생성 없음). 11-06: 15/16, 통계 질문은 전부 on
+- `TIER1=1 [FROM=n] npx tsx tests/manual/probe-chart-fresh-ab.mts [outDir] [runs]`: 빠르게 변하는 시계열 6개를
+  현재 프롬프트 vs 후보 규칙 `[STATISTICS SOURCING]` 으로 A/B(24 호출, 10분 넘음 — `FROM` 으로 나눠 돌린다).
+  11-06: "최근" 에 오래된 값 3/11 → 1/12, 공식 출처 비율은 거의 그대로
+- `TIER1=1 npx tsx tests/manual/probe-chart-origin.mts [outDir] [runs]`: 모델이 `json:chart` 의 `origin`
+  (provided·function·external)을 맞게 쓰는지 + 후보 규칙이 함수·사용자 숫자 차트를 망가뜨리지 않는지(20 호출). 11-06: 20/20
 - `npx tsx --env-file=.env.local --tsconfig tests/tsconfig.probe.json tests/manual/live-citation-followup.mts [model] [후속발화]`:
   그 대화를 히스토리로 재생해 **실제 그래프**로 후속 검색 턴을 돌리고 생 URL 노출 여부 확인 (Gemini 키 소모)
 
