@@ -417,6 +417,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 운영 로그 정리 2건(11-05 검토·적용) — DB 메시지 저장 오류는 `details` 빼고 `code`·`message`·`hint` 만 · 모델 오류 원문은 의도적 유지(DEV_260823 §9)하되 300자 제한. 날씨 도시·알약 응답 앞 100자는 유지 → [PLAN_TURN_LOG_261105 §3](plans/PLAN_TURN_LOG_261105.md)
 - [x] 차트 범주 간격 불균등 → 숫자 x 는 numeric 축(간격 보존)·깔끔한 눈금·numeric 은 가로 스크롤 없음 — P0 [PLAN_CHART_AXIS_261105](plans/PLAN_CHART_AXIS_261105.md). 남은 P1(스키마 `origin`·`xAxis`·`yAxis.unit`·`source`, 단위·출처 UI, 명시 요청 시 값 2개 막대)·P2(함수 좌표 생성·매개변수)
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
+- [ ] 🔴 차트 수치 근거 — 설계 확정(11-06): P1-2A `[STATISTICS SOURCING]`·도메인 분류·`sourceKinds` → P1-2B `origin`·출처 칩 영역 안내·상대 날짜 검사 → P1-2C 실측/잠정/전망. 차트-본문 자동 대조는 보류 — [PLAN_CHART_SOURCE_261106](plans/PLAN_CHART_SOURCE_261106.md) §5
 - [ ] GPT 파이 범례 음역("아이오에스"·"카이오에스") — 표기만, 값 무관
 
 ---
