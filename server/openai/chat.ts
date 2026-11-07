@@ -6,6 +6,7 @@ import type { LocalFunctionTool } from '../agent/local-tool-registry';
 import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../agent/card-tool-output';
 import { buildEmptyCardRules } from '../agent/card-followup';
 import { toOpenAIFilePart } from './media';
+import { llmSpan } from '../agent/tracing';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /**
@@ -293,7 +294,13 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
          * 타이머는 **호출마다 새로 건다.** signal 을 initial·followup 이 공유하면 상한이 "호출당" 이 아니라
          * "턴 전체 예산" 이 되어, initial 이 느릴수록 followup 이 받는 잔액이 줄어든다(먼저 끝난 호출이 뒤 호출을 굶김).
          */
-        const request = async (body: JsonObject, phase: string) => {
+        // 호출 1회 = LangSmith llm run 1개(추적이 꺼져 있으면 그대로 호출). 반환 json 의 usage 가 토큰 수가 된다
+        const request = (body: JsonObject, phase: string) => llmSpan('openai', {
+            call: phase === 'initial' ? 'openai_initial' : phase === 'followup' ? 'openai_followup' : 'openai_other',
+            model: typeof body.model === 'string' ? body.model : 'other',
+            search: Array.isArray(body.tools) && body.tools.some((t: JsonObject) => t?.type === 'web_search'),
+        }, () => requestOnce(body, phase));
+        const requestOnce = async (body: JsonObject, phase: string) => {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             const started = Date.now();

@@ -9,7 +9,7 @@ import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { FakeStreamingChatModel } from '@langchain/core/utils/testing';
 import { AIMessageChunk, HumanMessage } from '@langchain/core/messages';
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
-import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, errorName, tracingEnabled, traceCallbacks } from '../server/agent/tracing.js';
+import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, traceGemini, rawMode, scrubRaw, errorName, tracingEnabled, traceCallbacks } from '../server/agent/tracing.js';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean, detail = '') => {
@@ -88,6 +88,80 @@ const errs = parts.filter(([k]) => k === 'error');
 check(`오류 조각 ${errs.length}개 전부 이름만`, errs.length > 0 && errs.every(([, v]) => /^"[A-Za-z]*Error"$/.test(v)), JSON.stringify(errs));
 check('events 조각 없음', !parts.some(([k]) => k === 'events'));
 check('스트리밍 모델 run 도 정리됨(llm run 존재)', all.includes('"run_type":"llm"'));
+
+// ④ L2 — SDK 직접 호출 span
+check('Gemini usageMetadata → 토큰', JSON.stringify(usageOf({ usageMetadata: { promptTokenCount: 11, candidatesTokenCount: 4, totalTokenCount: 15 } })) === '{"input_tokens":11,"output_tokens":4,"total_tokens":15}');
+check('OpenAI usage → 토큰', JSON.stringify(usageOf({ usage: { input_tokens: 9, output_tokens: 3 } })) === '{"input_tokens":9,"output_tokens":3,"total_tokens":12}');
+const gr = sanitizeRun({ id: '3', outputs: { candidates: [{ content: { parts: [{ text: '답' }] }, groundingMetadata: { groundingChunks: [{ web: { title: 'kosis.kr', uri: 'https://secret.example/r' } }, {}] } }] } });
+check('한 겹 감싼 출력에서도 출처 개수', JSON.stringify(sanitizeRun({ id: '4', outputs: { outputs: { candidates: [{ groundingMetadata: { groundingChunks: [{}, {}, {}] } }] } } })).includes('"grounding_sources":3'));
+check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_sources":2') && !JSON.stringify(gr).includes('kosis') && !JSON.stringify(gr).includes('secret'));
+
+// 꺼져 있으면 traceable 을 거치지 않고 원본 그대로
+{
+    const saved2 = { ...process.env };
+    process.env.CHAT_TRACING = 'false';
+    const res = { tag: 'same' };
+    let calls = 0, thisOk = false;
+    const models = { generateContent(this: unknown, _p: { model: string }) { calls++; thisOk = this === models; return Promise.resolve(res); } };
+    const got = await traceGemini('single', models, { model: 'gemini-3.8-flash' });
+    check('꺼짐: 반환값이 원본 객체·호출 1회·this 유지', got === res && calls === 1 && thisOk);
+    process.env = saved2;
+}
+
+// 켜져 있으면 노드의 자식 llm run — 모델·호출 종류·검색·토큰·출처 개수, 원문 없음
+{
+    const saved3 = { ...process.env };
+    process.env.CHAT_TRACING = 'true'; process.env.LANGSMITH_API_KEY = 'test';
+    const b2: string[] = [];
+    const f2 = (async (_u: unknown, i?: { body?: unknown }) => { const b = i?.body; if (b instanceof ReadableStream) b2.push(await new Response(b).text()); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+    // llmSpan 은 모듈 Client 를 쓴다 — traceCallbacks 로 그 Client 를 만들고 전송만 가짜로 바꾼다
+    const tracers = (await import('../server/agent/tracing.js')).traceCallbacks();
+    const modClient = (tracers[0] as unknown as { client: unknown }).client;
+    (modClient as unknown as { fetchImplementation: typeof fetch }).fetchImplementation = f2;
+    const resp = { candidates: [{ content: { parts: [{ text: '비밀답변' }] }, groundingMetadata: { groundingChunks: [{}, {}, {}] } }], usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 5, totalTokenCount: 25 } };
+    const models = { generateContent: async (_p: unknown) => resp };
+    const S2 = Annotation.Root({ q: Annotation<string>() });
+    const g2 = new StateGraph(S2).addNode('generator', async () => {
+        const out = await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: '비밀질문', config: { tools: [{ googleSearch: {} }] } } as any, 1);
+        check('켜짐: 반환값이 원본 객체', out === resp);
+        return {};
+    }).addEdge(START, 'generator').addEdge('generator', END).compile();
+    for await (const _ of g2.streamEvents({ q: 'x' }, { version: 'v2', callbacks: tracers })) { /* 소비 */ }
+    await awaitAllCallbacks();
+    await (modClient as unknown as { awaitPendingTraceBatches: () => Promise<void> }).awaitPendingTraceBatches();
+    const all2 = b2.join('\n');
+    const runs = [...all2.matchAll(/name="post\.([0-9a-f-]{36})"\r?\n[^\r\n]*\r?\n\r?\n([^\r\n]*)/g)].map(m => ({ id: m[1], ...JSON.parse(m[2]) }));
+    const gen = runs.find(r => r.name === 'generator'), llm = runs.find(r => r.name === 'gemini.single');
+    check('gemini.single 이 generator 의 자식', !!gen && !!llm && llm.parent_run_id === gen.id, JSON.stringify(runs.map(r => r.name)));
+    const meta = [...all2.matchAll(/name="post\.[^".]+\.extra"\r?\n[^\r\n]*\r?\n\r?\n([^\r\n]*)/g)].map(m => m[1]).find(x => x.includes('"call":"single"')) ?? '';
+    check('메타데이터: 모델·호출·검색·시도', /"ls_model_name":"gemini-3\.8-flash"/.test(meta) && /"search":true/.test(meta) && /"attempt":1/.test(meta), meta);
+    check('메타데이터: 토큰·출처 개수', meta.includes('"usage_metadata":{"input_tokens":20,"output_tokens":5,"total_tokens":25}') && meta.includes('"grounding_sources":3'), meta);
+    check('L2 전송에 원문 없음', !/비밀/.test(all2));
+    process.env = saved3;
+}
+
+// ⑤ 원문 모드 — 로컬 전용·base64 길이만·긴 문자열 앞부분만
+{
+    const saved4 = { ...process.env };
+    process.env.CHAT_TRACING_RAW = 'true'; delete process.env.VERCEL;
+    check('원문 모드: 로컬이면 켜짐', rawMode());
+    process.env.VERCEL = '1';
+    check('원문 모드: 배포 환경(VERCEL)이면 무시', !rawMode());
+    process.env = saved4;
+    const b64 = 'A'.repeat(5000);
+    const sc = JSON.stringify(scrubRaw({ img: `data:image/png;base64,${b64}`, raw: b64, long: '가'.repeat(25000), bin: new Uint8Array(10), q: '합성 질문' }));
+    check('scrubRaw: data URI·긴 base64 → 길이만', sc.includes('[base64 ') && !sc.includes('A'.repeat(100)), sc.slice(0, 200));
+    check('scrubRaw: 긴 문자열은 앞부분 + 남은 길이', sc.includes('…[+5000 chars]'));
+    check('scrubRaw: 바이너리 → 바이트 수', sc.includes('[binary 10 bytes]'));
+    check('scrubRaw: 일반 문자열은 그대로', sc.includes('합성 질문'));
+    const rr = sanitizeRun({ id: '5', inputs: { q: '합성 질문' }, outputs: { a: '합성 답' }, error: 'ApiError: 상세 사유', events: [{ x: 1 }] }, true);
+    const rjs = JSON.stringify(rr);
+    check('원문 모드 정리: 입출력·오류 원문 유지', rjs.includes('합성 질문') && rjs.includes('합성 답') && rjs.includes('상세 사유'));
+    check('원문 모드 정리: events 는 여전히 제거(출력과 중복)', !('events' in rr));
+    const rc = createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1' }, true);
+    check('원문 모드 Client 는 별도 프로젝트', (makeTracer(rc) as unknown as { projectName: string }).projectName === (process.env.LANGSMITH_PROJECT_RAW || 'chat-agent-dev-raw'));
+    check('숨김 Client 는 기본 프로젝트', (makeTracer(createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1' })) as unknown as { projectName: string }).projectName !== 'chat-agent-dev-raw');
+}
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
 process.exit(fail === 0 ? 0 : 1);

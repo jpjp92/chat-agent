@@ -22,6 +22,7 @@ import { withSearchProviderInstruction } from "../search-provider";
 import { getLocalFunctionTool } from "../local-tool-registry";
 import { withExplicitSearchFollowup, shouldDropImageForSearch } from "../search-signals";
 import { emitStatus } from "../status-event";
+import { traceGemini } from '../tracing';
 
 // SDK 호출 1회(attempt)당 상한 — 행 감지 UX 가드. 일반 텍스트 턴이 25s 넘게 무응답이면
 // 끊고 2.5 로 강등 재시도하는 편이 사용자에게 낫다. 건강한 응답은 보통 <15s 라 거의 안 잘린다 → DEV_260808 §9
@@ -404,7 +405,7 @@ export const createGeneratorNode = (
                     if (useGoogleSearch && needsSearchFallback) {
                         console.log('[LangGraph] Grounding via 2.5 single-pass (Stage2 3.5 synthesis removed)');
 
-                        const stage1Response = await genai.models.generateContent({
+                        const stage1Response = await traceGemini('stage1', genai.models, {
                             model: SEARCH_FALLBACK_MODEL,
                             contents: sdkContents,
                             config: {
@@ -419,7 +420,7 @@ export const createGeneratorNode = (
                                 // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
                                 thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                             }
-                        });
+                        }, sdkAttempt);
 
                         const stage1Parts = stage1Response.candidates?.[0]?.content?.parts ?? [];
                         const stage1Grounding = stage1Response.candidates?.[0]?.groundingMetadata;
@@ -438,7 +439,7 @@ export const createGeneratorNode = (
                         if (!stage1Text) {
                             console.warn('[LangGraph] Grounding stage1 empty — retrying once with next key');
                             const s1RetryKey = getNextApiKey() ?? sdkApiKey;
-                            const s1Retry = await new GoogleGenAI({ apiKey: s1RetryKey }).models.generateContent({
+                            const s1Retry = await traceGemini('stage1_retry', new GoogleGenAI({ apiKey: s1RetryKey }).models, {
                                 model: SEARCH_FALLBACK_MODEL,
                                 contents: sdkContents,
                                 config: {
@@ -453,7 +454,7 @@ export const createGeneratorNode = (
                                     // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
                                 thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
                                 }
-                            });
+                            }, sdkAttempt);
                             const s1rParts = s1Retry.candidates?.[0]?.content?.parts ?? [];
                             const s1rGrounding = s1Retry.candidates?.[0]?.groundingMetadata;
                             const s1rCited = applyGeminiCitations((s1Retry.text ?? s1rParts
@@ -476,7 +477,7 @@ export const createGeneratorNode = (
                     } else {
                         // thinkingLevel 이 사고 예산을 다 쓰면 thought 파트만 오고 텍스트가 빈다.
                         // 포기하기 전에 "minimal" 로 한 번 재시도한다.
-                        let singlePassResponse = await genai.models.generateContent({
+                        let singlePassResponse = await traceGemini('single', genai.models, {
                             model: effectiveModel,
                             contents: sdkContents,
                             config: {
@@ -488,7 +489,7 @@ export const createGeneratorNode = (
                                 ...videoMediaResolution,
                                 ...(thinkingConfig ? { thinkingConfig: thinkingConfig as any } : {}),
                             }
-                        });
+                        }, sdkAttempt);
 
                         let singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
                         responseText = (singlePassResponse.text || singleParts
@@ -505,7 +506,7 @@ export const createGeneratorNode = (
                             const finishReason = candidate0?.finishReason;
                             const thoughtOnlyParts = singleParts.filter((p: any) => p.thought).length;
                             console.warn('[LangGraph] Empty response - finishReason:', finishReason, '| thoughtParts:', thoughtOnlyParts, '| thinkingLevel:', (thinkingConfig as any).thinkingLevel, `— retrying with thinkingLevel=${retryLevel}`);
-                            singlePassResponse = await genai.models.generateContent({
+                            singlePassResponse = await traceGemini('single_retry', genai.models, {
                                 model: effectiveModel,
                                 contents: sdkContents,
                                 config: {
@@ -516,7 +517,7 @@ export const createGeneratorNode = (
                                     ...videoMediaResolution,
                                     thinkingConfig: { thinkingLevel: retryLevel } as any,
                                 }
-                            });
+                            }, sdkAttempt);
                             singleParts = singlePassResponse.candidates?.[0]?.content?.parts ?? [];
                             responseText = (singlePassResponse.text || singleParts
                                 .filter((p: any) => !p.thought)
@@ -549,7 +550,7 @@ export const createGeneratorNode = (
                             if (finishReason === 'MALFORMED_FUNCTION_CALL' && effectiveModel !== SEARCH_FALLBACK_MODEL) {
                                 console.warn('[LangGraph] MALFORMED_FUNCTION_CALL on', effectiveModel, '— retrying on', SEARCH_FALLBACK_MODEL);
                                 turnMeta({ model: SEARCH_FALLBACK_MODEL });
-                                const mfRetry = await genai.models.generateContent({
+                                const mfRetry = await traceGemini('malformed_retry', genai.models, {
                                     model: SEARCH_FALLBACK_MODEL,
                                     contents: sdkContents,
                                     config: {
@@ -562,7 +563,7 @@ export const createGeneratorNode = (
                                         maxOutputTokens: effectiveMaxTokens,
                                         thinkingConfig: { thinkingBudget: 0 },
                                     }
-                                });
+                                }, sdkAttempt);
                                 const mfParts = mfRetry.candidates?.[0]?.content?.parts ?? [];
                                 responseText = (mfRetry.text || mfParts
                                     .filter((p: any) => !p.thought)
@@ -598,7 +599,7 @@ export const createGeneratorNode = (
                         try {
                             const groundModel = needsSearchFallback ? SEARCH_FALLBACK_MODEL : effectiveModel;
                             turnMeta({ model: groundModel, search: true });
-                            const groundRetry = await genai.models.generateContent({
+                            const groundRetry = await traceGemini('ground_retry', genai.models, {
                                 model: groundModel,
                                 contents: sdkContents,
                                 config: {
@@ -611,7 +612,7 @@ export const createGeneratorNode = (
                                     maxOutputTokens: effectiveMaxTokens,
                                     thinkingConfig: { thinkingBudget: 0 },
                                 }
-                            });
+                            }, sdkAttempt);
                             const grParts = groundRetry.candidates?.[0]?.content?.parts ?? [];
                             const grGrounding = groundRetry.candidates?.[0]?.groundingMetadata;
                             const grCited = applyGeminiCitations((groundRetry.text || grParts
@@ -759,7 +760,7 @@ export const createGeneratorNode = (
                     }
                 }
                 turnMeta({ provider: 'gemini', model: SERVER_MODELS.FLASH_3_5 });
-                const fbResponse = await fbGenai.models.generateContent({
+                const fbResponse = await traceGemini('fallback', fbGenai.models, {
                     model: SERVER_MODELS.FLASH_3_5,
                     contents: fbContents,
                     config: {
