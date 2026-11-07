@@ -14,6 +14,7 @@ import { classifyChatError, forGuest } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
 import { logTurn } from '../../../server/agent/turn-log';
+import { countSourceKinds } from '../../../lib/source-kind';
 
 export const runtime = 'nodejs';
 // 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
@@ -268,7 +269,7 @@ export async function POST(req: NextRequest) {
           intent: ts?.detectedIntent, intentFrom: ts?.turn.intentFrom,
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
           search: ts?.turn.search, searchBy: ts?.turn.searchBy,
-          sources: ts?.allSources.length, text: ts?.fullAiResponse ?? '',
+          sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
           ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr,
         });
         clearInterval(heartbeatInterval);

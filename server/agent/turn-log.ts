@@ -26,6 +26,12 @@ const MAX_PARSE_CHARS = 200_000;
 const pick = <T extends readonly string[]>(list: T, v: unknown): T[number] | 'other' =>
     typeof v === 'string' && (list as readonly string[]).includes(v) ? (v as T[number]) : 'other';
 const int = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
+// 키 3개만 정수로 — 다른 키가 섞여 와도 찍지 않는다
+const kindCounts = (v: unknown): { official: number | null; secondary: number | null; other: number | null } | null => {
+    if (!v || typeof v !== 'object') return null;
+    const o = v as Record<string, unknown>;
+    return { official: int(o.official), secondary: int(o.secondary), other: int(o.other) };
+};
 
 /** 공급자 오류 → 코드. 메시지 문자열은 읽지 않는다(프롬프트 일부가 섞여 돌아올 수 있다). */
 export const errCodeOf = (err: unknown): (typeof ERR_CODES)[number] | 'other' => {
@@ -67,6 +73,8 @@ interface TurnLogInput {
     search?: unknown;
     searchBy?: unknown;
     sources?: unknown;
+    // 출처 성격별 개수 — 호출부가 센다. 출처 자체는 받지 않는다
+    sourceKinds?: unknown;
     text?: string;
     ms?: unknown;
     outcome?: unknown;
@@ -88,6 +96,7 @@ export const buildTurnLog = (i: TurnLogInput): string => {
             search: i.search === true ? 'on' : i.search === false ? 'off' : 'other',
             searchBy: pick(SEARCH_BY, i.searchBy),
             sources: int(i.sources),
+            sourceKinds: kindCounts(i.sourceKinds),
             blocks: countBlocks(typeof i.text === 'string' ? i.text : ''),
             chars: typeof i.text === 'string' ? i.text.length : 0,
             ms: int(i.ms),

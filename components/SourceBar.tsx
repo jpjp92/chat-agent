@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { GroundingSource, Language } from '../types';
+import { sourceKindOf, type SourceKind } from '../lib/source-kind';
 
 /**
  * 출처 칩 favicon 도메인. Gemini grounding 링크는 전부 `vertexaisearch.cloud.google.com`
@@ -21,15 +22,27 @@ const faviconUrl = (domain: string) => `https://www.google.com/s2/favicons?domai
 const COLLAPSE_AT = 3;
 
 const i18n = {
-  ko: { sources: (n: number) => `출처 ${n}개`, extra: '참고한 출처', close: '닫기' },
-  en: { sources: (n: number) => `${n} sources`, extra: 'Also consulted', close: 'Close' },
-  es: { sources: (n: number) => `${n} fuentes`, extra: 'También consultadas', close: 'Cerrar' },
-  fr: { sources: (n: number) => `${n} sources`, extra: 'Également consultées', close: 'Fermer' },
+  ko: { sources: (n: number) => `출처 ${n}개`, extra: '참고한 출처', close: '닫기', official: (n: number) => `공식 ${n}`,
+    kind: { official: '정부·공식 통계', secondary: '언론·2차 자료', other: '기타 출처' } },
+  en: { sources: (n: number) => `${n} sources`, extra: 'Also consulted', close: 'Close', official: (n: number) => `${n} official`,
+    kind: { official: 'Government/official', secondary: 'News/secondary', other: 'Other source' } },
+  es: { sources: (n: number) => `${n} fuentes`, extra: 'También consultadas', close: 'Cerrar', official: (n: number) => `${n} oficiales`,
+    kind: { official: 'Gobierno/oficial', secondary: 'Prensa/secundaria', other: 'Otra fuente' } },
+  fr: { sources: (n: number) => `${n} sources`, extra: 'Également consultées', close: 'Fermer', official: (n: number) => `${n} officielles`,
+    kind: { official: 'Gouvernement/officiel', secondary: 'Presse/secondaire', other: 'Autre source' } },
 };
+type KindLabels = Record<SourceKind, string>;
+
+/** 출처 사이트의 성격 표시일 뿐 수치 확인이 아니다 — 체크 아이콘·강조색을 쓰지 않는다(PLAN_CHART_SOURCE_261106 §5-1) */
+const KindTag: React.FC<{ source: GroundingSource; labels: KindLabels }> = ({ source, labels }) => (
+  <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-[10px] font-medium text-slate-500 dark:text-slate-300 whitespace-nowrap">
+    {labels[sourceKindOf(source.title)]}
+  </span>
+);
 
 const isValidUri = (uri: string) => { try { new URL(uri); return true; } catch { return false; } };
 
-const SourceChip: React.FC<{ source: GroundingSource }> = ({ source }) => (
+const SourceChip: React.FC<{ source: GroundingSource; kinds?: KindLabels }> = ({ source, kinds }) => (
   <a
     href={source.uri}
     target="_blank"
@@ -41,10 +54,11 @@ const SourceChip: React.FC<{ source: GroundingSource }> = ({ source }) => (
       <span className="mr-1.5 text-[10px] font-black text-primary-600 dark:text-primary-400">[{source.citationNumber}]</span>
     )}
     <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate max-w-[150px]">{source.title}</span>
+    {kinds && <span className="ml-2"><KindTag source={source} labels={kinds} /></span>}
   </a>
 );
 
-const SourceRow: React.FC<{ source: GroundingSource; numbered: boolean }> = ({ source, numbered }) => {
+const SourceRow: React.FC<{ source: GroundingSource; numbered: boolean; kinds?: KindLabels }> = ({ source, numbered, kinds }) => {
   const domain = faviconDomain(source);
   const title = (source.title || '').trim() || domain || source.uri;
   // Gemini 출처는 제목 자리에 도메인만 온다 — 같은 글자를 두 줄로 반복하지 않는다.
@@ -68,6 +82,7 @@ const SourceRow: React.FC<{ source: GroundingSource; numbered: boolean }> = ({ s
         <span className="block text-[13px] font-medium text-slate-700 dark:text-slate-100 line-clamp-2" style={{ overflowWrap: 'anywhere' }}>{title}</span>
         {showDomain && <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">{domain}</span>}
       </span>
+      {kinds && <KindTag source={source} labels={kinds} />}
       <i className="fa-solid fa-arrow-up-right-from-square shrink-0 text-[11px] text-slate-400" aria-hidden="true" />
     </a>
   );
@@ -77,8 +92,9 @@ const SourceRow: React.FC<{ source: GroundingSource; numbered: boolean }> = ({ s
  * 답변 아래 출처 표시. 1~2개는 칩, 3개 이상은 접힌 바 하나 → 누르면 전체 목록
  * (모바일 하단 시트 · 데스크톱 가운데 창). 인용 번호는 원래 citationNumber 를 쓰고 새로 매기지 않는다.
  */
-const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language }> = ({ sources, language = 'ko' }) => {
+const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language; showKinds?: boolean }> = ({ sources, language = 'ko', showKinds = false }) => {
   const t = i18n[language as keyof typeof i18n] || i18n.ko;
+  const kinds = showKinds ? t.kind : undefined;
   const [open, setOpen] = useState(false);
   const barRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -93,11 +109,12 @@ const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language }> =
   }, [open]);
 
   if (valid.length === 0) return null;
-  if (valid.length < COLLAPSE_AT) return <>{valid.map((s, i) => <SourceChip key={`${s.uri}-${i}`} source={s} />)}</>;
+  if (valid.length < COLLAPSE_AT) return <>{valid.map((s, i) => <SourceChip key={`${s.uri}-${i}`} source={s} kinds={kinds} />)}</>;
 
   const cited = valid.filter(s => s.citationNumber).sort((a, b) => a.citationNumber! - b.citationNumber!);
   const uncited = valid.filter(s => !s.citationNumber);
   // 바에는 서로 다른 도메인 favicon 3개 — 같은 사이트가 여럿이면(실측 답변의 1/4) 아이콘이 겹쳐 보인다.
+  const officialN = kinds ? valid.filter(s => sourceKindOf(s.title) === 'official').length : 0;
   const icons = [...new Set([...cited, ...uncited].map(faviconDomain).filter(Boolean))].slice(0, 3);
 
   return (
@@ -115,7 +132,7 @@ const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language }> =
             <img key={d} src={faviconUrl(d)} alt="" className="w-4 h-4 rounded-full bg-white ring-2 ring-slate-50 dark:ring-slate-700" />
           ))}
         </span>
-        <span className="text-[12px] font-medium text-slate-600 dark:text-slate-200">{t.sources(valid.length)}</span>
+        <span className="text-[12px] font-medium text-slate-600 dark:text-slate-200">{t.sources(valid.length)}{officialN > 0 && ` · ${t.official(officialN)}`}</span>
         <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
       </button>
 
@@ -143,11 +160,11 @@ const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language }> =
               </button>
             </div>
             <div className="overflow-y-auto overscroll-contain px-2 pb-3">
-              {cited.map((s, i) => <SourceRow key={`${s.uri}-${i}`} source={s} numbered />)}
+              {cited.map((s, i) => <SourceRow key={`${s.uri}-${i}`} source={s} numbered kinds={kinds} />)}
               {uncited.length > 0 && (
                 <>
                   {cited.length > 0 && <div className="px-3 pt-3 pb-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{t.extra}</div>}
-                  {uncited.map((s, i) => <SourceRow key={`${s.uri}-u${i}`} source={s} numbered={cited.length > 0} />)}
+                  {uncited.map((s, i) => <SourceRow key={`${s.uri}-u${i}`} source={s} numbered={cited.length > 0} kinds={kinds} />)}
                 </>
               )}
             </div>

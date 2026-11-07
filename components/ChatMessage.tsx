@@ -942,7 +942,8 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
             if (!hasGrounding && drugChips.length === 0) return null;
             return (
               <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
-                {hasGrounding && <SourceBar sources={message.groundingSources!} language={language} />}
+                {/* 출처 성격 라벨은 차트 답변에만 — 범위가 "차트 수치의 근거" 다(PLAN_CHART_SOURCE_261106 §5) */}
+                {hasGrounding && <SourceBar sources={message.groundingSources!} language={language} showKinds={/```json\s*:\s*chart/i.test(message.content || '')} />}
                 {drugChips.map((chip, idx) => {
                   const normName = chip.name
                     .replace(/\(.*?\)/g, '')

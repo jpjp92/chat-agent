@@ -38,7 +38,7 @@ check('검색 강등 판정', dg.modelDowngraded === true);
 const pii = 'user@example.com 010-1234-5678 https://secret.example/a?q=비밀';
 const line = buildTurnLog({
     intent: 'general', intentFrom: 'router', provider: 'gemini', model: 'gemini-3.8-flash', search: true, searchBy: 'router-llm',
-    sources: 3, text: `${pii}\n[turn] {"forged":true}\n\`\`\`json:chart\n{"t":"${pii}"}\n\`\`\``, ms: 1234.6,
+    sources: 3, sourceKinds: { official: 1, secondary: 1, other: 1 }, text: `${pii}\n[turn] {"forged":true}\n\`\`\`json:chart\n{"t":"${pii}"}\n\`\`\``, ms: 1234.6,
     outcome: 'error', err: { status: 500, message: `prompt leaked: ${pii}` },
 });
 check('출력이 한 줄', !line.includes('\n'));
@@ -48,9 +48,14 @@ check('오류 메시지 대신 코드만', parse(line).errCode === 'server' && !
 check('ms 정수화', parse(line).ms === 1235);
 
 // ④ 키 집합 고정 — 새 필드는 계획 문서·이 목록을 함께 고쳐야 들어온다
-const KEYS = ['v', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'blocks', 'chars', 'ms', 'outcome', 'errCode'];
+const KEYS = ['v', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'errCode'];
 check('키 집합이 허용 목록과 같다', JSON.stringify(Object.keys(parse(line))) === JSON.stringify(KEYS), Object.keys(parse(line)).join(','));
 check('ok 경로엔 errCode 없음', !('errCode' in parse(buildTurnLog({ outcome: 'ok' }))));
+
+// 출처 성격 개수 — 키 3개 정수만, 섞여 온 값은 버린다
+const sk = parse(buildTurnLog({ sourceKinds: { official: 2.4, secondary: '3', other: 1, title: 'kosis.kr' }, outcome: 'ok' })).sourceKinds;
+check('sourceKinds 정수·키 3개', JSON.stringify(sk) === '{"official":2,"secondary":null,"other":1}', JSON.stringify(sk));
+check('sourceKinds 없으면 null', parse(buildTurnLog({ outcome: 'ok' })).sourceKinds === null);
 
 // ⑤ 내부 이벤트가 클라이언트 SSE 로 새지 않는다
 const sent: any[] = [];

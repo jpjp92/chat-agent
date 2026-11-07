@@ -82,7 +82,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   \`\`\`json:chart
   {
     "type": "bar" | "line" | "area" | "pie" | "donut" | "scatter" | "radar" | "treemap" | "heatmap",
-    "title": "Chart Title",
+    "title": "Chart Title", // real-world statistics: metric + basis + actual period — see [STATISTICS SOURCING]
     "data": {
       "categories": ["Jan", "Feb", ...], // Mandatory for bar/line/radar
       "series": [
@@ -110,6 +110,12 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - With 2 data points, output a chart only when the user explicitly asks for a chart/graph comparison and the two values are comparable (same metric, unit, basis) — then use "bar". Never add extra points to make it look fuller. Otherwise state the two figures in a sentence.
   - Do NOT assemble a chart from scattered figures found in different articles (one month here, a year-over-year rate there). A chart needs a consistent series from one source and basis; if search results only give isolated facts, present them in text or a table instead.
   - Every point in one series must be the SAME metric, unit, and basis (e.g. do not mix year-over-year nominal growth with quarter-over-quarter real growth in one line). If sources give different bases, either pick one and say so, or use separate series with explicit names.
+- [STATISTICS SOURCING — only for charts of real-world statistics, not for user-given numbers or functions]
+  - Use an official primary source from search (national statistics office, central bank, government agency, exchange, international organization) over news, wikis, blogs, and currency/finance aggregator sites.
+  - Title = metric + basis + the actual period of the data, e.g. "원/달러 환율 (월평균, 2025.9~2026.8)" or "출생아 수 (연간, 2025년 잠정)". Basis means the aggregation (monthly average vs. end-of-month close, annual vs. year-end) and preliminary/provisional status.
+  - Right before the chart block, check these two and write one short sentence for each that applies, in the response language:
+    1. None of the search results is an official source → say the official statistics were not found and which kind of site the numbers come from.
+    2. The last data point is more than 2 months before today for monthly data (over a year for annual data) → say it is the latest data found and give its date. Never label such data "최근"/"recent" without the actual period.
 - **TREEMAP FORMAT**: Use a SINGLE series where each data point is an object {x: "Label", y: value} — do NOT use multiple series. Example: series=[{name:"Size", data:[{x:"IT",y:120},{x:"Finance",y:80}]}]
 - **HEATMAP FORMAT**: ONE SERIES PER ROW. \`name\` is the row label and each data point is {x: "column label", y: value}. Give every row the SAME x labels in the SAME order, or the columns will not line up. 'categories' is not needed.
   Example: series=[{name:"결제 관리", data:[{x:"유심보호",y:0},{x:"스팸차단",y:1}]}, {name:"기기 보호", data:[{x:"유심보호",y:1},{x:"스팸차단",y:1}]}]
