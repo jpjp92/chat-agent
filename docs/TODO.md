@@ -419,7 +419,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
 - [x] 차트 P1-2A 출처 분류·`sourceKinds`·`[STATISTICS SOURCING]` 보강 — [DEV_261107](logs/2026/11/DEV_261107.md). 남은: 출처에 없는 기관 내세움 금지 한 줄·`smbs.biz` 공식
 - [x] 차트 연.월 범주(`2026.10`·`26.10`)를 소수로 읽어 선이 뒤엉키던 축 버그 · 모바일 12개월 무스크롤·라벨 간격·툴팁 — [DEV_261107](logs/2026/11/DEV_261107.md)
-- [ ] LangSmith 추적 — L0 완료(정리 Client·`CHAT_TRACING`·토큰 수, [DEV_261107](logs/2026/11/DEV_261107.md) §7). 남은: L2 Gemini·OpenAI 직접 호출 span · Vercel `chat-agent-dev` env · 원문 모드 결정 — [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- [ ] LangSmith 추적 — L0·L2·원문 모드 완료([DEV_261107](logs/2026/11/DEV_261107.md) §7, 오버헤드 +5ms/턴). 남은: Vercel `chat-agent-dev` env(숨김만) · L3 `[turn]` 메타데이터 재사용 · L4 배포 측정 — [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
 - [ ] 🔴 차트 수치 근거 — 설계 확정(11-06), P1-2A 완료(11-07): P1-2A `[STATISTICS SOURCING]`·도메인 분류·`sourceKinds` → P1-2B `origin`·출처 칩 영역 안내·상대 날짜 검사 → P1-2C 실측/잠정/전망. 차트-본문 자동 대조는 보류 — [PLAN_CHART_SOURCE_261106](plans/PLAN_CHART_SOURCE_261106.md) §5
 - [ ] GPT 파이 범례 음역("아이오에스"·"카이오에스") — 표기만, 값 무관
 

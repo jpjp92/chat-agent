@@ -63,6 +63,24 @@
 - **토큰 수**: 출력을 비우면 LangSmith 가 토큰을 못 센다 → 정리 단계에서 출력의 `usage_metadata`·`llm_output.tokenUsage` 숫자만 `metadata.usage_metadata` 로 옮긴다(하니스 23). 화면 표시 확인 남음.
 - 아직 안 보임(L2): router·generator 안의 Gemini **직접** 호출(차트·일반 질문 경로)·검색·재시도·강등. OpenAI 호출.
 
+### L2 (11-07) — 완료
+- `llmSpan`·`traceGemini`(tracing.ts) 로 SDK 직접 호출 9곳을 감쌌다 — router 1(`gemini.router`), generator 7(`stage1`·`stage1_retry`·`single`·`single_retry`·`malformed_retry`·`ground_retry`·`fallback`), OpenAI `request()`(`openai.openai_initial`·`followup`). 재시도·강등·키 로직은 그대로, 꺼져 있으면 원래 함수 그대로 호출.
+- 모델·검색 여부는 호출 인자에서 읽는다(호출부가 따로 적으면 어긋난다). 토큰은 Gemini `usageMetadata`·OpenAI `usage` → `usage_metadata`, grounding 은 개수만(`grounding_sources`, traceable 이 출력을 한 겹 감싸 재귀로 찾는다).
+- 실화면(환율): `gemini.router` 2.5-flash 검색 off **3,269/53 토큰** · `gemini.single` 3.8-flash 검색 on 출처 2 **5,944/552 토큰**, 원문 없음. 라우터 입력 3.3천 토큰이 매 턴 고정 비용 — 비용 절감 때 볼 지점.
+
+### 원문 모드 (11-07) — 로컬 전용
+- `CHAT_TRACING_RAW=true` + `VERCEL` 없음일 때만. 별도 프로젝트 `LANGSMITH_PROJECT_RAW`(기본 `chat-agent-dev-raw`) — 숨김 추적과 섞이지 않고 프로젝트째 지울 수 있다. 입출력·오류 원문 유지, base64·바이너리는 길이만, 2만 자 넘는 문자열은 앞부분만, `events` 는 제거(출력과 중복). 합성 질문에만 쓴다.
+
+### 오버헤드 (11-07, `tests/manual/bench-tracing-overhead.mts`, 가짜 모델·전송 200턴)
+
+| 모드 | 턴당 중앙값 | p95 | 응답 뒤 전송 마무리(200턴) |
+|---|---|---|---|
+| 끔 | 6.93ms | 16.40ms | 2ms |
+| 숨김 | 12.36ms (**+5.4ms**) | 19.32ms | 42ms |
+| 원문 | 14.68ms (**+7.8ms**) | 32.55ms | 78ms |
+
+실제 턴(수 초) 대비 무시할 수준. 전송은 백그라운드·응답 뒤라 사용자 지연에 들어가지 않는다.
+
 ### 환경변수 (11-07 확정)
 
 | Name | 로컬 `.env`·`.env.local` | Vercel `chat-agent-dev`(Preview/Development만) |
@@ -74,4 +92,4 @@
 | `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
 | `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
 
-Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). 원문 모드(`CHAT_TRACING_RAW`, 로컬 전용·별도 프로젝트)는 검토만 — 미결정.
+Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). `CHAT_TRACING_RAW`·`LANGSMITH_PROJECT_RAW` 는 로컬에만(`false`) — Vercel 에는 넣지 않는다(넣어도 코드가 무시).

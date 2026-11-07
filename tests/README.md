@@ -162,6 +162,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
   11-06: 강등 0/16 · 실제 불일치 0/42(자동 7 은 전부 오탐) — 위험은 환율 시점 오류·기준 혼재
 - `TIER1=1 npx tsx --tsconfig tests/tsconfig.probe.json tests/manual/probe-chart-router-search.mts`: 통계 차트 질문 16개의
   라우터 **검색 판정만**(생성 없음). 11-06: 15/16, 통계 질문은 전부 on
+- `npx tsx tests/manual/bench-tracing-overhead.mts [반복]`: LangSmith 추적 오버헤드 — 가짜 모델·전송으로 끔/숨김/원문 모드의 턴당 시간 비교(비용 0). 11-07: 숨김 +5.4ms · 원문 +7.8ms
 - `TIER1=1 [FROM=n] npx tsx tests/manual/probe-chart-fresh-ab.mts [outDir] [runs]`: 빠르게 변하는 시계열 6개를
   직전 규칙(prev) vs 현재 `prompt.ts` 의 `[STATISTICS SOURCING]`(cur)으로 A/B(24 호출, 10분 넘음 — `FROM` 으로 나눠 돌린다).
   prev 는 스크립트 안 `PREV_RULE` 로 현재 블록을 바꿔 만든다 — 규칙을 다시 고치면 PREV_RULE 도 갱신.
@@ -205,7 +206,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-chart-axis.mts` | 차트 x축 판정 — 숫자 x·불규칙 숫자 범주는 numeric(간격 보존), 등간격·문자열·막대는 category, 깔끔한 눈금 간격·양끝 배수, 연.월 범주(`2025.11`·전부 `YY.MM`)는 category. 픽셀 간격은 `manual/check-chart-axis-pixels.py` |
-| `test-tracing.mts` | LangSmith 추적 정리 — 가짜 전송으로 실제 멀티파트 본문을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 없음, 입출력 `{}`·오류 이름만·토큰 수만 `usage_metadata`, `CHAT_TRACING`·키 없으면 꺼짐 |
+| `test-tracing.mts` | LangSmith 추적 정리 — 가짜 전송으로 실제 멀티파트 본문을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 없음, 입출력 `{}`·오류 이름만·토큰 수만 `usage_metadata`, `CHAT_TRACING`·키 없으면 꺼짐. SDK 호출 span(노드 자식·모델·검색·토큰·출처 수, 꺼짐이면 원본 그대로), 원문 모드(배포면 무시·base64 길이만·별도 프로젝트) |
 | `test-source-kind.mts` | 출처 성격 분류 — 점 경계 접미사·공식/2차 목록, 흉내 도메인·호스트명 아닌 제목은 기타, 개수 집계 |
 | `test-chart-format.mts` | 차트 숫자 표시 — y축 만·억(영어 k·M·B) 축약, 툴팁 원본 수치+단위, 이미 축약된 단위(`만 명`) 재축약 안 함, 점 적은 numeric 선만 관측점 마커, `null` 보존 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
