@@ -119,6 +119,23 @@ export const rawMode = (): boolean => {
 
 const RAW_STR_MAX = 20_000;
 const BASE64_RE = /^[A-Za-z0-9+/=\r\n]+$/;
+/**
+ * 원문 모드 문자열 안의 민감정보 — 키 이름 가리기(ID_KEYS)로는 질문 **문장 안의** 값을 못 막는다(11-08 GPT 검토).
+ * 디버깅에 필요한 건 문장 구조라 형태만 남긴다. 순서: 키·토큰(긴 것) 먼저, 숫자 패턴은 나중.
+ */
+const REDACT: Array<[RegExp, string]> = [
+    [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[jwt]'],
+    [/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, 'Bearer [token]'],
+    [/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/g, '[api-key]'],
+    [/\bAIza[0-9A-Za-z_-]{30,}/g, '[api-key]'],
+    [/\bgh[pousr]_[A-Za-z0-9]{20,}/g, '[api-key]'],
+    [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]'],
+    [/\b(?:\d{4}[- ]?){3}\d{4}\b/g, '[card]'],
+    [/\b\d{6}[- ]?[1-4]\d{6}\b/g, '[rrn]'],
+    [/(?:\+?82[- ]?|\b0)1[016789][- ]?\d{3,4}[- ]?\d{4}\b/g, '[phone]'],
+];
+export const redactText = (t: string): string => REDACT.reduce((acc, [re, rep]) => acc.replace(re, rep), t);
+
 // 원문 모드에서도 식별자는 가린다 — 디버깅에 필요한 건 내용이지 누구의 세션인지가 아니다
 const ID_KEYS = new Set(['sessionId', 'session_id', 'userId', 'user_id', 'email', 'thread_id']);
 
@@ -131,7 +148,8 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
     if (typeof v === 'string') {
         if (/^data:[^;,]+;base64,/.test(v)) return `[base64 ${v.length} chars]`;
         if (v.length > 2000 && BASE64_RE.test(v.slice(0, 2000))) return `[base64 ${v.length} chars]`;
-        return v.length > RAW_STR_MAX ? `${v.slice(0, RAW_STR_MAX)}…[+${v.length - RAW_STR_MAX} chars]` : v;
+        const t = redactText(v);
+        return t.length > RAW_STR_MAX ? `${t.slice(0, RAW_STR_MAX)}…[+${t.length - RAW_STR_MAX} chars]` : t;
     }
     if (!v || typeof v !== 'object') return v;
     if (v instanceof Uint8Array || v instanceof ArrayBuffer) return `[binary ${v.byteLength} bytes]`;
@@ -161,7 +179,7 @@ export const sanitizeRun = (run: Run, raw = false): Run => {
     if (raw) {
         if ('inputs' in out) out.inputs = scrubRaw(out.inputs);
         if ('outputs' in out) out.outputs = scrubRaw(out.outputs);
-        if (typeof out.error === 'string') out.error = out.error.slice(0, 2000);
+        if (typeof out.error === 'string') out.error = redactText(out.error.slice(0, 2000));
     } else {
         if ('inputs' in out) out.inputs = HIDDEN;
         if ('outputs' in out) out.outputs = HIDDEN;
@@ -281,5 +299,8 @@ export const flushTraces = async (): Promise<void> => {
     try {
         await awaitAllCallbacks();
         await client.awaitPendingTraceBatches();
-    } catch { /* 추적 전송 실패는 무시 */ }
+    } catch (e) {
+        // 응답은 이미 끝났다 — 실패는 막지 않고 누락을 알 수 있게 코드만 한 줄(메시지는 읽지 않는다)
+        try { process.stdout.write(`[trace] ${JSON.stringify({ flush: 'error', code: errorName(e) ?? 'Error' })}\n`); } catch { /* 무시 */ }
+    }
 };
