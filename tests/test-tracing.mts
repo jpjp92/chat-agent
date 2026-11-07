@@ -145,8 +145,12 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const saved4 = { ...process.env };
     process.env.CHAT_TRACING_RAW = 'true'; delete process.env.VERCEL;
     check('원문 모드: 로컬이면 켜짐', rawMode());
-    process.env.VERCEL = '1';
-    check('원문 모드: 배포 환경(VERCEL)이면 무시', !rawMode());
+    process.env.VERCEL = '1'; process.env.VERCEL_ENV = 'preview';
+    check('원문 모드: 배포 환경은 허용 스위치 없으면 무시', !rawMode());
+    process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED = 'true';
+    check('원문 모드: 배포 dev + 허용 스위치면 켜짐', rawMode());
+    process.env.VERCEL_ENV = 'production';
+    check('원문 모드: Production 은 허용 스위치가 있어도 무시', !rawMode());
     process.env = saved4;
     const b64 = 'A'.repeat(5000);
     const sc = JSON.stringify(scrubRaw({ img: `data:image/png;base64,${b64}`, raw: b64, long: '가'.repeat(25000), bin: new Uint8Array(10), q: '합성 질문' }));
@@ -154,6 +158,12 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('scrubRaw: 긴 문자열은 앞부분 + 남은 길이', sc.includes('…[+5000 chars]'));
     check('scrubRaw: 바이너리 → 바이트 수', sc.includes('[binary 10 bytes]'));
     check('scrubRaw: 일반 문자열은 그대로', sc.includes('합성 질문'));
+    const shared = { text: '공유된 내용' };
+    const cyc: Record<string, unknown> = { a: 1 }; cyc.self = cyc;
+    const sh = JSON.stringify(scrubRaw({ content: shared, lc_kwargs: { content: shared }, sessionId: 'sess-123', cyc }));
+    check('scrubRaw: 같은 객체 두 번 참조는 둘 다 원문(순환 아님)', (sh.match(/공유된 내용/g) || []).length === 2, sh);
+    check('scrubRaw: 진짜 순환만 [circular]', sh.includes('"self":"[circular]"'));
+    check('scrubRaw: sessionId 등 식별자 가림', !sh.includes('sess-123') && sh.includes('"sessionId":"[id]"'));
     const rr = sanitizeRun({ id: '5', inputs: { q: '합성 질문' }, outputs: { a: '합성 답' }, error: 'ApiError: 상세 사유', events: [{ x: 1 }] }, true);
     const rjs = JSON.stringify(rr);
     check('원문 모드 정리: 입출력·오류 원문 유지', rjs.includes('합성 질문') && rjs.includes('합성 답') && rjs.includes('상세 사유'));

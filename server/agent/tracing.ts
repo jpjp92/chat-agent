@@ -11,7 +11,8 @@
  *   - serialized: 모델·도구 생성자 인자 → 버린다
  *   - extra.metadata·tags: LangGraph 가 붙이는 값 → 허용 목록
  *
- * 원문 모드(`CHAT_TRACING_RAW=true`) — 로컬 디버깅 전용. 배포(`VERCEL` 이 있는 환경)에선 켜져 있어도 무시한다.
+ * 원문 모드(`CHAT_TRACING_RAW=true`) — 디버깅용. 배포(`VERCEL`)에선 `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 함께 둔
+ * 경우만(dev 배포는 본인만 쓴다, 11-07), **Production(`VERCEL_ENV=production`)은 어떤 경우에도 무시**한다.
  * 입출력·오류 원문을 별도 프로젝트(`LANGSMITH_PROJECT_RAW`, 기본 chat-agent-dev-raw)로 보낸다 — 숨김 추적과 섞이지 않고
  * 프로젝트째 지울 수 있게. 첨부 base64 는 길이만, 아주 긴 문자열은 앞부분만. 합성 질문에만 쓴다.
  */
@@ -108,13 +109,25 @@ const groundingCountOf = (outputs: unknown): number | null => {
     return walk(outputs, 0);
 };
 
-/** 원문 모드 — 로컬에서만. 배포 환경 표시가 있으면 스위치를 무시한다 */
-export const rawMode = (): boolean => process.env.CHAT_TRACING_RAW === 'true' && !process.env.VERCEL;
+/** 원문 모드 — 로컬은 스위치 하나, 배포는 허용 스위치까지, Production 은 불가 */
+export const rawMode = (): boolean => {
+    if (process.env.CHAT_TRACING_RAW !== 'true') return false;
+    if (!process.env.VERCEL) return true;
+    if (process.env.VERCEL_ENV === 'production') return false;
+    return process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED === 'true';
+};
 
 const RAW_STR_MAX = 20_000;
 const BASE64_RE = /^[A-Za-z0-9+/=\r\n]+$/;
-/** 원문 모드 입출력 — base64·바이너리는 길이만, 긴 문자열은 앞부분만, 깊이·배열 길이 제한(전송량·직렬화 비용) */
-export const scrubRaw = (v: unknown, depth = 0, seen = new WeakSet<object>()): unknown => {
+// 원문 모드에서도 식별자는 가린다 — 디버깅에 필요한 건 내용이지 누구의 세션인지가 아니다
+const ID_KEYS = new Set(['sessionId', 'session_id', 'userId', 'user_id', 'email', 'thread_id']);
+
+/**
+ * 원문 모드 입출력 — base64·바이너리는 길이만, 긴 문자열은 앞부분만, 깊이·배열 길이 제한(전송량·직렬화 비용).
+ * 순환 검사는 **조상 경로**로 한다 — LangChain 메시지는 같은 객체를 두 곳(content·lc_kwargs.content)에서 가리켜,
+ * 한 번 본 객체를 전부 순환으로 치면 두 번째가 "[circular]" 로 지워진다(11-07 실화면).
+ */
+export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>()): unknown => {
     if (typeof v === 'string') {
         if (/^data:[^;,]+;base64,/.test(v)) return `[base64 ${v.length} chars]`;
         if (v.length > 2000 && BASE64_RE.test(v.slice(0, 2000))) return `[base64 ${v.length} chars]`;
@@ -123,12 +136,18 @@ export const scrubRaw = (v: unknown, depth = 0, seen = new WeakSet<object>()): u
     if (!v || typeof v !== 'object') return v;
     if (v instanceof Uint8Array || v instanceof ArrayBuffer) return `[binary ${v.byteLength} bytes]`;
     if (depth > 12) return '[depth]';
-    if (seen.has(v)) return '[circular]';
-    seen.add(v);
-    if (Array.isArray(v)) return v.slice(0, 200).map(x => scrubRaw(x, depth + 1, seen));
-    const out: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = scrubRaw(x, depth + 1, seen);
-    return out;
+    if (ancestors.has(v)) return '[circular]';
+    ancestors.add(v);
+    try {
+        if (Array.isArray(v)) return v.slice(0, 200).map(x => scrubRaw(x, depth + 1, ancestors));
+        const out: Record<string, unknown> = {};
+        for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+            out[k] = ID_KEYS.has(k) && x != null ? '[id]' : scrubRaw(x, depth + 1, ancestors);
+        }
+        return out;
+    } finally {
+        ancestors.delete(v);
+    }
 };
 
 /** 전송 직전 run 정리 — 허용 키만 남기고 원문 자리는 비운다(원문 모드는 입출력·오류를 줄여서 남긴다) */
