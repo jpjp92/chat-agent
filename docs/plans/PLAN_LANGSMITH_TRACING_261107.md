@@ -55,4 +55,23 @@
 
 ## 6. 결과
 
-(구현 후 기록)
+### L0 (11-07) — 완료
+- `server/agent/tracing.ts`: 정리 Client(inputs·outputs 비움 · error → 이름 · `events`·`serialized` 제거 · 메타데이터·태그 허용 목록) + 그래프에만 직접 넘기는 추적기 + `after(flushTraces)`. 스위치는 **`CHAT_TRACING`** — `LANGSMITH_TRACING` 은 항상 false(켜면 그래프 밖 LangChain 호출에 정리 안 거친 기본 추적기가 붙는다).
+- 하니스 `tests/test-tracing.mts` 19: 가짜 전송으로 실제 멀티파트 본문(7,024자)을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 0, inputs·outputs `{}`, 오류 이름만.
+- 실화면(합성 질문): LangGraph 9.87s → router 1.26s → generator 8.51s, Input·Output "No inputs/outputs", 태그 `graph:step:n`, 메타데이터 `langgraph_*`. langsmith 가 정리 뒤 `LANGSMITH_*` env(키·secret·token 이름 제외)를 메타데이터에 붙인다 — 무해, 잡음.
+- 도구 경로(`langchain-path.ts`, 영화 질문)는 자동으로 안쪽까지 보인다: generator → ChatGoogleGenerativeAI(`ls_model_name: gemini-2.5-flash`·`ls_temperature`·`ls_max_tokens`) → tools → movieTool.
+- **토큰 수**: 출력을 비우면 LangSmith 가 토큰을 못 센다 → 정리 단계에서 출력의 `usage_metadata`·`llm_output.tokenUsage` 숫자만 `metadata.usage_metadata` 로 옮긴다(하니스 23). 화면 표시 확인 남음.
+- 아직 안 보임(L2): router·generator 안의 Gemini **직접** 호출(차트·일반 질문 경로)·검색·재시도·강등. OpenAI 호출.
+
+### 환경변수 (11-07 확정)
+
+| Name | 로컬 `.env`·`.env.local` | Vercel `chat-agent-dev`(Preview/Development만) |
+|---|---|---|
+| `CHAT_TRACING` | `true` | `true` |
+| `LANGSMITH_API_KEY` | PAT | PAT(Sensitive) |
+| `LANGSMITH_PROJECT` | `chat-agent-dev` | `chat-agent-dev-vercel`(로컬과 구분) |
+| `LANGSMITH_TRACING` | **`false`** | **`false`** |
+| `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
+| `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
+
+Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). 원문 모드(`CHAT_TRACING_RAW`, 로컬 전용·별도 프로젝트)는 검토만 — 미결정.
