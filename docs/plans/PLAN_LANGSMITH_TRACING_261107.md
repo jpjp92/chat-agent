@@ -68,8 +68,8 @@
 - 모델·검색 여부는 호출 인자에서 읽는다(호출부가 따로 적으면 어긋난다). 토큰은 Gemini `usageMetadata`·OpenAI `usage` → `usage_metadata`, grounding 은 개수만(`grounding_sources`, traceable 이 출력을 한 겹 감싸 재귀로 찾는다).
 - 실화면(환율): `gemini.router` 2.5-flash 검색 off **3,269/53 토큰** · `gemini.single` 3.8-flash 검색 on 출처 2 **5,944/552 토큰**, 원문 없음. 라우터 입력 3.3천 토큰이 매 턴 고정 비용 — 비용 절감 때 볼 지점.
 
-### 원문 모드 (11-07) — 로컬 전용
-- `CHAT_TRACING_RAW=true` + `VERCEL` 없음일 때만. 별도 프로젝트 `LANGSMITH_PROJECT_RAW`(기본 `chat-agent-dev-raw`) — 숨김 추적과 섞이지 않고 프로젝트째 지울 수 있다. 입출력·오류 원문 유지, base64·바이너리는 길이만, 2만 자 넘는 문자열은 앞부분만, `events` 는 제거(출력과 중복). 합성 질문에만 쓴다.
+### 원문 모드 (11-07)
+- 로컬: `CHAT_TRACING_RAW=true` 하나. 배포: `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 함께 둘 때만(dev 배포는 본인만 쓴다 — 다른 사람이 쓰게 되면 끈다). **Production(`VERCEL_ENV=production`)은 어떤 경우에도 무시.** 별도 프로젝트 `LANGSMITH_PROJECT_RAW`(기본 `chat-agent-dev-raw`) — 숨김 추적과 섞이지 않고 프로젝트째 지울 수 있다. 입출력·오류 원문 유지, base64·바이너리는 길이만, 2만 자 넘는 문자열은 앞부분만, `events` 는 제거(출력과 중복), 식별자(`sessionId`·`userId`·`email`·`thread_id`)는 `[id]`. 순환 검사는 조상 경로로 — LangChain 메시지가 같은 객체를 두 곳에서 가리켜 처음엔 `[circular]` 로 지워졌다(11-07 실화면). 합성 질문에만 쓴다.
 
 ### 오버헤드 (11-07, `tests/manual/bench-tracing-overhead.mts`, 가짜 모델·전송 200턴)
 
@@ -92,4 +92,4 @@
 | `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
 | `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
 
-Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). `CHAT_TRACING_RAW`·`LANGSMITH_PROJECT_RAW` 는 로컬에만(`false`) — Vercel 에는 넣지 않는다(넣어도 코드가 무시).
+Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). 원문 모드를 배포 dev 에서도 쓰려면 Vercel `chat-agent-dev`(Preview/Development)에 `CHAT_TRACING_RAW=true`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 를 함께. Production 엔 넣지 않는다(넣어도 코드가 무시).
