@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, after } from 'next/server';
 import { createRouteClient, unauthorized, isAuthError } from '../../../lib/supabase/route';
 import { GUEST_MESSAGE_LIMIT, GUEST_LIMIT_ERROR } from '../../../lib/limits';
 import { getSystemInstruction } from '../../../server/agent/prompt';
@@ -15,6 +15,7 @@ import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
 import { logTurn } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
+import { traceCallbacks, flushTraces, tracingEnabled } from '../../../server/agent/tracing';
 
 export const runtime = 'nodejs';
 // 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
@@ -41,6 +42,8 @@ const dbErrorSummary = (e: { code?: string; message?: string; hint?: string | nu
   ({ code: e?.code, message: e?.message, hint: e?.hint ?? undefined });
 
 export async function POST(req: NextRequest) {
+  // 응답(스트림)이 끝난 뒤 남은 추적을 보낸다 — 응답을 기다리게 하지 않고, 서버리스가 멈추기 전에 마저 보낸다
+  if (tracingEnabled()) after(flushTraces);
   // 스트림을 열기 전에 인증을 확인한다. SSE 는 헤더가 나간 뒤 상태코드를 바꿀 수 없다.
   // 메시지 저장은 이 user-scoped 클라이언트로만 하며, RLS 가 세션 소유권을 강제한다.
   const db = createRouteClient(req);
@@ -211,7 +214,8 @@ export async function POST(req: NextRequest) {
         const st = dispatch.state;
         turnState = st;
         const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
-        const streamEvents = await graph.streamEvents(initialState, { version: 'v2' });
+        // 추적은 꺼져 있으면 빈 배열 — 켜져 있으면 원문을 걷어내는 추적기(server/agent/tracing.ts)
+        const streamEvents = await graph.streamEvents(initialState, { version: 'v2', callbacks: traceCallbacks() });
 
         if (isYoutubeFromPrompt) {
           st.allSources.push({ title: 'YouTube Video', uri: `https://www.youtube.com/watch?v=${ytMatch![1]}` });
