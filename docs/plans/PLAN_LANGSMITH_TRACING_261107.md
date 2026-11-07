@@ -69,7 +69,7 @@
 - 실화면(환율): `gemini.router` 2.5-flash 검색 off **3,269/53 토큰** · `gemini.single` 3.8-flash 검색 on 출처 2 **5,944/552 토큰**, 원문 없음. 라우터 입력 3.3천 토큰이 매 턴 고정 비용 — 비용 절감 때 볼 지점.
 
 ### 원문 모드 (11-07)
-- 로컬: `CHAT_TRACING_RAW=true` 하나. 배포: `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 함께 둘 때만(dev 배포는 본인만 쓴다 — 다른 사람이 쓰게 되면 끈다). **Production(`VERCEL_ENV=production`)은 어떤 경우에도 무시.** 별도 프로젝트 `LANGSMITH_PROJECT_RAW`(기본 `chat-agent-dev-raw`) — 숨김 추적과 섞이지 않고 프로젝트째 지울 수 있다. 입출력·오류 원문 유지, base64·바이너리는 길이만, 2만 자 넘는 문자열은 앞부분만, `events` 는 제거(출력과 중복), 식별자(`sessionId`·`userId`·`email`·`thread_id`)는 `[id]`. 순환 검사는 조상 경로로 — LangChain 메시지가 같은 객체를 두 곳에서 가리켜 처음엔 `[circular]` 로 지워졌다(11-07 실화면). 합성 질문에만 쓴다.
+- 로컬: `CHAT_TRACING_RAW=true` 하나. 배포: `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 함께 둘 때만(dev 배포는 본인만 쓴다 — 다른 사람이 쓰게 되면 끈다). **Production(`VERCEL_ENV=production`)은 어떤 경우에도 무시.** 별도 프로젝트 `LANGSMITH_PROJECT_RAW`(기본 `chat-agent-dev-raw`) — 숨김 추적과 섞이지 않고 프로젝트째 지울 수 있다. 입출력·오류 원문 유지, base64·바이너리는 길이만, 2만 자 넘는 문자열은 앞부분만, `events` 는 제거(출력과 중복), 식별자(`sessionId`·`userId`·`email`·`thread_id`)는 `[id]`. 순환 검사는 조상 경로로 — LangChain 메시지가 같은 객체를 두 곳에서 가리켜 처음엔 `[circular]` 로 지워졌다(11-07 실화면). 문장 안 민감정보(이메일·전화·카드·주민번호·API 키·Bearer·JWT)도 형태만 남긴다(`redactText`, 11-08). 합성 질문에만 쓴다.
 
 ### 오버헤드 (11-07, `tests/manual/bench-tracing-overhead.mts`, 가짜 모델·전송 200턴)
 
@@ -92,4 +92,4 @@
 | `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
 | `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
 
-Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). 원문 모드를 배포 dev 에서도 쓰려면 Vercel `chat-agent-dev`(Preview/Development)에 `CHAT_TRACING_RAW=true`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 를 함께. Production 엔 넣지 않는다(넣어도 코드가 무시).
+Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). Vercel 기본값은 `CHAT_TRACING_RAW=false`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=false`(11-08 GPT 검토 — 배포 원문은 필요할 때만 잠깐). 원문 모드를 배포 dev 에서도 쓰려면 Vercel `chat-agent-dev`(Preview/Development)에 `CHAT_TRACING_RAW=true`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 를 함께. Production 엔 넣지 않는다(넣어도 코드가 무시).
