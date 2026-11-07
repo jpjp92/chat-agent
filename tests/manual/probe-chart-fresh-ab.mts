@@ -27,16 +27,12 @@ const { GoogleGenAI } = await import('@google/genai');
 const { getSystemInstruction, getRendererSections, getIntentPolicy } = await import('../../server/agent/prompt.js');
 const ai = new GoogleGenAI({ apiKey: key });
 const BASE = [getSystemInstruction('Korean'), getRendererSections('data_viz' as any, 'Korean' as any), getIntentPolicy('data_viz' as any)].join('\n\n');
-// 비교 대상 — 현재 prompt.ts(cur) vs 직전 규칙(prev, 11-06 1차 채택안). prev 는 현재 블록을 직전 문장으로 바꿔 만든다
-const PREV_RULE = `- [STATISTICS SOURCING — only for charts of real-world statistics, not for user-given numbers or functions]
-  - Take the numbers from an official primary source found in search (national statistics office, central bank, government agency, exchange, international organization). Prefer it over news, wikis, blogs, and currency/finance aggregator sites. If no official source is in the results, say so in one sentence before the chart.
-  - State the basis in the chart title or the sentence right before the chart: the aggregation (monthly average vs. end-of-month close, annual average vs. year-end), and mark preliminary/provisional figures.
-  - "Recent"/"최근"/"last N months" means ending at the latest period available in the search results. Never put old data under a "recent" title. If the latest period you can find is more than 2 months old for monthly data (or over a year for annual data), write the actual last date in the title and say it is the latest you found.
-`;
-const TITLE_HINT = ' // real-world statistics: metric + basis + actual period — see [STATISTICS SOURCING]';
-const curStart = BASE.indexOf('- [STATISTICS SOURCING'), curEnd = BASE.indexOf('- **TREEMAP FORMAT**:');
-if (curStart < 0 || curEnd < 0 || !BASE.includes(TITLE_HINT)) { console.error('현재 프롬프트에서 규칙 블록을 못 찾음'); process.exit(1); }
-const PREV = (BASE.slice(0, curStart) + PREV_RULE + BASE.slice(curEnd)).replace(TITLE_HINT, '');
+// 비교 대상 — 현재 prompt.ts(cur) vs 바로 전 규칙(prev). prev 는 현재 프롬프트에서 마지막으로 더한 줄(NEW_LINE)을 뺀 것.
+// 규칙을 또 고치면 NEW_LINE 을 그 줄로 바꾼다. 11-07: "검색 결과에 없는 기관을 출처로 말하지 않는다"
+const NEW_LINE = '  - Name as the source or basis only an institution whose page is actually in your search results.';
+const nl = BASE.indexOf(NEW_LINE);
+if (nl < 0) { console.error('현재 프롬프트에서 NEW_LINE 을 못 찾음'); process.exit(1); }
+const PREV = BASE.slice(0, nl) + BASE.slice(BASE.indexOf('\n', nl) + 1);
 const CUR = BASE;
 
 const QUERIES = [
@@ -48,7 +44,7 @@ const QUERIES = [
     '비트코인 가격 최근 6개월 그래프',
 ];
 const TODAY = { y: 2026, m: 11 };
-const isA = (d: string) => /(\.go\.kr|kosis\.kr|bok\.or\.kr|krx\.co\.kr|\.gov$|stlouisfed\.org|federalreserve\.gov|imf\.org|worldbank\.org|oecd\.org|ecb\.europa\.eu|eia\.gov)$/.test(d);
+const isA = (d: string) => /(\.go\.kr|kosis\.kr|bok\.or\.kr|krx\.co\.kr|smbs\.biz|\.gov$|stlouisfed\.org|federalreserve\.gov|imf\.org|worldbank\.org|oecd\.org|ecb\.europa\.eu|eia\.gov)$/.test(d);
 const BASIS_RE = /월평균|월말|종가|말일|평균\s*기준|기말|잠정|확정|전년\s*동월\s*대비|월간\s*평균|종가\s*기준|end-of-month|monthly average/;
 
 // 범주 라벨 → (연, 월). "2026.10"·"26년 10월"·"2026-10"·"10월"(연 없음은 무시)
@@ -72,11 +68,14 @@ const chartOf = (text: string) => {
     } catch { return null; }
 };
 
-type Row = { q: string; arm: string; r: number; aShare: string; lag: number | null; basis: boolean; last: number | null; lastLabel: string; noOfficialNote: boolean; latestNote: boolean; periodInTitle: boolean; aCount: number; points: number };
+type Row = { q: string; arm: string; r: number; aShare: string; lag: number | null; basis: boolean; last: number | null; lastLabel: string; noOfficialNote: boolean; latestNote: boolean; agencyClaim: boolean; periodInTitle: boolean; aCount: number; points: number };
 const rows: Row[] = [];
 const FROM = Number(process.env.FROM || 1);
+// ONLY=1,3 — 일부 질문만(유료 호출 줄이기)
+const ONLY = (process.env.ONLY || '').split(',').filter(Boolean).map(Number);
 for (const [qi, q] of QUERIES.entries()) {
     if (qi + 1 < FROM) continue;
+    if (ONLY.length && !ONLY.includes(qi + 1)) continue;
     for (const [arm, sys] of [['prev', PREV], ['cur', CUR]] as const) {
         for (let r = 1; r <= RUNS; r++) {
             let res: any;
@@ -93,11 +92,13 @@ for (const [qi, q] of QUERIES.entries()) {
             const prose = text.replace(/```[\s\S]*?```/g, '');
             const basis = BASIS_RE.test((ch?.title ?? '') + prose);
             const noOfficialNote = /공식[^.\n]{0,30}(없|찾지 못|확인되지|확인하지 못)/.test(prose);
+            // 출처에 공식이 없는데 본문이 공식 기관을 근거로 내세웠나(11-07 실화면 3회)
+            const agencyClaim = a === 0 && /한국은행|ECOS|서울외국환중개|통계청|KOSIS|한국거래소|연준|Federal Reserve|FRED/.test(prose);
             const latestNote = /(확인된|찾은|찾을 수 있는|가장)\s*(가장\s*)?최신|최신\s*(자료|데이터|수치)/.test(prose);
             const periodInTitle = /20\d{2}[.년\s]*\d{0,2}\s*월?\s*[~\-–]/.test(ch?.title ?? '') || /\(.*20\d{2}.*\)/.test(ch?.title ?? '');
-            const row: Row = { q, arm, r, aShare: `${a}/${domains.length}`, lag, basis, last: ch?.values.at(-1) ?? null, lastLabel, noOfficialNote, latestNote, periodInTitle, aCount: a, points: ch?.labels.length ?? 0 };
+            const row: Row = { q, arm, r, aShare: `${a}/${domains.length}`, lag, basis, last: ch?.values.at(-1) ?? null, lastLabel, noOfficialNote, latestNote, periodInTitle, agencyClaim, aCount: a, points: ch?.labels.length ?? 0 };
             rows.push(row);
-            console.log(`■ ${q} [${arm}#${r}] A ${row.aShare} · 마지막 ${lastLabel || '-'}(${lag ?? '?'}개월 전) · 기준 ${basis ? 'O' : 'X'} · 값 ${row.last ?? '-'} · 점 ${row.points}${noOfficialNote ? ' · 공식출처없음 고지' : ''}${latestNote ? ' · 최신 고지' : ''} · 제목기간 ${periodInTitle ? 'O' : 'X'}`);
+            console.log(`■ ${q} [${arm}#${r}] A ${row.aShare} · 마지막 ${lastLabel || '-'}(${lag ?? '?'}개월 전) · 기준 ${basis ? 'O' : 'X'} · 값 ${row.last ?? '-'} · 점 ${row.points}${noOfficialNote ? ' · 공식출처없음 고지' : ''}${latestNote ? ' · 최신 고지' : ''}${agencyClaim ? ' · ⚠️ 출처에 없는 기관 내세움' : ''} · 제목기간 ${periodInTitle ? 'O' : 'X'}`);
             console.log(`    출처 ${domains.join(', ') || '-'}`);
             writeFileSync(join(outDir, `q${qi + 1}-${arm}-r${r}.md`), `# ${q} [${arm}#${r}]\n출처: ${domains.join(', ')}\n\n${text.replace(/https?:\/\/vertexaisearch\.cloud\.google\.com\/[^\s)]+/g, '<redirect>')}\n`);
         }
@@ -108,7 +109,7 @@ for (const arm of ['prev', 'cur']) {
     const rs = rows.filter(r => r.arm === arm);
     const aNum = rs.reduce((s, r) => s + Number(r.aShare.split('/')[0]), 0), aDen = rs.reduce((s, r) => s + Number(r.aShare.split('/')[1]), 0);
     const lags = rs.map(r => r.lag).filter((x): x is number => x !== null);
-    console.log(`\n== ${arm}: 응답 ${rs.length} · A 출처 ${aNum}/${aDen} · 마지막 시점 2개월 넘게 지난 응답 ${lags.filter(l => l > 2).length}/${lags.length} (최대 ${Math.max(...lags)}개월) · 기준 명시 ${rs.filter(r => r.basis).length}/${rs.length} · 제목 기간 ${rs.filter(r => r.periodInTitle).length}/${rs.length} · 공식 0 인 응답 중 고지 ${rs.filter(r => r.aCount === 0 && r.noOfficialNote).length}/${rs.filter(r => r.aCount === 0).length} · 2개월 넘은 응답 중 최신 고지 ${rs.filter(r => (r.lag ?? 0) > 2 && r.latestNote).length}/${rs.filter(r => (r.lag ?? 0) > 2).length}`);
+    console.log(`\n== ${arm}: 응답 ${rs.length} · A 출처 ${aNum}/${aDen} · 마지막 시점 2개월 넘게 지난 응답 ${lags.filter(l => l > 2).length}/${lags.length} (최대 ${Math.max(...lags)}개월) · 기준 명시 ${rs.filter(r => r.basis).length}/${rs.length} · 제목 기간 ${rs.filter(r => r.periodInTitle).length}/${rs.length} · 출처에 없는 기관 내세움 ${rs.filter(r => r.agencyClaim).length}/${rs.filter(r => r.aCount === 0).length} · 공식 0 인 응답 중 고지 ${rs.filter(r => r.aCount === 0 && r.noOfficialNote).length}/${rs.filter(r => r.aCount === 0).length} · 2개월 넘은 응답 중 최신 고지 ${rs.filter(r => (r.lag ?? 0) > 2 && r.latestNote).length}/${rs.filter(r => (r.lag ?? 0) > 2).length}`);
 }
 console.log('\n== 회차 간 마지막 값 (같은 마지막 시점일 때만 비교)');
 for (const q of QUERIES) for (const arm of ['prev', 'cur']) {

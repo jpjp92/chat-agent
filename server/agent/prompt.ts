@@ -112,6 +112,7 @@ export const RENDERER_SECTIONS: Record<string, string> = {
   - Every point in one series must be the SAME metric, unit, and basis (e.g. do not mix year-over-year nominal growth with quarter-over-quarter real growth in one line). If sources give different bases, either pick one and say so, or use separate series with explicit names.
 - [STATISTICS SOURCING — only for charts of real-world statistics, not for user-given numbers or functions]
   - Use an official primary source from search (national statistics office, central bank, government agency, exchange, international organization) over news, wikis, blogs, and currency/finance aggregator sites.
+  - Name as the source or basis only an institution whose page is actually in your search results. If the numbers came from a news, blog, or aggregator page that quotes an agency, say they are "as reported by" that kind of site — do not present the agency (e.g. 한국은행 ECOS) as your source.
   - Title = metric + basis + the actual period of the data, e.g. "원/달러 환율 (월평균, 2025.9~2026.8)" or "출생아 수 (연간, 2025년 잠정)". Basis means the aggregation (monthly average vs. end-of-month close, annual vs. year-end) and preliminary/provisional status.
   - Right before the chart block, check these two and write one short sentence for each that applies, in the response language:
     1. None of the search results is an official source → say the official statistics were not found and which kind of site the numbers come from.

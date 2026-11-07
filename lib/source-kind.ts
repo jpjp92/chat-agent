@@ -11,7 +11,9 @@ export type SourceKind = 'official' | 'secondary' | 'other';
 const OFFICIAL_SUFFIXES = ['go.kr', 'gov', 'gov.uk', 'gc.ca', 'gov.au', 'go.jp', 'europa.eu', 'int'];
 // 정부 도메인이 아닌 중앙은행·통계기관·거래소·국제기구
 const OFFICIAL_HOSTS = ['bok.or.kr', 'kosis.kr', 'korea.kr', 'krx.co.kr', 'stlouisfed.org', 'imf.org', 'worldbank.org',
-    'oecd.org', 'un.org', 'bis.org', 'boj.or.jp', 'ons.gov.uk'];
+    'oecd.org', 'un.org', 'bis.org', 'boj.or.jp', 'ons.gov.uk',
+    // 서울외국환중개 — 원/달러 매매기준율을 공시하는 지정 중개기관
+    'smbs.biz'];
 // 언론·위키·민간 리서치·데이터 집계 — 목록이라 처음 보는 언론사는 other 로 떨어진다([turn] sourceKinds 로 보강)
 const SECONDARY_HOSTS = ['chosun.com', 'joongang.co.kr', 'donga.com', 'hani.co.kr', 'khan.co.kr', 'hankyung.com', 'mk.co.kr',
     'mt.co.kr', 'sedaily.com', 'edaily.co.kr', 'newspim.com', 'yna.co.kr', 'yonhapnewstv.co.kr', 'einfomax.co.kr',
