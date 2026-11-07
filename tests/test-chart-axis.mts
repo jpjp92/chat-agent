@@ -79,5 +79,19 @@ const o4 = numericAxisOptions([{ data: [{ x: -1e308 }, { x: 1e308 }] }], false) 
 check('범위가 Infinity 인 x 도 루프 없이 반환', o4.type === 'numeric');
 check('부동소수 눈금 정리', numericTickLabel(0.30000000000000004) === '0.3' && numericTickLabel('-2') === '-2');
 
+// 연.월 범주는 숫자가 아니다(11-07 환율: 2026.10 = 2026.1 로 읽혀 선이 뒤엉킴)
+{
+    const months = ['2025.11', '2025.12', '2026.01', '2026.02', '2026.03', '2026.04', '2026.05', '2026.06', '2026.07', '2026.08', '2026.09', '2026.10'];
+    const r = resolveXAxis('line', [{ name: 'fx', data: months.map((_, i) => 1400 + i) }] as any, months);
+    check('연.월 범주 12개 → category·라벨 그대로', r.scale === 'category' && r.categories.join() === months.join(), `${r.scale} ${r.categories.join()}`);
+    const yy = ['25.11', '25.12', '26.01', '26.02', '26.03', '26.04', '26.05', '26.06', '26.07', '26.08', '26.09', '26.10'];
+    const r3 = resolveXAxis('line', [{ name: 'fx', data: yy.map((_, i) => 1400 + i) }] as any, yy);
+    check('두 자리 연.월 범주 전부(25.11~26.10) → category', r3.scale === 'category', r3.scale);
+    const fx = ['10.05', '10.10', '10.15', '10.20'];
+    check('일부만 연.월 꼴인 소수 범주는 숫자 판정 유지', resolveXAxis('line', [{ name: 'y', data: [1, 2, 3, 4] }] as any, fx).scale !== 'category' || !fx.every(c => /^\d{2}\.(0[1-9]|1[0-2])$/.test(c)));
+    const r2 = resolveXAxis('line', [{ name: 'y', data: [1, 2, 3] }] as any, ['1990.25', '2000.25', '2010.75']);
+    check('연도처럼 보여도 월이 아닌 소수(.25·.75)는 숫자', r2.scale === 'numeric', r2.scale);
+}
+
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
 process.exit(fail === 0 ? 0 : 1);

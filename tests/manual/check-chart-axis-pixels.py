@@ -24,7 +24,9 @@ CASES = [
     ('AX-04', 'line', [{'name': 'n', 'data': [1006645, 862835, 640089, 272337, 260562]}], ['1970', '1980', '2000', '2020', '2021'], 700),
     ('AX-05', 'bar', [{'name': 'n', 'data': [27, 26, 25, 23, 24, 25]}], ['2020', '2021', '2022', '2023', '2024', '2025'], 360),
     ('AX-06', 'scatter', [{'name': 'p', 'data': [{'x': 1, 'y': 2}, {'x': 2, 'y': 4}, {'x': 3, 'y': 1}]}], [], 360),
-    ('AX-07', 'line', [{'name': '매출', 'data': [5, 6, 7, 6, 8, 9, 7, 8, 10, 9, 11, 12]}], [f'{i}월' for i in range(1, 13)], 360),
+    # 12개월은 모바일에서도 스크롤 없이 한 화면(11-07 — 스크롤되면 오른쪽 절반이 잘렸다)
+    ('AX-07', 'line', [{'name': '환율', 'data': [1391, 1423, 1457, 1467, 1456, 1449, 1486, 1487, 1490, 1527, 1497, 1406]}], [f'{2025 + (i + 8) // 12}년 {(i + 8) % 12 + 1}월' for i in range(12)], 360),
+    ('AX-10', 'bar', [{'name': 'n', 'data': list(range(30))}], [f'항목{i}' for i in range(30)], 360),
     # 모델이 함수 샘플을 {x,y} 대신 등간격 숫자 범주 61개로 보낸 경우(11-05 실화면: 스크롤로 −3~−1.3 만 보임)
     ('AX-08', 'line', [{'name': 'y', 'data': [round((-3 + i * 0.1) ** 2, 2) for i in range(61)]}], [f'{-3 + i * 0.1:.1f}' for i in range(61)], 360),
 ]
@@ -36,15 +38,15 @@ window.results = {};
 for (const [id, type, series, cats, width] of CASES) {
   const ax = ChartAxis.resolveXAxis(type, series, cats);
   const count = ax.categories.length;
-  const minW = ax.scale !== 'numeric' && count > 10 ? Math.max(600, count * 40) : '100%%';
+  const minW = ax.scale !== 'numeric' && count > 24 ? count * 28 : '100%%';
   const card = document.createElement('div'); card.style.cssText = `width:${width}px;overflow-x:auto`; card.id = 'card-' + id;
   const inner = document.createElement('div'); inner.style.minWidth = typeof minW === 'number' ? minW + 'px' : minW; inner.style.width = '100%%';
   const el = document.createElement('div'); inner.appendChild(el); card.appendChild(inner); document.getElementById('root').appendChild(card);
   const numeric = ax.scale === 'numeric' ? ChartAxis.numericAxisOptions(ax.series, width < 480) : {};
   new ApexCharts(el, { chart: { type, height: 220, animations: { enabled: false }, toolbar: { show: false } },
     series: ax.series, stroke: { curve: ax.scale === 'numeric' ? 'straight' : 'monotoneCubic', width: 2 }, markers: { size: 4 },
-    xaxis: { categories: ax.scale === 'numeric' ? [] : ax.categories, ...numeric,
-      labels: { formatter: v => ax.scale === 'numeric' ? ChartAxis.numericTickLabel(v) : v } } }).render();
+    yaxis: { labels: { style: { fontSize: width < 480 ? '9px' : '12px' } } }, grid: { padding: { bottom: width < 480 ? 8 : 0 } }, xaxis: { categories: ax.scale === 'numeric' ? [] : ax.categories, ...numeric,
+      labels: { offsetY: width < 480 ? 4 : 0, rotate: ax.scale === 'numeric' ? 0 : (width < 480 ? -55 : -45), hideOverlappingLabels: true, style: { fontSize: width < 480 ? '8px' : '11px' }, formatter: v => ax.scale === 'numeric' ? ChartAxis.numericTickLabel(v) : v } } }).render();
   window.results[id + ':opts'] = numeric;
   window.results[id] = { scale: ax.scale };
 }
@@ -81,7 +83,31 @@ def main():
         x = xs('AX-05'); d = [x[i + 1] - x[i] for i in range(len(x) - 1)]
         check('AX-05 연도 막대 6개 등간격(category)', res['AX-05']['scale'] == 'category' and len(x) == 6 and max(d) - min(d) < 1.5, d)
         check('AX-06 산점도 numeric·마커 3개', res['AX-06']['scale'] == 'numeric' and len(xs('AX-06')) == 3)
-        check('AX-07 12개월 범주 가로 스크롤 유지', res['AX-07']['scale'] == 'category' and scrolls('AX-07'))
+        check('AX-07 12개월 범주 모바일 스크롤 없음', res['AX-07']['scale'] == 'category' and not scrolls('AX-07'))
+        # 보이는 x 라벨끼리, x 라벨과 y 라벨이 겹치지 않는다
+        boxes = pg.evaluate('''() => { const g = s => [...document.querySelectorAll('#card-AX-07 ' + s)].map(e => e.getBoundingClientRect()).filter(r => r.width > 0);
+          return { x: g('.apexcharts-xaxis-label'), y: g('.apexcharts-yaxis-label') }; }''')
+        ov = lambda a, b: a['left'] < b['right'] - 1 and b['left'] < a['right'] - 1 and a['top'] < b['bottom'] - 1 and b['top'] < a['bottom'] - 1
+        # 회전 라벨은 사각 영역이 서로 겹쳐 보이므로 x 라벨끼리는 오른쪽 끝 간격으로 잰다(회전 글자 높이 8px 이상)
+        rs = sorted(b['right'] for b in boxes['x'])
+        xo = sum(1 for i in range(len(rs) - 1) if rs[i + 1] - rs[i] < 8)
+        xy = sum(ov(a, b) for a in boxes['x'] for b in boxes['y'])
+        check(f'AX-07 라벨 겹침 없음 (x 라벨 {len(boxes["x"])}개, x끼리 {xo}·x-y {xy})', xo == 0 and xy == 0)
+        # y축 맨 아래 라벨과 x축 라벨 사이 세로 간격(11-07 모바일: 1,300 과 2025 가 맞닿아 보였다)
+        gap = min(b['top'] for b in boxes['x']) - max(b['bottom'] for b in boxes['y'])
+        check(f'AX-07 y 맨 아래 라벨과 x 라벨 간격 ≥ 4px (측정 {gap:.1f})', gap >= 4)
+        # x 라벨이 차트 SVG 아래로 잘리지 않는다(오프셋을 주면 Apex 가 높이에 넣지 않아 잘렸다, 11-07)
+        for cid in ['AX-02', 'AX-07']:
+            g2 = pg.evaluate(f'''() => {{ const q = s => [...document.querySelectorAll('#card-{cid} ' + s)].map(e => e.getBoundingClientRect()).filter(r => r.width > 0);
+              return Math.min(...q('.apexcharts-xaxis-label').map(r => r.top)) - Math.max(...q('.apexcharts-yaxis-label').map(r => r.bottom)); }}''')
+            check(f'{cid} y-x 라벨 간격 ≥ 4px (측정 {g2:.1f})', g2 >= 4)
+            hx = pg.evaluate(f'''() => {{ const plot = document.querySelector('#card-{cid} .apexcharts-grid').getBoundingClientRect();
+              return plot.left - Math.max(...[...document.querySelectorAll('#card-{cid} .apexcharts-yaxis-label')].map(e => e.getBoundingClientRect().right)); }}''')
+            check(f'{cid} y 라벨 오른쪽 끝과 그래프 시작 간격 ≥ 4px (측정 {hx:.1f})', hx >= 4)
+            cut = pg.evaluate(f'''() => {{ const svg = document.querySelector('#card-{cid} svg').getBoundingClientRect();
+              return Math.max(...[...document.querySelectorAll('#card-{cid} .apexcharts-xaxis-label')].map(e => e.getBoundingClientRect().bottom)) - svg.bottom; }}''')
+            check(f'{cid} x 라벨이 SVG 안 (초과 {cut:.1f}px)', cut <= 0.5)
+        check('AX-10 범주 30개는 가로 스크롤', scrolls('AX-10'))
         ends = pg.evaluate('''() => { const p = document.querySelector('#card-AX-08 .apexcharts-line path, #card-AX-08 path.apexcharts-line');
           const c = document.querySelector('#card-AX-08').getBoundingClientRect(); const b = p.getBoundingClientRect();
           return [b.left >= c.left - 1, b.right <= c.right + 1]; }''')

@@ -300,3 +300,28 @@ select {
 .dark .katex {
   color: #f1f5f9;
 }
+
+/* 차트 호버 툴팁 — Apex 기본(검정 상자·12~13px)은 카드(인디고 유리)와 따로 논다. 카드와 같은 색·테두리·흐림으로 맞추고 줄인다.
+   글자 크기·배경은 Apex 가 테마 클래스로 써서 !important */
+.apexcharts-tooltip {
+  font-size: 11px !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18) !important;
+}
+.apexcharts-tooltip.apexcharts-theme-light { background: rgba(255, 255, 255, 0.92) !important; border: 1px solid #e2e8f0 !important; color: #334155; }
+.apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title { background: #f1f5f9 !important; border-bottom: 1px solid #e2e8f0 !important; color: #475569; }
+.apexcharts-tooltip.apexcharts-theme-dark { background: rgba(30, 34, 62, 0.92) !important; border: 1px solid rgba(129, 140, 248, 0.3) !important; color: #e2e8f0; }
+.apexcharts-tooltip.apexcharts-theme-dark .apexcharts-tooltip-title { background: rgba(99, 102, 241, 0.16) !important; border-bottom: 1px solid rgba(129, 140, 248, 0.2) !important; color: #c7d2fe; }
+.apexcharts-tooltip .apexcharts-tooltip-title { font-size: 11px !important; font-weight: 600; padding: 4px 8px; margin-bottom: 2px; }
+.apexcharts-tooltip .apexcharts-tooltip-series-group { padding: 0 8px; }
+.apexcharts-tooltip .apexcharts-tooltip-y-group { padding: 3px 0; }
+@media (max-width: 639px) {
+  .apexcharts-tooltip, .apexcharts-tooltip .apexcharts-tooltip-title,
+  .apexcharts-tooltip .apexcharts-tooltip-text-y-label, .apexcharts-tooltip .apexcharts-tooltip-text-y-value { font-size: 9px !important; }
+  .apexcharts-tooltip .apexcharts-tooltip-title { padding: 2px 6px; }
+  .apexcharts-tooltip .apexcharts-tooltip-y-group { padding: 2px 0; }
+  .apexcharts-tooltip .apexcharts-tooltip-marker { transform: scale(0.8); }
+  .apexcharts-tooltip .apexcharts-tooltip-series-group { padding: 0 6px; }
+}

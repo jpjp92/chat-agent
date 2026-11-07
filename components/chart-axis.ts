@@ -22,9 +22,13 @@ interface AxisResult {
 
 // "1970"·"-0.4"·"1e3" 은 숫자, "2021년"·"1월"·"" 은 아니다
 const NUM_RE = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
+// "2025.11"·"2026.10" 은 연.월 라벨이지 소수가 아니다 — 숫자로 읽으면 2026.10 = 2026.1 이 되어 선이 뒤엉킨다(11-07 환율 실화면)
+const YEAR_MONTH_RE = /^(19|20)\d{2}\.(0?[1-9]|1[0-2])$/;
+// 두 자리 연도 "25.11"·"26.01" 은 한 라벨만으론 소수(10.05)와 못 가른다 — 범주 **전부**가 이 꼴일 때만 연.월로 본다
+const YY_MM_RE = /^\d{2}\.(0[1-9]|1[0-2])$/;
 const toNum = (v: unknown): number | null => {
     if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-    if (typeof v === 'string' && NUM_RE.test(v.trim())) return Number(v.trim());
+    if (typeof v === 'string' && NUM_RE.test(v.trim()) && !YEAR_MONTH_RE.test(v.trim())) return Number(v.trim());
     return null;
 };
 const isPt = (d: unknown): d is Pt => !!d && typeof d === 'object' && 'x' in (d as object);
@@ -40,7 +44,7 @@ export const isEvenlySpaced = (xs: number[]): boolean => {
     return true;
 };
 
-// 범주 축이 가로 스크롤 없이 놓이는 최대 개수(ChartRenderer 의 `dataCount > 10` 와 같은 값)
+// 등간격 숫자 범주를 범주로 둘 최대 개수 — 넘으면 라벨이 빽빽해 numeric 축(깔끔한 눈금)이 낫다
 const DENSE_CATEGORY_MAX = 10;
 
 export const resolveXAxis = (type: string, series: Series[], categories: string[]): AxisResult => {
@@ -65,9 +69,9 @@ export const resolveXAxis = (type: string, series: Series[], categories: string[
     }
 
     // ② 숫자 범주 + 값 배열 — 간격이 불균등하면 numeric(범주는 간격을 지운다). 등간격은 라벨이 정확한
-    //    범주로 두되, 10 개를 넘으면 범주 축은 가로 스크롤이 생겨 함수 샘플(−3.0, −2.9 … 61개)이
-    //    한 화면에 안 들어온다 — 그때도 numeric
-    const catNums = categories.map(toNum);
+    //    범주로 두되, 10 개를 넘으면 범주 라벨이 빽빽해 함수 샘플(−3.0, −2.9 … 61개)을 읽을 수 없다 — 그때도 numeric
+    const yearMonthLabels = categories.length > 0 && categories.every(c => YY_MM_RE.test(String(c).trim()));
+    const catNums = yearMonthLabels ? categories.map(() => null) : categories.map(toNum);
     if (numericCapable && categories.length >= 2 && catNums.every(n => n !== null)) {
         const xs = catNums as number[];
         if (!isEvenlySpaced(xs) || xs.length > DENSE_CATEGORY_MAX) {

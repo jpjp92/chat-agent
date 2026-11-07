@@ -64,6 +64,9 @@ const CHART_COLORS = [
     '#06b6d4', // 시안
 ];
 
+/** 범주가 이 개수를 넘을 때만 가로 스크롤 */
+const SCROLL_CATEGORY_MIN = 24;
+
 const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko' }) => {
     const chartRef = useRef<HTMLDivElement>(null);
     const chartInstance = useRef<ApexCharts | null>(null);
@@ -237,7 +240,9 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             ? { top: 10, right: isMobile ? 50 : 80, bottom: 20, left: isMobile ? 50 : 80 }
             : isMobile
             // numeric 축은 끝 눈금이 데이터 끝과 같아 끝 라벨·마커가 카드 밖으로 잘린다 — 오른쪽 여백을 더 준다
-            ? { top: 0, right: xScale === 'numeric' ? 16 : 8, bottom: 0, left: 0 }
+            // 아래 8 은 x 라벨을 4px 내린 만큼 — Apex 는 라벨 offsetY 를 높이에 넣지 않아 회전 없는 라벨이 잘린다
+            // 왼쪽 8 — 범주 축 선은 첫 점이 그래프 왼쪽 끝에 붙어 y 라벨을 넘어가 보였다(11-07)
+            ? { top: 0, right: xScale === 'numeric' ? 16 : 8, bottom: 8, left: 8 }
             : { top: 0, right: xScale === 'numeric' ? 24 : 20, bottom: 0, left: 10 };
         // 레이더 다각형 반지름: 라벨이 그리드 패딩 안에 들어오도록 작게
         const radarSize      = isMobile ? 60 : isTablet ? 80 : 100;
@@ -248,6 +253,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
             chart: {
                 type: type,
                 height: chartHeight,
+                // 선·영역에 같은 색의 옅은 그림자 — 카드 배경 위에서 선이 떠 보이게(장식이라 값 읽기와 무관)
+                dropShadow: (type === 'line' || type === 'area')
+                    ? { enabled: true, top: 4, left: 0, blur: 6, opacity: isDark ? 0.35 : 0.18, color: CHART_COLORS[0] }
+                    : { enabled: false },
                 width: '100%',
                 fontFamily: 'Inter, sans-serif',
                 background: 'transparent',
@@ -281,11 +290,17 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                     },
                     // 레이더 라벨은 회전하면 안 된다(다각형 둘레에 배치됨)
                     rotate: isRadar || xScale === 'numeric' ? 0 : xRotate,
+                    // 모바일은 y축 맨 아래 라벨과 x 첫 라벨이 0.6px 로 맞닿는다(11-07) — x 라벨을 내린다
+                    offsetY: isMobile && !isRadar ? 4 : 0,
                     hideOverlappingLabels: true,
                     // numeric 축 눈금은 깔끔한 간격(chart-axis) 그대로 — 범주 문자열은 그대로
                     formatter: (value: any) => (xScale === 'numeric' ? numericTickLabel(value) : value),
                 },
-                axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' }
+                axisBorder: { show: !isRadar, color: isDark ? '#334155' : '#e2e8f0' },
+                // 모바일은 x 첫 눈금선이 y 맨 아래 라벨(1,300) 바로 옆으로 내려와 붙어 보인다(11-07) — 눈금선은 숨기고 라벨만
+                axisTicks: { show: !isMobile && !isRadar },
+                // numeric 축 호버 때 축 아래에 뜨는 큰 x값 상자 — 툴팁 머리에 같은 값이 이미 있다
+                tooltip: { enabled: false },
             },
             yaxis: {
                 // 레이더 y축 라벨(동심원 값)은 가운데를 어지럽힌다 — 숨김
@@ -341,9 +356,18 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 labels: { colors: isDark ? '#e2e8f0' : '#334155' }
             },
             // 산점도·결측 선·점 적은 numeric 선만 점 표시 — 규칙은 chart-format markerSize
-            markers: { size: markerSize(type, xScale, series) },
+            // 호버한 점은 키워 테두리를 준다 — 어느 점을 읽는지 보이게
+            markers: {
+                size: markerSize(type, xScale, series),
+                strokeColors: isDark ? '#1e293b' : '#ffffff',
+                hover: { size: isMobile ? 5 : 6 },
+            },
             // 툴팁은 축약 없이 원본 수치 + 단위(1,006,645명). 히트맵은 Apex 기본(행·열 이름이 함께 나온다)
-            ...(isHeatmap ? {} : { tooltip: { y: { formatter: (v: unknown) => formatTooltipValue(v, yUnit) } } }),
+            // 호버 툴팁은 Apex 기본(12px·넓은 여백)이 카드에 비해 커서 줄인다. 히트맵은 값 포맷만 Apex 기본
+            tooltip: {
+                style: { fontSize: isMobile ? '10px' : '11px' },
+                ...(isHeatmap ? {} : { y: { formatter: (v: unknown) => formatTooltipValue(v, yUnit) } }),
+            },
             stroke: {
                 show: true,
                 width: (isPie || isTreemap || isHeatmap) ? 0 : 3,
@@ -426,7 +450,10 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     if (series.length === 0) return null;
     const dataCount = categories.length;
     // 가로 스크롤은 범주 축만 — numeric 축(함수·산점도)은 점 개수와 무관하게 전체 범위를 한 화면에
-    const chartMinWidth = xScale !== 'numeric' && dataCount > 10 ? Math.max(600, dataCount * 40) : '100%';
+    // 12개월 같은 범주는 스크롤 없이 한 화면에 — 라벨은 Apex 가 회전·겹침 숨김으로 솎는다. 스크롤은 축이 너무 빽빽할 때만
+    //   (11-07 모바일: 12개월이 스크롤되며 오른쪽 절반이 잘리고 y축이 같이 밀려났다)
+    const scrolls = xScale !== 'numeric' && dataCount > SCROLL_CATEGORY_MIN;
+    const chartMinWidth = scrolls ? dataCount * 28 : '100%';
 
     return (
         <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
@@ -462,15 +489,12 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
                 <div className="p-2 sm:p-4 flex-1 relative min-h-[220px] sm:min-h-[270px] lg:min-h-[320px]">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-                    <div className={`w-full ${dataCount > 10 ? 'overflow-x-auto custom-scrollbar' : 'overflow-x-hidden'} overflow-y-hidden`}>
+                    <div className={`w-full ${scrolls ? 'overflow-x-auto custom-scrollbar' : 'overflow-x-hidden'} overflow-y-hidden`}>
                         <div style={{ minWidth: chartMinWidth, width: '100%' }}>
                             <div ref={chartRef} className="w-full" />
                         </div>
                     </div>
 
-                    {dataCount > 10 && (
-                        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    )}
                 </div>
             </div>
         </div>
