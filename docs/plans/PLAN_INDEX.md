@@ -8,7 +8,7 @@
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
-> **2026-11-08 턴 ID:** [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) — Supabase(원문)·Vercel(`[turn]`)·LangSmith(실행)를 매 턴 새 무작위 `traceId` 하나로 잇는다. `session_id` 는 밖으로 안 낸다(원문까지의 길은 DB 안에서만). T1 루트 run ID·`[turn]` → T2 루트 메타데이터·커밋 → T3 `chat_messages.trace_id`. 상태: 계획.
+> **2026-11-08 턴 ID:** [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) — Supabase(원문)·Vercel(`[turn]`)·LangSmith(실행)를 매 턴 새 무작위 `traceId` 하나로 잇는다. `session_id` 는 밖으로 안 낸다(원문까지의 길은 DB 안에서만). T1 루트 run ID·`[turn]` → T2 루트 메타데이터·커밋 → T3 `chat_messages.trace_id`. 상태: T1 완료(11-09 배포 검증) · T2 다음.
 
 > **2026-11-07 LangSmith:** [PLAN_LANGSMITH_TRACING_261107](PLAN_LANGSMITH_TRACING_261107.md) — 관측만 추가(그래프·SDK 직접 호출 유지). 켜기만 하면 상태·프롬프트 원문은 자동 전송되고 Gemini·OpenAI 직접 호출은 안 보인다 → L0 숨김 Client·오류 코드화·응답 뒤 `after()` 전송, L2 공통 래퍼 span, L3 `[turn]` 메타데이터 재사용. **L0·L2 완료(11-07)** — 스위치 `CHAT_TRACING`(`LANGSMITH_TRACING` 은 항상 false), SDK 직접 호출 9곳 span(모델·검색·토큰·출처 수), 원문 모드는 로컬(배포 dev 는 허용 스위치까지)·별도 프로젝트, 오버헤드 +5ms/턴. 11-08: 문장 안 민감정보 가림·모델 입력 기록·캐시 토큰.
 
