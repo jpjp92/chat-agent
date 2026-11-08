@@ -299,7 +299,7 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
             call: phase === 'initial' ? 'openai_initial' : phase === 'followup' ? 'openai_followup' : 'openai_other',
             model: typeof body.model === 'string' ? body.model : 'other',
             search: Array.isArray(body.tools) && body.tools.some((t: JsonObject) => t?.type === 'web_search'),
-        }, () => requestOnce(body, phase));
+        }, () => requestOnce(body, phase), () => ({ ...body }));
         const requestOnce = async (body: JsonObject, phase: string) => {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);

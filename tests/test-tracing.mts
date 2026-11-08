@@ -153,7 +153,7 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('원문 모드: Production 은 허용 스위치가 있어도 무시', !rawMode());
     process.env = saved4;
     const b64 = 'A'.repeat(5000);
-    const sc = JSON.stringify(scrubRaw({ img: `data:image/png;base64,${b64}`, raw: b64, long: '가'.repeat(25000), bin: new Uint8Array(10), q: '합성 질문' }));
+    const sc = JSON.stringify(scrubRaw({ img: `data:image/png;base64,${b64}`, raw: b64, long: '가'.repeat(65000), bin: new Uint8Array(10), q: '합성 질문' }));
     check('scrubRaw: data URI·긴 base64 → 길이만', sc.includes('[base64 ') && !sc.includes('A'.repeat(100)), sc.slice(0, 200));
     check('scrubRaw: 긴 문자열은 앞부분 + 남은 길이', sc.includes('…[+5000 chars]'));
     check('scrubRaw: 바이너리 → 바이트 수', sc.includes('[binary 10 bytes]'));
@@ -167,6 +167,12 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const red = redactText('메일 user.name@example.co.kr 전화 010-1234-5678 +82 10 9876 5432 카드 1234-5678-9012-3456 주민 900101-1234567 키 sk-abcdefghijklmnopqrstuv AIzaSyA1234567890abcdefghijklmnopqrstu Bearer abcdefghijklmnop.qrs jwt eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.SflKxwRJSMeKKF2QT4 그래프 y=x² 2025.11 1,404.3원');
     check('redactText: 이메일·전화·카드·주민번호·키·토큰·JWT 가림', !/example|1234-5678|9876|9012|1234567|abcdefghij|AIzaSy|eyJ/.test(red), red);
     check('redactText: 일반 숫자·수식은 그대로', red.includes('y=x²') && red.includes('2025.11') && red.includes('1,404.3원'), red);
+    const gr = JSON.stringify(scrubRaw({ candidates: [{ content: { parts: [{ text: '답', thoughtSignature: 'SIG'.repeat(50) }] }, groundingMetadata: {
+        groundingChunks: [{ web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQabc_def-123', title: 'yna.co.kr' } }],
+        searchEntryPoint: { renderedContent: '<style>.chip{}</style>' }, webSearchQueries: ['주요 뉴스'] } }], sdkHttpResponse: { headers: { 'x-h': 'v' } } }));
+    check('scrubRaw: 검색 칩·HTTP 헤더·서명 제거', !/renderedContent|sdkHttpResponse|thoughtSignature|SIGSIG/.test(gr), gr);
+    check('scrubRaw: 리다이렉트 주소 → [redirect], 도메인·검색어 유지', !gr.includes('AUZIYQ') && gr.includes('"uri":"[redirect]"') && gr.includes('yna.co.kr') && gr.includes('주요 뉴스'), gr);
+    check('Gemini 캐시 토큰 → input_token_details.cache_read', JSON.stringify(usageOf({ usageMetadata: { promptTokenCount: 6021, candidatesTokenCount: 785, totalTokenCount: 6806, cachedContentTokenCount: 1094 } })) === '{"input_tokens":6021,"output_tokens":785,"total_tokens":6806,"input_token_details":{"cache_read":1094}}');
     check('scrubRaw 가 문자열 안 민감정보도 가림', JSON.stringify(scrubRaw({ q: '연락처 010-2222-3333' })).includes('[phone]'));
     const rr = sanitizeRun({ id: '5', inputs: { q: '합성 질문' }, outputs: { a: '합성 답' }, error: 'ApiError: 상세 사유', events: [{ x: 1 }] }, true);
     const rjs = JSON.stringify(rr);

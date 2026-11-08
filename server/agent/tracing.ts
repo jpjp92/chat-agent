@@ -54,7 +54,7 @@ const cleanMeta = (meta: unknown): Record<string, unknown> => {
     return out;
 };
 
-type Usage = { input_tokens: number; output_tokens: number; total_tokens: number };
+type Usage = { input_tokens: number; output_tokens: number; total_tokens: number; input_token_details?: { cache_read: number } };
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
 
 /**
@@ -76,7 +76,13 @@ export const usageOf = (outputs: unknown): Usage | null => {
         const gm = x.usageMetadata as Record<string, unknown> | undefined;
         if (gm && typeof gm === 'object') {
             const i = num(gm.promptTokenCount), out = num(gm.candidatesTokenCount);
-            if (i !== null || out !== null) return { input_tokens: i ?? 0, output_tokens: out ?? 0, total_tokens: num(gm.totalTokenCount) ?? (i ?? 0) + (out ?? 0) };
+            if (i !== null || out !== null) {
+                const u: Usage = { input_tokens: i ?? 0, output_tokens: out ?? 0, total_tokens: num(gm.totalTokenCount) ?? (i ?? 0) + (out ?? 0) };
+                // 암묵 캐시로 처리된 입력 — 단가가 달라 LangSmith 비용 계산에 필요하다
+                const cached = num(gm.cachedContentTokenCount);
+                if (cached) u.input_token_details = { cache_read: cached };
+                return u;
+            }
         }
         // OpenAI Responses `usage`(input_tokens·output_tokens)
         const ou = x.usage as Record<string, unknown> | undefined;
@@ -117,7 +123,8 @@ export const rawMode = (): boolean => {
     return process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED === 'true';
 };
 
-const RAW_STR_MAX = 20_000;
+// 시스템 지시가 3만 자 안팎이라 2만에선 뒷부분(차트·출처 규칙)이 잘렸다
+const RAW_STR_MAX = 60_000;
 const BASE64_RE = /^[A-Za-z0-9+/=\r\n]+$/;
 /**
  * 원문 모드 문자열 안의 민감정보 — 키 이름 가리기(ID_KEYS)로는 질문 **문장 안의** 값을 못 막는다(11-08 GPT 검토).
@@ -133,11 +140,15 @@ const REDACT: Array<[RegExp, string]> = [
     [/\b(?:\d{4}[- ]?){3}\d{4}\b/g, '[card]'],
     [/\b\d{6}[- ]?[1-4]\d{6}\b/g, '[rrn]'],
     [/(?:\+?82[- ]?|\b0)1[016789][- ]?\d{3,4}[- ]?\d{4}\b/g, '[phone]'],
+    // grounding 리다이렉트 — 출처는 title(도메인)로 충분하고, 주소 자체는 읽을 수 없는 긴 토큰이다
+    [/https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s"')\]]+/g, '[redirect]'],
 ];
 export const redactText = (t: string): string => REDACT.reduce((acc, [re, rep]) => acc.replace(re, rep), t);
 
 // 원문 모드에서도 식별자는 가린다 — 디버깅에 필요한 건 내용이지 누구의 세션인지가 아니다
 const ID_KEYS = new Set(['sessionId', 'session_id', 'userId', 'user_id', 'email', 'thread_id']);
+// 디버깅에 쓸모없는 값 — 검색 칩 HTML(수 KB, 검색어는 webSearchQueries 에 있다)·HTTP 헤더·내부 서명·중단 신호 객체
+const RAW_DROP_KEYS = new Set(['sdkHttpResponse', 'searchEntryPoint', 'thoughtSignature', 'abortSignal']);
 
 /**
  * 원문 모드 입출력 — base64·바이너리는 길이만, 긴 문자열은 앞부분만, 깊이·배열 길이 제한(전송량·직렬화 비용).
@@ -160,6 +171,7 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
         if (Array.isArray(v)) return v.slice(0, 200).map(x => scrubRaw(x, depth + 1, ancestors));
         const out: Record<string, unknown> = {};
         for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+            if (RAW_DROP_KEYS.has(k)) continue;
             out[k] = ID_KEYS.has(k) && x != null ? '[id]' : scrubRaw(x, depth + 1, ancestors);
         }
         return out;
@@ -263,6 +275,7 @@ export const llmSpan = <T>(
     provider: 'gemini' | 'openai',
     meta: { call: LlmCall; model: string; search?: boolean; attempt?: number },
     fn: () => Promise<T>,
+    input?: () => Record<string, unknown>,
 ): Promise<T> => {
     if (!tracingEnabled()) return fn();
     let c: SanitizingClient;
@@ -272,10 +285,15 @@ export const llmSpan = <T>(
     };
     if (meta.search !== undefined) metadata.search = meta.search;
     if (meta.attempt !== undefined) metadata.attempt = meta.attempt;
-    return traceable(fn, {
+    const run = traceable((_in?: Record<string, unknown>) => fn(), {
         name: `${provider}.${meta.call}`, run_type: 'llm', client: c, tracingEnabled: true,
         project_name: projectName(c.raw), metadata,
-    })();
+    });
+    // 입력은 원문 모드에서만 넘긴다 — 숨김 모드는 어차피 비우므로 프롬프트를 직렬화할 이유가 없다
+    if (!c.raw || !input) return run();
+    let args: Record<string, unknown> | undefined;
+    try { args = input(); } catch { args = undefined; }
+    return run(args);
 };
 
 /**
@@ -291,7 +309,7 @@ export const traceGemini = <P extends GeminiParams, R>(
 ): Promise<R> => llmSpan('gemini', {
     call, model: params.model, attempt,
     search: Array.isArray(params.config?.tools) && params.config!.tools!.some(t => !!t && typeof t === 'object' && 'googleSearch' in (t as object)),
-}, () => models.generateContent(params));
+}, () => models.generateContent(params), () => ({ ...params }));
 
 /** 응답을 닫은 뒤 호출 — 백그라운드 콜백과 배치 전송을 마저 보낸다(서버리스는 응답 뒤 멈출 수 있다) */
 export const flushTraces = async (): Promise<void> => {
