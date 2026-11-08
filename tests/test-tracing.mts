@@ -241,5 +241,28 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('민감 턴: 루트·자식 모두 원문 없음', m.all.length > 0 && !m.all.includes('합성원문'), m.all.slice(0, 300));
 }
 
+// ⑦ LangSmith 한도 초과(429)·장애 — 응답은 정상, 전송 마무리는 상한 안에서 끝난다
+{
+    const saved7 = { ...process.env };
+    process.env.CHAT_TRACING = 'true'; process.env.LANGSMITH_API_KEY = 'test'; delete process.env.CHAT_TRACING_RAW;
+    const mod = await import('../server/agent/tracing.js');
+    const tr = mod.traceCallbacks();
+    (tr[0] as unknown as { client: { fetchImplementation: typeof fetch } }).client.fetchImplementation =
+        (async () => new Response('{"detail":"Monthly trace limit exceeded"}', { status: 429 })) as unknown as typeof fetch;
+    const S7 = Annotation.Root({ q: Annotation<string>(), a: Annotation<string>() });
+    const g7 = new StateGraph(S7).addNode('gen', async () => ({ a: '정상답' })).addEdge(START, 'gen').addEdge('gen', END).compile();
+    let ans = '';
+    for await (const ev of g7.streamEvents({ q: 'x' }, { version: 'v2', callbacks: tr })) if (ev.event === 'on_chain_end' && ev.name === 'LangGraph') ans = (ev.data as { output?: { a?: string } }).output?.a ?? '';
+    const origWrite = process.stdout.write.bind(process.stdout); const lines: string[] = [];
+    process.stdout.write = ((c: string | Uint8Array) => { lines.push(String(c)); return true; }) as typeof process.stdout.write;
+    const t0 = Date.now(); let threw = false;
+    try { await mod.flushTraces(300); } catch { threw = true; } finally { process.stdout.write = origWrite; }
+    const ms = Date.now() - t0;
+    check('429: 그래프 응답은 정상', ans === '정상답');
+    check('429: flushTraces 는 던지지 않고 상한 안에 끝난다', !threw && ms < 2000, `${ms}ms`);
+    check('429: 상한 초과는 [trace] flush timeout 한 줄', lines.some(l => l.includes('"flush":"timeout"')), lines.join('').slice(0, 200));
+    process.env = saved7;
+}
+
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
 process.exit(fail === 0 ? 0 : 1);

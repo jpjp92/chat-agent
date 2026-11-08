@@ -490,14 +490,28 @@ export const traceGemini = <P extends GeminiParams, R>(
 }, () => models.generateContent(params), () => ({ ...params }));
 
 /** 응답을 닫은 뒤 호출 — 백그라운드 콜백과 배치 전송을 마저 보낸다(서버리스는 응답 뒤 멈출 수 있다) */
-export const flushTraces = async (): Promise<void> => {
+// 응답 뒤 전송 마무리 상한 — LangSmith 가 429(월 한도 초과)·장애면 langsmith 가 재시도를 이어 가 84초까지 걸렸다(11-08 하니스).
+// 사용자 지연은 아니지만 함수가 그만큼 살아 있어 실행 시간·비용이 든다. 넘기면 그 턴 trace 는 버린다(관측만 잃는다).
+const FLUSH_DEADLINE_MS = 5_000;
+export const flushTraces = async (deadlineMs = FLUSH_DEADLINE_MS): Promise<void> => {
     if (!client) return;
-    try {
+    const c = client;
+    const log = (line: Record<string, unknown>) => { try { process.stdout.write(`[trace] ${JSON.stringify(line)}\n`); } catch { /* 무시 */ } };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<'timeout'>(r => { timer = setTimeout(() => r('timeout'), deadlineMs); });
+    const work = (async () => {
         await awaitAllCallbacks();
-        await client.releaseStale();
-        await client.awaitPendingTraceBatches();
+        await c.releaseStale();
+        await c.awaitPendingTraceBatches();
+        return 'ok' as const;
+    })();
+    try {
+        if (await Promise.race([work, deadline]) === 'timeout') log({ flush: 'timeout', ms: deadlineMs });
     } catch (e) {
         // 응답은 이미 끝났다 — 실패는 막지 않고 누락을 알 수 있게 코드만 한 줄(메시지는 읽지 않는다)
-        try { process.stdout.write(`[trace] ${JSON.stringify({ flush: 'error', code: errorName(e) ?? 'Error' })}\n`); } catch { /* 무시 */ }
+        log({ flush: 'error', code: errorName(e) ?? 'Error' });
+    } finally {
+        clearTimeout(timer);
+        work.catch(() => { /* 상한 뒤 늦게 난 실패는 무시 */ });
     }
 };
