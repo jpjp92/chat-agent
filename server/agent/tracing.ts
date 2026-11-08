@@ -339,6 +339,35 @@ export const sanitizeRun = (run: Run, raw = false): Run => {
     return out;
 };
 
+// 요청 하나의 상한 — langsmith 기본 90초
+const SEND_TIMEOUT_MS = 5_000;
+// 한도 초과(429)·장애 뒤 전송을 쉬는 시간 — 월 한도는 그달 안 풀리니 길게, 일시 장애는 짧게
+const QUOTA_PAUSE_MS = 10 * 60_000;
+const FAIL_PAUSE_MS = 60_000;
+// 인스턴스마다 따로 — 다른 서버리스 인스턴스는 자기 첫 429 에서 멈춘다. 풀린 뒤 보내는 건 재시도 허용이지 성공 보장이 아니다(한도가 그대로면 다시 429 → 다시 정지)
+let sendPausedUntil = 0;
+const notePause = (why: Record<string, unknown>) => { try { process.stdout.write(`[trace] ${JSON.stringify({ send: 'paused', ...why })}\n`); } catch { /* 무시 */ } };
+/** 재시도할 이유가 없는 실패를 SDK 가 재시도하지 않는 응답(400)으로 바꾸고, 잠깐 전송을 쉰다 — 관측만 잃고 함수 시간은 안 쓴다 */
+const guardFetch = (base: () => typeof fetch): typeof fetch => (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const skip = () => new Response('{"detail":"trace send paused"}', { status: 400 });
+    if (Date.now() < sendPausedUntil) return skip();
+    try {
+        const r = await base()(input, init);
+        if (r.status === 429) {
+            sendPausedUntil = Date.now() + QUOTA_PAUSE_MS;
+            notePause({ status: 429 });
+            return skip();
+        }
+        return r;
+    } catch (e) {
+        sendPausedUntil = Date.now() + FAIL_PAUSE_MS;
+        // 요청 상한 초과는 SDK 의 AbortSignal.timeout 이 실제로 연결을 끊은 것(TimeoutError)
+        notePause({ error: (e as { name?: string })?.name === 'TimeoutError' ? 'timeout' : 'network' });
+        return skip();
+    }
+}) as typeof fetch;
+export const resetTraceSendPause = () => { sendPausedUntil = 0; };
+
 type CreateArg = Parameters<Client['createRun']>[0];
 type UpdateArg = Parameters<Client['updateRun']>[1];
 type PendingOp = { kind: 'create'; run: CreateArg; options?: Parameters<Client['createRun']>[1] }
@@ -357,7 +386,16 @@ class SanitizingClient extends Client {
     private traceOf = new Map<string, string>();
     constructor(config: ConstructorParameters<typeof Client>[0], readonly raw = false) {
         // 원문 모드는 env 숨김(LANGSMITH_HIDE_*=true)을 명시 false 로 덮는다 — 정리는 sanitizeRun 이 한다
-        super({ ...config, hideInputs: !raw, hideOutputs: !raw });
+        super({ ...config, hideInputs: !raw, hideOutputs: !raw, timeout_ms: SEND_TIMEOUT_MS });
+        // 전송을 끊는 자리는 fetch 다 — langsmith 는 429 를 받으면 10초씩 쉬며 재시도하고(내장, 설정으로 못 끈다)
+        // 서버 정보 조회도 재시도가 고정이라 한도 초과 때 전송 정리가 84초까지 갔다(11-08). 여기서 재시도 안 되는 응답으로 바꾼다.
+        let inner = (this as unknown as { fetchImplementation?: typeof fetch }).fetchImplementation;
+        const guarded = guardFetch(() => inner ?? globalThis.fetch);
+        Object.defineProperty(this, 'fetchImplementation', {
+            configurable: true,
+            get: () => guarded,
+            set: (f: typeof fetch | undefined) => { inner = f; }, // 하니스가 가짜 전송을 끼워도 차단기는 그대로
+        });
     }
     override async createRun(run: CreateArg, options?: Parameters<Client['createRun']>[1]) {
         if (!this.raw) return super.createRun(sanitizeRun(run as unknown as Run) as unknown as CreateArg, options);
@@ -428,7 +466,9 @@ export const makeTracer = (c: Client) =>
 
 /** 켜졌는가 — env 스위치와 키가 둘 다 있어야. 없으면 아무것도 만들지 않는다 */
 export const tracingEnabled = (): boolean =>
-    process.env.CHAT_TRACING === 'true' && !!process.env.LANGSMITH_API_KEY;
+    process.env.CHAT_TRACING === 'true' && !!process.env.LANGSMITH_API_KEY
+    // 전송을 쉬는 동안엔 run 도 만들지 않는다 — 보내지도 못할 기록을 만들고 SDK 실패 로그를 매 턴 남길 이유가 없다
+    && Date.now() >= sendPausedUntil;
 
 /** 그래프 실행 config 에 넣을 콜백. 꺼져 있으면 빈 배열 */
 export const traceCallbacks = (): LangChainTracer[] => {

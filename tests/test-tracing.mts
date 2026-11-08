@@ -256,12 +256,59 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const origWrite = process.stdout.write.bind(process.stdout); const lines: string[] = [];
     process.stdout.write = ((c: string | Uint8Array) => { lines.push(String(c)); return true; }) as typeof process.stdout.write;
     const t0 = Date.now(); let threw = false;
-    try { await mod.flushTraces(300); } catch { threw = true; } finally { process.stdout.write = origWrite; }
+    // 상한(30초)에 기대지 않고 실제 전송 작업이 빨리 끝나야 한다 — Promise.race 는 뒤의 재시도를 끊지 않는다(GPT 검토)
+    try { await mod.flushTraces(30_000); } catch { threw = true; } finally { process.stdout.write = origWrite; }
     const ms = Date.now() - t0;
     check('429: 그래프 응답은 정상', ans === '정상답');
-    check('429: flushTraces 는 던지지 않고 상한 안에 끝난다', !threw && ms < 2000, `${ms}ms`);
-    check('429: 상한 초과는 [trace] flush timeout 한 줄', lines.some(l => l.includes('"flush":"timeout"')), lines.join('').slice(0, 200));
+    check('429: 재시도 없이 전송 정리가 바로 끝난다(상한 아님)', !threw && ms < 3000 && !lines.some(l => l.includes('"flush":"timeout"')), `${ms}ms`);
+    check('429: [trace] send paused 한 줄', lines.some(l => l.includes('"send":"paused"')), lines.join('').slice(0, 200));
+    // 쉬는 동안은 네트워크를 타지 않는다
+    let calls7 = 0;
+    (tr[0] as unknown as { client: { fetchImplementation: typeof fetch } }).client.fetchImplementation = (async () => { calls7++; return new Response('{}'); }) as unknown as typeof fetch;
+    for await (const _ of g7.streamEvents({ q: 'y' }, { version: 'v2', callbacks: tr })) { /* 소비 */ }
+    await mod.flushTraces(30_000);
+    check('429 뒤 일시 중지 중엔 전송 요청 0', calls7 === 0, String(calls7));
+    mod.resetTraceSendPause();
     process.env = saved7;
+}
+
+// ⑧ LangSmith 무응답 — 요청 상한(5초)에서 실제로 끊기고 재시도가 이어지지 않는다 · 정지가 풀리면 다시 보낸다
+{
+    const saved8 = { ...process.env };
+    process.env.CHAT_TRACING = 'true'; process.env.LANGSMITH_API_KEY = 'test'; delete process.env.CHAT_TRACING_RAW;
+    const mod = await import('../server/agent/tracing.js');
+    mod.resetTraceSendPause();
+    const tr = mod.traceCallbacks();
+    const cl = (tr[0] as unknown as { client: { fetchImplementation: typeof fetch } }).client;
+    let calls8 = 0; let aborted8 = 0;
+    // 응답을 끝내 주지 않는 서버 — 끝나는 길은 SDK 가 건 signal 의 중단뿐
+    cl.fetchImplementation = (async (_u: unknown, init?: RequestInit) => {
+        calls8++;
+        return new Promise<Response>((_res, rej) => init?.signal?.addEventListener('abort', () => { aborted8++; rej(init.signal!.reason); }));
+    }) as unknown as typeof fetch;
+    const S8 = Annotation.Root({ q: Annotation<string>(), a: Annotation<string>() });
+    const g8 = new StateGraph(S8).addNode('gen', async () => ({ a: '정상답' })).addEdge(START, 'gen').addEdge('gen', END).compile();
+    for await (const _ of g8.streamEvents({ q: 'x' }, { version: 'v2', callbacks: tr })) { /* 소비 */ }
+    const origWrite = process.stdout.write.bind(process.stdout); const lines: string[] = [];
+    process.stdout.write = ((c: string | Uint8Array) => { lines.push(String(c)); return true; }) as typeof process.stdout.write;
+    const t0 = Date.now();
+    try { await mod.flushTraces(30_000); } finally { process.stdout.write = origWrite; }
+    const ms = Date.now() - t0;
+    const before = calls8;
+    await new Promise(r => setTimeout(r, 1500)); // 뒤에서 재시도가 돌고 있으면 이 사이 요청이 는다
+    check('무응답: 요청 상한에서 실제 중단(signal abort)', aborted8 > 0 && aborted8 === calls8, `${aborted8}/${calls8}`);
+    check('무응답: 30초 상한이 아니라 요청 상한 근처에서 끝난다', ms < 8000 && !lines.some(l => l.includes('"flush":"timeout"')), `${ms}ms`);
+    check('무응답: 끝난 뒤 재시도 요청 없음', calls8 === before, `${before}→${calls8}`);
+    check('무응답: [trace] send paused·timeout 한 줄', lines.some(l => l.includes('"send":"paused"') && l.includes('"timeout"')), lines.join('').slice(0, 200));
+    // 정지가 풀리면(10분·1분 경과 대신 reset) 다시 보낸다 — 성공 보장이 아니라 재시도 허용
+    let calls8b = 0;
+    cl.fetchImplementation = (async () => { calls8b++; return new Response('{}'); }) as unknown as typeof fetch;
+    mod.resetTraceSendPause();
+    for await (const _ of g8.streamEvents({ q: 'y' }, { version: 'v2', callbacks: tr })) { /* 소비 */ }
+    await mod.flushTraces(30_000);
+    check('정지 해제 뒤 전송 재개', calls8b > 0, String(calls8b));
+    mod.resetTraceSendPause();
+    process.env = saved8;
 }
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
