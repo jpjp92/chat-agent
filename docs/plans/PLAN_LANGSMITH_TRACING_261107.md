@@ -104,7 +104,7 @@
 
 **배포 dev 원문 모드(11-08 1단계)** — 관리 목적으로 dev 웹 대화도 마스킹해 보려는 것.
 - 판정을 환경에서 **브랜치**로: `CHAT_TRACING_RAW=true` + `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` + `VERCEL_GIT_COMMIT_REF=dev`. `main`·브랜치 모름은 막는다(`chat-agent-dev` 도 `VERCEL_ENV=production` 이라 환경으로는 못 가른다).
-- **턴 단위 제외**: `medical_qa`·`drug_info`·`drug_id`·`hospital_search`·`pharmacy_search`·`law_qa` 의도, 첨부 있는 턴은 원문 모드여도 숨김 — 병명·사정은 형태 패턴으로 못 가린다. 의도는 라우터 뒤에야 나오므로 정리 Client 가 trace 를 **루트 run 이 끝날 때까지 보류**했다가 루트 출력(의도·첨부)으로 정해 한꺼번에 보낸다. 루트가 안 끝난 trace 는 10분 뒤(또는 보류 50개 초과 시) 숨김으로.
+- **턴 단위 허용 목록**(보안 검토 후 제외 목록 → 허용 목록): `general`·`data_viz`·`biology`·`chemistry`·`physics`·`astronomy`·`weather`·`movie_search`·`paper_search`·`arxiv_search` 만 원문, 나머지(건강·약·병원·약국·법률·동물병원·새 의도)와 첨부 있는 턴은 숨김. 대화 내역(`messages`·`contents`·`input`)은 **마지막 사용자 메시지부터만**(앞 턴 건강 상담이 일반 턴에 딸려 가지 않게), 앞 턴 출처 제목은 개수만, Storage 서명 URL 가림. 남는 위험: 시스템 지시의 "이전 답 출처" 제목 한 줄 — 병명·사정은 형태 패턴으로 못 가린다. 의도는 라우터 뒤에야 나오므로 정리 Client 가 trace 를 **루트 run 이 끝날 때까지 보류**했다가 루트 출력(의도·첨부)으로 정해 한꺼번에 보낸다. 루트가 안 끝난 trace 는 10분 뒤(또는 보류 50개 초과 시) 숨김으로.
 - 마스킹 추가: 일반 전화(02·031…), 주소(도로명 번호·지번·동호수).
 - Vercel(`chat-agent-dev`, Production): `CHAT_TRACING_RAW=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 상시, **`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 실제 스위치로** — 볼 때만 넣고 뺀다. 원문 프로젝트 보관 기간은 짧게(14일).
 - 2단계(운영): L4 측정 → 개인정보처리방침에 LangSmith(미국) 처리 위탁·국외 이전·보관 기간 고지 → 별도 스위치·샘플링.
