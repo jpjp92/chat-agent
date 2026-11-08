@@ -154,6 +154,8 @@ flowchart TB
 
 **Gemini 키 등급 (2026-10-04, [PLAN_GEMINI_PAID_FIRST](../plans/PLAN_GEMINI_PAID_FIRST_261004.md)):** 채팅 라우트가 `profiles.is_guest` 로 등급을 정해 스트림 생성을 [`runWithKeyTier`](../../server/key-tier.ts) 로 감싼다. 회원(`paid-first`) + `GEMINI_PAID_FIRST=true` 면 `getNextApiKey()` 가 `API_KEY_TIER1` 을 먼저 주고, 쿨다운이면 무료 로테이션으로 내려간다. 게스트·무인증 라우트는 컨텍스트가 없어 항상 무료. 검색 강등은 **시도마다 그 키로** 판단한다 — 유료 키 + 3.x 는 3.x 로 검색, 무료 키면 2.5. 이미지·PDF·영상·약/법률 요약의 2.5 고정은 키와 무관하게 유지(재측정 대기, 계획 §8).
 
+**LangSmith 추적 (2026-11-07, [PLAN_LANGSMITH_TRACING](../plans/PLAN_LANGSMITH_TRACING_261107.md)):** `CHAT_TRACING=true` 이면 [`tracing.ts`](../../server/agent/tracing.ts) 의 정리 Client 로 그래프 노드와 SDK 직접 호출(router 1·generator 7·OpenAI `request`)을 llm span 으로 보낸다. 숨김 모드는 입출력을 비우고 모델·검색 여부·토큰·출처 개수만, 원문 모드(`CHAT_TRACING_RAW`)는 별도 프로젝트에 모델 입력까지 보내되 식별자·민감정보는 가린다. 전송은 응답 뒤 `after(flushTraces)`. `LANGSMITH_TRACING` 은 항상 false.
+
 `generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 초기 intent router는 아직 Gemini 우선이지만, GPT 일반 생성과 로컬 도구 실행은 Gemini 키와 분리돼 있다.
 
 ```mermaid

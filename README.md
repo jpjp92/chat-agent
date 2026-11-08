@@ -68,7 +68,7 @@ Which intent a message should get (the rules behind the router tests and golden 
 | 🧬 Biology | 3D protein structures | NGL Viewer (PDB) |
 | 📐 Physics | Interactive diagrams — incline, projectile, collision, free-body (values computed in code) | SVG + `lib/physics` |
 | ✨ Astronomy | Constellations and sky maps | Canvas + astronomy-engine |
-| 📊 Chart | 9 chart types | ApexCharts |
+| 📊 Chart | 9 chart types · source-kind labels (official / secondary) | ApexCharts |
 
 Per-renderer schemas and test prompts: [docs/guide/](docs/guide/README.md)
 
@@ -80,6 +80,7 @@ Per-renderer schemas and test prompts: [docs/guide/](docs/guide/README.md)
 - **Errors**: internal messages never reach the browser. Users see a localized notice; the original goes to server logs
 - **Keys**: API key rotation with cooldown on 429 and blacklist on 401/403
 - **TTS**: token required and a daily quota checked atomically before any paid call
+- **Tracing (dev only)**: LangSmith spans per node and model call — inputs/outputs stripped by default, only model, search flag, token and source counts are sent; raw mode is local/synthetic only and never runs in Production → [PLAN_LANGSMITH_TRACING_261107](docs/plans/PLAN_LANGSMITH_TRACING_261107.md)
 - Open hardening items: [PLAN_HARDENING_260822](docs/plans/PLAN_HARDENING_260822.md)
 
 ---
@@ -120,6 +121,7 @@ Step-by-step diagrams (agent flow, URL fetch fallbacks, pill ID, DB/Storage, TTS
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, SVG (physics), Canvas (sky map), astronomy-engine |
 | Backend | Next.js Route Handlers on Vercel, LangGraph.js, LangChain |
 | AI | Google GenAI SDK, OpenAI Responses API |
+| Observability | LangSmith (dev only, sanitized) |
 | Data | Supabase (PostgreSQL + Storage) → [REF_DB](docs/guide/REF_DB.md) |
 
 ---
@@ -163,7 +165,7 @@ npm run dev      # http://localhost:3000
 
 ```bash
 npm run verify   # strict typecheck + ESLint errors + knip + harnesses — run before every commit
-npm test         # 36 harnesses, no network or secrets needed
+npm test         # 43 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)
@@ -226,6 +228,10 @@ All data.go.kr services share one account key (`PHARM_KEY`) but are approved per
 | 병원정보서비스 (`hospInfoServicev2`) | Hospital card | 2028-05-07 |
 | 동물병원 조회서비스 | Vet card | 2028-05-10 |
 | 의료기관별상세정보서비스 (`MadmDtlInfoService2.8`) | Hospital hours, ER | 2028-08-23 |
+
+### Tracing
+
+Set `CHAT_TRACING=true` and `LANGSMITH_API_KEY` to send sanitized traces (keep `LANGSMITH_TRACING=false`). `CHAT_TRACING_RAW=true` sends raw prompts and answers to a separate project for debugging with synthetic questions — turn it off afterwards. Variables: [.env.example](.env.example).
 
 ### Logs
 
