@@ -128,15 +128,17 @@ export const rawMode = (): boolean => {
 };
 
 /**
- * 원문으로 남기면 안 되는 턴 — 건강·법률 상담은 민감정보라 마스킹(형태 패턴)으로는 병명·사정을 못 가린다.
- * 첨부(이미지·문서)도 내용을 가릴 방법이 없다. 이런 턴은 원문 모드여도 숨김으로 보낸다.
+ * 원문으로 남겨도 되는 의도 — **허용 목록**이다. 건강·약·병원·법률·동물병원 상담은 민감정보라 형태 패턴 마스킹으로
+ * 병명·사정을 못 가리고, 새로 생기는 의도도 기본은 숨김이어야 한다(제외 목록이면 새 의도가 원문으로 샌다).
+ * 첨부(이미지·문서)가 있는 턴도 내용을 가릴 방법이 없어 숨김.
  */
-const RAW_BLOCKED_INTENTS = new Set(['medical_qa', 'drug_info', 'drug_id', 'hospital_search', 'pharmacy_search', 'law_qa']);
+const RAW_ALLOWED_INTENTS = new Set(['general', 'data_viz', 'biology', 'chemistry', 'physics', 'astronomy',
+    'weather', 'movie_search', 'paper_search', 'arxiv_search']);
 export const rawAllowedForTurn = (root: unknown): boolean => {
     if (!root || typeof root !== 'object') return false;
     const r = root as { outputs?: Record<string, unknown>; inputs?: Record<string, unknown> };
     const intent = r.outputs?.intent;
-    if (typeof intent !== 'string' || RAW_BLOCKED_INTENTS.has(intent)) return false;
+    if (typeof intent !== 'string' || !RAW_ALLOWED_INTENTS.has(intent)) return false;
     const hasAttach = (x: unknown) => Array.isArray(x) && x.length > 0;
     return !hasAttach(r.outputs?.attachments) && !hasAttach(r.inputs?.attachments);
 };
@@ -164,6 +166,8 @@ const REDACT: Array<[RegExp, string]> = [
     [/[가-힣]{1,10}(?:로|길)\s?\d{1,4}(?:-\d{1,4})?(?:번길\s?\d{1,4})?(?![\d가-힣%])/g, '[address]'],
     [/[가-힣]{1,10}동\s?\d{1,5}(?:-\d{1,5})?\s?번지/g, '[address]'],
     [/\b\d{1,4}동\s?\d{1,5}호/g, '[address]'],
+    // Storage 서명 URL — 첨부 원본에 바로 접근되는 주소다
+    [/https:\/\/[a-z0-9.-]+\.supabase\.co\/storage\/[^\s"')\]]+/g, '[storage-url]'],
     // grounding 리다이렉트 — 출처는 title(도메인)로 충분하고, 주소 자체는 읽을 수 없는 긴 토큰이다
     [/https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s"')\]]+/g, '[redirect]'],
 ];
@@ -173,6 +177,27 @@ export const redactText = (t: string): string => REDACT.reduce((acc, [re, rep]) 
 const ID_KEYS = new Set(['sessionId', 'session_id', 'userId', 'user_id', 'email', 'thread_id']);
 // 디버깅에 쓸모없는 값 — 검색 칩 HTML(수 KB, 검색어는 webSearchQueries 에 있다)·HTTP 헤더·내부 서명·중단 신호 객체
 const RAW_DROP_KEYS = new Set(['sdkHttpResponse', 'searchEntryPoint', 'thoughtSignature', 'abortSignal']);
+
+/**
+ * 대화 내역은 **마지막 사용자 메시지부터만** — 턴 판정은 이번 턴 의도로만 하므로, 앞 턴이 건강 상담이면
+ * 일반 질문 턴의 messages·contents 에 그 대화가 원문으로 딸려 간다. 이번 턴 디버깅엔 이번 질문과 답이면 충분하다.
+ * LangChain 메시지(type human)·Gemini contents(role user)·OpenAI input(role user) 모두.
+ */
+const HISTORY_KEYS = new Set(['messages', 'contents', 'input']);
+const isUserMsg = (m: unknown): boolean => {
+    if (!m || typeof m !== 'object') return false;
+    const x = m as { type?: unknown; role?: unknown; id?: unknown; _getType?: unknown };
+    if (x.type === 'human' || x.role === 'user') return true;
+    return Array.isArray(x.id) && x.id.includes('HumanMessage');
+};
+const fromLastUser = (arr: unknown[]): unknown[] => {
+    let i = -1;
+    for (let k = arr.length - 1; k >= 0; k--) if (isUserMsg(arr[k])) { i = k; break; }
+    if (i <= 0) return arr;
+    return [`[이전 대화 ${i}개 생략]`, ...arr.slice(i)];
+};
+// 앞 턴 출처 제목 — 앞 턴 주제(예: 병명)가 드러난다. 개수만
+const RAW_COUNT_KEYS = new Set(['lastTurnSourceLabels']);
 
 /**
  * 원문 모드 입출력 — base64·바이너리는 길이만, 긴 문자열은 앞부분만, 깊이·배열 길이 제한(전송량·직렬화 비용).
@@ -196,6 +221,8 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
         const out: Record<string, unknown> = {};
         for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
             if (RAW_DROP_KEYS.has(k)) continue;
+            if (RAW_COUNT_KEYS.has(k) && Array.isArray(x)) { out[k] = `[${x.length}개]`; continue; }
+            if (HISTORY_KEYS.has(k) && Array.isArray(x)) { out[k] = scrubRaw(fromLastUser(x), depth + 1, ancestors); continue; }
             out[k] = ID_KEYS.has(k) && x != null ? '[id]' : scrubRaw(x, depth + 1, ancestors);
         }
         return out;

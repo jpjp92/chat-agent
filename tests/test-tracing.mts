@@ -188,7 +188,7 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
 // ⑥ 원문 모드 턴 단위 판정 — 민감 의도·첨부는 숨김, 루트가 끝날 때까지 보류
 {
     check('턴 판정: 일반 의도는 원문', rawAllowedForTurn({ outputs: { intent: 'general', attachments: [] } }));
-    for (const it of ['medical_qa', 'drug_info', 'drug_id', 'hospital_search', 'pharmacy_search', 'law_qa'])
+    for (const it of ['medical_qa', 'drug_info', 'drug_id', 'hospital_search', 'pharmacy_search', 'law_qa', 'law_search', 'vet_search', 'new_future_intent'])
         check(`턴 판정: ${it} 는 숨김`, !rawAllowedForTurn({ outputs: { intent: it } }));
     check('턴 판정: 첨부 있으면 숨김', !rawAllowedForTurn({ outputs: { intent: 'general', attachments: [{ x: 1 }] } }));
     check('턴 판정: 의도 모르면 숨김', !rawAllowedForTurn({ outputs: {} }));
@@ -210,6 +210,13 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
         await c.awaitPendingTraceBatches();
         return { beforeEnd, all: sent.join('\n') };
     };
+    const hist = JSON.stringify(scrubRaw({
+        messages: [{ type: 'human', content: '앞턴건강질문' }, { type: 'ai', content: '앞턴건강답' }, { type: 'human', content: '이번질문' }, { type: 'ai', content: '이번답' }],
+        contents: [{ role: 'user', parts: [{ text: '앞턴건강질문' }] }, { role: 'model', parts: [{ text: '앞턴건강답' }] }, { role: 'user', parts: [{ text: '이번질문' }] }],
+        lastTurnSourceLabels: ['당뇨 치료 가이드', 'x'], url: 'https://abc.supabase.co/storage/v1/object/sign/chat/u1/a.png?token=zz' }));
+    check('대화 내역: 앞 턴은 생략, 이번 질문·답만', !hist.includes('앞턴건강') && hist.includes('이번질문') && hist.includes('이번답') && hist.includes('[이전 대화 2개 생략]'), hist);
+    check('앞 턴 출처 제목은 개수만', !hist.includes('당뇨') && hist.includes('"lastTurnSourceLabels":"[2개]"'), hist);
+    check('Storage 서명 URL 가림', !hist.includes('token=zz') && hist.includes('[storage-url]'), hist);
     const g = await runTurn('general');
     check('보류: 루트가 끝나기 전엔 아무것도 안 보냄', !g.beforeEnd);
     check('일반 턴: 질문·모델 입력·답 원문 전송', g.all.includes('합성원문질문') && g.all.includes('합성원문프롬프트') && g.all.includes('합성원문답'), g.all.slice(0, 300));
