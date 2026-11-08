@@ -91,7 +91,7 @@
 
 ### 환경변수 (11-07 확정)
 
-| Name | 로컬 `.env`·`.env.local` | Vercel `chat-agent-dev`(Preview/Development만) |
+| Name | 로컬 `.env`·`.env.local` | Vercel `chat-agent-dev`(**Production 환경** — 이 프로젝트는 dev 브랜치를 Production 으로 배포한다) |
 |---|---|---|
 | `CHAT_TRACING` | `true` | `true` |
 | `LANGSMITH_API_KEY` | PAT | PAT(Sensitive) |
@@ -100,4 +100,6 @@
 | `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
 | `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
 
-Production 에는 넣지 않는다(L4 에서 지연·누락 측정 후). Vercel 기본값은 `CHAT_TRACING_RAW=false`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=false`(11-08 GPT 검토 — 배포 원문은 필요할 때만 잠깐). 원문 모드를 배포 dev 에서도 쓰려면 Vercel `chat-agent-dev`(Preview/Development)에 `CHAT_TRACING_RAW=true`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 를 함께. Production 엔 넣지 않는다(넣어도 코드가 무시).
+**운영 프로젝트 `chat-agent` 에는 넣지 않는다**(L4 에서 지연·누락 측정 후). `chat-agent-dev` 는 `VERCEL_ENV=production` 이라 **원문 모드는 배포 dev 에서도 켜지지 않는다**(허용 스위치가 있어도 코드가 막는다) — 원문 디버깅은 로컬에서만. 그래서 `CHAT_TRACING_RAW` 계열은 Vercel 에 넣지 않는다(11-08 정정: 처음엔 Preview/Development 만이라 적었으나 그러면 dev 배포에서 추적이 아예 안 켜진다).
+
+배포 확인(11-08, `chat-agent-dev` 숨김 모드): 루트·노드 입출력 `{}`, `gemini.router` 2.5-flash 3,267/52 토큰, `gemini.single` 3.8-flash 7,106/553 토큰 — 응답 뒤 `after()` 전송이 서버리스에서도 도착. 남은: `LANGSMITH_PROJECT` 를 `chat-agent-dev-vercel` 로(지금은 로컬과 같은 이름이라 섞인다).
