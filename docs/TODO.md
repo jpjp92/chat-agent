@@ -419,8 +419,9 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
 - [x] 차트 P1-2A 출처 분류·`sourceKinds`·`[STATISTICS SOURCING]` 보강 — [DEV_261107](logs/2026/11/DEV_261107.md). 출처에 없는 기관 내세움 금지 한 줄·`smbs.biz` 공식도 완료(11-08, 2/3 → 0/3) — [DEV_261108](logs/2026/11/DEV_261108.md)
 - [x] 차트 연.월 범주(`2026.10`·`26.10`)를 소수로 읽어 선이 뒤엉키던 축 버그 · 모바일 12개월 무스크롤·라벨 간격·툴팁 — [DEV_261107](logs/2026/11/DEV_261107.md)
-- [ ] LangSmith 추적 — L0·L2·원문 모드 완료([DEV_261107](logs/2026/11/DEV_261107.md) §7, 오버헤드 +5ms/턴), 원문 모드 민감정보 가림·모델 입력 기록·캐시 토큰·배포 dev 원문(브랜치 판정·허용 의도·앞 턴 생략, 실화면 확인)(11-08, [DEV_261108](logs/2026/11/DEV_261108.md)). 남은: "두통 → 일반" 연속 턴 실화면 · 운영은 개인정보처리방침 고지 먼저. 남은: Vercel `chat-agent-dev` env(숨김만) · L3 `[turn]` 메타데이터 재사용 · L4 배포 측정 — [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- [ ] LangSmith 추적 — L0·L2·원문 모드 완료([DEV_261107](logs/2026/11/DEV_261107.md) §7, 오버헤드 +5ms/턴), 원문 모드 민감정보 가림·모델 입력 기록·캐시 토큰·배포 dev 원문(브랜치 판정·허용 의도·앞 턴 생략, 실화면 확인)(11-08, [DEV_261108](logs/2026/11/DEV_261108.md)). 연속 턴 실화면 확인(11-08). 남은: 운영은 개인정보처리방침 고지 먼저. 남은: Vercel `chat-agent-dev` env(숨김만) · L3 `[turn]` 메타데이터 재사용 · L4 배포 측정 — [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
+- [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 최신·뉴스 검색 범위(연도 단위 검색어)·출처 부족 시 개수 채우기 — [DEV_261108](logs/2026/11/DEV_261108.md) §3
 - [ ] 🔴 차트 수치 근거 — 설계 확정(11-06), P1-2A 완료(11-07): P1-2A `[STATISTICS SOURCING]`·도메인 분류·`sourceKinds` → P1-2B `origin`·출처 칩 영역 안내·상대 날짜 검사 → P1-2C 실측/잠정/전망. 차트-본문 자동 대조는 보류 — [PLAN_CHART_SOURCE_261106](plans/PLAN_CHART_SOURCE_261106.md) §5
 - [ ] GPT 파이 범례 음역("아이오에스"·"카이오에스") — 표기만, 값 무관
