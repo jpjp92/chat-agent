@@ -33,7 +33,7 @@
   - **워크스페이스 전체 합산**: 로컬(`chat-agent-dev`·`-raw`)과 배포 dev(`chat-agent-dev-vercel`·`-raw`)가 같은 5,000 을 나눠 쓴다.
   - 추적 안 되는 경로: 제목 요약(`summarize-title`)·URL 가져오기·TTS 등 그래프 밖 API 는 trace 를 만들지 않는다.
   - 여유: 5,000/월 ≈ 하루 160턴. dev 혼자 테스트(11-08 하루 29건)는 넉넉. 실측 프로브(`tests/manual/*`)는 그래프를 거치지 않으면 0건.
-  - 한도 초과 시: 응답·Supabase·`[turn]` 은 그대로, 응답 뒤 전송 마무리는 **5초 상한**(langsmith 재시도로 84초까지 가던 것, 11-08) — 넘으면 `[trace] {"flush":"timeout"}`.
+  - 한도 초과 시: 응답·Supabase·`[turn]` 은 그대로. 전송은 **fetch 차단기**가 끊는다 — 429 를 받으면 재시도 안 되는 응답으로 바꾸고 **10분 쉰다**(그동안 run 도 만들지 않음, `[trace] {"send":"paused","status":429}` 한 줄), 네트워크 오류·요청 상한 초과는 1분(`error:network|timeout`). 요청 하나 5초 상한 — SDK 의 `AbortSignal.timeout` 이 연결을 실제로 끊는다. 정지는 인스턴스마다 따로이고, 풀린 뒤 전송은 재시도 허용일 뿐 성공 보장이 아니다. `flushTraces` 5초 상한(`Promise.race`)은 마지막 안전장치일 뿐 뒤의 작업을 취소하지 않는다(11-08 GPT 검토 — 첫 수정은 이것만이라 재시도가 뒤에서 계속 돌 수 있었다).
   - 운영에 켤 때: 운영 턴 수가 이 한도를 넘으면 `LANGSMITH_TRACING_SAMPLING_RATE`(예 0.1)로 줄이거나 카드 등록 + Spend limit. 넘으면 그달 수집만 멈추고 앱은 정상.
 - [ ] 원문 프로젝트 접근은 본인 계정만(워크스페이스에 다른 멤버를 초대하지 않는다).
 - [ ] (확인) Gemini run 의 비용 표시 — OpenAI 는 표시됨(입력 4,907 토큰 $0.0005). Gemini 가 안 나오면 모델 단가 등록이 필요할 수 있다.
