@@ -8,7 +8,7 @@
  */
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
-import { traceGemini, traceCallbacks } from '../../server/agent/tracing.js';
+import { traceGemini, traceCallbacks, attachTurnMeta } from '../../server/agent/tracing.js';
 // 실제 크기 — 라우터 지시 약 1.4만 자, 답변 지시 약 3만 자, 이전 대화 3턴(원문 모드는 이걸 Input 으로 기록한다)
 const ROUTER_SYS = 'r'.repeat(14_000);
 const GEN_SYS = '지시 '.repeat(10_000);
@@ -40,7 +40,10 @@ const run = async (label: string, env: Record<string, string | undefined>) => {
     const times: number[] = [];
     for (let i = 0; i < N; i++) {
         const t0 = performance.now();
-        for await (const _ of graph.streamEvents({ q: PROMPT }, { version: 'v2', callbacks: cbs })) { /* 소비 */ }
+        // route.ts 처럼 턴 ID 를 루트 run ID 로 주고, 스트림 끝에 [turn] 값을 넘긴다(T2 — 루트 끝 전송이 이것과 합쳐진다)
+        const traceId = crypto.randomUUID();
+        for await (const _ of graph.streamEvents({ q: PROMPT }, { version: 'v2', callbacks: cbs, runId: traceId })) { /* 소비 */ }
+        attachTurnMeta(traceId, { intent: 'general', model: 'gemini-3.8-flash', search: 'on', sources: 3, outcome: 'ok' });
         times.push(performance.now() - t0); // 응답 경로 = 스트림 종료까지
     }
     const t1 = performance.now();

@@ -86,31 +86,36 @@ interface TurnLogInput {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** [turn] 필드 객체 — 로그와 LangSmith 루트 메타데이터(tracing.ts turnMetaOf)가 같은 값을 쓰게 한 곳에서 만든다 */
+export const turnFields = (i: TurnLogInput): Record<string, unknown> => {
+    const model = pickModel(i.model);
+    const requested = pickModel(i.requestedModel);
+    const outcome = pick(OUTCOMES, i.outcome);
+    const line: Record<string, unknown> = {
+        v: 1,
+        // UUID 형식이 아니면 버린다 — 다른 값(세션 ID·문장)이 이 칸으로 새지 않게
+        traceId: typeof i.traceId === 'string' && UUID_RE.test(i.traceId) ? i.traceId : null,
+        intent: pick(INTENTS, i.intent),
+        intentFrom: pick(INTENT_FROM, i.intentFrom),
+        provider: pick(PROVIDERS, i.provider),
+        model,
+        modelDowngraded: model !== 'other' && requested !== 'other' ? model !== requested : null,
+        search: i.search === true ? 'on' : i.search === false ? 'off' : 'other',
+        searchBy: pick(SEARCH_BY, i.searchBy),
+        sources: int(i.sources),
+        sourceKinds: kindCounts(i.sourceKinds),
+        blocks: countBlocks(typeof i.text === 'string' ? i.text : ''),
+        chars: typeof i.text === 'string' ? i.text.length : 0,
+        ms: int(i.ms),
+        outcome,
+    };
+    if (outcome === 'error') line.errCode = errCodeOf(i.err);
+    return line;
+};
+
 export const buildTurnLog = (i: TurnLogInput): string => {
     try {
-        const model = pickModel(i.model);
-        const requested = pickModel(i.requestedModel);
-        const outcome = pick(OUTCOMES, i.outcome);
-        const line: Record<string, unknown> = {
-            v: 1,
-            // UUID 형식이 아니면 버린다 — 다른 값(세션 ID·문장)이 이 칸으로 새지 않게
-            traceId: typeof i.traceId === 'string' && UUID_RE.test(i.traceId) ? i.traceId : null,
-            intent: pick(INTENTS, i.intent),
-            intentFrom: pick(INTENT_FROM, i.intentFrom),
-            provider: pick(PROVIDERS, i.provider),
-            model,
-            modelDowngraded: model !== 'other' && requested !== 'other' ? model !== requested : null,
-            search: i.search === true ? 'on' : i.search === false ? 'off' : 'other',
-            searchBy: pick(SEARCH_BY, i.searchBy),
-            sources: int(i.sources),
-            sourceKinds: kindCounts(i.sourceKinds),
-            blocks: countBlocks(typeof i.text === 'string' ? i.text : ''),
-            chars: typeof i.text === 'string' ? i.text.length : 0,
-            ms: int(i.ms),
-            outcome,
-        };
-        if (outcome === 'error') line.errCode = errCodeOf(i.err);
-        return `[turn] ${JSON.stringify(line)}`;
+        return `[turn] ${JSON.stringify(turnFields(i))}`;
     } catch {
         return '[turn] {"v":1,"logError":true}';
     }
@@ -121,6 +126,10 @@ export const buildTurnLog = (i: TurnLogInput): string => {
  * 운영 빌드는 `removeConsole` 로 console.log 를 지운다(next.config.ts, error·warn 만 남김) — 경고가 아닌 이 줄이
  * 사라지지 않게 stdout 에 직접 쓴다(Node 런타임 → Vercel 로그 수집)
  */
-export const logTurn = (i: TurnLogInput): void => {
-    try { process.stdout.write(`${buildTurnLog(i)}\n`); } catch { /* 무시 */ }
+export const logTurn = (i: TurnLogInput): Record<string, unknown> | null => {
+    let fields: Record<string, unknown> | null = null;
+    let line = '[turn] {"v":1,"logError":true}';
+    try { fields = turnFields(i); line = `[turn] ${JSON.stringify(fields)}`; } catch { fields = null; }
+    try { process.stdout.write(`${line}\n`); } catch { /* 무시 */ }
+    return fields; // 블록 파싱을 두 번 하지 않게 호출부가 LangSmith 에 그대로 넘긴다
 };

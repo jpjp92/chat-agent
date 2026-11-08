@@ -9,7 +9,7 @@ import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { FakeStreamingChatModel } from '@langchain/core/utils/testing';
 import { AIMessageChunk, HumanMessage } from '@langchain/core/messages';
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
-import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, traceGemini, rawMode, rawAllowedForTurn, scrubRaw, redactText, errorName, tracingEnabled, traceCallbacks } from '../server/agent/tracing.js';
+import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, traceGemini, rawMode, rawAllowedForTurn, scrubRaw, redactText, errorName, tracingEnabled, traceCallbacks, turnMetaOf } from '../server/agent/tracing.js';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean, detail = '') => {
@@ -211,7 +211,10 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
         await c.updateRun(child, { trace_id: root, parent_run_id: root, outputs: { text: '합성원문답' }, end_time: t0 + 1, dotted_order: `${t0}Z${root}.${t0}Z${child}` } as never);
         await c.updateRun(root, { trace_id: root, outputs: { intent, attachments: [], a: '합성원문답' }, end_time: t0 + 2, dotted_order: `${t0}Z${root}` } as never);
         await c.awaitPendingTraceBatches();
-        return { beforeEnd, all: sent.join('\n') };
+        const beforeMeta = sent.join('').includes('합성원문');
+        await c.setTurnMeta(root, turnMetaOf({ intent, outcome: 'ok', search: 'on' }));
+        await c.awaitPendingTraceBatches();
+        return { beforeEnd, beforeMeta, all: sent.join('\n') };
     };
     const hist = JSON.stringify(scrubRaw({
         messages: [{ type: 'human', content: '앞턴건강질문' }, { type: 'ai', content: '앞턴건강답' }, { type: 'human', content: '이번질문' }, { type: 'ai', content: '이번답' }],
@@ -236,6 +239,8 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('Storage 서명 URL 가림', !hist.includes('token=zz') && hist.includes('[storage-url]'), hist);
     const g = await runTurn('general');
     check('보류: 루트가 끝나기 전엔 아무것도 안 보냄', !g.beforeEnd);
+    check('보류: 루트가 끝나도 턴 값 전엔 안 보냄', !g.beforeMeta);
+    check('원문 모드 루트 메타데이터에 턴 값', g.all.includes(`"intent":"general"`) && g.all.includes('"outcome":"ok"') && g.all.includes('"commit":"local"'), g.all.slice(0, 300));
     check('일반 턴: 질문·모델 입력·답 원문 전송', g.all.includes('합성원문질문') && g.all.includes('합성원문프롬프트') && g.all.includes('합성원문답'), g.all.slice(0, 300));
     const m = await runTurn('medical_qa');
     check('민감 턴: 루트·자식 모두 원문 없음', m.all.length > 0 && !m.all.includes('합성원문'), m.all.slice(0, 300));
@@ -309,6 +314,72 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('정지 해제 뒤 전송 재개', calls8b > 0, String(calls8b));
     mod.resetTraceSendPause();
     process.env = saved8;
+}
+
+// ⑨ T2 루트 메타데이터(숨김 모드) — 루트 끝 전송만 잡았다가 [turn] 값과 합친다(PLAN_TRACE_ID_261108)
+{
+    const sent: string[] = [];
+    const f = (async (_u: unknown, i?: { body?: unknown }) => { const b = i?.body; if (b instanceof ReadableStream) sent.push(await new Response(b).text()); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+    const c = createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1', fetchImplementation: f });
+    const tr = makeTracer(c);
+    // 멀티파트 파트 이름 → JSON (post.<id> · patch.<id>.extra …)
+    const parts = () => {
+        const out: Record<string, unknown[]> = {};
+        for (const body of sent) for (const m of body.matchAll(/name="([^"]+)"\r?\nContent-Type: [^\n]*\r?\n\r?\n([^\r\n]*)/g)) {
+            try { (out[m[1]] ??= []).push(JSON.parse(m[2])); } catch { /* 무시 */ }
+        }
+        return out;
+    };
+    const metaOf = (id: string) => { const x = parts()[`patch.${id}.extra`] ?? parts()[`post.${id}.extra`]; return (x?.at(-1) as { metadata?: Record<string, unknown> } | undefined)?.metadata; };
+    const S9 = Annotation.Root({ q: Annotation<string>(), a: Annotation<string>(), boom: Annotation<boolean>() });
+    const g9 = new StateGraph(S9)
+        .addNode('router', async () => { await new Promise(r => setTimeout(r, 5)); return {}; })
+        .addNode('generator', async (st) => { if (st.boom) throw new Error('합성오류 user@example.com'); await new Promise(r => setTimeout(r, 5)); return { a: `합성답${st.q}` }; })
+        .addEdge(START, 'router').addEdge('router', 'generator').addEdge('generator', END).compile();
+    const turn = async (id: string, q: string, boom = false) => {
+        try { for await (const _ of g9.streamEvents({ q, boom }, { version: 'v2', callbacks: [tr], runId: id })) { /* 소비 */ } } catch { /* 오류 턴 */ }
+    };
+    const idA = crypto.randomUUID(), idB = crypto.randomUUID(), idC = crypto.randomUUID();
+    // 동시 2턴 — A 는 턴 값이 루트 끝보다 먼저, B 는 나중
+    await c.setTurnMeta(idA, turnMetaOf({ intent: 'weather', model: 'gpt-6-luna', outcome: 'ok', search: 'off', sources: 0, sourceKinds: { official: 0, secondary: 0, other: 0 } }));
+    await Promise.all([turn(idA, '비밀질문A'), turn(idB, '비밀질문B')]);
+    await awaitAllCallbacks(); await c.awaitPendingTraceBatches();
+    check('숨김 T2: 턴 값이 먼저 온 A 는 루트 끝에 바로 전송', metaOf(idA)?.intent === 'weather', JSON.stringify(metaOf(idA)));
+    check('숨김 T2: 턴 값을 기다리는 B 의 루트 끝은 보류', !parts()[`patch.${idB}`], Object.keys(parts()).filter(k => k.includes(idB)).join(','));
+    check('숨김 T2: B 의 자식 run 은 이미 전송', Object.keys(parts()).some(k => k.startsWith('post.') && k !== `post.${idB}` && JSON.stringify(parts()[k]).includes(idB)));
+    await c.setTurnMeta(idB, turnMetaOf({ intent: 'general', model: 'gemini-3.8-flash', modelDowngraded: false, outcome: 'empty', search: 'on', searchBy: 'router-llm', sources: 3, sourceKinds: { official: 1, secondary: 1, other: 1 } }));
+    await c.awaitPendingTraceBatches();
+    const mA = metaOf(idA), mB = metaOf(idB);
+    check('숨김 T2: 동시 두 턴의 값이 섞이지 않음', mA?.intent === 'weather' && mB?.intent === 'general' && mA?.model === 'gpt-6-luna' && mB?.model === 'gemini-3.8-flash', JSON.stringify({ mA, mB }));
+    check('숨김 T2: 필드(search 불리언·출처 성격 평평하게·commit)', mB?.search === true && mB?.searchBy === 'router-llm' && mB?.sources === 3 && mB?.sources_official === 1 && mB?.outcome === 'empty' && mB?.modelDowngraded === false && mB?.commit === 'local', JSON.stringify(mB));
+    check('숨김 T2: 객체·원문 값은 안 들어감', mB !== undefined && !('sourceKinds' in mB) && !('blocks' in mB) && !('traceId' in mB));
+    const allB = sent.join('\n');
+    check('숨김 T2: 원문 없음', !allB.includes('비밀질문') && !allB.includes('합성답'));
+    const childPosts = Object.entries(parts()).filter(([k]) => k.startsWith('post.') && !k.includes('.', 5 + 36)).map(([, v]) => v[0] as { parent_run_id?: string; trace_id?: string; name?: string });
+    check('숨김 T2: 자식의 부모·trace 관계 유지', childPosts.filter(x => x.trace_id === idB && x.name !== 'LangGraph').every(x => !!x.parent_run_id) && childPosts.some(x => x.trace_id === idB && x.name === 'generator'), JSON.stringify(childPosts.slice(0, 3)));
+    // 오류 턴 + 턴 값이 오지 않음 → 응답 뒤 flush(releaseTurn) 가 그 턴만 보낸다, 진행 중인 다른 trace(D)는 건드리지 않는다
+    await turn(idC, '비밀질문C', true);
+    await awaitAllCallbacks(); await c.awaitPendingTraceBatches();
+    check('숨김 T2: 턴 값 없는 오류 턴은 아직 보류', !parts()[`patch.${idC}`]);
+    const idD = crypto.randomUUID();
+    await c.createRun({ id: idD, trace_id: idD, name: 'LangGraph', run_type: 'chain', inputs: {}, start_time: Date.now(), dotted_order: `20261109T000000000000Z${idD}` } as never);
+    await c.updateRun(idD, { trace_id: idD, outputs: {}, end_time: Date.now(), dotted_order: `20261109T000000000000Z${idD}` } as never);
+    await c.releaseTurn(idC); await c.releaseStale(); await c.awaitPendingTraceBatches();
+    const cErr = parts()[`patch.${idC}.error`]?.at(-1);
+    check('숨김 T2: releaseTurn 이 오류 턴을 메타데이터 없이 보냄(오류는 이름만)', !!parts()[`patch.${idC}`] && cErr === 'Error' && !metaOf(idC)?.intent && !sent.join('').includes('user@example.com'), JSON.stringify(cErr));
+    check('숨김 T2: 다른 요청의 끝난(턴 값 대기) trace 는 30초 전엔 안 건드림', !parts()[`patch.${idD}`]);
+    await c.releaseStale(10 * 60_000, 0); await c.awaitPendingTraceBatches();
+    check('숨김 T2: 대기 상한 지나면 메타데이터 없이 보냄', !!parts()[`patch.${idD}`]);
+    // 합치기는 교체가 아니다 — 루트 끝 전송에 원래 있던(허용 목록) 메타데이터·시각·부모 관계가 남는다
+    const idE = crypto.randomUUID(), t0 = Date.now();
+    await c.createRun({ id: idE, trace_id: idE, name: 'LangGraph', run_type: 'chain', inputs: {}, start_time: t0, dotted_order: `20261109T000000000000Z${idE}` } as never);
+    await c.updateRun(idE, { trace_id: idE, outputs: {}, end_time: t0 + 5, dotted_order: `20261109T000000000000Z${idE}`,
+        extra: { metadata: { langgraph_node: 'LangGraph', ls_model_name: 'gpt-6-luna', thread_id: '비밀세션' } } } as never);
+    await c.setTurnMeta(idE, turnMetaOf({ intent: 'general', outcome: 'ok' }));
+    await c.awaitPendingTraceBatches();
+    const mE = metaOf(idE), eMain = (parts()[`patch.${idE}`] ?? parts()[`post.${idE}`])?.at(-1) as { end_time?: unknown; trace_id?: string } | undefined;
+    check('숨김 T2: 기존 메타데이터 보존 + 턴 값 추가(허용 밖 키는 여전히 제거)', mE?.langgraph_node === 'LangGraph' && mE?.ls_model_name === 'gpt-6-luna' && mE?.intent === 'general' && !('thread_id' in (mE ?? {})), JSON.stringify(mE));
+    check('숨김 T2: 끝 시각·trace 관계 유지', eMain?.end_time === t0 + 5 && eMain?.trace_id === idE, JSON.stringify(eMain));
 }
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);

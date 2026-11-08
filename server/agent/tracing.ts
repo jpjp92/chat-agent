@@ -375,6 +375,29 @@ type PendingOp = { kind: 'create'; run: CreateArg; options?: Parameters<Client['
 // 원문 모드 보류 상한 — 루트가 끝나지 않은 trace 가 쌓여 메모리를 잡지 않게(넘치면 숨김으로 보낸다)
 const PENDING_MAX_TRACES = 50;
 const PENDING_STALE_MS = 10 * 60_000;
+// 루트가 끝난 뒤 턴 값(route.ts finally)을 기다리는 상한 — 보통 같은 요청 안에서 바로 온다. 못 받으면 메타데이터 없이 보낸다
+const TURN_META_WAIT_MS = 30_000;
+
+/** 루트 run 메타데이터 = [turn] 값(T2, PLAN_TRACE_ID_261108). 이미 열거·정수로 정리된 값에서 키·형태를 다시 고른다 */
+type TurnMeta = Record<string, string | number | boolean>;
+const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode'];
+export const turnMetaOf = (fields: unknown): TurnMeta => {
+    const out: TurnMeta = {};
+    const f = (fields && typeof fields === 'object' ? fields : {}) as Record<string, unknown>;
+    const put = (k: string, v: unknown) => {
+        if (typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))) out[k] = v;
+        else if (typeof v === 'string' && TAG_RE.test(v)) out[k] = v;
+    };
+    for (const k of TURN_META_KEYS) put(k, f[k]);
+    // [turn].search 는 'on'|'off' — 자식 span 의 search(불리언)와 같은 형태로
+    if (f.search === 'on' || f.search === 'off') out.search = f.search === 'on';
+    // LangSmith 필터는 평평한 키가 쉽다
+    const kinds = f.sourceKinds as Record<string, unknown> | null | undefined;
+    if (kinds && typeof kinds === 'object') for (const k of ['official', 'secondary', 'other']) put(`sources_${k}`, kinds[k]);
+    // 어느 배포의 답인지 — 회귀를 커밋으로 가른다
+    out.commit = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7).replace(/[^0-9a-f]/g, '') || 'local';
+    return out;
+};
 
 /**
  * createRun·updateRun 이 배치 큐에 넣기 전에 정리 — 배치·멀티파트 어느 경로로 보내도 여기를 지난다.
@@ -382,8 +405,10 @@ const PENDING_STALE_MS = 10 * 60_000;
  * 그래서 trace 단위로 모아 두었다가 루트 run 이 끝날 때(의도·첨부가 출력에 있다) 한꺼번에 정리해 보낸다.
  */
 class SanitizingClient extends Client {
-    private pending = new Map<string, { at: number; rootId?: string; ops: PendingOp[] }>();
+    // done: 루트가 끝났는가 — 값은 원문으로 보낼지(숨김 모드는 늘 false). 끝난 뒤엔 턴 값(meta)을 기다린다
+    private pending = new Map<string, { at: number; rootId?: string; ops: PendingOp[]; done?: boolean; endedAt?: number }>();
     private traceOf = new Map<string, string>();
+    private metas = new Map<string, { at: number; meta: TurnMeta }>();
     constructor(config: ConstructorParameters<typeof Client>[0], readonly raw = false) {
         // 원문 모드는 env 숨김(LANGSMITH_HIDE_*=true)을 명시 false 로 덮는다 — 정리는 sanitizeRun 이 한다
         super({ ...config, hideInputs: !raw, hideOutputs: !raw, timeout_ms: SEND_TIMEOUT_MS });
@@ -398,50 +423,103 @@ class SanitizingClient extends Client {
         });
     }
     override async createRun(run: CreateArg, options?: Parameters<Client['createRun']>[1]) {
-        if (!this.raw) return super.createRun(sanitizeRun(run as unknown as Run) as unknown as CreateArg, options);
         const r = run as unknown as Run & { id?: string; trace_id?: string; parent_run_id?: string; end_time?: unknown };
         const traceId = (r.trace_id ?? r.id) as string | undefined;
+        if (!this.raw) {
+            // 숨김 모드는 루트의 끝 전송만 잡는다 — 자식·루트 시작은 바로 보낸다
+            const isRoot = !!traceId && !!r.id && !r.parent_run_id;
+            if (!isRoot) return super.createRun(sanitizeRun(r) as unknown as CreateArg, options);
+            if (!r.end_time) { this.traceOf.set(r.id!, traceId!); return super.createRun(sanitizeRun(r) as unknown as CreateArg, options); }
+            const p = this.slot(traceId!);
+            p.rootId = r.id; p.ops.push({ kind: 'create', run, options });
+            return this.ended(traceId!, false);
+        }
         if (!traceId) return super.createRun(sanitizeRun(r) as unknown as CreateArg, options);
         if (r.id) this.traceOf.set(r.id, traceId);
         const p = this.slot(traceId);
         if (!r.parent_run_id && r.id) p.rootId = r.id;
         p.ops.push({ kind: 'create', run, options });
         // 끝난 상태로 한 번에 오는 루트도 있다
-        if (p.rootId === r.id && r.end_time) await this.release(traceId, rawAllowedForTurn(r));
+        if (p.rootId === r.id && r.end_time) await this.ended(traceId, rawAllowedForTurn(r));
     }
     override async updateRun(runId: string, run: UpdateArg, options?: Parameters<Client['updateRun']>[2]) {
-        if (!this.raw) return super.updateRun(runId, sanitizeRun(run as unknown as Run) as unknown as UpdateArg, options);
+        if (!this.raw) {
+            const r = run as unknown as Run & { end_time?: unknown };
+            const traceId = this.traceOf.get(runId); // 숨김 모드는 루트만 기억한다
+            if (!traceId || !r.end_time) return super.updateRun(runId, sanitizeRun(r) as unknown as UpdateArg, options);
+            const p = this.slot(traceId);
+            p.rootId = runId; p.ops.push({ kind: 'update', runId, run, options });
+            return this.ended(traceId, false);
+        }
         const r = run as unknown as Run & { trace_id?: string };
         const traceId = (r.trace_id as string | undefined) ?? this.traceOf.get(runId);
         const p = traceId ? this.pending.get(traceId) : undefined;
         if (!traceId || !p) return super.updateRun(runId, sanitizeRun(r) as unknown as UpdateArg, options);
         p.ops.push({ kind: 'update', runId, run, options });
-        if (p.rootId === runId) await this.release(traceId, rawAllowedForTurn(r));
+        if (p.rootId === runId) await this.ended(traceId, rawAllowedForTurn(r));
+    }
+    /** 루트가 끝났다 — 턴 값이 이미 왔으면 바로, 아니면 setTurnMeta·flush 때 보낸다 */
+    private async ended(traceId: string, raw: boolean) {
+        const p = this.pending.get(traceId);
+        if (!p) return;
+        p.done = raw; p.endedAt = Date.now();
+        await this.tryRelease(traceId);
+    }
+    private async tryRelease(traceId: string) {
+        const p = this.pending.get(traceId);
+        const m = this.metas.get(traceId);
+        if (!p || p.done === undefined || !m) return;
+        this.metas.delete(traceId);
+        await this.release(traceId, p.done, m.meta);
+    }
+    /** route.ts finally 가 [turn] 값을 넘긴다 — traceId 별이라 동시 요청끼리 섞이지 않는다 */
+    async setTurnMeta(traceId: string, meta: TurnMeta) {
+        this.metas.set(traceId, { at: Date.now(), meta });
+        await this.tryRelease(traceId);
     }
     private slot(traceId: string) {
         let p = this.pending.get(traceId);
         if (!p) {
-            if (this.pending.size >= PENDING_MAX_TRACES) void this.releaseStale(0);
+            if (this.pending.size >= PENDING_MAX_TRACES) void this.releaseStale(0, 0);
             p = { at: Date.now(), ops: [] };
             this.pending.set(traceId, p);
         }
         return p;
     }
-    private async release(traceId: string, raw: boolean) {
+    private async release(traceId: string, raw: boolean, meta?: TurnMeta) {
         const p = this.pending.get(traceId);
         if (!p) return;
         this.pending.delete(traceId);
         for (const op of p.ops) {
             const opId = op.kind === 'create' ? (op.run as { id?: string }).id : op.runId;
             if (opId) this.traceOf.delete(opId);
-            if (op.kind === 'create') await super.createRun(sanitizeRun(op.run as unknown as Run, raw) as unknown as CreateArg, op.options);
-            else await super.updateRun(op.runId, sanitizeRun(op.run as unknown as Run, raw) as unknown as UpdateArg, op.options);
+            const out = sanitizeRun(op.run as unknown as Run, raw);
+            // 턴 값은 정리 뒤에 붙인다 — cleanMeta 허용 목록은 그래프가 붙이는 키용이고, 턴 값은 turnMetaOf 가 이미 골랐다
+            if (meta && opId && opId === p.rootId) {
+                const base = (out.extra as { metadata?: object } | undefined)?.metadata ?? {};
+                out.extra = { metadata: { ...base, ...meta } };
+            }
+            if (op.kind === 'create') await super.createRun(out as unknown as CreateArg, op.options);
+            else await super.updateRun(op.runId, out as unknown as UpdateArg, op.options);
         }
     }
-    /** 루트가 끝나지 않은 오래된 trace 는 숨김으로 보낸다(오류로 끝난 턴·상한 초과) */
-    async releaseStale(maxAgeMs = PENDING_STALE_MS) {
+    /**
+     * 오래 잡힌 trace 를 보낸다. 끝났는데 턴 값을 못 받은 것(waitMs)은 원래 판정대로 메타데이터 없이,
+     * 루트가 끝나지 않은 것(openMs — 턴은 길면 수 분)은 숨김으로. 다른 요청의 진행 중 trace 는 건드리지 않는다
+     */
+    async releaseStale(openMs = PENDING_STALE_MS, waitMs = TURN_META_WAIT_MS) {
         const now = Date.now();
-        for (const [id, p] of [...this.pending]) if (now - p.at >= maxAgeMs) await this.release(id, false);
+        for (const [id, p] of [...this.pending]) {
+            if (p.done !== undefined && now - (p.endedAt ?? p.at) >= waitMs) await this.release(id, p.done);
+            else if (now - p.at >= openMs) await this.release(id, false);
+        }
+        for (const [id, m] of [...this.metas]) if (!this.pending.has(id) && now - m.at >= waitMs) this.metas.delete(id);
+    }
+    /** 응답 뒤 flush — 이 요청의 trace 는 턴 값이 없어도 더 기다리지 않는다(finally 가 못 넘긴 경우) */
+    async releaseTurn(traceId: string) {
+        const p = this.pending.get(traceId);
+        if (p?.done !== undefined) await this.release(traceId, p.done, this.metas.get(traceId)?.meta);
+        this.metas.delete(traceId);
     }
 }
 
@@ -529,11 +607,17 @@ export const traceGemini = <P extends GeminiParams, R>(
     search: Array.isArray(params.config?.tools) && params.config!.tools!.some(t => !!t && typeof t === 'object' && 'googleSearch' in (t as object)),
 }, () => models.generateContent(params), () => ({ ...params }));
 
+/** route.ts finally — 이 턴의 [turn] 값을 루트 run 메타데이터로. 추적이 꺼졌거나 실패해도 응답에 영향 없다 */
+export const attachTurnMeta = (traceId: string, fields: unknown): void => {
+    if (!client) return;
+    try { void client.setTurnMeta(traceId, turnMetaOf(fields)).catch(() => { /* 관측만 잃는다 */ }); } catch { /* 무시 */ }
+};
+
 /** 응답을 닫은 뒤 호출 — 백그라운드 콜백과 배치 전송을 마저 보낸다(서버리스는 응답 뒤 멈출 수 있다) */
 // 응답 뒤 전송 마무리 상한 — LangSmith 가 429(월 한도 초과)·장애면 langsmith 가 재시도를 이어 가 84초까지 걸렸다(11-08 하니스).
 // 사용자 지연은 아니지만 함수가 그만큼 살아 있어 실행 시간·비용이 든다. 넘기면 그 턴 trace 는 버린다(관측만 잃는다).
 const FLUSH_DEADLINE_MS = 5_000;
-export const flushTraces = async (deadlineMs = FLUSH_DEADLINE_MS): Promise<void> => {
+export const flushTraces = async (deadlineMs = FLUSH_DEADLINE_MS, traceId?: string): Promise<void> => {
     if (!client) return;
     const c = client;
     const log = (line: Record<string, unknown>) => { try { process.stdout.write(`[trace] ${JSON.stringify(line)}\n`); } catch { /* 무시 */ } };
@@ -541,6 +625,7 @@ export const flushTraces = async (deadlineMs = FLUSH_DEADLINE_MS): Promise<void>
     const deadline = new Promise<'timeout'>(r => { timer = setTimeout(() => r('timeout'), deadlineMs); });
     const work = (async () => {
         await awaitAllCallbacks();
+        if (traceId) await c.releaseTurn(traceId);
         await c.releaseStale();
         await c.awaitPendingTraceBatches();
         return 'ok' as const;

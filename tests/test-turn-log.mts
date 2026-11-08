@@ -4,7 +4,7 @@
  *
  * 감시 대상: ① 블록 n/ok 판정 ② 열거값 밖 → "other" ③ 사용자 내용·주입 문자열이 출력에 없음 ④ 키 집합 고정
  */
-import { buildTurnLog, countBlocks, errCodeOf } from '../server/agent/turn-log.js';
+import { buildTurnLog, turnFields, countBlocks, errCodeOf } from '../server/agent/turn-log.js';
 import { createStreamDispatch } from '../server/agent/stream-dispatch.js';
 
 let pass = 0, fail = 0;
@@ -74,6 +74,12 @@ check('turnMeta 는 뒤 값이 이긴다(폴백 모델)', d.state.turn.model ===
 check('429 → rate_limit', errCodeOf({ status: 429 }) === 'rate_limit');
 check('TimeoutError → timeout', errCodeOf({ name: 'TimeoutError' }) === 'timeout');
 check('모르는 오류 → other', errCodeOf(new Error('x')) === 'other');
+
+// LangSmith 루트 메타데이터(T2)와 [turn] 줄이 같은 필드 객체에서 나온다
+{
+    const inp = { intent: 'weather', model: 'gpt-6-luna', search: true, sources: 2, outcome: 'ok', traceId: '8e48a22a-1d92-4ce2-84e8-67831b22d96b', text: '본문' };
+    check('turnFields = [turn] 줄의 JSON', JSON.stringify(turnFields(inp)) === buildTurnLog(inp).slice('[turn] '.length));
+}
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
 process.exit(fail === 0 ? 0 : 1);

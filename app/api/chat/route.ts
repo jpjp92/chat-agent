@@ -15,7 +15,7 @@ import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
 import { logTurn } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
-import { traceCallbacks, flushTraces, tracingEnabled } from '../../../server/agent/tracing';
+import { traceCallbacks, flushTraces, tracingEnabled, attachTurnMeta } from '../../../server/agent/tracing';
 
 export const runtime = 'nodejs';
 // 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
@@ -43,7 +43,9 @@ const dbErrorSummary = (e: { code?: string; message?: string; hint?: string | nu
 
 export async function POST(req: NextRequest) {
   // 응답(스트림)이 끝난 뒤 남은 추적을 보낸다 — 응답을 기다리게 하지 않고, 서버리스가 멈추기 전에 마저 보낸다
-  if (tracingEnabled()) after(flushTraces);
+  // 턴 ID — LangSmith 루트 run ID·[turn]·chat_messages 를 잇는다. 서버가 만들고 클라이언트 값은 받지 않는다(PLAN_TRACE_ID_261108)
+  const traceId = crypto.randomUUID();
+  if (tracingEnabled()) after(() => flushTraces(undefined, traceId));
   // 스트림을 열기 전에 인증을 확인한다. SSE 는 헤더가 나간 뒤 상태코드를 바꿀 수 없다.
   // 메시지 저장은 이 user-scoped 클라이언트로만 하며, RLS 가 세션 소유권을 강제한다.
   const db = createRouteClient(req);
@@ -90,8 +92,6 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       // [turn] 로그 — 종료 경로마다 결과만 정하고 finally 에서 한 번 남긴다(PLAN_TURN_LOG_261105)
       const turnStartedAt = Date.now();
-      // 턴 ID — LangSmith 루트 run ID·[turn]·chat_messages 를 잇는다. 서버가 만들고 클라이언트 값은 받지 않는다(PLAN_TRACE_ID_261108)
-      const traceId = crypto.randomUUID();
       let turnOutcome: 'ok' | 'empty' | 'error' | 'url_fetch_failed' = 'ok';
       let turnErr: unknown;
       let turnState: DispatchState | null = null;
@@ -271,13 +271,14 @@ export async function POST(req: NextRequest) {
         turnErr = error;
       } finally {
         const ts: DispatchState | null = turnState;
-        logTurn({
+        const turnLogFields = logTurn({
           intent: ts?.detectedIntent, intentFrom: ts?.turn.intentFrom,
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
           search: ts?.turn.search, searchBy: ts?.turn.searchBy,
           sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
           ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr, traceId,
         });
+        attachTurnMeta(traceId, turnLogFields);
         clearInterval(heartbeatInterval);
         process.off('unhandledRejection', unhandledRejectionGuard);
         controller.close();
