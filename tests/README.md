@@ -206,7 +206,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
 | `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-chart-axis.mts` | 차트 x축 판정 — 숫자 x·불규칙 숫자 범주는 numeric(간격 보존), 등간격·문자열·막대는 category, 깔끔한 눈금 간격·양끝 배수, 연.월 범주(`2025.11`·전부 `YY.MM`)는 category. 픽셀 간격은 `manual/check-chart-axis-pixels.py` |
-| `test-tracing.mts` | LangSmith 추적 정리 — 가짜 전송으로 실제 멀티파트 본문을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 없음, 입출력 `{}`·오류 이름만·토큰 수만 `usage_metadata`, `CHAT_TRACING`·키 없으면 꺼짐. SDK 호출 span(노드 자식·모델·검색·토큰·출처 수, 꺼짐이면 원본 그대로), 원문 모드(배포는 허용 스위치까지·Production 불가·base64 길이만·식별자 `[id]`·문장 안 이메일·전화·키 가림·공유 참조는 순환 아님·별도 프로젝트·검색 칩·헤더·서명 제거·리다이렉트 `[redirect]`), Gemini 캐시 토큰 `cache_read`, 배포 원문은 dev 브랜치만, 민감 의도·첨부 턴은 루트 종료까지 보류 후 숨김 |
+| `test-tracing.mts` | LangSmith 추적 정리 — 가짜 전송으로 실제 멀티파트 본문을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 없음, 입출력 `{}`·오류 이름만·토큰 수만 `usage_metadata`, `CHAT_TRACING`·키 없으면 꺼짐. SDK 호출 span(노드 자식·모델·검색·토큰·출처 수, 꺼짐이면 원본 그대로), 원문 모드(배포는 허용 스위치까지·Production 불가·base64 길이만·식별자 `[id]`·문장 안 이메일·전화·키 가림·공유 참조는 순환 아님·별도 프로젝트·검색 칩·헤더·서명 제거·리다이렉트 `[redirect]`), Gemini 캐시 토큰 `cache_read`, 배포 원문은 dev 브랜치만, 민감 의도·첨부 턴은 루트 종료까지 보류 후 숨김, 대화 내역은 마지막 사용자 메시지부터·Storage URL 가림, OpenAI 응답 `instructions`·`tools` 되돌림 제거·캐시 토큰 |
 | `test-source-kind.mts` | 출처 성격 분류 — 점 경계 접미사·공식/2차 목록, 흉내 도메인·호스트명 아닌 제목은 기타, 개수 집계 |
 | `test-chart-format.mts` | 차트 숫자 표시 — y축 만·억(영어 k·M·B) 축약, 툴팁 원본 수치+단위, 이미 축약된 단위(`만 명`) 재축약 안 함, 점 적은 numeric 선만 관측점 마커, `null` 보존 |
 | `test-gemini-citations.mts` | Gemini 인용 — 히스토리에 마커 되먹임 금지(근본 원인)·본문 생 redirect URL 비노출·한글 바이트 오프셋 삽입·스트리밍 청크 경계 |
