@@ -199,7 +199,7 @@ export const redactText = (t: string): string => REDACT.reduce((acc, [re, rep]) 
 // 원문 모드에서도 식별자는 가린다 — 디버깅에 필요한 건 내용이지 누구의 세션인지가 아니다
 const ID_KEYS = new Set(['sessionId', 'session_id', 'userId', 'user_id', 'email', 'thread_id']);
 // 디버깅에 쓸모없는 값 — 검색 칩 HTML(수 KB, 검색어는 webSearchQueries 에 있다)·HTTP 헤더·내부 서명·중단 신호 객체
-const RAW_DROP_KEYS = new Set(['sdkHttpResponse', 'searchEntryPoint', 'thoughtSignature', 'abortSignal']);
+const RAW_DROP_KEYS = new Set(['sdkHttpResponse', 'searchEntryPoint', 'thoughtSignature', 'abortSignal', 'encrypted_content']);
 
 /**
  * 대화 내역은 **마지막 사용자 메시지부터만** — 턴 판정은 이번 턴 의도로만 하므로, 앞 턴이 건강 상담이면
@@ -213,12 +213,46 @@ const isUserMsg = (m: unknown): boolean => {
     if (x.type === 'human' || x.role === 'user') return true;
     return Array.isArray(x.id) && x.id.includes('HumanMessage');
 };
+const MSG_TYPES = new Set(['human', 'ai', 'system', 'tool', 'function', 'generic']);
+const isMsgLike = (m: unknown): boolean => {
+    if (!m || typeof m !== 'object') return false;
+    const x = m as { type?: unknown; role?: unknown; lc?: unknown };
+    return typeof x.role === 'string' || (typeof x.type === 'string' && MSG_TYPES.has(x.type)) || x.lc === 1;
+};
 const fromLastUser = (arr: unknown[]): unknown[] => {
     let i = -1;
     for (let k = arr.length - 1; k >= 0; k--) if (isUserMsg(arr[k])) { i = k; break; }
-    if (i <= 0) return arr;
-    return [`[이전 대화 ${i}개 생략]`, ...arr.slice(i)];
+    if (i === 0) return arr;
+    if (i > 0) return [`[이전 대화 ${i}개 생략]`, ...arr.slice(i)];
+    // 사용자 메시지를 못 찾았는데 대화처럼 생겼으면 통째로 생략(fail-closed) — 그대로 두면 앞 턴 원문이 나간다
+    return arr.some(isMsgLike) ? [`[대화 ${arr.length}개 생략]`] : arr;
 };
+
+/**
+ * LangChain 직렬화 메시지 → {type, content} — content 가 lc_kwargs.content 에 한 번 더 들어 있어 원문이 2배로 나가고,
+ * 메시지 UUID·lc_namespace 는 디버깅에 쓸모가 없다. 도구 호출 관계(tool_calls·tool_call_id·name)만 남긴다.
+ * 전송 직전 사본만 바꾼다 — 그래프 상태·SDK 요청은 그대로다.
+ */
+const LC_CLASS_TYPE: Record<string, string> = { HumanMessage: 'human', AIMessage: 'ai', AIMessageChunk: 'ai', SystemMessage: 'system', ToolMessage: 'tool', FunctionMessage: 'function' };
+const normalizeLcMessage = (v: Record<string, unknown>): Record<string, unknown> | null => {
+    let type: unknown, src: Record<string, unknown>;
+    if (v.lc_serializable === true && Array.isArray(v.lc_namespace) && typeof v.type === 'string') { type = v.type; src = v; }
+    else if (v.lc === 1 && v.type === 'constructor' && Array.isArray(v.id) && v.kwargs && typeof v.kwargs === 'object') {
+        type = LC_CLASS_TYPE[String(v.id[v.id.length - 1])] ?? 'message'; src = v.kwargs as Record<string, unknown>;
+    } else return null;
+    const out: Record<string, unknown> = { type, content: src.content };
+    if (Array.isArray(src.tool_calls) && src.tool_calls.length) out.tool_calls = src.tool_calls;
+    if (typeof src.tool_call_id === 'string') out.tool_call_id = src.tool_call_id;
+    if (typeof src.name === 'string') out.name = src.name;
+    return out;
+};
+
+// URL 쿼리 문자열 — 토큰·식별자가 실릴 수 있고 디버깅엔 도메인·경로면 충분. URL 로 인식된 부분에만(질문 속 '?' 는 그대로)
+const URL_RE = /\bhttps?:\/\/[^\s"'<>()\[\]]+/g;
+const stripUrlQuery = (t: string) => t.replace(URL_RE, u => u.replace(/[?#].*$/, ''));
+// 시스템 지시의 [GROUNDED PREVIOUS ANSWER] 출처 목록 — 앞 턴이 건강 상담이면 제목("Headaches - NHS")에 주제가 드러난다(11-08 실화면). 개수만
+// 끝을 뒤 문장으로 잡는다 — 제목에 괄호가 들어 있어도 목록 전체를 덮게(grounded-history-rules.ts 의 문구)
+const PREV_SOURCES_RE = /\(sources: ([^\n]+?)\)(?=\. It is NOT your training data)/g;
 // 앞 턴 출처 제목 — 앞 턴 주제(예: 병명)가 드러난다. 개수만
 const RAW_COUNT_KEYS = new Set(['lastTurnSourceLabels']);
 
@@ -231,7 +265,8 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
     if (typeof v === 'string') {
         if (/^data:[^;,]+;base64,/.test(v)) return `[base64 ${v.length} chars]`;
         if (v.length > 2000 && BASE64_RE.test(v.slice(0, 2000))) return `[base64 ${v.length} chars]`;
-        const t = redactText(v);
+        // 리다이렉트·Storage URL 치환(redactText)이 먼저, 쿼리 제거는 그 뒤
+        const t = stripUrlQuery(redactText(v)).replace(PREV_SOURCES_RE, (_m, list: string) => `(sources: [${list.split(' · ').length}개])`);
         return t.length > RAW_STR_MAX ? `${t.slice(0, RAW_STR_MAX)}…[+${t.length - RAW_STR_MAX} chars]` : t;
     }
     if (!v || typeof v !== 'object') return v;
@@ -241,6 +276,8 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
     ancestors.add(v);
     try {
         if (Array.isArray(v)) return v.slice(0, 200).map(x => scrubRaw(x, depth + 1, ancestors));
+        const lc = normalizeLcMessage(v as Record<string, unknown>);
+        if (lc) return scrubRaw(lc, depth + 1, ancestors);
         const out: Record<string, unknown> = {};
         for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
             if (RAW_DROP_KEYS.has(k)) continue;

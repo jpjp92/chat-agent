@@ -219,6 +219,20 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
         lastTurnSourceLabels: ['당뇨 치료 가이드', 'x'], url: 'https://abc.supabase.co/storage/v1/object/sign/chat/u1/a.png?token=zz' }));
     check('대화 내역: 앞 턴은 생략, 이번 질문·답만', !hist.includes('앞턴건강') && hist.includes('이번질문') && hist.includes('이번답') && hist.includes('[이전 대화 2개 생략]'), hist);
     check('앞 턴 출처 제목은 개수만', !hist.includes('당뇨') && hist.includes('"lastTurnSourceLabels":"[2개]"'), hist);
+    const prev = JSON.stringify(scrubRaw({ instructions: 'retrieved in this conversation** (sources: Headaches - NHS · 편두통 (migraine) 안내). It is NOT your training data', r: { encrypted_content: 'gAAAAB' + 'x'.repeat(50) } }));
+    check('시스템 지시 속 앞 턴 출처 제목 → 개수', !prev.includes('Headaches') && !prev.includes('migraine') && prev.includes('(sources: [2개]). It is NOT'), prev);
+    check('OpenAI 추론 블롭 제거', !prev.includes('gAAAAB'), prev);
+    const lcMsg = { lc_serializable: true, lc_namespace: ['langchain_core', 'messages'], type: 'ai', id: '13725f57-df18-42f1-96f5-d30516799e0c',
+        content: '답원문', lc_kwargs: { content: '답원문', id: '13725f57-df18-42f1-96f5-d30516799e0c' }, additional_kwargs: {}, response_metadata: {},
+        tool_calls: [{ name: 'weatherTool', args: { q: '010-1111-2222' }, id: 'call_1' }], invalid_tool_calls: [] };
+    const toolMsg = { lc: 1, type: 'constructor', id: ['langchain_core', 'messages', 'ToolMessage'], kwargs: { content: '도구결과', tool_call_id: 'call_1', name: 'weatherTool', id: 'u-2' } };
+    const norm = JSON.stringify(scrubRaw({ messages: [{ type: 'human', content: 'q', lc_serializable: true, lc_namespace: ['x'], lc_kwargs: { content: 'q' } }, lcMsg, toolMsg] }));
+    check('LangChain 메시지 정규화: UUID·lc_* 제거, 원문 1번', !norm.includes('13725f57') && !norm.includes('lc_kwargs') && !norm.includes('lc_namespace') && (norm.match(/답원문/g) || []).length === 1, norm);
+    check('정규화: tool_calls 유지·인자 마스킹, ToolMessage 관계 유지', norm.includes('"name":"weatherTool"') && norm.includes('[phone]') && norm.includes('"tool_call_id":"call_1"') && norm.includes('"type":"tool"'), norm);
+    const q = JSON.stringify(scrubRaw({ u: 'https://example.com/article?id=123&utm_source=x 와 https://a.com/p?token=secret#f', md: '[1](https://apnews.com/a/b?utm_source=openai)', ask: '이거 맞아? 진짜?', redir: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZ?x=1' }));
+    check('URL 쿼리 제거: URL 만, 질문의 ? 는 그대로', q.includes('https://example.com/article 와 https://a.com/p"') && !q.includes('secret') && q.includes('(https://apnews.com/a/b)') && q.includes('이거 맞아? 진짜?') && q.includes('[redirect]'), q);
+    const nouser = JSON.stringify(scrubRaw({ input: [{ role: 'assistant', content: '앞턴원문' }, { type: 'function_call_output', output: 'x' }], contents: ['단순 문자열'] }));
+    check('사용자 메시지 없는 대화 배열은 통째 생략(fail-closed), 대화 아닌 배열은 그대로', !nouser.includes('앞턴원문') && nouser.includes('[대화 2개 생략]') && nouser.includes('단순 문자열'), nouser);
     check('Storage 서명 URL 가림', !hist.includes('token=zz') && hist.includes('[storage-url]'), hist);
     const g = await runTurn('general');
     check('보류: 루트가 끝나기 전엔 아무것도 안 보냄', !g.beforeEnd);
