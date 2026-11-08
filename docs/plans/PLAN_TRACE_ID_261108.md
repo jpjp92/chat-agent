@@ -1,6 +1,6 @@
 # PLAN_TRACE_ID_261108 — 턴 ID 로 Supabase·Vercel·LangSmith 잇기
 
-> 상태: T1 완료(11-09) · T2 다음 · 상위 계획 [PLAN_LANGSMITH_TRACING_261107](PLAN_LANGSMITH_TRACING_261107.md) §4 L3 를 넓힌 것
+> 상태: T1 완료(11-09) · T2 코드 완료(배포 확인 남음) · 상위 계획 [PLAN_LANGSMITH_TRACING_261107](PLAN_LANGSMITH_TRACING_261107.md) §4 L3 를 넓힌 것
 > 출발점: 11-08 GPT 검토(역할 분담) — Supabase = 원문 기준 저장소, Vercel = 운영 로그, LangSmith = 실행 분석. 계획 GPT 2차 검토 반영(11-08, §3 주의).
 > Supabase: **dev 와 운영(main)은 서로 다른 프로젝트**(DB·Storage 모두, 11-08 사용자 확인).
 
@@ -73,6 +73,10 @@ LangChain 추적기가 `runId` 를 루트에 쓰지 않으면, langsmith 내부�
 - turn-log: `traceId` 필드(UUID 형식만, 아니면 `null` — 세션 ID·문장이 이 칸으로 새지 않게). 키 허용 목록 하니스 갱신, `PLAN_TURN_LOG` 필드 표에 식별자 예외로 기록.
 - 추적이 꺼져 있어도 `[turn].traceId` 는 남는다.
 - 배포 검증(11-09, `52ef4f2` Production): 일반 질문 1턴 → Vercel `[turn].traceId` `8e48a22a-…` = LangSmith `chat-agent-dev-vercel` 루트 run(`LangGraph`) `id`·`trace_id`, `parent_run_id` null, 입출력 null(숨김). `[turn]` 은 요청당 1줄(중복 없음). 이전 배포 턴엔 `traceId` 없음 — 정상.
+
+### T2 (11-09) — 코드 완료, 배포 확인 남음
+- 후보 1(루트 끝 전송 보류 후 합치기)로 구현. 상세·하니스·오버헤드는 [DEV_261109](../logs/2026/11/DEV_261109.md) §2.
+- 필드는 `turnFields()`(turn-log) → `turnMetaOf()`(tracing) 한 경로로 만든다. 보류·턴 값은 `traceId` 별이고, 응답 뒤 flush 는 그 요청의 trace 만 바로 보낸다.
 
 ## 4. 조회 (T3 이후, 관리자)
 
