@@ -24,9 +24,10 @@ const fakeFetch = (async (_u: unknown, i?: { body?: unknown }) => {
     return new Response('{}', { status: 200 });
 }) as unknown as typeof fetch;
 
-const S = Annotation.Root({ q: Annotation<string>() });
+// intent·attachments 는 원문 모드 턴 판정용 — general 이라 보류 후 원문으로 해제되는 경로를 잰다
+const S = Annotation.Root({ q: Annotation<string>(), intent: Annotation<string>(), attachments: Annotation<unknown[]>() });
 const graph = new StateGraph(S)
-    .addNode('router', async (s) => { await traceGemini('router', models, { model: 'gemini-2.5-flash', contents: s.q, config: { systemInstruction: ROUTER_SYS } } as never); return {}; })
+    .addNode('router', async (s) => { await traceGemini('router', models, { model: 'gemini-2.5-flash', contents: s.q, config: { systemInstruction: ROUTER_SYS } } as never); return { intent: 'general' }; })
     .addNode('generator', async (s) => { await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: HISTORY(s.q), config: { systemInstruction: GEN_SYS, tools: [{ googleSearch: {} }] } } as never); return {}; })
     .addEdge(START, 'router').addEdge('router', 'generator').addEdge('generator', END).compile();
 
