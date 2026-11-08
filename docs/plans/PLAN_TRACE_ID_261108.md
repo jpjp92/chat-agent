@@ -65,6 +65,15 @@ LangChain 추적기가 `runId` 를 루트에 쓰지 않으면, langsmith 내부�
 - 부분 실패도 정상 상태로 조회되어야 한다: user 행만 있고 assistant 행이 없는 턴(생성 실패·사용자 중단·assistant 저장 실패), 재시도·폴백(같은 턴이면 같은 ID — 턴 ID 는 요청 하나에 하나). `[turn].outcome` 으로 어느 경우인지 구분.
 - 게스트·`session_id` 없는 요청은 행이 없다 — 로그·LangSmith 에만 ID.
 
+## 결과
+
+### T1 (11-08) — 코드 완료, 배포 실화면 남음
+- 확인 먼저: 가짜 전송으로 `streamEvents(..., { runId })` 를 주면 **루트 run ID = 넘긴 UUID, 자식 run `trace_id` 도 모두 같은 값** — 메타데이터 대안 불필요.
+- route.ts: 턴 시작에 `crypto.randomUUID()` → `streamEvents` `runId` · `logTurn({ traceId })`.
+- turn-log: `traceId` 필드(UUID 형식만, 아니면 `null` — 세션 ID·문장이 이 칸으로 새지 않게). 키 허용 목록 하니스 갱신, `PLAN_TURN_LOG` 필드 표에 식별자 예외로 기록.
+- 추적이 꺼져 있어도 `[turn].traceId` 는 남는다.
+- 남음: dev 배포에서 LangSmith 루트 run ID = Vercel `[turn].traceId` 실화면.
+
 ## 4. 조회 (T3 이후, 관리자)
 
 ```sql

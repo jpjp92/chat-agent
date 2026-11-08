@@ -31,6 +31,7 @@
 
 | 필드 | 타입·값 | 출처 |
 |---|---|---|
+| `traceId` | 턴 ID(UUID v4) — 아니면 `null`. 매 턴 새 무작위 값, LangSmith 루트 run ID·`chat_messages.trace_id` 와 같다. **유일한 식별자 예외**(11-08 결정 — 사용자·세션 ID 는 여전히 금지) | route.ts `crypto.randomUUID()` · [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) |
 | `intent` | `IntentType` 열거값 | `st.detectedIntent` |
 | `intentFrom` | `rule` · `router` · `guard` · `fallback` | router 가 상태에 기록(**신규**) |
 | `provider` | `gemini` · `openai` | 실제 응답 경로 |
