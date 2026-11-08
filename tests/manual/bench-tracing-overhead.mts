@@ -9,6 +9,10 @@
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
 import { traceGemini, traceCallbacks } from '../../server/agent/tracing.js';
+// 실제 크기 — 라우터 지시 약 1.4만 자, 답변 지시 약 3만 자, 이전 대화 3턴(원문 모드는 이걸 Input 으로 기록한다)
+const ROUTER_SYS = 'r'.repeat(14_000);
+const GEN_SYS = '지시 '.repeat(10_000);
+const HISTORY = (q: string) => [{ role: 'user', parts: [{ text: '이전 질문' }] }, { role: 'model', parts: [{ text: '이전 답 '.repeat(400) }] }, { role: 'user', parts: [{ text: q }] }];
 
 const N = Number(process.argv[2] || 200);
 const PROMPT = '합성 프롬프트 '.repeat(2500); // ≈ 2만 자
@@ -22,8 +26,8 @@ const fakeFetch = (async (_u: unknown, i?: { body?: unknown }) => {
 
 const S = Annotation.Root({ q: Annotation<string>() });
 const graph = new StateGraph(S)
-    .addNode('router', async (s) => { await traceGemini('router', models, { model: 'gemini-2.5-flash', contents: s.q } as never); return {}; })
-    .addNode('generator', async (s) => { await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: s.q, config: { tools: [{ googleSearch: {} }] } } as never); return {}; })
+    .addNode('router', async (s) => { await traceGemini('router', models, { model: 'gemini-2.5-flash', contents: s.q, config: { systemInstruction: ROUTER_SYS } } as never); return {}; })
+    .addNode('generator', async (s) => { await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: HISTORY(s.q), config: { systemInstruction: GEN_SYS, tools: [{ googleSearch: {} }] } } as never); return {}; })
     .addEdge(START, 'router').addEdge('router', 'generator').addEdge('generator', END).compile();
 
 const run = async (label: string, env: Record<string, string | undefined>) => {
