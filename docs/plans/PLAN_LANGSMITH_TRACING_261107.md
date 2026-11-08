@@ -1,7 +1,39 @@
 # PLAN_LANGSMITH_TRACING_261107 — LangSmith 추적 (관측만 추가)
 
-> 상태: L0·L2·원문 모드 완료(11-07~08), L3·L4 남음 · 범위 dev 로컬 → `chat-agent-dev` 배포. 운영(Production) 제외.
+> 상태: L0·L1·L2·원문 모드 완료(11-07~08), L3 → PLAN_TRACE_ID, L4 일부 — 아래 "진행 현황" · 범위 dev 로컬 → `chat-agent-dev` 배포. 운영(Production) 제외.
 > 출발점: 사용자 공유 안(GPT 검토, "Hybrid Tracing") — 이 문서는 그 안을 현재 코드에 대 보고 고친 확정안이다.
+
+## 진행 현황 (11-08 기준)
+
+| 단계 | 상태 |
+|---|---|
+| L0 정리 Client·스위치·응답 뒤 전송 | ✅ 11-07 |
+| L1 노드 계층 | ✅ 실화면 확인(별도 작업 없음) |
+| L2 SDK 직접 호출 9곳 span(모델·검색·토큰·출처 수·캐시 토큰) | ✅ 11-07, 배포 dev 확인 11-08 |
+| 원문 모드(로컬·배포 dev — 브랜치 판정·허용 의도·앞 턴 생략·마스킹·정규화·꺼진 사유 로그) | ✅ 11-08, 배포 dev 연속 턴 실화면 확인 |
+| L3 루트 메타데이터 | ➡️ [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) T1~T3 로 확장 — **미착수** |
+| L4 배포·측정 | 🟡 env 등록·수집 확인·합성 벤치 3차(숨김 +1ms·원문 +6ms) 완료 / 실배포 켜기 전후 `[turn].ms`·`[trace]` 전송 실패 수 남음 |
+
+남은 코드 작업: `retry_reason` 열거값(L2 완료 기준 중 재시도·강등 사유) · T1→T2→T3 · L4 실측(T1 뒤 — 턴 ID 로 로그와 trace 를 짝지어 비교).
+
+### 사용자가 직접 할 일 (대시보드)
+
+**Vercel — `chat-agent-dev` 프로젝트**
+- [x] `CHAT_TRACING_RAW_ALLOW_DEPLOYED` **삭제 후 Redeploy**(11-08 완료) — 원문 모드 확인 끝(평소는 숨김). 다시 볼 때만 넣고 빼는 스위치.
+- [x] `LANGSMITH_PROJECT` 값을 `chat-agent-dev-vercel` 로(11-08 완료) — 로컬 `chat-agent-dev` 와 분리.
+- [x] (선택) `LANGSMITH_PROJECT_RAW` 를 `chat-agent-dev-vercel-raw` 로(11-08 완료) — 로컬 원문과 분리.
+- [ ] (선택, **아직**) 스위치류(`CHAT_TRACING`·`CHAT_TRACING_RAW`·`CHAT_TRACING_RAW_ALLOW_DEPLOYED`)는 Sensitive 해제로 다시 저장 — 값이 보여야 이번처럼 `false`·오타를 바로 찾는다(키는 Sensitive 유지).
+- [ ] env 를 바꾼 뒤엔 Redeploy. dev 푸시는 Preview 로 배포되므로 **Promote to Production** 해야 `chat-agent-dev.vercel.app` 에 반영.
+- 운영 프로젝트 `chat-agent` 엔 추적 env 를 넣지 않는다(11-08 0개 확인).
+
+**LangSmith**
+- [x] 보관 기간 — `chat-agent-dev-raw` 는 **Base(14일 후 자동 삭제)** 확인(11-08). 조직(Personal) 기본 보관값도 **Base 14일** 확인(11-08) — 새 프로젝트(`chat-agent-dev-vercel`·`-vercel-raw`)도 14일. ⚠️ Base trace 도 피드백·주석 큐 등 기능을 쓰면 **180일(Extended)로 자동 승격**될 수 있다 — 원문 프로젝트에는 피드백·데이터셋 추가를 하지 않는다
+- [ ] (권장) Settings → Trace Usage Limits **Spend limit** — 지금 Unlimited. 월 상한(예: $5)을 걸어 두면 샘플링 실수·트래픽 급증 때 과금이 막힌다
+- [ ] 원문 프로젝트 접근은 본인 계정만(워크스페이스에 다른 멤버를 초대하지 않는다).
+- [ ] (확인) Gemini run 의 비용 표시 — OpenAI 는 표시됨(입력 4,907 토큰 $0.0005). Gemini 가 안 나오면 모델 단가 등록이 필요할 수 있다.
+- [ ] 원문 디버깅이 끝난 프로젝트는 필요 없으면 프로젝트째 삭제.
+
+**운영(Production) 적용 전** — 개인정보처리방침에 LangSmith(미국) 처리 위탁·국외 이전·보관 기간 고지(문구 초안은 요청 시 작성), 그 뒤 별도 스위치·샘플링.
 
 ## 0. 요약
 
