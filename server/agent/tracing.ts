@@ -115,12 +115,30 @@ const groundingCountOf = (outputs: unknown): number | null => {
     return walk(outputs, 0);
 };
 
-/** 원문 모드 — 로컬은 스위치 하나, 배포는 허용 스위치까지, Production 은 불가 */
+/**
+ * 원문 모드 — 로컬은 스위치 하나, 배포는 허용 스위치 + dev 브랜치.
+ * 환경(VERCEL_ENV)이 아니라 브랜치로 가른다 — dev 배포 프로젝트(chat-agent-dev)도 production 환경이라
+ * 환경으로 막으면 dev 웹 디버깅이 불가능했다(11-08). 브랜치를 모르면 막는다.
+ */
 export const rawMode = (): boolean => {
     if (process.env.CHAT_TRACING_RAW !== 'true') return false;
     if (!process.env.VERCEL) return true;
-    if (process.env.VERCEL_ENV === 'production') return false;
-    return process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED === 'true';
+    if (process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED !== 'true') return false;
+    return process.env.VERCEL_GIT_COMMIT_REF === 'dev';
+};
+
+/**
+ * 원문으로 남기면 안 되는 턴 — 건강·법률 상담은 민감정보라 마스킹(형태 패턴)으로는 병명·사정을 못 가린다.
+ * 첨부(이미지·문서)도 내용을 가릴 방법이 없다. 이런 턴은 원문 모드여도 숨김으로 보낸다.
+ */
+const RAW_BLOCKED_INTENTS = new Set(['medical_qa', 'drug_info', 'drug_id', 'hospital_search', 'pharmacy_search', 'law_qa']);
+export const rawAllowedForTurn = (root: unknown): boolean => {
+    if (!root || typeof root !== 'object') return false;
+    const r = root as { outputs?: Record<string, unknown>; inputs?: Record<string, unknown> };
+    const intent = r.outputs?.intent;
+    if (typeof intent !== 'string' || RAW_BLOCKED_INTENTS.has(intent)) return false;
+    const hasAttach = (x: unknown) => Array.isArray(x) && x.length > 0;
+    return !hasAttach(r.outputs?.attachments) && !hasAttach(r.inputs?.attachments);
 };
 
 // 시스템 지시가 3만 자 안팎이라 2만에선 뒷부분(차트·출처 규칙)이 잘렸다
@@ -140,6 +158,12 @@ const REDACT: Array<[RegExp, string]> = [
     [/\b(?:\d{4}[- ]?){3}\d{4}\b/g, '[card]'],
     [/\b\d{6}[- ]?[1-4]\d{6}\b/g, '[rrn]'],
     [/(?:\+?82[- ]?|\b0)1[016789][- ]?\d{3,4}[- ]?\d{4}\b/g, '[phone]'],
+    // 일반 전화(02·031 등) — 휴대폰 다음에 둬야 010 이 지역번호로 먼저 잡히지 않는다
+    [/\b0(?:2|[3-6][1-5])[- )]?\d{3,4}[- ]?\d{4}\b/g, '[phone]'],
+    // 주소 — 도로명(○○로·길 번호)·지번(○○동 번지)·동호수. 숫자 뒤에 개·명·% 등이 오면 주소가 아니다("경로 2개")
+    [/[가-힣]{1,10}(?:로|길)\s?\d{1,4}(?:-\d{1,4})?(?:번길\s?\d{1,4})?(?![\d가-힣%])/g, '[address]'],
+    [/[가-힣]{1,10}동\s?\d{1,5}(?:-\d{1,5})?\s?번지/g, '[address]'],
+    [/\b\d{1,4}동\s?\d{1,5}호/g, '[address]'],
     // grounding 리다이렉트 — 출처는 title(도메인)로 충분하고, 주소 자체는 읽을 수 없는 긴 토큰이다
     [/https:\/\/vertexaisearch\.cloud\.google\.com\/grounding-api-redirect\/[^\s"')\]]+/g, '[redirect]'],
 ];
@@ -216,17 +240,71 @@ export const sanitizeRun = (run: Run, raw = false): Run => {
     return out;
 };
 
-/** createRun·updateRun 이 배치 큐에 넣기 전에 정리 — 배치·멀티파트 어느 경로로 보내도 여기를 지난다 */
+type CreateArg = Parameters<Client['createRun']>[0];
+type UpdateArg = Parameters<Client['updateRun']>[1];
+type PendingOp = { kind: 'create'; run: CreateArg; options?: Parameters<Client['createRun']>[1] }
+    | { kind: 'update'; runId: string; run: UpdateArg; options?: Parameters<Client['updateRun']>[2] };
+// 원문 모드 보류 상한 — 루트가 끝나지 않은 trace 가 쌓여 메모리를 잡지 않게(넘치면 숨김으로 보낸다)
+const PENDING_MAX_TRACES = 50;
+const PENDING_STALE_MS = 10 * 60_000;
+
+/**
+ * createRun·updateRun 이 배치 큐에 넣기 전에 정리 — 배치·멀티파트 어느 경로로 보내도 여기를 지난다.
+ * 원문 모드는 의도를 알아야 원문 여부를 정할 수 있는데, 의도는 라우터가 끝나야 나오고 질문은 그 전에 보내진다.
+ * 그래서 trace 단위로 모아 두었다가 루트 run 이 끝날 때(의도·첨부가 출력에 있다) 한꺼번에 정리해 보낸다.
+ */
 class SanitizingClient extends Client {
+    private pending = new Map<string, { at: number; rootId?: string; ops: PendingOp[] }>();
+    private traceOf = new Map<string, string>();
     constructor(config: ConstructorParameters<typeof Client>[0], readonly raw = false) {
         // 원문 모드는 env 숨김(LANGSMITH_HIDE_*=true)을 명시 false 로 덮는다 — 정리는 sanitizeRun 이 한다
         super({ ...config, hideInputs: !raw, hideOutputs: !raw });
     }
-    override async createRun(run: Parameters<Client['createRun']>[0], options?: Parameters<Client['createRun']>[1]) {
-        return super.createRun(sanitizeRun(run as unknown as Run, this.raw) as unknown as typeof run, options);
+    override async createRun(run: CreateArg, options?: Parameters<Client['createRun']>[1]) {
+        if (!this.raw) return super.createRun(sanitizeRun(run as unknown as Run) as unknown as CreateArg, options);
+        const r = run as unknown as Run & { id?: string; trace_id?: string; parent_run_id?: string; end_time?: unknown };
+        const traceId = (r.trace_id ?? r.id) as string | undefined;
+        if (!traceId) return super.createRun(sanitizeRun(r) as unknown as CreateArg, options);
+        if (r.id) this.traceOf.set(r.id, traceId);
+        const p = this.slot(traceId);
+        if (!r.parent_run_id && r.id) p.rootId = r.id;
+        p.ops.push({ kind: 'create', run, options });
+        // 끝난 상태로 한 번에 오는 루트도 있다
+        if (p.rootId === r.id && r.end_time) await this.release(traceId, rawAllowedForTurn(r));
     }
-    override async updateRun(runId: string, run: Parameters<Client['updateRun']>[1], options?: Parameters<Client['updateRun']>[2]) {
-        return super.updateRun(runId, sanitizeRun(run as unknown as Run, this.raw) as unknown as typeof run, options);
+    override async updateRun(runId: string, run: UpdateArg, options?: Parameters<Client['updateRun']>[2]) {
+        if (!this.raw) return super.updateRun(runId, sanitizeRun(run as unknown as Run) as unknown as UpdateArg, options);
+        const r = run as unknown as Run & { trace_id?: string };
+        const traceId = (r.trace_id as string | undefined) ?? this.traceOf.get(runId);
+        const p = traceId ? this.pending.get(traceId) : undefined;
+        if (!traceId || !p) return super.updateRun(runId, sanitizeRun(r) as unknown as UpdateArg, options);
+        p.ops.push({ kind: 'update', runId, run, options });
+        if (p.rootId === runId) await this.release(traceId, rawAllowedForTurn(r));
+    }
+    private slot(traceId: string) {
+        let p = this.pending.get(traceId);
+        if (!p) {
+            if (this.pending.size >= PENDING_MAX_TRACES) void this.releaseStale(0);
+            p = { at: Date.now(), ops: [] };
+            this.pending.set(traceId, p);
+        }
+        return p;
+    }
+    private async release(traceId: string, raw: boolean) {
+        const p = this.pending.get(traceId);
+        if (!p) return;
+        this.pending.delete(traceId);
+        for (const op of p.ops) {
+            const opId = op.kind === 'create' ? (op.run as { id?: string }).id : op.runId;
+            if (opId) this.traceOf.delete(opId);
+            if (op.kind === 'create') await super.createRun(sanitizeRun(op.run as unknown as Run, raw) as unknown as CreateArg, op.options);
+            else await super.updateRun(op.runId, sanitizeRun(op.run as unknown as Run, raw) as unknown as UpdateArg, op.options);
+        }
+    }
+    /** 루트가 끝나지 않은 오래된 trace 는 숨김으로 보낸다(오류로 끝난 턴·상한 초과) */
+    async releaseStale(maxAgeMs = PENDING_STALE_MS) {
+        const now = Date.now();
+        for (const [id, p] of [...this.pending]) if (now - p.at >= maxAgeMs) await this.release(id, false);
     }
 }
 
@@ -316,6 +394,7 @@ export const flushTraces = async (): Promise<void> => {
     if (!client) return;
     try {
         await awaitAllCallbacks();
+        await client.releaseStale();
         await client.awaitPendingTraceBatches();
     } catch (e) {
         // 응답은 이미 끝났다 — 실패는 막지 않고 누락을 알 수 있게 코드만 한 줄(메시지는 읽지 않는다)

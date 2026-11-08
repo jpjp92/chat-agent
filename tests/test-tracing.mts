@@ -9,7 +9,7 @@ import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { FakeStreamingChatModel } from '@langchain/core/utils/testing';
 import { AIMessageChunk, HumanMessage } from '@langchain/core/messages';
 import { awaitAllCallbacks } from '@langchain/core/callbacks/promises';
-import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, traceGemini, rawMode, scrubRaw, redactText, errorName, tracingEnabled, traceCallbacks } from '../server/agent/tracing.js';
+import { createSanitizingClient, makeTracer, sanitizeRun, usageOf, traceGemini, rawMode, rawAllowedForTurn, scrubRaw, redactText, errorName, tracingEnabled, traceCallbacks } from '../server/agent/tracing.js';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean, detail = '') => {
@@ -145,12 +145,14 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const saved4 = { ...process.env };
     process.env.CHAT_TRACING_RAW = 'true'; delete process.env.VERCEL;
     check('원문 모드: 로컬이면 켜짐', rawMode());
-    process.env.VERCEL = '1'; process.env.VERCEL_ENV = 'preview';
-    check('원문 모드: 배포 환경은 허용 스위치 없으면 무시', !rawMode());
+    process.env.VERCEL = '1'; process.env.VERCEL_ENV = 'production'; process.env.VERCEL_GIT_COMMIT_REF = 'dev';
+    check('원문 모드: 배포는 허용 스위치 없으면 무시', !rawMode());
     process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED = 'true';
-    check('원문 모드: 배포 dev + 허용 스위치면 켜짐', rawMode());
-    process.env.VERCEL_ENV = 'production';
-    check('원문 모드: Production 은 허용 스위치가 있어도 무시', !rawMode());
+    check('원문 모드: 배포 dev 브랜치 + 허용 스위치면 켜짐(production 환경이어도)', rawMode());
+    process.env.VERCEL_GIT_COMMIT_REF = 'main';
+    check('원문 모드: main 브랜치는 허용 스위치가 있어도 무시', !rawMode());
+    delete process.env.VERCEL_GIT_COMMIT_REF;
+    check('원문 모드: 브랜치를 모르면 무시', !rawMode());
     process.env = saved4;
     const b64 = 'A'.repeat(5000);
     const sc = JSON.stringify(scrubRaw({ img: `data:image/png;base64,${b64}`, raw: b64, long: '가'.repeat(65000), bin: new Uint8Array(10), q: '합성 질문' }));
@@ -181,6 +183,38 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const rc = createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1' }, true);
     check('원문 모드 Client 는 별도 프로젝트', (makeTracer(rc) as unknown as { projectName: string }).projectName === (process.env.LANGSMITH_PROJECT_RAW || 'chat-agent-dev-raw'));
     check('숨김 Client 는 기본 프로젝트', (makeTracer(createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1' })) as unknown as { projectName: string }).projectName !== 'chat-agent-dev-raw');
+}
+
+// ⑥ 원문 모드 턴 단위 판정 — 민감 의도·첨부는 숨김, 루트가 끝날 때까지 보류
+{
+    check('턴 판정: 일반 의도는 원문', rawAllowedForTurn({ outputs: { intent: 'general', attachments: [] } }));
+    for (const it of ['medical_qa', 'drug_info', 'drug_id', 'hospital_search', 'pharmacy_search', 'law_qa'])
+        check(`턴 판정: ${it} 는 숨김`, !rawAllowedForTurn({ outputs: { intent: it } }));
+    check('턴 판정: 첨부 있으면 숨김', !rawAllowedForTurn({ outputs: { intent: 'general', attachments: [{ x: 1 }] } }));
+    check('턴 판정: 의도 모르면 숨김', !rawAllowedForTurn({ outputs: {} }));
+    const red2 = redactText('사무실 02-123-4567 · 031)987-6543 · 서울 세종대로 110 · 역삼동 123-45번지 · 101동 1203호 · 경로 2개 · 3번길 아님 · 2025.11');
+    check('redactText: 일반 전화·주소 가림', !/123-4567|987-6543|세종대로 110|123-45번지|1203호/.test(red2), red2);
+    check('redactText: "경로 2개"·연월은 그대로', red2.includes('경로 2개') && red2.includes('2025.11'), red2);
+
+    const runTurn = async (intent: string) => {
+        const sent: string[] = [];
+        const f = (async (_u: unknown, i?: { body?: unknown }) => { const b = i?.body; if (b instanceof ReadableStream) sent.push(await new Response(b).text()); else if (typeof b === 'string') sent.push(b); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+        const c = createSanitizingClient({ apiKey: 'test', apiUrl: 'http://localhost:1', fetchImplementation: f }, true);
+        const root = '00000000-0000-4000-8000-000000000001', child = '00000000-0000-4000-8000-000000000002';
+        const t0 = Date.now();
+        await c.createRun({ id: root, trace_id: root, name: 'LangGraph', run_type: 'chain', inputs: { q: '합성원문질문' }, start_time: t0, dotted_order: `${t0}Z${root}` } as never);
+        await c.createRun({ id: child, trace_id: root, parent_run_id: root, name: 'gemini.single', run_type: 'llm', inputs: { contents: '합성원문프롬프트' }, start_time: t0, dotted_order: `${t0}Z${root}.${t0}Z${child}` } as never);
+        const beforeEnd = sent.join('').includes('합성원문');
+        await c.updateRun(child, { trace_id: root, parent_run_id: root, outputs: { text: '합성원문답' }, end_time: t0 + 1, dotted_order: `${t0}Z${root}.${t0}Z${child}` } as never);
+        await c.updateRun(root, { trace_id: root, outputs: { intent, attachments: [], a: '합성원문답' }, end_time: t0 + 2, dotted_order: `${t0}Z${root}` } as never);
+        await c.awaitPendingTraceBatches();
+        return { beforeEnd, all: sent.join('\n') };
+    };
+    const g = await runTurn('general');
+    check('보류: 루트가 끝나기 전엔 아무것도 안 보냄', !g.beforeEnd);
+    check('일반 턴: 질문·모델 입력·답 원문 전송', g.all.includes('합성원문질문') && g.all.includes('합성원문프롬프트') && g.all.includes('합성원문답'), g.all.slice(0, 300));
+    const m = await runTurn('medical_qa');
+    check('민감 턴: 루트·자식 모두 원문 없음', m.all.length > 0 && !m.all.includes('합성원문'), m.all.slice(0, 300));
 }
 
 console.log(`\n${fail === 0 ? '🟢' : '🔴'} pass ${pass} / fail ${fail}`);
