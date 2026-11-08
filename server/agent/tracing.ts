@@ -120,11 +120,29 @@ const groundingCountOf = (outputs: unknown): number | null => {
  * 환경(VERCEL_ENV)이 아니라 브랜치로 가른다 — dev 배포 프로젝트(chat-agent-dev)도 production 환경이라
  * 환경으로 막으면 dev 웹 디버깅이 불가능했다(11-08). 브랜치를 모르면 막는다.
  */
-export const rawMode = (): boolean => {
-    if (process.env.CHAT_TRACING_RAW !== 'true') return false;
-    if (!process.env.VERCEL) return true;
-    if (process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED !== 'true') return false;
-    return process.env.VERCEL_GIT_COMMIT_REF === 'dev';
+type RawWhy = 'on' | 'off' | 'switch_value' | 'allow_missing' | 'allow_value' | 'branch_missing' | 'branch_other';
+const rawModeWhy = (): RawWhy => {
+    const sw = process.env.CHAT_TRACING_RAW;
+    if (sw === undefined || sw === 'false' || sw === '') return 'off';
+    if (sw !== 'true') return 'switch_value';
+    if (!process.env.VERCEL) return 'on';
+    const allow = process.env.CHAT_TRACING_RAW_ALLOW_DEPLOYED;
+    if (allow === undefined) return 'allow_missing';
+    if (allow !== 'true') return 'allow_value';
+    const ref = process.env.VERCEL_GIT_COMMIT_REF;
+    if (!ref) return 'branch_missing';
+    return ref === 'dev' ? 'on' : 'branch_other';
+};
+export const rawMode = (): boolean => rawModeWhy() === 'on';
+
+// 원문 스위치를 켰는데 꺼진 이유 — 배포 env 값은 sensitive 라 읽을 수 없어 사유 코드로만 남긴다(인스턴스당 1번)
+let rawWhyLogged = false;
+const logRawWhy = () => {
+    if (rawWhyLogged) return;
+    rawWhyLogged = true;
+    const why = rawModeWhy();
+    if (why === 'off') return;
+    try { process.stdout.write(`[trace] ${JSON.stringify({ raw: why === 'on', why })}\n`); } catch { /* 무시 */ }
 };
 
 /**
@@ -361,6 +379,7 @@ export const tracingEnabled = (): boolean =>
 /** 그래프 실행 config 에 넣을 콜백. 꺼져 있으면 빈 배열 */
 export const traceCallbacks = (): LangChainTracer[] => {
     if (!tracingEnabled()) return [];
+    logRawWhy();
     try {
         return [makeTracer(getClient())];
     } catch {
