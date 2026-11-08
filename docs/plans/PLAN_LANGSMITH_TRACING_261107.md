@@ -28,7 +28,13 @@
 
 **LangSmith**
 - [x] 보관 기간 — `chat-agent-dev-raw` 는 **Base(14일 후 자동 삭제)** 확인(11-08). 조직(Personal) 기본 보관값도 **Base 14일** 확인(11-08) — 새 프로젝트(`chat-agent-dev-vercel`·`-vercel-raw`)도 14일. ⚠️ Base trace 도 피드백·주석 큐 등 기능을 쓰면 **180일(Extended)로 자동 승격**될 수 있다 — 원문 프로젝트에는 피드백·데이터셋 추가를 하지 않는다
-- [ ] (권장) Settings → Trace Usage Limits **Spend limit** — 지금 Unlimited. 월 상한(예: $5)을 걸어 두면 샘플링 실수·트래픽 급증 때 과금이 막힌다
+- 플랜: **Developer(무료)·카드 미등록**(11-08) — 월 5,000 trace 상한, 넘으면 과금이 아니라 수집이 멈춘다(앱은 정상). 11-08 사용량 29/5,000. Spend limit 은 **카드 등록할 때** 월 상한(예: $5)과 함께 건다.
+- **5,000 trace 세는 법** — trace = 루트 run 1개 = 이 앱에선 **채팅 1턴**(LangGraph 루트 1개). 그 아래 router·generator·`gemini.*`·`openai.*`·도구 run 은 개수에 들어가지 않는다. 숨김·원문 여부와 무관하게 1턴 = 1건(원문 모드에서 숨김으로 보낸 민감 턴도 1건).
+  - **워크스페이스 전체 합산**: 로컬(`chat-agent-dev`·`-raw`)과 배포 dev(`chat-agent-dev-vercel`·`-raw`)가 같은 5,000 을 나눠 쓴다.
+  - 추적 안 되는 경로: 제목 요약(`summarize-title`)·URL 가져오기·TTS 등 그래프 밖 API 는 trace 를 만들지 않는다.
+  - 여유: 5,000/월 ≈ 하루 160턴. dev 혼자 테스트(11-08 하루 29건)는 넉넉. 실측 프로브(`tests/manual/*`)는 그래프를 거치지 않으면 0건.
+  - 한도 초과 시: 응답·Supabase·`[turn]` 은 그대로, 응답 뒤 전송 마무리는 **5초 상한**(langsmith 재시도로 84초까지 가던 것, 11-08) — 넘으면 `[trace] {"flush":"timeout"}`.
+  - 운영에 켤 때: 운영 턴 수가 이 한도를 넘으면 `LANGSMITH_TRACING_SAMPLING_RATE`(예 0.1)로 줄이거나 카드 등록 + Spend limit. 넘으면 그달 수집만 멈추고 앱은 정상.
 - [ ] 원문 프로젝트 접근은 본인 계정만(워크스페이스에 다른 멤버를 초대하지 않는다).
 - [ ] (확인) Gemini run 의 비용 표시 — OpenAI 는 표시됨(입력 4,907 토큰 $0.0005). Gemini 가 안 나오면 모델 단가 등록이 필요할 수 있다.
 - [ ] 원문 디버깅이 끝난 프로젝트는 필요 없으면 프로젝트째 삭제.

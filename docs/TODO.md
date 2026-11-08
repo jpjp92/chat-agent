@@ -419,7 +419,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
 - [x] 차트 P1-2A 출처 분류·`sourceKinds`·`[STATISTICS SOURCING]` 보강 — [DEV_261107](logs/2026/11/DEV_261107.md). 출처에 없는 기관 내세움 금지 한 줄·`smbs.biz` 공식도 완료(11-08, 2/3 → 0/3) — [DEV_261108](logs/2026/11/DEV_261108.md)
 - [x] 차트 연.월 범주(`2026.10`·`26.10`)를 소수로 읽어 선이 뒤엉키던 축 버그 · 모바일 12개월 무스크롤·라벨 간격·툴팁 — [DEV_261107](logs/2026/11/DEV_261107.md)
-- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08). 남은: 턴 ID(L3 확장)·`retry_reason`·L4 실측 · 대시보드 할 일(원문 허용 스위치 삭제·프로젝트 분리 완료 11-08 / 보관 14일(Base) 확인 / 조직 기본도 14일 / 남은: 스위치 Sensitive 해제·Spend limit 설정 권장) · 운영은 고지 먼저 — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08). 남은: 턴 ID(L3 확장)·`retry_reason`·L4 실측 · 대시보드 할 일(원문 허용 스위치 삭제·프로젝트 분리 완료 11-08 / 보관 14일(Base) 확인 / 조직 기본도 14일 / 남은: 스위치 Sensitive 해제 · 무료 플랜 카드 없음이라 과금 없음(5,000/월 상한)) · 운영은 고지 먼저 — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
 - [ ] 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` → T2 루트 메타데이터·커밋 → T3 `chat_messages.trace_id` — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
