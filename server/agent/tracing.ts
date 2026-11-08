@@ -88,7 +88,12 @@ export const usageOf = (outputs: unknown): Usage | null => {
         const ou = x.usage as Record<string, unknown> | undefined;
         if (ou && typeof ou === 'object') {
             const i = num(ou.input_tokens), out = num(ou.output_tokens);
-            if (i !== null || out !== null) return { input_tokens: i ?? 0, output_tokens: out ?? 0, total_tokens: num(ou.total_tokens) ?? (i ?? 0) + (out ?? 0) };
+            if (i !== null || out !== null) {
+                const u: Usage = { input_tokens: i ?? 0, output_tokens: out ?? 0, total_tokens: num(ou.total_tokens) ?? (i ?? 0) + (out ?? 0) };
+                const cached = num((ou.input_tokens_details as Record<string, unknown> | undefined)?.cached_tokens);
+                if (cached) u.input_token_details = { cache_read: cached };
+                return u;
+            }
         }
         const tu = x.tokenUsage as Record<string, unknown> | undefined;
         if (tu && typeof tu === 'object') {
@@ -249,6 +254,18 @@ export const scrubRaw = (v: unknown, depth = 0, ancestors = new WeakSet<object>(
     }
 };
 
+/**
+ * OpenAI Responses 는 요청의 instructions(시스템 지시 약 3만 자)·tools 를 응답에 그대로 되돌려 준다 —
+ * 입력에 이미 있으니 원문 모드 출력에선 뺀다(run 크기·전송량이 2배가 됐다, 11-08 실화면).
+ */
+const OUTPUT_ECHO_KEYS = new Set(['instructions', 'tools']);
+const stripEcho = (v: unknown, depth = 0): unknown => {
+    if (!v || typeof v !== 'object' || Array.isArray(v) || depth > 3) return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) if (!OUTPUT_ECHO_KEYS.has(k)) out[k] = stripEcho(x, depth + 1);
+    return out;
+};
+
 /** 전송 직전 run 정리 — 허용 키만 남기고 원문 자리는 비운다(원문 모드는 입출력·오류를 줄여서 남긴다) */
 export const sanitizeRun = (run: Run, raw = false): Run => {
     const out: Run = {};
@@ -259,7 +276,7 @@ export const sanitizeRun = (run: Run, raw = false): Run => {
     const groundingSources = groundingCountOf(run.outputs);
     if (raw) {
         if ('inputs' in out) out.inputs = scrubRaw(out.inputs);
-        if ('outputs' in out) out.outputs = scrubRaw(out.outputs);
+        if ('outputs' in out) out.outputs = scrubRaw(stripEcho(out.outputs));
         if (typeof out.error === 'string') out.error = redactText(out.error.slice(0, 2000));
     } else {
         if ('inputs' in out) out.inputs = HIDDEN;

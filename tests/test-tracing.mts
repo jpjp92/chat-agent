@@ -175,6 +175,9 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     check('scrubRaw: 검색 칩·HTTP 헤더·서명 제거', !/renderedContent|sdkHttpResponse|thoughtSignature|SIGSIG/.test(gr), gr);
     check('scrubRaw: 리다이렉트 주소 → [redirect], 도메인·검색어 유지', !gr.includes('AUZIYQ') && gr.includes('"uri":"[redirect]"') && gr.includes('yna.co.kr') && gr.includes('주요 뉴스'), gr);
     check('Gemini 캐시 토큰 → input_token_details.cache_read', JSON.stringify(usageOf({ usageMetadata: { promptTokenCount: 6021, candidatesTokenCount: 785, totalTokenCount: 6806, cachedContentTokenCount: 1094 } })) === '{"input_tokens":6021,"output_tokens":785,"total_tokens":6806,"input_token_details":{"cache_read":1094}}');
+    check('OpenAI 캐시 토큰 → cache_read', JSON.stringify(usageOf({ usage: { input_tokens: 4907, output_tokens: 19, total_tokens: 4926, input_tokens_details: { cached_tokens: 4775 } } })) === '{"input_tokens":4907,"output_tokens":19,"total_tokens":4926,"input_token_details":{"cache_read":4775}}');
+    const echo = JSON.stringify(sanitizeRun({ id: '9', inputs: { instructions: '시스템지시원문', tools: [{ name: 't' }] }, outputs: { outputs: { instructions: '시스템지시원문', tools: [{ name: 't' }], output: [{ type: 'function_call' }] } } }, true));
+    check('원문 출력: OpenAI instructions·tools 되돌림 제거, 입력은 유지', (echo.match(/시스템지시원문/g) || []).length === 1 && echo.includes('function_call'), echo);
     check('scrubRaw 가 문자열 안 민감정보도 가림', JSON.stringify(scrubRaw({ q: '연락처 010-2222-3333' })).includes('[phone]'));
     const rr = sanitizeRun({ id: '5', inputs: { q: '합성 질문' }, outputs: { a: '합성 답' }, error: 'ApiError: 상세 사유', events: [{ x: 1 }] }, true);
     const rjs = JSON.stringify(rr);
