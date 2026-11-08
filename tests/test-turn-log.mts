@@ -31,6 +31,11 @@ check('boolean 아닌 search → other', weird.search === 'other');
 check('모델 모르면 강등 판정 null', weird.modelDowngraded === null);
 const fence = parse(buildTurnLog({ text: '```json:evil_name\n{}\n```', outcome: 'ok' }));
 check('모델이 지은 펜스 이름 → other', JSON.stringify(fence.blocks) === '{"other":{"n":1,"ok":1}}', JSON.stringify(fence.blocks));
+// 턴 ID — UUID 만 통과, 다른 값은 null(세션 ID·문장이 이 칸으로 새지 않게)
+const tid = '0f8fad5b-d9cb-469f-a165-70867728950e';
+check('traceId: UUID 는 그대로', parse(buildTurnLog({ traceId: tid, outcome: 'ok' })).traceId === tid);
+check('traceId: UUID 아니면 null', parse(buildTurnLog({ traceId: 'user@example.com', outcome: 'ok' })).traceId === null
+    && parse(buildTurnLog({ traceId: tid + '\n[turn] {}', outcome: 'ok' })).traceId === null && parse(buildTurnLog({ outcome: 'ok' })).traceId === null);
 const dg = parse(buildTurnLog({ model: 'gemini-2.5-flash', requestedModel: 'gemini-3.8-flash', outcome: 'ok' }));
 check('검색 강등 판정', dg.modelDowngraded === true);
 
@@ -48,7 +53,7 @@ check('오류 메시지 대신 코드만', parse(line).errCode === 'server' && !
 check('ms 정수화', parse(line).ms === 1235);
 
 // ④ 키 집합 고정 — 새 필드는 계획 문서·이 목록을 함께 고쳐야 들어온다
-const KEYS = ['v', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'errCode'];
+const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'errCode'];
 check('키 집합이 허용 목록과 같다', JSON.stringify(Object.keys(parse(line))) === JSON.stringify(KEYS), Object.keys(parse(line)).join(','));
 check('ok 경로엔 errCode 없음', !('errCode' in parse(buildTurnLog({ outcome: 'ok' }))));
 

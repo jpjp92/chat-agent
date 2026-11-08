@@ -90,6 +90,8 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       // [turn] 로그 — 종료 경로마다 결과만 정하고 finally 에서 한 번 남긴다(PLAN_TURN_LOG_261105)
       const turnStartedAt = Date.now();
+      // 턴 ID — LangSmith 루트 run ID·[turn]·chat_messages 를 잇는다. 서버가 만들고 클라이언트 값은 받지 않는다(PLAN_TRACE_ID_261108)
+      const traceId = crypto.randomUUID();
       let turnOutcome: 'ok' | 'empty' | 'error' | 'url_fetch_failed' = 'ok';
       let turnErr: unknown;
       let turnState: DispatchState | null = null;
@@ -215,7 +217,7 @@ export async function POST(req: NextRequest) {
         turnState = st;
         const graph = compileAgentGraph(systemInstruction, isYoutubeRequest, dispatch.trackingEvent, langName);
         // 추적은 꺼져 있으면 빈 배열 — 켜져 있으면 원문을 걷어내는 추적기(server/agent/tracing.ts)
-        const streamEvents = await graph.streamEvents(initialState, { version: 'v2', callbacks: traceCallbacks() });
+        const streamEvents = await graph.streamEvents(initialState, { version: 'v2', callbacks: traceCallbacks(), runId: traceId });
 
         if (isYoutubeFromPrompt) {
           st.allSources.push({ title: 'YouTube Video', uri: `https://www.youtube.com/watch?v=${ytMatch![1]}` });
@@ -274,7 +276,7 @@ export async function POST(req: NextRequest) {
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
           search: ts?.turn.search, searchBy: ts?.turn.searchBy,
           sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
-          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr,
+          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr, traceId,
         });
         clearInterval(heartbeatInterval);
         process.off('unhandledRejection', unhandledRejectionGuard);

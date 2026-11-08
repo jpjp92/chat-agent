@@ -79,7 +79,12 @@ interface TurnLogInput {
     ms?: unknown;
     outcome?: unknown;
     err?: unknown;
+    // 턴 ID — LangSmith 루트 run ID·chat_messages.trace_id 와 같은 값(PLAN_TRACE_ID_261108).
+    // 매 턴 새 무작위 UUID 라 사용자·세션과 이어지지 않는다 — 로그의 유일한 식별자 예외(11-08 결정)
+    traceId?: unknown;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const buildTurnLog = (i: TurnLogInput): string => {
     try {
@@ -88,6 +93,8 @@ export const buildTurnLog = (i: TurnLogInput): string => {
         const outcome = pick(OUTCOMES, i.outcome);
         const line: Record<string, unknown> = {
             v: 1,
+            // UUID 형식이 아니면 버린다 — 다른 값(세션 ID·문장)이 이 칸으로 새지 않게
+            traceId: typeof i.traceId === 'string' && UUID_RE.test(i.traceId) ? i.traceId : null,
             intent: pick(INTENTS, i.intent),
             intentFrom: pick(INTENT_FROM, i.intentFrom),
             provider: pick(PROVIDERS, i.provider),
