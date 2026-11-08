@@ -100,6 +100,13 @@
 | `LANGSMITH_HIDE_INPUTS`·`HIDE_OUTPUTS` | `true` | `true` |
 | `LANGSMITH_TRACING_SAMPLING_RATE` | `1.0` | `1.0` |
 
-**운영 프로젝트 `chat-agent` 에는 넣지 않는다**(L4 에서 지연·누락 측정 후). `chat-agent-dev` 는 `VERCEL_ENV=production` 이라 **원문 모드는 배포 dev 에서도 켜지지 않는다**(허용 스위치가 있어도 코드가 막는다) — 원문 디버깅은 로컬에서만. 그래서 `CHAT_TRACING_RAW` 계열은 Vercel 에 넣지 않는다(11-08 정정: 처음엔 Preview/Development 만이라 적었으나 그러면 dev 배포에서 추적이 아예 안 켜진다).
+**운영 프로젝트 `chat-agent` 에는 넣지 않는다**(L4 에서 지연·누락 측정 후). 11-08 정정: 처음엔 Preview/Development 만이라 적었으나 그러면 dev 배포에서 추적이 아예 안 켜진다.
+
+**배포 dev 원문 모드(11-08 1단계)** — 관리 목적으로 dev 웹 대화도 마스킹해 보려는 것.
+- 판정을 환경에서 **브랜치**로: `CHAT_TRACING_RAW=true` + `CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` + `VERCEL_GIT_COMMIT_REF=dev`. `main`·브랜치 모름은 막는다(`chat-agent-dev` 도 `VERCEL_ENV=production` 이라 환경으로는 못 가른다).
+- **턴 단위 제외**: `medical_qa`·`drug_info`·`drug_id`·`hospital_search`·`pharmacy_search`·`law_qa` 의도, 첨부 있는 턴은 원문 모드여도 숨김 — 병명·사정은 형태 패턴으로 못 가린다. 의도는 라우터 뒤에야 나오므로 정리 Client 가 trace 를 **루트 run 이 끝날 때까지 보류**했다가 루트 출력(의도·첨부)으로 정해 한꺼번에 보낸다. 루트가 안 끝난 trace 는 10분 뒤(또는 보류 50개 초과 시) 숨김으로.
+- 마스킹 추가: 일반 전화(02·031…), 주소(도로명 번호·지번·동호수).
+- Vercel(`chat-agent-dev`, Production): `CHAT_TRACING_RAW=true`·`LANGSMITH_PROJECT_RAW=chat-agent-dev-vercel-raw` 상시, **`CHAT_TRACING_RAW_ALLOW_DEPLOYED=true` 를 실제 스위치로** — 볼 때만 넣고 뺀다. 원문 프로젝트 보관 기간은 짧게(14일).
+- 2단계(운영): L4 측정 → 개인정보처리방침에 LangSmith(미국) 처리 위탁·국외 이전·보관 기간 고지 → 별도 스위치·샘플링.
 
 배포 확인(11-08, `chat-agent-dev` 숨김 모드): 루트·노드 입출력 `{}`, `gemini.router` 2.5-flash 3,267/52 토큰, `gemini.single` 3.8-flash 7,106/553 토큰 — 응답 뒤 `after()` 전송이 서버리스에서도 도착. 남은: `LANGSMITH_PROJECT` 를 `chat-agent-dev-vercel` 로(지금은 로컬과 같은 이름이라 섞인다).
