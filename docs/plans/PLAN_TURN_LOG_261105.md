@@ -44,6 +44,7 @@
 | `chars` | 정수 | `fullAiResponse.length` |
 | `ms` | 정수 | route 시작~종료 |
 | `outcome` | `ok` · `empty` · `error` · `url_fetch_failed` | route 각 종료 경로 |
+| `retries` · `retryReasons` | 재시도·강등 횟수(상한 20)와 사유 목록(중복 없음): `rate_limit`·`timeout`·`unavailable`·`auth`·`media_error`·`empty`·`malformed_call`·`tool_code`·`primary_failed`, 밖은 `other`. Gemini SDK 경로만(OpenAI·LangChain 경로 재시도는 아직 안 셈) | generator `noteRetry` → `turnRetry` 내부 이벤트 → stream-dispatch(클라이언트로 안 나감), 11-09 |
 | `errCode` | 공급자 오류의 `status`/`code` 중 허용 목록 값, 아니면 `other` | catch 경로만 |
 
 ## 3. 보안·개인정보 원칙 (구현 체크리스트)
