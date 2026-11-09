@@ -1,6 +1,8 @@
 # 에러 처리 구조
 
-> v4.76 기준 · 최종 검토: 2026-05-10
+> v4.76 기준 · 최종 검토: 2026-05-10 · **11-10 경로·분류 이름만 현행화**(흐름 상세는 5월 기준 — 바뀐 곳은 코드가 우선)
+>
+> **코드 값 목록·원인별 대응표·어긋남은 [REF_ErrorCodes](../guide/REF_ErrorCodes.md)** — 이 문서는 흐름(누가 던지고 누가 잡는가)만 다룬다.
 
 ---
 
@@ -35,7 +37,7 @@
 
 ---
 
-## 1. API 키 관리 — `api/_lib/config.ts`
+## 1. API 키 관리 — `server/config.ts`
 
 ```
 getNextApiKey()
@@ -50,7 +52,7 @@ getNextApiKey()
 | caller | 처리 |
 |--------|------|
 | `router.ts` | 키 없이도 휴리스틱 fallback으로 intent 분류 |
-| `generator.ts` | `throw Error("No API key available")` → `chat.ts` catch → `rateLimit` 메시지 |
+| `generator.ts` | `throw Error("No API key available")` → `app/api/chat/route.ts` catch → `rate_limit` 메시지 |
 
 쿨다운 만료 키는 다음 호출 시 `rateLimitedUntil` 맵에서 자동 삭제되어 복구된다.
 
@@ -89,7 +91,7 @@ getNextApiKey()
 
 ## 3. LangGraph 에이전트
 
-### `chat.ts` — 최상위 진입점
+### `app/api/chat/route.ts` — 최상위 진입점 (옛 `api/chat.ts`)
 
 ```
 진입
@@ -106,16 +108,15 @@ getNextApiKey()
        │   └─ on_tool_end(pharmacy) → Direct Injection → sendEvent({ text })
        │
        ├─ catch(error)
-       │   ├─ 429 / RESOURCE_EXHAUSTED / No API key → CHAT_ERRORS.rateLimit[lang]
-       │   ├─ 503 / UNAVAILABLE                     → CHAT_ERRORS.unavailable[lang]
-       │   ├─ 401 / 403                             → CHAT_ERRORS.auth[lang]
-       │   └─ 그 외                                 → CHAT_ERRORS.generic[lang]
+       │   ├─ classifyChatError(server/chat-error-policy.ts) → forGuest(게스트 포화 → guest_capacity)
+       │   │    safety · openai_quota · rate_limit · daily_exhausted · unavailable · auth · generic
+       │   └─ CHAT_ERRORS[분류][lang] (분류 목록·조건: REF_ErrorCodes §2)
        │   → sendEvent({ error: 다국어 메시지 })
        │
        └─ finally: clearInterval(heartbeatInterval) + res.end()
 ```
 
-`CHAT_ERRORS`는 ko / en / es / fr 4개 언어 × 4개 타입 맵으로 내부 정보 없이 사용자 메시지만 전달한다.
+`CHAT_ERRORS`는 ko / en / es / fr 4개 언어 × 8개 분류 맵으로(키를 `ChatErrorType` 으로 묶어 어긋나면 컴파일에서 걸린다) 내부 정보 없이 사용자 메시지만 전달한다.
 
 ### `generator.ts` — SDK path 재시도 루프
 
@@ -130,7 +131,7 @@ while (sdkAttempt < MAX_KEY_RETRIES)
 
 모든 키 소진 또는 루프 탈출
   └─ LangChain path fallback 시도
-       └─ LangChain도 실패 → throw → chat.ts catch
+       └─ LangChain도 실패 → throw → route.ts catch
 ```
 
 `chunk.text` 읽기 실패(SDK SAFETY 차단 등)는 `try/catch`로 `console.warn` 후 조용히 건너뜀.

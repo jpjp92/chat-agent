@@ -13,6 +13,7 @@
 | [한 줄 요약](REF_OneLineSummary.md) | 응답 맨 위 `한 줄 요약` — **경로별로 나오는지·안 나오는지·구조**, 알려진 불일치(YouTube 자막 경로) | 2026-10-10 신규 |
 | [Auth](REF_Auth.md) | 게스트 → **Google(GIS ID 토큰)·카카오(리다이렉트)**, link/signIn·충돌·해시 제거 규칙 + **Google Cloud·Supabase·Kakao Developers 콘솔 설정** | 2026-10-12 신규 |
 | [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블, Storage, URL 캐시, MFDS | 2026-08-23 현행화 |
+| [ErrorCodes](REF_ErrorCodes.md) | 에러·결과 코드 한곳 — 사용자 분류·`[turn]` errCode·outcome·재시도 사유·OpenAI 내부 코드·`[trace]` 상태, 원인별 대응표·어긋남, 표기 규칙(값 snake_case) | 2026-11-10 신규 |
 | [Document](REF_Document.md) | 업로드, HWP 파싱, PDF(GPT 직접 `input_file`)·영상 capability fallback | 2026-10-11 GPT PDF 직접 |
 | [Search Routing](REF_SearchRouting.md) | 검색 on/off tier 정책(공급자별 400), 이미지+검색 탈출구, 논문↔소프트웨어 산출물 3층 방어 + **테스트 질의 카탈로그** | 2026-09-03 신규 |
 | [라우터 정답 기준](REF_ROUTER_LABELS.md) | 라우터 의도 **정답 라벨 정의** — 사람과 LLM judge 가 같은 기준을 본다. "사용자가 무엇을 받고 싶은가" 원칙, 렌더러·조회 의도 경계, `alt` 로 둘 다 인정하는 경우 | 2026-10-23 신규 |
