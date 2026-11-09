@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
       if (session_id) {
         const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;
         db.from('chat_messages').insert({
-          session_id, role: 'user', content: prompt,
+          session_id, role: 'user', content: prompt, trace_id: traceId,
           attachment_url: mainAttachment?.storageUrl || (mainAttachment?.data?.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null))
         }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', dbErrorSummary(error)); });
       }
@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
           sendEvent({ text: failMsg });
           sendEvent({ done: true });
           if (session_id) {
-            db.from('chat_messages').insert({ session_id, role: 'assistant', content: failMsg, grounding_sources: null })
+            db.from('chat_messages').insert({ session_id, role: 'assistant', content: failMsg, grounding_sources: null, trace_id: traceId })
             .then(({ error }) => { if (error) console.error('[Chat API] DB save failed:', error); });
           }
           return;
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
           try {
             const { error: msgError } = await db.from('chat_messages').insert({
               session_id, role: 'assistant', content: fullAiResponse,
-              grounding_sources: allSources.length > 0 ? allSources : null
+              grounding_sources: allSources.length > 0 ? allSources : null, trace_id: traceId,
             });
             if (msgError) console.error('[Chat API] Assistant message save error:', dbErrorSummary(msgError));
           } catch (dbError: any) {
