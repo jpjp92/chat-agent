@@ -50,12 +50,14 @@ create table public.chat_messages (
   content           text not null,
   attachment_url    text,
   grounding_sources jsonb,
-  created_at        timestamptz not null default now()
+  created_at        timestamptz not null default now(),
+  trace_id          uuid  -- 턴 ID(같은 턴 user·assistant 공통) — chat-messages-trace-id.sql
 );
 
 -- 사이드바 정렬(updated_at desc) / 메시지 조회(created_at asc) 경로
 create index chat_sessions_user_updated_idx on public.chat_sessions (user_id, updated_at desc);
 create index chat_messages_session_created_idx on public.chat_messages (session_id, created_at);
+create index chat_messages_trace_id_idx on public.chat_messages (trace_id) where trace_id is not null;
 
 
 -- ── §2. 트리거 ──────────────────────────────────────────────────────────────

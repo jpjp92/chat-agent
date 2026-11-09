@@ -79,6 +79,10 @@ LangChain 추적기가 `runId` 를 루트에 쓰지 않으면, langsmith 내부�
 - 필드는 `turnFields()`(turn-log) → `turnMetaOf()`(tracing) 한 경로로 만든다. 보류·턴 값은 `traceId` 별이고, 응답 뒤 flush 는 그 요청의 trace 만 바로 보낸다.
 - 배포 확인(`c0e1693`): 루트 Metadata 에 턴 값·`commit` 이 붙었고, 기존 `ls_run_depth`·`LANGSMITH_*` 도 남았다(서버가 병합한다). 입출력 숨김.
 
+### T3 (11-09) — SQL·코드 준비, dev DB 적용 대기
+- `docs/guide/db/chat-messages-trace-id.sql` · route.ts 세 insert. 진행 상황은 [DEV_261109](../logs/2026/11/DEV_261109.md) §4.
+- [x] dev DB SQL 실행(11-09, 인덱스 확인) → [ ] dev 배포·실화면(한 턴의 두 행이 같은 `trace_id` = `[turn].traceId`) → [ ] **운영 DB SQL** → [ ] main 반영
+
 ## 4. 조회 (T3 이후, 관리자)
 
 ```sql

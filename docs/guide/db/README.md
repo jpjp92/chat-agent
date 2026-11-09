@@ -27,6 +27,7 @@ Supabase → SQL Editor 에 **전문을 붙여넣고 Run**. 순서를 지킬 것
 | 7 | `tts-quota.sql` | `/api/speech` 회원 일일 한도 + 게스트 차단 | 🔴 **코드 배포보다 먼저** — 없으면 `/api/speech` 가 500(fail-closed). 비용이 오디오 길이에 비례해 **호출 수가 아니라 글자 수**로 센다 |
 | 8 | `session-activity.sql` | 메시지 저장 시 세션 `updated_at` 갱신 트리거 + 기존 데이터 1회 보정 | 사이드바 "마지막 대화 순". 여러 번 실행해도 안전 |
 | 9 | `aux-quota.sql` | 보조 라우트(fetch-url·sync-drug-image·showtimes) 게스트 일일 한도 | 🔴 **코드 배포보다 먼저** — 없으면 게스트 요청이 503. RLS 켜고 정책 없음, RPC 만 |
+| 10 | `chat-messages-trace-id.sql` | `chat_messages.trace_id`(턴 ID) + 부분 인덱스 | 🔴 **코드 배포보다 먼저** — 없으면 메시지 저장이 실패. dev·운영 **각각** 실행(운영은 main 반영 전). 1~9 를 새로 세웠다면 1 에 이미 들어 있어 건너뛰어도 되고, 다시 실행해도 안전 |
 
 인증 컷오버(프로덕션)는 `auth-mvp-preflight-prod.sql` → `auth-mvp-cutover-prod.sql` → `auth-mvp-verify-prod.sql` 순서를
 따로 탄다. `auth-mvp-sync-trigger.sql` · `auth-mvp-identity-sync.sql` · `auth-mvp-guest-limit.sql` 은 그 부속이다.
