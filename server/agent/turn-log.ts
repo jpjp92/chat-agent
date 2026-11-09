@@ -16,6 +16,11 @@ const SEARCH_BY = ['router-llm', 'user-explicit', 'followup-guard', 'followup-de
 const BLOCKS = ['chart', 'diagram', 'smiles', 'bio', 'constellation', 'drug', 'weather', 'law', 'physics'] as const;
 const OUTCOMES = ['ok', 'empty', 'error', 'url_fetch_failed'] as const;
 const ERR_CODES = ['timeout', 'rate_limit', 'unavailable', 'bad_request', 'auth', 'server'] as const;
+// 재시도·강등 사유 — generator 가 다시 부를 때마다 하나씩 알린다(stream-dispatch 가 모은다)
+export const RETRY_REASONS = ['rate_limit', 'timeout', 'unavailable', 'auth', 'media_error', 'empty', 'malformed_call', 'tool_code', 'primary_failed'] as const;
+export type RetryReason = (typeof RETRY_REASONS)[number];
+// 한 턴의 재시도는 키 수·강등으로 묶여 많아야 몇 번이다 — 이상값이 로그를 키우지 않게 자른다
+const MAX_RETRY_LOG = 20;
 // models.ts 는 server-only 라 하니스가 못 불러온다 — 목록 대신 형태로 제한(줄바꿈·따옴표·공백 불가)
 const MODEL_RE = /^(?:gemini|gpt)-[a-z0-9.-]{1,40}$/;
 const pickModel = (v: unknown): string => (typeof v === 'string' && MODEL_RE.test(v) ? v : 'other');
@@ -79,10 +84,17 @@ interface TurnLogInput {
     ms?: unknown;
     outcome?: unknown;
     err?: unknown;
+    // 재시도·강등 사유 목록(발생 순). 열거값 밖은 other
+    retries?: unknown;
     // 턴 ID — LangSmith 루트 run ID·chat_messages.trace_id 와 같은 값(PLAN_TRACE_ID_261108).
     // 매 턴 새 무작위 UUID 라 사용자·세션과 이어지지 않는다 — 로그의 유일한 식별자 예외(11-08 결정)
     traceId?: unknown;
 }
+
+const retryFields = (v: unknown): { retries: number; retryReasons: string[] } => {
+    const list = Array.isArray(v) ? v.slice(0, MAX_RETRY_LOG).map(x => pick(RETRY_REASONS, x)) : [];
+    return { retries: list.length, retryReasons: [...new Set(list)] };
+};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -108,6 +120,7 @@ export const turnFields = (i: TurnLogInput): Record<string, unknown> => {
         chars: typeof i.text === 'string' ? i.text.length : 0,
         ms: int(i.ms),
         outcome,
+        ...retryFields(i.retries),
     };
     if (outcome === 'error') line.errCode = errCodeOf(i.err);
     return line;

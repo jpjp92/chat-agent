@@ -53,7 +53,7 @@ check('오류 메시지 대신 코드만', parse(line).errCode === 'server' && !
 check('ms 정수화', parse(line).ms === 1235);
 
 // ④ 키 집합 고정 — 새 필드는 계획 문서·이 목록을 함께 고쳐야 들어온다
-const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'errCode'];
+const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'retries', 'retryReasons', 'errCode'];
 check('키 집합이 허용 목록과 같다', JSON.stringify(Object.keys(parse(line))) === JSON.stringify(KEYS), Object.keys(parse(line)).join(','));
 check('ok 경로엔 errCode 없음', !('errCode' in parse(buildTurnLog({ outcome: 'ok' }))));
 
@@ -69,6 +69,13 @@ d.trackingEvent({ turnMeta: { provider: 'gemini', model: 'gemini-3.8-flash', sea
 d.trackingEvent({ turnMeta: { model: 'gemini-2.5-flash' } });
 check('turnMeta 는 클라이언트로 안 나간다', sent.length === 0, JSON.stringify(sent));
 check('turnMeta 는 뒤 값이 이긴다(폴백 모델)', d.state.turn.model === 'gemini-2.5-flash' && d.state.turn.search === true);
+d.trackingEvent({ turnRetry: 'rate_limit' }); d.trackingEvent({ turnRetry: 'timeout' }); d.trackingEvent({ turnRetry: 'rate_limit' });
+check('turnRetry 는 클라이언트로 안 나가고 발생 순으로 모인다', sent.length === 0 && JSON.stringify(d.state.turn.retries) === '["rate_limit","timeout","rate_limit"]', JSON.stringify(d.state.turn.retries));
+// 재시도 사유 — 횟수는 전부, 사유는 중복 없이·열거값 밖은 other·상한
+const rl = parse(buildTurnLog({ outcome: 'ok', retries: ['rate_limit', 'timeout', 'rate_limit', 'Error: user@example.com'] }));
+check('retries 횟수·retryReasons 중복 없이·밖은 other', rl.retries === 4 && JSON.stringify(rl.retryReasons) === '["rate_limit","timeout","other"]' && !JSON.stringify(rl).includes('example.com'), JSON.stringify(rl));
+check('재시도 없으면 0·빈 목록', parse(buildTurnLog({ outcome: 'ok' })).retries === 0 && JSON.stringify(parse(buildTurnLog({ outcome: 'ok' })).retryReasons) === '[]');
+check('재시도 기록 상한 20', parse(buildTurnLog({ outcome: 'ok', retries: Array(500).fill('empty') })).retries === 20);
 
 // 오류 코드 분류
 check('429 → rate_limit', errCodeOf({ status: 429 }) === 'rate_limit');

@@ -27,7 +27,7 @@ type Run = Record<string, unknown>;
 const META_KEYS = new Set(['langgraph_node', 'langgraph_step', 'langgraph_triggers', 'ls_provider', 'ls_model_name',
     'ls_model_type', 'ls_temperature', 'ls_max_tokens',
     // llmSpan 이 붙이는 값 — 호출 종류(열거)·시도 번호·검색 여부·출처 개수
-    'call', 'attempt', 'search', 'grounding_sources']);
+    'call', 'attempt', 'search', 'grounding_sources', 'retry_reason']);
 // 태그는 내부 열거값만(`seq:step:1`·`graph:step:2`·노드명·내부 LLM 표시) — 길이·문자 제한
 const TAG_RE = /^[a-z0-9_:.-]{1,40}$/i;
 const RUN_KEYS = new Set(['id', 'name', 'run_type', 'start_time', 'end_time', 'parent_run_id', 'trace_id', 'dotted_order',
@@ -380,7 +380,7 @@ const TURN_META_WAIT_MS = 30_000;
 
 /** 루트 run 메타데이터 = [turn] 값(T2, PLAN_TRACE_ID_261108). 이미 열거·정수로 정리된 값에서 키·형태를 다시 고른다 */
 type TurnMeta = Record<string, string | number | boolean>;
-const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode'];
+const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode', 'retries'];
 export const turnMetaOf = (fields: unknown): TurnMeta => {
     const out: TurnMeta = {};
     const f = (fields && typeof fields === 'object' ? fields : {}) as Record<string, unknown>;
@@ -394,6 +394,8 @@ export const turnMetaOf = (fields: unknown): TurnMeta => {
     // LangSmith 필터는 평평한 키가 쉽다
     const kinds = f.sourceKinds as Record<string, unknown> | null | undefined;
     if (kinds && typeof kinds === 'object') for (const k of ['official', 'secondary', 'other']) put(`sources_${k}`, kinds[k]);
+    // 재시도 사유는 사유마다 불리언 — LangSmith 메타데이터 필터는 배열 포함 검색이 어렵다
+    if (Array.isArray(f.retryReasons)) for (const r of f.retryReasons) if (typeof r === 'string' && TAG_RE.test(r)) out[`retry_${r}`] = true;
     // 어느 배포의 답인지 — 회귀를 커밋으로 가른다
     out.commit = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7).replace(/[^0-9a-f]/g, '') || 'local';
     return out;
@@ -569,7 +571,7 @@ type LlmCall = 'router' | 'stage1' | 'stage1_retry' | 'single' | 'single_retry' 
  */
 export const llmSpan = <T>(
     provider: 'gemini' | 'openai',
-    meta: { call: LlmCall; model: string; search?: boolean; attempt?: number },
+    meta: { call: LlmCall; model: string; search?: boolean; attempt?: number; retryReason?: string },
     fn: () => Promise<T>,
     input?: () => Record<string, unknown>,
 ): Promise<T> => {
@@ -581,6 +583,7 @@ export const llmSpan = <T>(
     };
     if (meta.search !== undefined) metadata.search = meta.search;
     if (meta.attempt !== undefined) metadata.attempt = meta.attempt;
+    if (meta.retryReason) metadata.retry_reason = meta.retryReason;
     const run = traceable((_in?: Record<string, unknown>) => fn(), {
         name: `${provider}.${meta.call}`, run_type: 'llm', client: c, tracingEnabled: true,
         project_name: projectName(c.raw), metadata,
@@ -602,8 +605,9 @@ export const traceGemini = <P extends GeminiParams, R>(
     models: { generateContent: (p: P) => Promise<R> },
     params: P,
     attempt?: number,
+    retryReason?: string, // 이 호출이 재시도라면 왜 — turn-log RETRY_REASONS
 ): Promise<R> => llmSpan('gemini', {
-    call, model: params.model, attempt,
+    call, model: params.model, attempt, retryReason,
     search: Array.isArray(params.config?.tools) && params.config!.tools!.some(t => !!t && typeof t === 'object' && 'googleSearch' in (t as object)),
 }, () => models.generateContent(params), () => ({ ...params }));
 

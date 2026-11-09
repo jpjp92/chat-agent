@@ -40,7 +40,7 @@ export interface DispatchState {
     /** 마지막으로 보낸 진행 상태 — 같은 상태를 두 번 보내지 않는다(재시도 루프가 검색을 다시 켜도). */
     lastStatus: string;
     /** [turn] 로그 재료 — 클라이언트로 보내지 않는다(turn-log.ts 가 열거값으로 다시 거른다) */
-    turn: { intentFrom?: string; provider?: string; model?: string; search?: boolean; searchBy?: string };
+    turn: { intentFrom?: string; provider?: string; model?: string; search?: boolean; searchBy?: string; retries?: string[] };
 }
 
 export interface StreamDispatch {
@@ -268,6 +268,7 @@ export function createStreamDispatch(
     const trackingEvent = (data: any) => {
         // 내부 전용 — 생성기가 실제 모델·검색 판정을 알린다. 클라이언트 SSE 로 새지 않게 여기서 끊는다
         if (data?.turnMeta) { Object.assign(st.turn, data.turnMeta); return; }
+        if (typeof data?.turnRetry === 'string') { (st.turn.retries ??= []).push(data.turnRetry); return; }
         if (data?.text) st.fullAiResponse += data.text;
         sendEvent(data);
     };

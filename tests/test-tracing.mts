@@ -122,7 +122,7 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const models = { generateContent: async (_p: unknown) => resp };
     const S2 = Annotation.Root({ q: Annotation<string>() });
     const g2 = new StateGraph(S2).addNode('generator', async () => {
-        const out = await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: '비밀질문', config: { tools: [{ googleSearch: {} }] } } as any, 1);
+        const out = await traceGemini('single', models, { model: 'gemini-3.8-flash', contents: '비밀질문', config: { tools: [{ googleSearch: {} }] } } as any, 1, 'rate_limit');
         check('켜짐: 반환값이 원본 객체', out === resp);
         return {};
     }).addEdge(START, 'generator').addEdge('generator', END).compile();
@@ -134,7 +134,7 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const gen = runs.find(r => r.name === 'generator'), llm = runs.find(r => r.name === 'gemini.single');
     check('gemini.single 이 generator 의 자식', !!gen && !!llm && llm.parent_run_id === gen.id, JSON.stringify(runs.map(r => r.name)));
     const meta = [...all2.matchAll(/name="post\.[^".]+\.extra"\r?\n[^\r\n]*\r?\n\r?\n([^\r\n]*)/g)].map(m => m[1]).find(x => x.includes('"call":"single"')) ?? '';
-    check('메타데이터: 모델·호출·검색·시도', /"ls_model_name":"gemini-3\.8-flash"/.test(meta) && /"search":true/.test(meta) && /"attempt":1/.test(meta), meta);
+    check('메타데이터: 모델·호출·검색·시도·재시도 사유', /"ls_model_name":"gemini-3\.8-flash"/.test(meta) && /"search":true/.test(meta) && /"attempt":1/.test(meta) && /"retry_reason":"rate_limit"/.test(meta), meta);
     check('메타데이터: 토큰·출처 개수', meta.includes('"usage_metadata":{"input_tokens":20,"output_tokens":5,"total_tokens":25}') && meta.includes('"grounding_sources":3'), meta);
     check('L2 전송에 원문 없음', !/비밀/.test(all2));
     process.env = saved3;
@@ -352,6 +352,8 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const mA = metaOf(idA), mB = metaOf(idB);
     check('숨김 T2: 동시 두 턴의 값이 섞이지 않음', mA?.intent === 'weather' && mB?.intent === 'general' && mA?.model === 'gpt-6-luna' && mB?.model === 'gemini-3.8-flash', JSON.stringify({ mA, mB }));
     check('숨김 T2: 필드(search 불리언·출처 성격 평평하게·commit)', mB?.search === true && mB?.searchBy === 'router-llm' && mB?.sources === 3 && mB?.sources_official === 1 && mB?.outcome === 'empty' && mB?.modelDowngraded === false && mB?.commit === 'local', JSON.stringify(mB));
+    const mR = turnMetaOf({ outcome: 'ok', retries: 3, retryReasons: ['rate_limit', 'timeout', 'Bad Value!'] });
+    check('T2 재시도: retries 수·사유별 불리언·형식 밖 사유 제외', mR.retries === 3 && mR.retry_rate_limit === true && mR.retry_timeout === true && !Object.keys(mR).some(k => k.includes('Bad')), JSON.stringify(mR));
     check('숨김 T2: 객체·원문 값은 안 들어감', mB !== undefined && !('sourceKinds' in mB) && !('blocks' in mB) && !('traceId' in mB));
     const allB = sent.join('\n');
     check('숨김 T2: 원문 없음', !allB.includes('비밀질문') && !allB.includes('합성답'));

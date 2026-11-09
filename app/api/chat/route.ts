@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
           search: ts?.turn.search, searchBy: ts?.turn.searchBy,
           sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
-          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr, traceId,
+          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr, traceId, retries: ts?.turn.retries,
         });
         attachTurnMeta(traceId, turnLogFields);
         clearInterval(heartbeatInterval);
