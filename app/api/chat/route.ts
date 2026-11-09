@@ -10,7 +10,7 @@ import { isDailyQuotaError, isAllKeysDailyExhausted } from '../../../server/conf
 import { runWithKeyTier } from '../../../server/key-tier';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildHistoryMessages, deriveLastTurnSearched, deriveLastTurnSourceLabels } from '../../../server/agent/history';
-import { classifyChatError, forGuest } from '../../../server/chat-error-policy';
+import { classifyChatError, forGuest, type ChatErrorType } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
 import { logTurn } from '../../../server/agent/turn-log';
@@ -26,15 +26,16 @@ export const dynamic = 'force-dynamic';
 // 서울 리전 고정: law.go.kr 등 한국 API 접근성·지연 개선 (기본 iad1 → icn1)
 export const preferredRegion = 'icn1';
 
-const CHAT_ERRORS: Record<string, Record<string, string>> = {
-  rateLimit:      { ko: '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.', en: 'Too many requests. Please try again in a moment.', es: 'Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.', fr: 'Trop de requêtes. Veuillez réessayer dans un instant.' },
-  dailyExhausted: { ko: '오늘의 API 사용량이 모두 소진되었습니다. 내일 다시 이용해주세요.', en: 'Daily API quota has been exhausted. Please try again tomorrow.', es: 'La cuota diaria de API se ha agotado. Por favor, inténtelo mañana.', fr: 'Le quota API journalier est épuisé. Veuillez réessayer demain.' },
-  openAIQuota:    { ko: 'GPT 토큰 할당량이 모두 소진되었습니다. 나중에 다시 시도해주세요.', en: 'The GPT token quota has been exhausted. Please try again later.', es: 'La cuota de tokens de GPT se ha agotado. Inténtelo de nuevo más tarde.', fr: 'Le quota de jetons GPT est épuisé. Veuillez réessayer plus tard.' },
-  unavailable:    { ko: '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.', en: 'Server temporarily unavailable. Please try again shortly.', es: 'Servidor temporalmente no disponible. Por favor, inténtelo de nuevo.', fr: 'Serveur temporairement indisponible. Veuillez réessayer.' },
-  auth:           { ko: '인증 오류가 발생했습니다. 관리자에게 문의해주세요.', en: 'Authentication error. Please contact the administrator.', es: 'Error de autenticación. Por favor, contacte al administrador.', fr: "Erreur d'authentification. Veuillez contacter l'administrateur." },
-  guestCapacity:  { ko: '지금은 무료 이용량이 많아 응답하지 못했습니다. 로그인 후 사용해주세요.', en: 'Free usage is at capacity right now. Please sign in to continue.', es: 'El uso gratuito está al límite en este momento. Inicie sesión para continuar.', fr: "L'utilisation gratuite est saturée pour le moment. Veuillez vous connecter pour continuer." },
-  safety:         { ko: '안전 정책에 의해 응답이 차단되었습니다. 질문을 다르게 표현해보세요.', en: 'Response blocked by safety policy. Please rephrase your question.', es: 'Respuesta bloqueada por política de seguridad. Reformule su pregunta.', fr: 'Réponse bloquée par la politique de sécurité. Reformulez votre question.' },
-  generic:        { ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.', en: 'Failed to generate a response. Please try again.', es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.', fr: 'Échec de la génération de la réponse. Veuillez réessayer.' },
+// 분류(ChatErrorType)마다 문구가 있어야 한다 — 키를 타입으로 묶어 이름이 어긋나면 컴파일에서 걸린다
+const CHAT_ERRORS: Record<ChatErrorType, Record<string, string>> = {
+  rate_limit:      { ko: '요청이 많아 잠시 지연되고 있습니다. 잠시 후 다시 시도해주세요.', en: 'Too many requests. Please try again in a moment.', es: 'Demasiadas solicitudes. Por favor, inténtelo de nuevo en un momento.', fr: 'Trop de requêtes. Veuillez réessayer dans un instant.' },
+  daily_exhausted: { ko: '오늘의 API 사용량이 모두 소진되었습니다. 내일 다시 이용해주세요.', en: 'Daily API quota has been exhausted. Please try again tomorrow.', es: 'La cuota diaria de API se ha agotado. Por favor, inténtelo mañana.', fr: 'Le quota API journalier est épuisé. Veuillez réessayer demain.' },
+  openai_quota:    { ko: 'GPT 토큰 할당량이 모두 소진되었습니다. 나중에 다시 시도해주세요.', en: 'The GPT token quota has been exhausted. Please try again later.', es: 'La cuota de tokens de GPT se ha agotado. Inténtelo de nuevo más tarde.', fr: 'Le quota de jetons GPT est épuisé. Veuillez réessayer plus tard.' },
+  unavailable:     { ko: '서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요.', en: 'Server temporarily unavailable. Please try again shortly.', es: 'Servidor temporalmente no disponible. Por favor, inténtelo de nuevo.', fr: 'Serveur temporairement indisponible. Veuillez réessayer.' },
+  auth:            { ko: '인증 오류가 발생했습니다. 관리자에게 문의해주세요.', en: 'Authentication error. Please contact the administrator.', es: 'Error de autenticación. Por favor, contacte al administrador.', fr: "Erreur d'authentification. Veuillez contacter l'administrateur." },
+  guest_capacity:  { ko: '지금은 무료 이용량이 많아 응답하지 못했습니다. 로그인 후 사용해주세요.', en: 'Free usage is at capacity right now. Please sign in to continue.', es: 'El uso gratuito está al límite en este momento. Inicie sesión para continuar.', fr: "L'utilisation gratuite est saturée pour le moment. Veuillez vous connecter pour continuer." },
+  safety:          { ko: '안전 정책에 의해 응답이 차단되었습니다. 질문을 다르게 표현해보세요.', en: 'Response blocked by safety policy. Please rephrase your question.', es: 'Respuesta bloqueada por política de seguridad. Reformule su pregunta.', fr: 'Réponse bloquée par la politique de sécurité. Reformulez votre question.' },
+  generic:         { ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.', en: 'Failed to generate a response. Please try again.', es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.', fr: 'Échec de la génération de la réponse. Veuillez réessayer.' },
 };
 
 // Supabase 오류의 `details` 에는 제약 위반 값(`Key (session_id)=(…)`)이 그대로 들어간다 — 운영 로그엔 빼고 남긴다

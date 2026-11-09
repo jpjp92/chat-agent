@@ -129,20 +129,21 @@ check('Gemini SDK 요청에 실제 Google 공급자 프로필 주입',
 
 for (const code of OPENAI_QUOTA_ERROR_CODES) {
     check(`OpenAI 영구 소진 코드 분류  ${code}`,
-        classifyChatError({ status: 429, code }) === 'openAIQuota');
+        classifyChatError({ status: 429, code }) === 'openai_quota');
 }
 check('OpenAI 일시적 429는 rate limit 분류',
-    classifyChatError({ status: 429, code: 'rate_limit_exceeded' }) === 'rateLimit');
+    classifyChatError({ status: 429, code: 'rate_limit_exceeded' }) === 'rate_limit');
 
 // 게스트 무료 키 실패는 "로그인 후 사용" 안내(10-10). 로그인과 무관한 실패는 그대로.
-check('게스트 + 429 → guestCapacity', forGuest(classifyChatError({ status: 429 }), true) === 'guestCapacity');
-check('게스트 + 503 → guestCapacity', forGuest(classifyChatError({ status: 503 }), true) === 'guestCapacity');
-check('게스트 + 키 전부 소진 → guestCapacity', forGuest(classifyChatError(new Error('[LangGraph] All API keys exhausted for LangChain path.')), true) === 'guestCapacity');
+check('타임아웃 오류 → unavailable(일반 오류 아님)', classifyChatError(Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })) === 'unavailable' && classifyChatError(Object.assign(new Error('aborted'), { name: 'AbortError' })) === 'unavailable');
+check('게스트 + 429 → guest_capacity', forGuest(classifyChatError({ status: 429 }), true) === 'guest_capacity');
+check('게스트 + 503 → guest_capacity', forGuest(classifyChatError({ status: 503 }), true) === 'guest_capacity');
+check('게스트 + 키 전부 소진 → guest_capacity', forGuest(classifyChatError(new Error('[LangGraph] All API keys exhausted for LangChain path.')), true) === 'guest_capacity');
 check('게스트 + 안전 차단은 그대로', forGuest(classifyChatError({ safetyBlock: true }), true) === 'safety');
-check('게스트 + OpenAI 할당량은 그대로', forGuest(classifyChatError({ status: 429, code: 'insufficient_quota' }), true) === 'openAIQuota');
+check('게스트 + OpenAI 할당량은 그대로', forGuest(classifyChatError({ status: 429, code: 'insufficient_quota' }), true) === 'openai_quota');
 check('게스트 + 일반 오류는 그대로', forGuest(classifyChatError(new Error('boom')), true) === 'generic');
-check('회원 + 429 는 기존 rateLimit', forGuest(classifyChatError({ status: 429 }), false) === 'rateLimit');
-check('route 가 게스트 여부를 넘긴다', fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('profile.is_guest === true') && fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('guestCapacity:'));
+check('회원 + 429 는 기존 rate_limit', forGuest(classifyChatError({ status: 429 }), false) === 'rate_limit');
+check('route 가 게스트 여부를 넘긴다', fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('profile.is_guest === true') && fs.readFileSync('app/api/chat/route.ts', 'utf8').includes('guest_capacity:'));
 
 for (const model of ['gpt-5.4-mini', 'gpt-5.6-luna']) {
     check(`OpenAI 채팅 모델 판정  ${model}`, isOpenAIChatModel(model));

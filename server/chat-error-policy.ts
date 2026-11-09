@@ -1,11 +1,11 @@
-type ChatErrorType =
-    | 'rateLimit'
-    | 'dailyExhausted'
-    | 'openAIQuota'
+export type ChatErrorType =
+    | 'rate_limit'
+    | 'daily_exhausted'
+    | 'openai_quota'
     | 'unavailable'
     | 'auth'
     | 'safety'
-    | 'guestCapacity'
+    | 'guest_capacity'
     | 'generic';
 
 // OpenAI 결제·쿼터 실패는 크레딧이나 계정 한도가 바뀔 때까지 계속된다.
@@ -30,13 +30,15 @@ export const classifyChatError = (
     const message = String(error?.message ?? '');
 
     if (error?.safetyBlock) return 'safety';
-    if (isOpenAIQuotaError(error)) return 'openAIQuota';
+    if (isOpenAIQuotaError(error)) return 'openai_quota';
     if (status === 429 || message.includes('429') || message.includes('RESOURCE_EXHAUSTED')) {
-        return options.geminiDailyQuota ? 'dailyExhausted' : 'rateLimit';
+        return options.geminiDailyQuota ? 'daily_exhausted' : 'rate_limit';
     }
     if (message.includes('No API key available') || message.includes('All API keys')) {
-        return options.geminiDailyQuota ? 'dailyExhausted' : 'rateLimit';
+        return options.geminiDailyQuota ? 'daily_exhausted' : 'rate_limit';
     }
+    // 타임아웃은 "일시적" 이다 — 전엔 이름을 안 봐 generic("응답 생성 중 문제")으로 나갔다 → REF_ErrorCodes §4
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return 'unavailable';
     if (
         status === 503 || status === 504 ||
         message.includes('503') || message.includes('UNAVAILABLE') || message.includes('DEADLINE_EXCEEDED')
@@ -51,6 +53,6 @@ export const classifyChatError = (
  * 회원은 유료 키가 먼저라 같은 순간에도 대부분 성공한다(DEV_261010).
  * 안전 차단·인증·OpenAI 할당량·일반 오류는 로그인과 무관하므로 그대로 둔다.
  */
-const GUEST_CAPACITY_TYPES: ReadonlySet<ChatErrorType> = new Set(['rateLimit', 'dailyExhausted', 'unavailable']);
+const GUEST_CAPACITY_TYPES: ReadonlySet<ChatErrorType> = new Set(['rate_limit', 'daily_exhausted', 'unavailable']);
 export const forGuest = (type: ChatErrorType, isGuest: boolean): ChatErrorType =>
-    isGuest && GUEST_CAPACITY_TYPES.has(type) ? 'guestCapacity' : type;
+    isGuest && GUEST_CAPACITY_TYPES.has(type) ? 'guest_capacity' : type;

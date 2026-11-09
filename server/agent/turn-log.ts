@@ -1,3 +1,5 @@
+import { OPENAI_QUOTA_ERROR_CODES } from '../chat-error-policy';
+
 /**
  * 요청당 구조화 로그 `[turn] {JSON}` — 응답 200 과 기능 성공(블록 생성·파싱)을 구분한다.
  * 계획·보안 원칙: docs/plans/PLAN_TURN_LOG_261105.md §3
@@ -15,7 +17,7 @@ const SEARCH_BY = ['router-llm', 'user-explicit', 'followup-guard', 'followup-de
     'multimodal', 'url-content', 'video-content', 'doc-content', 'default', 'none'] as const;
 const BLOCKS = ['chart', 'diagram', 'smiles', 'bio', 'constellation', 'drug', 'weather', 'law', 'physics'] as const;
 const OUTCOMES = ['ok', 'empty', 'error', 'url_fetch_failed'] as const;
-const ERR_CODES = ['timeout', 'rate_limit', 'unavailable', 'bad_request', 'auth', 'server'] as const;
+const ERR_CODES = ['timeout', 'rate_limit', 'openai_quota', 'keys_exhausted', 'unavailable', 'safety', 'bad_request', 'auth', 'server'] as const;
 // 재시도·강등 사유 — generator 가 다시 부를 때마다 하나씩 알린다(stream-dispatch 가 모은다)
 export const RETRY_REASONS = ['rate_limit', 'timeout', 'unavailable', 'auth', 'media_error', 'empty', 'malformed_call', 'tool_code', 'primary_failed'] as const;
 export type RetryReason = (typeof RETRY_REASONS)[number];
@@ -38,12 +40,21 @@ const kindCounts = (v: unknown): { official: number | null; secondary: number | 
     return { official: int(o.official), secondary: int(o.secondary), other: int(o.other) };
 };
 
-/** 공급자 오류 → 코드. 메시지 문자열은 읽지 않는다(프롬프트 일부가 섞여 돌아올 수 있다). */
+/**
+ * 공급자 오류 → 코드. 메시지는 **고정 표지 몇 개가 들어 있는지만** 본다 — 값은 열거값만 나가고 문장은 찍지 않는다
+ * (프롬프트 일부가 섞여 돌아올 수 있다). 화면 분류(chat-error-policy)와 같은 원인이 같은 이름이 되게 맞춘다 → REF_ErrorCodes §3
+ */
 export const errCodeOf = (err: unknown): (typeof ERR_CODES)[number] | 'other' => {
-    const e = err as { status?: unknown; name?: unknown } | null;
+    const e = err as { status?: unknown; name?: unknown; code?: unknown; type?: unknown; message?: unknown; safetyBlock?: unknown } | null;
     const status = typeof e?.status === 'number' ? e.status : null;
-    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') return 'timeout';
+    const msg = typeof e?.message === 'string' ? e.message : '';
+    if (e?.safetyBlock) return 'safety';
+    if (OPENAI_QUOTA_ERROR_CODES.has(String(e?.code ?? '')) || e?.type === 'insufficient_quota') return 'openai_quota';
+    // 504·DEADLINE_EXCEEDED·OpenAI 요청 상한(code timeout, status 504)도 타임아웃 — 전엔 status≥500 으로 server 가 됐다
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError' || e?.code === 'timeout' || status === 504 || msg.includes('DEADLINE_EXCEEDED')) return 'timeout';
     if (status === 429) return 'rate_limit';
+    // 키 로테이션이 다 막혀 던진 오류 — status 가 없어 전엔 other 였다
+    if (msg.includes('No API key available') || msg.includes('All API keys')) return 'keys_exhausted';
     if (status === 503) return 'unavailable';
     if (status === 400) return 'bad_request';
     if (status === 401 || status === 403) return 'auth';

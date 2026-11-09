@@ -81,6 +81,12 @@ check('재시도 기록 상한 20', parse(buildTurnLog({ outcome: 'ok', retries:
 check('429 → rate_limit', errCodeOf({ status: 429 }) === 'rate_limit');
 check('TimeoutError → timeout', errCodeOf({ name: 'TimeoutError' }) === 'timeout');
 check('모르는 오류 → other', errCodeOf(new Error('x')) === 'other');
+// 화면 분류와 같은 원인 → 같은 이름(REF_ErrorCodes §4 어긋남 4건)
+check('504·DEADLINE_EXCEEDED·OpenAI code timeout → timeout', errCodeOf({ status: 504 }) === 'timeout' && errCodeOf(new Error('DEADLINE_EXCEEDED')) === 'timeout' && errCodeOf({ status: 504, code: 'timeout' }) === 'timeout');
+check('OpenAI 할당량 → openai_quota(429 와 구분)', errCodeOf({ status: 429, code: 'insufficient_quota' }) === 'openai_quota' && errCodeOf({ type: 'insufficient_quota' }) === 'openai_quota');
+check('안전 차단 → safety', errCodeOf(Object.assign(new Error('Content blocked'), { safetyBlock: true })) === 'safety');
+check('키 전부 소진 → keys_exhausted', errCodeOf(new Error('[LangGraph] All API keys exhausted for LangChain path.')) === 'keys_exhausted' && errCodeOf(new Error('No API key available')) === 'keys_exhausted');
+check('메시지 문장은 값으로 안 나간다', errCodeOf(new Error('user@example.com 010-1234-5678')) === 'other');
 
 // LangSmith 루트 메타데이터(T2)와 [turn] 줄이 같은 필드 객체에서 나온다
 {
