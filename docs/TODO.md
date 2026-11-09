@@ -5,6 +5,7 @@
 - [x] ~~**검색 경로만 Gemini 3.8 로 — 프로브 선행**~~ → **10-04 측정: 보류.** 어려운 문항에서 3.6·3.7·3.8 정답 21/21 동률, 3.8 이 ~2.2s 느림 ([PLAN_GEMINI_PAID_FIRST §7-2](plans/PLAN_GEMINI_PAID_FIRST_261004.md)). 원문: (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
 - [x] ✅ **Gemini 3.8 Flash 선택 옵션 도입** (2026-10-18) — 3.7 퇴역 공지(2027-01-28)로 3.7 자리를 3.8 로 대체, 3.7 저장값은 3.8 로 보낸다 → [DEV_261018 §7](logs/2026/10/DEV_261018.md#7-gemini-37--38) · [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
   - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
+- [ ] 🔴 **main 반영(또는 운영 DB 새로 세팅) 때 운영 Supabase 에 `chat-messages-trace-id.sql` 먼저** — T3 코드가 `chat_messages.trace_id` 를 넣으므로 열이 없으면 운영 메시지 저장이 실패한다. dev 는 11-09 적용·확인. 새로 세우면 `auth-mvp-schema.sql` 에 포함 → [PLAN_TRACE_ID_261108 T3](plans/PLAN_TRACE_ID_261108.md) · [DB 실행 순서 10](guide/db/README.md)
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
 

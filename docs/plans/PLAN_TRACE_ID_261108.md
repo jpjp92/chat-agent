@@ -82,6 +82,7 @@ LangChain 추적기가 `runId` 를 루트에 쓰지 않으면, langsmith 내부�
 ### T3 (11-09) — SQL·코드 준비, dev DB 적용 대기
 - `docs/guide/db/chat-messages-trace-id.sql` · route.ts 세 insert. 진행 상황은 [DEV_261109](../logs/2026/11/DEV_261109.md) §4.
 - [x] dev DB SQL 실행(11-09, 인덱스 확인) → [x] dev 배포·실화면(11-09 `d6b5179`, user·assistant 두 행 `trace_id` 같음 = LangSmith 루트 run ID) → [ ] **운영 DB SQL** → [ ] main 반영
+- 보류(11-09 사용자 결정): 지금은 main 을 쓰지 않고, 운영 DB 를 새로 세울 수도 있다. **main 반영(또는 운영 DB 새로 세팅) 때** `chat-messages-trace-id.sql` 을 먼저 실행한다. 새로 세울 때는 `auth-mvp-schema.sql` 에 이미 들어 있어 따로 실행하지 않아도 된다(`docs/guide/db/README.md` 10번).
 
 ## 4. 조회 (관리자, Supabase SQL Editor)
 
