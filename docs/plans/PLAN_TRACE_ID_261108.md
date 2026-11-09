@@ -81,19 +81,32 @@ LangChain 추적기가 `runId` 를 루트에 쓰지 않으면, langsmith 내부�
 
 ### T3 (11-09) — SQL·코드 준비, dev DB 적용 대기
 - `docs/guide/db/chat-messages-trace-id.sql` · route.ts 세 insert. 진행 상황은 [DEV_261109](../logs/2026/11/DEV_261109.md) §4.
-- [x] dev DB SQL 실행(11-09, 인덱스 확인) → [ ] dev 배포·실화면(한 턴의 두 행이 같은 `trace_id` = `[turn].traceId`) → [ ] **운영 DB SQL** → [ ] main 반영
+- [x] dev DB SQL 실행(11-09, 인덱스 확인) → [x] dev 배포·실화면(11-09 `d6b5179`, user·assistant 두 행 `trace_id` 같음 = LangSmith 루트 run ID) → [ ] **운영 DB SQL** → [ ] main 반영
 
-## 4. 조회 (T3 이후, 관리자)
+## 4. 조회 (관리자, Supabase SQL Editor)
+
+시각은 한국 시간으로 본다. `created_at` 은 `timestamptz`(내부 UTC)라 저장은 그대로 두고 조회할 때만 `at time zone 'Asia/Seoul'` 로 바꾼다. dev·운영 DB 가 다르니 해당 프로젝트에서 실행한다.
 
 ```sql
--- LangSmith 에서 본 trace → 대화
-select m.session_id, m.role, m.created_at, left(m.content, 200)
-from chat_messages m where m.trace_id = '<traceId>';
+-- 최근 턴 확인 — 같은 턴의 user·assistant 행이 같은 trace_id 인지(원문 content 는 안 본다)
+select id, role, trace_id,
+       created_at at time zone 'Asia/Seoul' as created_kst
+from public.chat_messages
+order by created_at desc
+limit 4;
 
--- 신고된 답 → trace
-select trace_id from chat_messages where id = '<message id>';
+-- LangSmith 에서 본 trace(루트 run ID) → 그 턴의 메시지
+select m.session_id, m.role,
+       m.created_at at time zone 'Asia/Seoul' as created_kst,
+       left(m.content, 200) as content_head
+from public.chat_messages m
+where m.trace_id = '<traceId>'
+order by m.created_at;
+
+-- 신고된 답(메시지 id) → trace_id → LangSmith·Vercel [turn] 에서 찾기
+select trace_id from public.chat_messages where id = '<message id>';
 ```
-원문 조회는 사용자 동의·필요가 있을 때만(운영 원문 열람 규칙 유지).
+원문(`content`)을 보는 쿼리는 사용자 동의·필요가 있을 때만 쓴다(운영 원문 열람 규칙 유지). 첫 쿼리는 원문 없이 연결만 확인한다.
 
 ## 5. 하지 않는 것
 
