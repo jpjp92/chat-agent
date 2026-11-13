@@ -16,6 +16,9 @@ import { createStreamDispatch, type DispatchState } from '../../../server/agent/
 import { logTurn } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
 import { traceCallbacks, flushTraces, tracingEnabled, attachTurnMeta } from '../../../server/agent/tracing';
+import { installProcessGuard } from '../../../server/process-guard';
+
+installProcessGuard();
 
 export const runtime = 'nodejs';
 // 함수 최대 실행 시간. 플랫폼(Hobby, fluid compute) 기본값·최대값이 모두 300s 다 → DEV_260808 §9
@@ -183,12 +186,6 @@ export async function POST(req: NextRequest) {
         lastTurnSourceLabels: deriveLastTurnSourceLabels(history),
       };
 
-      const unhandledRejectionGuard = (reason: any) => {
-        console.error('[Chat API] Unhandled rejection:', reason?.message ?? reason);
-        try { sendEvent({ error: CHAT_ERRORS.generic[publicLang] }); } catch {}
-      };
-      process.once('unhandledRejection', unhandledRejectionGuard);
-
       try {
         const exactUrlFetchFailedMatch = enrichedWebContent.match(/\[URL_FETCH_FAILED: ([^\]\n]+)\]/);
         if (exactUrlFetchFailedMatch) {
@@ -281,7 +278,6 @@ export async function POST(req: NextRequest) {
         });
         attachTurnMeta(traceId, turnLogFields);
         clearInterval(heartbeatInterval);
-        process.off('unhandledRejection', unhandledRejectionGuard);
         controller.close();
       }
     }
