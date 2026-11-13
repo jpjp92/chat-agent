@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChatSession, Language } from '../types';
+import { SIDEBAR_WIDTH, SIDEBAR_WIDTH_KEY, clampSidebarWidth, parseStoredSidebarWidth } from '../src/lib/sidebar-width';
 
 interface ChatSidebarProps {
   sessions: ChatSession[];
@@ -20,6 +21,13 @@ interface ChatSidebarProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
 }
+
+const resizeLabel: Record<Language, string> = {
+  ko: '사이드바 폭 조절',
+  en: 'Resize sidebar',
+  es: 'Cambiar el ancho de la barra lateral',
+  fr: 'Redimensionner la barre latérale',
+};
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
   sessions,
@@ -49,6 +57,50 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 데스크톱 폭 조절 — 첫 렌더는 기본값(서버 렌더와 같게), 저장값은 마운트 뒤 읽는다
+  const [width, setWidth] = useState<number>(SIDEBAR_WIDTH.initial);
+  const [isResizing, setIsResizing] = useState(false);
+  const asideRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    try { setWidth(parseStoredSidebarWidth(localStorage.getItem(SIDEBAR_WIDTH_KEY))); } catch { /* 저장소 차단 — 기본값 */ }
+  }, []);
+  const commitWidth = useCallback((px: number) => {
+    const next = clampSidebarWidth(px);
+    setWidth(next);
+    try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next)); } catch { /* 무시 */ }
+  }, []);
+  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const left = asideRef.current?.getBoundingClientRect().left ?? 0;
+    let latest = width;
+    setIsResizing(true);
+    // 끄는 동안 글자 선택·iframe 이 포인터를 가로채지 않게
+    const prevSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const onMove = (ev: PointerEvent) => { latest = clampSidebarWidth(ev.clientX - left); setWidth(latest); };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = prevSelect;
+      document.body.style.cursor = prevCursor;
+      setIsResizing(false);
+      commitWidth(latest);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [width, commitWidth]);
+  const onResizeKey = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); commitWidth(width - SIDEBAR_WIDTH.step); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); commitWidth(width + SIDEBAR_WIDTH.step); }
+    else if (e.key === 'Home') { e.preventDefault(); commitWidth(SIDEBAR_WIDTH.min); }
+    else if (e.key === 'End') { e.preventDefault(); commitWidth(SIDEBAR_WIDTH.max); }
+  }, [width, commitWidth]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -154,9 +206,13 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       )}
 
       {/* 사이드바 */}
-      <aside className={`fixed md:relative inset-y-0 left-0 h-full transition-all duration-300 ease-in-out z-[70] flex flex-col md:p-3
+      <aside
+        ref={asideRef}
+        style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}
+        className={`fixed md:relative inset-y-0 left-0 h-full ease-in-out z-[70] flex flex-col md:p-3
+        ${isResizing ? 'transition-none' : 'transition-all duration-300'}
         ${isOpen ? 'translate-x-0 p-0' : '-translate-x-full md:translate-x-0'} 
-        ${isCollapsed ? 'md:w-[84px]' : 'w-[260px] sm:w-[272px]'}`}>
+        ${isCollapsed ? 'md:w-[84px]' : 'w-[260px] sm:w-[272px] md:w-[var(--sidebar-w)]'}`}>
         <div className="h-full flex flex-col bg-white/60 dark:bg-white/[0.07] backdrop-blur-2xl border-r border-indigo-200/40 dark:border-white/0 md:border md:border-indigo-200/50 md:dark:border-white/[0.12] md:rounded-3xl md:shadow-2xl md:shadow-indigo-500/8 dark:md:shadow-black/40 overflow-hidden">
 
         {/* 헤더 동작 영역 */}
@@ -425,6 +481,25 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           )}
         </div>
         </div>
+        {/* 폭 조절 손잡이 — 데스크톱·펼친 상태에서만. 더블클릭은 기본 폭 */}
+        {!isCollapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={resizeLabel[language]}
+            aria-valuemin={SIDEBAR_WIDTH.min}
+            aria-valuemax={SIDEBAR_WIDTH.max}
+            aria-valuenow={width}
+            tabIndex={0}
+            title={resizeLabel[language]}
+            onPointerDown={startResize}
+            onDoubleClick={() => commitWidth(SIDEBAR_WIDTH.initial)}
+            onKeyDown={onResizeKey}
+            className="group hidden md:flex absolute inset-y-0 right-0 w-3 items-center justify-center cursor-col-resize touch-none outline-none"
+          >
+            <span className={`h-12 w-1 rounded-full transition-colors ${isResizing ? 'bg-indigo-400/80' : 'bg-transparent group-hover:bg-slate-400/50 group-focus-visible:bg-indigo-400/80 dark:group-hover:bg-white/25'}`} />
+          </div>
+        )}
       </aside>
     </>
   );
