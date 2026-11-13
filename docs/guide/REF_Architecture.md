@@ -587,7 +587,7 @@ flowchart LR
 |---|---|---|
 | 서버가 대신 가져오는 URL(`fetch-url`, `proxy-image`) | SSRF — IP 리터럴 바이트 판정(대괄호 IPv6·IPv4-mapped·NAT64 포함), DNS 응답 전부 검사, 리다이렉트 hop 마다 재검사. 남은 구멍: 검사↔연결 사이 DNS 재바인딩 | [server/ssrf.ts](../../server/ssrf.ts) · [DEV_261010](../logs/2026/10/DEV_261010.md) |
 | 업로드 | 서명 URL + Bearer 필수, `${uid}/` prefix, `storage.objects` RLS | [REF_DB](REF_DB.md) |
-| 모델·도구 오류 | 클라에는 현지화 안내 문구만, 원문은 서버 로그 | [chat-error-policy.ts](../../server/chat-error-policy.ts) |
+| 모델·도구 오류 | 클라에는 현지화 안내 문구만. 채팅 라우트 로그는 원문 대신 코드·고정 표지·길이·`traceId`(11-13) — 그 밖 서버 로그는 아직 원문 일부가 남는다(TODO) | [chat-error-policy.ts](../../server/chat-error-policy.ts) |
 | 브라우저 쪽 오류(업로드 PUT·로그인) | 콘솔에는 `[scope] failed` 만, 원본은 `sendBeacon` → `/api/client-log` → Vercel 로그 `[client-error]`. 수신은 scope 허용 목록·2KB 상한·줄바꿈 제거 | [client-error.ts](../../src/lib/client-error.ts) · [client-log](../../app/api/client-log/route.ts) |
 | 콘솔 로그 | 프로덕션 빌드는 `console.log/info/debug/warn` 제거(서버·클라 공통). 진단 시 `KEEP_LOGS=1` | [next.config.ts](../../next.config.ts) |
 | 떠돌이 rejection | 프로세스 리스너 **1개**가 `[process] unhandled rejection {name, code, status}` 로그만 남긴다 — 요청별 리스너는 없다(`process` 는 동시 요청이 공유해 한 건에 열린 요청 전부가 오류 문구를 받았다). 근원이던 `@google/generative-ai` 스트림의 버려진 `response` Promise 는 같은 모듈이 빈 catch 로 받는다(오류는 `stream` 쪽으로도 온다) | [process-guard.ts](../../server/process-guard.ts) · [DEV_261113](../logs/2026/11/DEV_261113.md) |

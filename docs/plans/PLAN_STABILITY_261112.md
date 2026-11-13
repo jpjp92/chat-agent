@@ -55,7 +55,7 @@
 - `[save]` 줄 유무. `chat_message_save_wait_timeout` 은 **실패가 아니라 결과 미확정**이다(5s 는 대기 상한, DB 요청은 계속 간다) — 실패 건수와 따로 센다. 잦을 때만 DB 요청 타임아웃·재처리를 검토.
 
 **후속(범위 밖, 따로)**
-- route 의 다른 로그 원문: `Profile gate error` 의 `profileError.message`, `Model request failed` 의 `error.message` 300자 → 로그 보안 점검으로.
+- ✅ 11-13 route 의 다른 로그 원문(`Profile gate error`·`Model request failed`) → 코드·표지·길이만([DEV_261113 §9](../logs/2026/11/DEV_261113.md)). 채팅 라우트 밖 서버 로그는 TODO.
 - 클라이언트 연결 중단: 지금은 취소 처리가 없어 생성이 끝까지 가고 답도 저장된다(`sendEvent` 는 실패를 삼킨다). 이 정책을 유지할지(저장 O·비용 O) 따로 정한다.
 
 ## 3. `[turn]` 필드 추가 — `routerMs`·`needsSearch`·`saveMs`

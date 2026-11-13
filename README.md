@@ -77,7 +77,7 @@ Per-renderer schemas and test prompts: [docs/guide/](docs/guide/README.md)
 - **Lighthouse**: Performance 91 · Best Practices 100 · CLS 0.00 — JS 365 KB gzip
 - **Uploads**: presigned URLs, token required, files isolated per user by Storage RLS
 - **URL fetching**: SSRF protection on every server-side fetch (IP checks, DNS answers, per-redirect re-check) → [DEV_261010](docs/logs/2026/10/DEV_261010.md)
-- **Errors**: internal messages never reach the browser. Users see a localized notice; the original goes to server logs. All error and result codes are listed in one place → [REF_ErrorCodes](docs/guide/REF_ErrorCodes.md)
+- **Errors**: internal messages never reach the browser. Users see a localized notice; the chat route logs codes, fixed markers and the turn ID instead of the original text. All error and result codes are listed in one place → [REF_ErrorCodes](docs/guide/REF_ErrorCodes.md)
 - **Per-turn log**: one `[turn]` JSON line per request — allowlisted fields and enum values only (intent, model, search, timings, outcome, error code). No question, answer, URL, user or session ID
 - **Turn ID**: a random per-turn UUID links the `[turn]` line, the LangSmith root run and the saved message rows (`chat_messages.trace_id`). It is not tied to a user or session → [PLAN_TRACE_ID_261108](docs/plans/PLAN_TRACE_ID_261108.md)
 - **Stability**: stray promise rejections are fixed at the source and logged by a single process-level listener (never forwarded to another user's stream); message saves keep their order, never block the answer, and log codes only → [PLAN_STABILITY_261112](docs/plans/PLAN_STABILITY_261112.md)
