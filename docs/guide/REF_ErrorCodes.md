@@ -17,12 +17,13 @@
 |---|---|---|---|
 | ① 사용자 에러 분류 | §2 | `server/chat-error-policy.ts` `classifyChatError`·`forGuest` | 화면 문구만(`app/api/chat/route.ts` `CHAT_ERRORS`, ko·en·es·fr) |
 | ② 로그 에러 코드 `errCode` | `timeout`·`rate_limit`·`openai_quota`·`keys_exhausted`·`unavailable`·`safety`·`bad_request`·`auth`·`server`·`other` | `server/agent/turn-log.ts` `errCodeOf` | `[turn]`(outcome=error 일 때만) · LangSmith 루트 `errCode` |
+| ③-b 검색 판정 `needsSearch` | `on`·`off`·`other`(`search` 와 같은 모양) | 라우터 출력 → `turn-log.ts` | `[turn]` · LangSmith 루트(불리언) |
 | ③ 턴 결과 `outcome` | `ok`·`empty`·`error`·`url_fetch_failed` | route.ts 종료 경로 | `[turn]` · LangSmith 루트 |
 | ④ 재시도·강등 사유 | `rate_limit`·`timeout`·`unavailable`·`auth`·`media_error`·`empty`·`malformed_call`·`tool_code`·`primary_failed` | `turn-log.ts` `RETRY_REASONS`, generator `noteRetry` | `[turn].retryReasons`·`retries` · LangSmith 루트 `retry_<사유>: true` · 재시도 span `retry_reason` |
 | ⑤ OpenAI 내부 코드 | 할당량 5종(§3) · `key_missing`·`timeout`·`network_error`·`tool_policy_conflict`·`unknown_function_call`·`invalid_function_arguments`·`function_execution_error`·`invalid_function_output` | `chat-error-policy.ts` `OPENAI_QUOTA_ERROR_CODES` · `server/openai/chat.ts` `OpenAIChatError` | 분류 입력으로만 쓴다(①·② 로 바뀌어 남음) |
 | ⑥ LangSmith 전송 상태 `[trace]` | `send:"paused"` + `status:429` 또는 `error:"timeout"`·`"network"` · `flush:"timeout"` · `raw` + `why` | `server/agent/tracing.ts` | Vercel 로그 `[trace]` 줄 |
 | ⑦ 원문 모드 꺼진 사유 `why` | `on`·`off`·`switch_value`·`allow_missing`·`allow_value`·`branch_missing`·`branch_other` | `tracing.ts` `rawModeWhy` | `[trace] {"raw":…,"why":…}` 인스턴스당 1줄 |
-| ⑧ 메시지 저장 실패 `[save]` | `chat_message_save_failed` + code(SQLSTATE 5자·`PGRSTnnn`·`db_error_unknown`·`db_request_failed`) · `chat_message_save_wait_timeout` | `server/chat-message-save.ts` | Vercel 로그 `[save]` 줄(role·traceId·code 만) |
+| ⑧ 메시지 저장 실패 `[save]` | `chat_message_save_failed` + code(SQLSTATE 5자·`PGRSTnnn`·`db_error_unknown`·`db_request_failed`) · `chat_message_save_wait_timeout`(실패 아님 — 5s 대기 상한 초과, 결과 미확정) | `server/chat-message-save.ts` | Vercel 로그 `[save]` 줄(role·traceId·code 만) |
 
 ## 2. 사용자 에러 분류(①) — 화면 문구
 

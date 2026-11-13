@@ -43,6 +43,8 @@
 | `blocks` | `{ [종류]: { n, ok } }` — 종류는 허용 목록(`chart`·`diagram`·`smiles`·`bio`·`constellation`·`drug`·`weather`·…) | 완성 본문을 한 번 훑음 |
 | `chars` | 정수 | `fullAiResponse.length` |
 | `ms` | 정수 | route 시작~종료 |
+| `routerMs` · `saveMs` | 정수 또는 null. 라우터 노드 소요 · assistant 저장 대기 — 둘 다 `ms` 에 포함. 라우터 제한 시간을 정할 근거(11-13) | stream-dispatch(라우터 `on_chain_start`~`on_chain_end`) · route |
+| `needsSearch` | `on`·`off`·`other`. 라우터의 검색 필요 판정 — `search`(실제 실행)와 나란히 본다. vision 턴은 `other`(11-13) | 라우터 출력 → stream-dispatch |
 | `outcome` | `ok` · `empty` · `error` · `url_fetch_failed` | route 각 종료 경로 |
 | `retries` · `retryReasons` | 재시도·강등 횟수(상한 20)와 사유 목록(중복 없음): `rate_limit`·`timeout`·`unavailable`·`auth`·`media_error`·`empty`·`malformed_call`·`tool_code`·`primary_failed`, 밖은 `other`. Gemini SDK 경로만(OpenAI·LangChain 경로 재시도는 아직 안 셈) | generator `noteRetry` → `turnRetry` 내부 이벤트 → stream-dispatch(클라이언트로 안 나감), 11-09 |
 | `errCode` | `timeout`·`rate_limit`·`openai_quota`·`keys_exhausted`·`unavailable`·`safety`·`bad_request`·`auth`·`server`, 아니면 `other`(11-10 앞 넷 정렬·추가). 화면 분류와의 대응·어긋남은 [REF_ErrorCodes](../guide/REF_ErrorCodes.md) §3·§4 | catch 경로만 |

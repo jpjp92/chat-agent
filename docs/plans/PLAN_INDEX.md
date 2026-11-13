@@ -8,7 +8,7 @@
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
-> **2026-11-12 안정성:** [PLAN_STABILITY_261112](PLAN_STABILITY_261112.md) — 외부 검토안 P0~P3 를 코드와 대조해 순서를 다시 정함. ① 요청별 `unhandledRejection` 리스너 → 모듈 1개 ② user 저장 await 위치·저장 로그 ③ `[turn]` `routerMs`·`needsSearch` ④ 측정 뒤 라우터 제한 시간. 근거 재사용 규칙(P1-1)·구조 개선(P2·P3)은 보류. 상태: ①·② 완료(11-13) · ③ 다음.
+> **2026-11-12 안정성:** [PLAN_STABILITY_261112](PLAN_STABILITY_261112.md) — 외부 검토안 P0~P3 를 코드와 대조해 순서를 다시 정함. ① 요청별 `unhandledRejection` 리스너 → 모듈 1개 ② user 저장 await 위치·저장 로그 ③ `[turn]` `routerMs`·`needsSearch` ④ 측정 뒤 라우터 제한 시간. 근거 재사용 규칙(P1-1)·구조 개선(P2·P3)은 보류. 상태: ①·②·③ 완료(11-13) · ④ `routerMs` 수집 뒤.
 
 > **2026-11-08 턴 ID:** [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) — Supabase(원문)·Vercel(`[turn]`)·LangSmith(실행)를 매 턴 새 무작위 `traceId` 하나로 잇는다. `session_id` 는 밖으로 안 낸다(원문까지의 길은 DB 안에서만). T1 루트 run ID·`[turn]` → T2 루트 메타데이터·커밋 → T3 `chat_messages.trace_id`. 상태: T1 완료(11-09 배포 검증) · T2 완료(11-09 배포 확인) · T3 다음.
 

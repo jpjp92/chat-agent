@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 1 | P0-1 `unhandledRejection` | 실제 문제 — 동시 요청 전부에 오류 이벤트. 근원은 LangChain 이 버린 SDK Promise | ✅ 11-13 [DEV_261113](../logs/2026/11/DEV_261113.md) |
 | 2 | P0-2 메시지 저장 | 순서 미확정 + 로그에 DB 오류 문구 + 빠른 종료 경로 저장 미완 | ✅ 11-13 [DEV_261113 §5](../logs/2026/11/DEV_261113.md) |
-| 3 | P1-2 준비 + P1-3 | `routerMs`·`needsSearch` 가 `[turn]` 에 없음 | 진행(무료) |
+| 3 | P1-2 준비 + P1-3 | `routerMs`·`needsSearch` 가 `[turn]` 에 없음 | ✅ 11-13 구현(`saveMs` 포함) — 배포 후 수집 |
 | 4 | P1-2 라우터 제한 시간 | 호출 상한 없음 | 3번 측정 뒤 |
 | — | P1-1 근거 재사용 규칙 | 요구 내용 대부분 이미 규칙에 있음 | 보류(실패 사례 나오면) |
 | — | P1-4 회귀 테스트 | — | 각 항목에 붙여서 |
@@ -49,13 +49,24 @@
 
 **완료 기준** — 하니스: user insert 실패 주입 → 로그 1줄(role=user, traceId), assistant 저장은 진행. 정상 턴 TTFT 변화 없음.
 
-## 3. `[turn]` 필드 추가 — `routerMs`·`needsSearch`
+**배포 검증(정상 경로 확인, 나머지 대기)** — 로컬 하니스는 가짜 insert 다. dev 배포에서 확인할 것:
+- 정상 턴: 두 행이 같은 `trace_id`, user → assistant 순. ✅ 11-13 확인(`8d3ea28`, [DEV_261113 §6](../logs/2026/11/DEV_261113.md)).
+- URL 실패 턴·생성 즉시 실패 턴: user 행(그리고 URL 실패는 안내 행)이 빠지지 않는지 — `after()` 마무리가 실제로 도는지.
+- `[save]` 줄 유무. `chat_message_save_wait_timeout` 은 **실패가 아니라 결과 미확정**이다(5s 는 대기 상한, DB 요청은 계속 간다) — 실패 건수와 따로 센다. 잦을 때만 DB 요청 타임아웃·재처리를 검토.
+
+**후속(범위 밖, 따로)**
+- route 의 다른 로그 원문: `Profile gate error` 의 `profileError.message`, `Model request failed` 의 `error.message` 300자 → 로그 보안 점검으로.
+- 클라이언트 연결 중단: 지금은 취소 처리가 없어 생성이 끝까지 가고 답도 저장된다(`sendEvent` 는 실패를 삼킨다). 이 정책을 유지할지(저장 O·비용 O) 따로 정한다.
+
+## 3. `[turn]` 필드 추가 — `routerMs`·`needsSearch`·`saveMs`
 
 **현재**
 - 라우터 소요 시간을 남기지 않아 제한 시간을 정할 근거가 없다.
 - 검색은 `search`(실제 실행)·`searchBy`·`sources`(출처 수)만 있고, 라우터의 검색 필요 판정(`needsSearch`)이 없다.
 
-**수정** — `turnFields()` 에 두 필드 추가(LangSmith 루트 메타도 같은 함수라 자동). 검토안의 `SearchExecutionInfo` 새 타입은 만들지 않는다.
+**`saveMs` 추가 이유** — 정상 턴은 assistant 저장을 기다린 뒤 `done` 을 보낸다(전부터 그랬다). 저장 대기가 전체 완료 시간에 얼마나 드는지 `[turn]` 에서 바로 보이게 한다 — `ms` 에 이미 포함돼 있어 따로 떼어 본다.
+
+**수정** — `turnFields()` 에 세 필드 추가(LangSmith 루트 메타도 같은 함수라 자동). 검토안의 `SearchExecutionInfo` 새 타입은 만들지 않는다.
 
 **이걸로 구분되는 경우**
 
@@ -65,6 +76,8 @@
 | true | false | — | 요청했는데 미실행(공급자 제약 등) |
 | true | true | 0 | 실행했는데 출처 0건 — Google 은 출처 없이도 검색했을 수 있어 "미실행"으로 단정 안 함 |
 | false | false | — | 히스토리 재사용·검색 불필요 |
+
+**결과(11-13)** — `routerMs` 는 라우터를 고치지 않고 stream-dispatch 가 노드 시작~끝으로 잰다(지름길 턴은 0 근처 — `intentFrom` 으로 가른다). `needsSearch` 는 라우터 출력에서, `saveMs` 는 route 에서. LangSmith 루트 메타에도 같은 값(`needsSearch` 는 불리언). → [DEV_261113 §7](../logs/2026/11/DEV_261113.md)
 
 **완료 기준** — `test-turn-log` 에 두 필드 허용·값 범위 확인, dev 배포에서 `[turn]` 줄에 찍힘.
 

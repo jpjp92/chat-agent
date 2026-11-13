@@ -54,6 +54,8 @@
   - [ ] 배포 후 로그 확인: `[speech] gemini failed before first byte — falling back to gemini-flash` 가 얼마나 찍히는지. 폴백은 Lite 보다 느리다(2,000자 약 54s vs 29s)
   - [ ] 🟡 **TTS 단가 2027-01-01 두 배**(Lite $6 → $12, Flash $9 → $18 /1M 오디오) — 회원 한도 20,000자/일(≈$0.4 → $0.8/일/회원)을 그 전에 다시 본다 → [REF_TTS §2](guide/REF_TTS.md)
   - [ ] ⬜ Google 전체 장애는 폴백도 못 막는다 — 필요해지면 다른 TTS 공급자(ElevenLabs·Azure·CLOVA 등) 비교
+- [ ] 🟡 **route 로그 원문 점검(11-13)** — `Profile gate error` 의 DB 오류 문구, `Model request failed` 의 오류 문구 300자. 메시지 저장 로그는 코드만으로 바꿨다 → [PLAN_STABILITY_261112 §2](plans/PLAN_STABILITY_261112.md)
+- [ ] ⬜ **클라이언트 연결 중단 시 저장·생성 정책(11-13)** — 지금은 끝까지 생성·저장 → [PLAN_STABILITY_261112 §2](plans/PLAN_STABILITY_261112.md)
 - [ ] 🔴 **보안 재검토(10-23) 처리** (①~③ 10-24 완료, ④ 10-25 완료·배포 확인) — 외부 리뷰 10개 항목을 dev HEAD 로 확인: 9개 맞음, `url_cache` 포이즈닝은 과장 → [PLAN_SECURITY_REVIEW_261023](plans/PLAN_SECURITY_REVIEW_261023.md)
   - [x] ✅ 10-24 ① `sync-drug-image` — `upsert: false` · 약 이름 정규화 · 매직바이트 판별 · `drugFetch`(safeFetch + 최종 허용목록) → [DEV_261024 §1](logs/2026/10/DEV_261024.md)
   - [x] ✅ 10-24 ② 게스트 일일 한도 `consume_aux_quota`(캐시 미스만 셈, fail-closed) · SQL 운영 적용 완료 · chat-agent-dev 게스트로 `fetch_url`·`showtimes` 집계 확인 → [DEV_261024 §2](logs/2026/10/DEV_261024.md). 남은 것: 상영표 한도(20, 질문당 체인 3개) 조정 여부
