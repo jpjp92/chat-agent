@@ -17,6 +17,7 @@ import { logTurn } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
 import { traceCallbacks, flushTraces, tracingEnabled, attachTurnMeta } from '../../../server/agent/tracing';
 import { installProcessGuard } from '../../../server/process-guard';
+import { createMessageSaver } from '../../../server/chat-message-save';
 
 installProcessGuard();
 
@@ -41,10 +42,6 @@ const CHAT_ERRORS: Record<ChatErrorType, Record<string, string>> = {
   generic:         { ko: '응답 생성 중 문제가 발생했습니다. 다시 시도해주세요.', en: 'Failed to generate a response. Please try again.', es: 'Error al generar la respuesta. Por favor, inténtelo de nuevo.', fr: 'Échec de la génération de la réponse. Veuillez réessayer.' },
 };
 
-// Supabase 오류의 `details` 에는 제약 위반 값(`Key (session_id)=(…)`)이 그대로 들어간다 — 운영 로그엔 빼고 남긴다
-const dbErrorSummary = (e: { code?: string; message?: string; hint?: string | null } | null | undefined) =>
-  ({ code: e?.code, message: e?.message, hint: e?.hint ?? undefined });
-
 export async function POST(req: NextRequest) {
   // 응답(스트림)이 끝난 뒤 남은 추적을 보낸다 — 응답을 기다리게 하지 않고, 서버리스가 멈추기 전에 마저 보낸다
   // 턴 ID — LangSmith 루트 run ID·[turn]·chat_messages 를 잇는다. 서버가 만들고 클라이언트 값은 받지 않는다(PLAN_TRACE_ID_261108)
@@ -54,6 +51,9 @@ export async function POST(req: NextRequest) {
   // 메시지 저장은 이 user-scoped 클라이언트로만 하며, RLS 가 세션 소유권을 강제한다.
   const db = createRouteClient(req);
   if (!db) return unauthorized();
+  // 메시지 저장은 응답을 막지 않는다. 스트림이 닫힌 뒤 남은 저장을 여기서 마저 끝낸다(빠른 실패·URL 실패 경로)
+  const saver = createMessageSaver({ traceId, insert: (row) => db.from('chat_messages').insert(row) });
+  after(() => saver.settle());
 
   // 게스트 횟수 제한 — LLM 을 호출하기 전에 막는다. 목적은 회원 전환이 아니라
   // 무료 키의 일일 할당량(RPD) 방어다. 소진되면 소유자 본인이 24시간 못 쓴다.
@@ -168,10 +168,10 @@ export async function POST(req: NextRequest) {
 
       if (session_id) {
         const mainAttachment = allAttachments.length > 0 ? allAttachments[0] : null;
-        db.from('chat_messages').insert({
-          session_id, role: 'user', content: prompt, trace_id: traceId,
+        void saver.save('user', {
+          session_id, content: prompt,
           attachment_url: mainAttachment?.storageUrl || (mainAttachment?.data?.startsWith('http') ? mainAttachment.data : (mainAttachment?.mimeType || null))
-        }).then(({ error }) => { if (error) console.error('[Chat API] User message save error:', dbErrorSummary(error)); });
+        });
       }
 
       const initialState = {
@@ -201,8 +201,7 @@ export async function POST(req: NextRequest) {
           sendEvent({ text: failMsg });
           sendEvent({ done: true });
           if (session_id) {
-            db.from('chat_messages').insert({ session_id, role: 'assistant', content: failMsg, grounding_sources: null, trace_id: traceId })
-            .then(({ error }) => { if (error) console.error('[Chat API] DB save failed:', error); });
+            void saver.save('assistant', { session_id, content: failMsg, grounding_sources: null });
           }
           return;
         }
@@ -229,15 +228,11 @@ export async function POST(req: NextRequest) {
         const allSources = st.allSources;
 
         if (fullAiResponse && session_id) {
-          try {
-            const { error: msgError } = await db.from('chat_messages').insert({
-              session_id, role: 'assistant', content: fullAiResponse,
-              grounding_sources: allSources.length > 0 ? allSources : null, trace_id: traceId,
-            });
-            if (msgError) console.error('[Chat API] Assistant message save error:', dbErrorSummary(msgError));
-          } catch (dbError: any) {
-            console.error('[Chat API] DB save failed:', dbError.message);
-          }
+          // user 저장이 끝난 뒤 나간다(saver 가 순서를 지킨다). 실패해도 답은 이미 나갔으므로 로그만
+          await saver.save('assistant', {
+            session_id, content: fullAiResponse,
+            grounding_sources: allSources.length > 0 ? allSources : null,
+          });
         } else if (!fullAiResponse) {
           turnOutcome = 'empty';
           console.error('[Chat API] Empty model response', {
