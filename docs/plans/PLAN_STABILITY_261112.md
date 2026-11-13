@@ -8,7 +8,7 @@
 | 순서 | 항목 | 코드 대조 결과 | 결정 |
 |---|---|---|---|
 | 1 | P0-1 `unhandledRejection` | 실제 문제 — 동시 요청 전부에 오류 이벤트. 근원은 LangChain 이 버린 SDK Promise | ✅ 11-13 [DEV_261113](../logs/2026/11/DEV_261113.md) |
-| 2 | P0-2 메시지 저장 | 위험 작음 — 순서·실패가 확정 안 될 뿐 | 작게 진행 |
+| 2 | P0-2 메시지 저장 | 순서 미확정 + 로그에 DB 오류 문구 + 빠른 종료 경로 저장 미완 | ✅ 11-13 [DEV_261113 §5](../logs/2026/11/DEV_261113.md) |
 | 3 | P1-2 준비 + P1-3 | `routerMs`·`needsSearch` 가 `[turn]` 에 없음 | 진행(무료) |
 | 4 | P1-2 라우터 제한 시간 | 호출 상한 없음 | 3번 측정 뒤 |
 | — | P1-1 근거 재사용 규칙 | 요구 내용 대부분 이미 규칙에 있음 | 보류(실패 사례 나오면) |
@@ -44,6 +44,8 @@
 - user insert Promise 를 보관하고 **assistant insert 직전에** await — 응답 시작 전이 아니라 끝난 뒤라 TTFT 영향 없음.
 - 저장 실패 로그를 한 모양으로: `{ role, traceId, code }`(`dbErrorSummary`). URL 실패 경로도 같은 함수로.
 - user 저장 실패·assistant 성공 같은 부분 저장은 로그로만 드러낸다(롤백 안 함 — 답은 이미 화면에 나감).
+
+**결과(11-13)** — `createMessageSaver`(순서 연결·즉시 실패 처리·`after()` 에서 마무리, 상한 5s). 처음 안의 "finally 에서 await" 는 스트림 종료를 늦출 수 있어 `after()` 로 바꿨다. 로그는 `[save] {event, role, traceId, code}` — DB 문구 제외. 추가로 찾은 것: 기존 로그가 Postgres `message`·`hint` 를 남겼고, URL 실패·즉시 실패 경로는 저장이 끝나기 전에 닫혔다.
 
 **완료 기준** — 하니스: user insert 실패 주입 → 로그 1줄(role=user, traceId), assistant 저장은 진행. 정상 턴 TTFT 변화 없음.
 

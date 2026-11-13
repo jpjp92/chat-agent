@@ -22,6 +22,7 @@
 | ⑤ OpenAI 내부 코드 | 할당량 5종(§3) · `key_missing`·`timeout`·`network_error`·`tool_policy_conflict`·`unknown_function_call`·`invalid_function_arguments`·`function_execution_error`·`invalid_function_output` | `chat-error-policy.ts` `OPENAI_QUOTA_ERROR_CODES` · `server/openai/chat.ts` `OpenAIChatError` | 분류 입력으로만 쓴다(①·② 로 바뀌어 남음) |
 | ⑥ LangSmith 전송 상태 `[trace]` | `send:"paused"` + `status:429` 또는 `error:"timeout"`·`"network"` · `flush:"timeout"` · `raw` + `why` | `server/agent/tracing.ts` | Vercel 로그 `[trace]` 줄 |
 | ⑦ 원문 모드 꺼진 사유 `why` | `on`·`off`·`switch_value`·`allow_missing`·`allow_value`·`branch_missing`·`branch_other` | `tracing.ts` `rawModeWhy` | `[trace] {"raw":…,"why":…}` 인스턴스당 1줄 |
+| ⑧ 메시지 저장 실패 `[save]` | `chat_message_save_failed` + code(SQLSTATE 5자·`PGRSTnnn`·`db_error_unknown`·`db_request_failed`) · `chat_message_save_wait_timeout` | `server/chat-message-save.ts` | Vercel 로그 `[save]` 줄(role·traceId·code 만) |
 
 ## 2. 사용자 에러 분류(①) — 화면 문구
 
