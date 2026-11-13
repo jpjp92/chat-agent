@@ -36,6 +36,8 @@
 **검색 직후 후속(100 `followup-detail`)**: 직전 턴이 검색했고 이번 질문이 그 결과의 세부·다른 항목을 묻는다면 on —
 "그 중 두 번째 자세히", "다른 건?" 같은 질의가 히스토리만으로 지어내지 않게 한다([search-signals.ts](../../server/agent/search-signals.ts), [DEV_261013](../logs/2026/10/DEV_261013.md)).
 
+**운영에서 확인하기 (2026-11-13):** `[turn]` 로그에 라우터 판정 `needsSearch` 와 실제 실행 `search`·출처 수 `sources` 가 같이 남는다. `needsSearch=on` 인데 `search=off` 면 판정은 났지만 실행되지 않은 턴(공급자 제약 등), `search=on`·`sources=0` 은 실행했지만 출처가 안 붙은 턴이다 — Google 은 출처 없이도 검색했을 수 있어 "미실행"으로 단정하지 않는다. vision 으로 가는 턴은 `needsSearch=other`. → [PLAN_STABILITY_261112 §3](../plans/PLAN_STABILITY_261112.md)
+
 ### 1-2. 이미지를 빼고 검색을 켜는 탈출구 (Gemini 전용)
 
 `shouldDropImageForSearch`([search-signals.ts](../../server/agent/search-signals.ts)) —
@@ -216,7 +218,7 @@ npm run dev        # 또는 npx vercel dev
 | [tests/manual/live-arxiv-query.mts](../../tests/manual/live-arxiv-query.mts) *(수동)* | H | **실제 arXiv 상위 5건 관련도.** 조립 수정은 이걸 안 돌리면 판단할 수 없다 |
 
 ```bash
-npm run verify     # typecheck + 하니스 32종
+npm run verify     # typecheck + ESLint + knip + 하니스 전체(`tests/*.mts` 자동 수집)
 ```
 
 🔴 **하니스가 덮지 못하는 것**: 라우터 LLM 의 실제 판정(A·B 의 프롬프트 층), 카드 렌더,

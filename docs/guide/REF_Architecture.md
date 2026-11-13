@@ -154,7 +154,9 @@ flowchart TB
 
 **Gemini 키 등급 (2026-10-04, [PLAN_GEMINI_PAID_FIRST](../plans/PLAN_GEMINI_PAID_FIRST_261004.md)):** 채팅 라우트가 `profiles.is_guest` 로 등급을 정해 스트림 생성을 [`runWithKeyTier`](../../server/key-tier.ts) 로 감싼다. 회원(`paid-first`) + `GEMINI_PAID_FIRST=true` 면 `getNextApiKey()` 가 `API_KEY_TIER1` 을 먼저 주고, 쿨다운이면 무료 로테이션으로 내려간다. 게스트·무인증 라우트는 컨텍스트가 없어 항상 무료. 검색 강등은 **시도마다 그 키로** 판단한다 — 유료 키 + 3.x 는 3.x 로 검색, 무료 키면 2.5. 이미지·PDF·영상·약/법률 요약의 2.5 고정은 키와 무관하게 유지(재측정 대기, 계획 §8).
 
-**LangSmith 추적 (2026-11-07, [PLAN_LANGSMITH_TRACING](../plans/PLAN_LANGSMITH_TRACING_261107.md)):** `CHAT_TRACING=true` 이면 [`tracing.ts`](../../server/agent/tracing.ts) 의 정리 Client 로 그래프 노드와 SDK 직접 호출(router 1·generator 7·OpenAI `request`)을 llm span 으로 보낸다. 숨김 모드는 입출력을 비우고 모델·검색 여부·토큰·출처 개수만, 원문 모드(`CHAT_TRACING_RAW`)는 별도 프로젝트에 모델 입력까지 보내되 식별자·민감정보는 가린다. 전송은 응답 뒤 `after(flushTraces)`. `LANGSMITH_TRACING` 은 항상 false.
+**LangSmith 추적 (2026-11-07, [PLAN_LANGSMITH_TRACING](../plans/PLAN_LANGSMITH_TRACING_261107.md)):** `CHAT_TRACING=true` 이면 [`tracing.ts`](../../server/agent/tracing.ts) 의 정리 Client 로 그래프 노드와 SDK 직접 호출(router 1·generator 7·OpenAI `request`)을 llm span 으로 보낸다. 숨김 모드는 입출력을 비우고 모델·검색 여부·토큰·출처 개수만, 원문 모드(`CHAT_TRACING_RAW`)는 별도 프로젝트에 모델 입력까지 보내되 식별자·민감정보는 가린다. 전송은 응답 뒤 `after(flushTraces)`. `LANGSMITH_TRACING` 은 항상 false. 429·네트워크 오류 때는 전송을 잠시 멈추고(`[trace] send:paused`) 응답에는 영향을 주지 않는다.
+
+**턴 ID (2026-11-08~09, [PLAN_TRACE_ID](../plans/PLAN_TRACE_ID_261108.md)):** route 가 POST 시작에 `traceId`(무작위 UUID)를 만든다 — 클라이언트 값은 받지 않는다. 같은 값이 ① LangSmith 루트 run ID ② `[turn].traceId` ③ `chat_messages.trace_id` 다. 루트 run 메타데이터에는 `[turn]` 과 같은 값(`turnFields()` 한 곳에서 만든다)과 배포 커밋이 실린다 — 숨김 모드는 루트의 마지막 전송만 붙잡아 두었다가 턴 값이 오면 합쳐 보낸다. `session_id` 는 LangSmith·로그 어디에도 나가지 않는다(원문까지의 길은 DB 안에서만).
 
 `generator.ts`는 선택 모델과 입력 capability에 따라 OpenAI Responses, Gemini SDK, Gemini LangChain 경로를 고른다. 초기 intent router는 아직 Gemini 우선이지만, GPT 일반 생성과 로컬 도구 실행은 Gemini 키와 분리돼 있다.
 
@@ -522,7 +524,7 @@ Gemini SDK·OpenAI·LangChain 세 경로가 모두 지나는 유일한 지점이
 | 용도 | 모델 |
 |------|------|
 | 기본 채팅 | `gemini-3.6-flash` |
-| 선택 가능 모델 | **현행** — Gemini 3.8 / 3.6 / 3.5 / 2.5 Flash(3.7 은 2027-01-28 퇴역 예정이라 2026-10-18 부터 요청을 3.8 로 바꿔 보낸다 — `resolveChatModel`), **GPT-6 luna** / GPT-5.6 luna. **legacy** — GPT-5.4 mini(2026-09-23 강등). ⚠️ legacy 는 **목록에서만 내렸고 계속 동작한다** — `preferred_model` 에 그 값을 가진 세션이 올라오므로 서버 허용 목록에서는 빼지 않는다(빼면 그 사용자가 오류를 본다) |
+| 선택 가능 모델 | **현행(화면)** — Gemini 3.8 / 3.6 Flash, **GPT-6 luna** / GPT-5.6 luna 4종(3.7 은 2027-01-28 퇴역 예정이라 2026-10-18 부터 요청을 3.8 로 바꿔 보낸다 — `resolveChatModel`). **숨김(2026-11-13)** — Gemini 3.5 / 2.5 Flash, GPT-5.4 mini. `src/lib/models.ts` 옵션의 `hiddenFallback` 이 있으면 목록에서 빠지고, 로컬에 저장된 선택값은 그 대체 모델로 옮긴다(3.5·2.5 → 3.6, 5.4 mini → 5.6 luna). 되살리려면 그 줄만 지운다. ⚠️ **서버 허용 목록에서는 빼지 않는다** — 2.5 는 라우터·capability 강등이 내부에서 쓰고, 옛 클라이언트가 보내는 값도 받아야 한다 |
 | `gpt-6-luna` 주의 | 🔴 caps 가 **모델 카드 기재값이고 실호출로 재지 않았다**. `chatReasoningEffort: 'none'` 은 취향이 아니다 — 카드가 *"function calling only with reasoning_effort set to none"* 이라 못 박았고, 올리면 **도구 호출이 조용히 사라진다**. 실측 하니스는 `tests/manual/live-openai-chat-models.mts` |
 | GPT 일반 텍스트·URL 본문·이미지·웹 검색 | 선택한 GPT 유지. GPT 쿼터/API 오류를 Gemini 답변으로 숨겨 전환하지 않음 |
 | GPT + PDF (업로드·링크·arXiv·인라인) | **선택한 GPT 가 직접** — Responses `input_file`(`file_url`/`file_data`, [server/openai/media.ts](../../server/openai/media.ts)). OpenAI 가 링크를 못 받으면(400 download) **그 턴만** `gemini-2.5-flash` (2026-10-11, [DEV_261011 §1~3](../logs/2026/10/DEV_261011.md)) |
@@ -588,7 +590,10 @@ flowchart LR
 | 모델·도구 오류 | 클라에는 현지화 안내 문구만, 원문은 서버 로그 | [chat-error-policy.ts](../../server/chat-error-policy.ts) |
 | 브라우저 쪽 오류(업로드 PUT·로그인) | 콘솔에는 `[scope] failed` 만, 원본은 `sendBeacon` → `/api/client-log` → Vercel 로그 `[client-error]`. 수신은 scope 허용 목록·2KB 상한·줄바꿈 제거 | [client-error.ts](../../src/lib/client-error.ts) · [client-log](../../app/api/client-log/route.ts) |
 | 콘솔 로그 | 프로덕션 빌드는 `console.log/info/debug/warn` 제거(서버·클라 공통). 진단 시 `KEEP_LOGS=1` | [next.config.ts](../../next.config.ts) |
-| 요청당 결과 로그 `[turn]` | 요청마다 JSON 한 줄(의도·판정 출처·검색·모델·출처 수·블록 n/ok·결과). 필드는 허용 목록·열거값만, 질문·답·URL·세션 ID 없음, 오류는 코드만. `removeConsole` 을 피해 stdout 직접 기록. 내부 이벤트 `turnMeta` 는 디스패치가 끊어 클라이언트로 안 나감 | [turn-log.ts](../../server/agent/turn-log.ts) · [PLAN_TURN_LOG_261105](../plans/PLAN_TURN_LOG_261105.md) |
+| 떠돌이 rejection | 프로세스 리스너 **1개**가 `[process] unhandled rejection {name, code, status}` 로그만 남긴다 — 요청별 리스너는 없다(`process` 는 동시 요청이 공유해 한 건에 열린 요청 전부가 오류 문구를 받았다). 근원이던 `@google/generative-ai` 스트림의 버려진 `response` Promise 는 같은 모듈이 빈 catch 로 받는다(오류는 `stream` 쪽으로도 온다) | [process-guard.ts](../../server/process-guard.ts) · [DEV_261113](../logs/2026/11/DEV_261113.md) |
+| 메시지 저장 | 턴마다 `createMessageSaver` — 같은 턴 저장은 시작 순서대로(user → assistant), 앞이 실패해도 뒤는 진행, 응답을 막지 않고 스트림이 닫힌 뒤 `after()` 에서 마무리(상한 5s). 실패 로그는 `[save] {event, role, traceId, code}` 뿐 — DB 오류 문구에는 입력값이 섞일 수 있다 | [chat-message-save.ts](../../server/chat-message-save.ts) · [PLAN_STABILITY_261112](../plans/PLAN_STABILITY_261112.md) |
+| 오류·결과 코드 | 화면 분류·`errCode`·`outcome`·재시도 사유 등 코드 전부와 원인별 대응표 | [REF_ErrorCodes](REF_ErrorCodes.md) |
+| 요청당 결과 로그 `[turn]` | 요청마다 JSON 한 줄(턴 ID·의도·판정 출처·검색 필요 판정과 실제 실행·모델·출처 수·블록 n/ok·전체·라우터·저장 소요·재시도 사유·결과). 필드는 허용 목록·열거값만, 질문·답·URL·세션 ID 없음, 오류는 코드만. `removeConsole` 을 피해 stdout 직접 기록. 내부 이벤트 `turnMeta` 는 디스패치가 끊어 클라이언트로 안 나감 | [turn-log.ts](../../server/agent/turn-log.ts) · [PLAN_TURN_LOG_261105](../plans/PLAN_TURN_LOG_261105.md) |
 
 ## Streaming & Source Handling
 

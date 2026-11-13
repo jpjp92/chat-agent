@@ -1,6 +1,6 @@
 # Guide Index
 
-> 최종 점검: 2026-10-12
+> 최종 점검: 2026-11-13
 
 현재 동작을 설명하는 레퍼런스와 기능별 테스트 프롬프트의 진입점이다. 전체 프로젝트 현황은 [docs/README](../README.md), 구현 이력은 [DEV_HISTORY](../DEV_HISTORY.md), 실행 순서는 [PLAN_INDEX](../plans/PLAN_INDEX.md)를 따른다.
 
@@ -8,11 +8,11 @@
 
 | 문서 | 범위 | 상태 |
 |---|---|---|
-| [Architecture](REF_Architecture.md) | LangGraph, 모델·intent 라우팅, URL Fetch, 오류·스트리밍 정책 + **도구 정의가 두 벌인 구조** | 2026-09-03 현행화 |
+| [Architecture](REF_Architecture.md) | LangGraph, 모델·intent 라우팅, URL Fetch, 오류·스트리밍 정책 + **도구 정의가 두 벌인 구조** · 턴 ID·`[turn]` 로그·떠돌이 rejection·메시지 저장 | 2026-11-13 현행화(모델 목록·관측·안정성) |
 | [TTS](REF_TTS.md) | 소리 내어 읽기 — **모델 정책(3.8 Lite → OpenAI 폴백)·가격·흐름·인증/한도·오류 처리** | 2026-10-04 신규 |
 | [한 줄 요약](REF_OneLineSummary.md) | 응답 맨 위 `한 줄 요약` — **경로별로 나오는지·안 나오는지·구조**, 알려진 불일치(YouTube 자막 경로) | 2026-10-10 신규 |
 | [Auth](REF_Auth.md) | 게스트 → **Google(GIS ID 토큰)·카카오(리다이렉트)**, link/signIn·충돌·해시 제거 규칙 + **Google Cloud·Supabase·Kakao Developers 콘솔 설정** | 2026-10-12 신규 |
-| [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블, Storage, URL 캐시, MFDS | 2026-08-23 현행화 |
+| [DB](REF_DB.md) | Supabase Auth, RLS, 채팅 테이블(`chat_messages.trace_id`), Storage, URL 캐시, MFDS | 2026-11-13 `trace_id`·저장 경로 추가 |
 | [ErrorCodes](REF_ErrorCodes.md) | 에러·결과 코드 한곳 — 사용자 분류·`[turn]` errCode·outcome·재시도 사유·OpenAI 내부 코드·`[trace]` 상태, 원인별 대응표·어긋남, 표기 규칙(값 snake_case) | 2026-11-10 신규 |
 | [Document](REF_Document.md) | 업로드, HWP 파싱, PDF(GPT 직접 `input_file`)·영상 capability fallback | 2026-10-11 GPT PDF 직접 |
 | [Search Routing](REF_SearchRouting.md) | 검색 on/off tier 정책(공급자별 400), 이미지+검색 탈출구, 논문↔소프트웨어 산출물 3층 방어 + **테스트 질의 카탈로그** | 2026-09-03 신규 |

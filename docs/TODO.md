@@ -422,8 +422,13 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
 - [x] 차트 P1-2A 출처 분류·`sourceKinds`·`[STATISTICS SOURCING]` 보강 — [DEV_261107](logs/2026/11/DEV_261107.md). 출처에 없는 기관 내세움 금지 한 줄·`smbs.biz` 공식도 완료(11-08, 2/3 → 0/3) — [DEV_261108](logs/2026/11/DEV_261108.md)
 - [x] 차트 연.월 범주(`2026.10`·`26.10`)를 소수로 읽어 선이 뒤엉키던 축 버그 · 모바일 12개월 무스크롤·라벨 간격·툴팁 — [DEV_261107](logs/2026/11/DEV_261107.md)
-- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08). 남은: 턴 ID(L3 확장)·`retry_reason`·L4 실측 · 대시보드 할 일(원문 허용 스위치 삭제·프로젝트 분리 완료 11-08 / 보관 14일(Base) 확인 / 조직 기본도 14일 / 남은: 스위치 Sensitive 해제 · 무료 플랜 카드 없음이라 과금 없음(5,000/월 상한)) · 운영은 고지 먼저 — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
-- [ ] 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` → T2 루트 메타데이터·커밋 → T3 `chat_messages.trace_id` — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md)
+- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08), 턴 ID·`retry_reason` 완료(11-09). 남은: **L4 실배포 측정** · `retry_reason` 을 OpenAI·LangChain·라우터 경로로 확장 · 대시보드 할 일(스위치 Sensitive 해제, 보관 14일 확인됨, 무료 플랜 5,000/월 상한) · 운영은 고지 먼저 · run 조회는 v2 API — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- [x] ✅ 11-09 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` · T2 루트 메타데이터·커밋 · T3 `chat_messages.trace_id`, 모두 dev 배포 확인 — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md). 남은: T4·T5 보류, 운영 DB SQL(맨 위 🔴 항목)
+- [x] ✅ 11-10 에러 코드 한곳 정리·snake_case·어긋남 4건 — [REF_ErrorCodes](guide/REF_ErrorCodes.md). 남은: 보조 라우트의 영어 오류 문장 코드화, 날씨 조건 코드 camelCase
+- [ ] 안정성 계획 — ① 떠돌이 rejection ② 메시지 저장 ③ `[turn]` 계측 완료(11-13, dev 정상 경로 확인) — [PLAN_STABILITY_261112](plans/PLAN_STABILITY_261112.md)
+  - [ ] ④ 라우터 제한 시간 — 며칠 `routerMs` p50/p90/p95(`intentFrom=router`·`rule` 만) 모은 뒤 시도당 상한·전체 예산 결정
+  - [ ] 배포 확인 남은 것 — URL 실패 경로·생성 즉시 실패 경로의 `after()` 저장 마무리(`outcome=url_fetch_failed` 턴이 나오면 그 `traceId` 로 DB 조회) · `[process]`·`[save]` 줄이 찍히는지
+  - [ ] 보류 — 근거 재사용 규칙(P1-1, 실패 사례 나오면) · 공급자별 재시도 계측 통일·Generator 실행 함수 분리·카드 참조 ID(P2)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 최신·뉴스 검색 범위(연도 단위 검색어)·출처 부족 시 개수 채우기 — [DEV_261108](logs/2026/11/DEV_261108.md) §3

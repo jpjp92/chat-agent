@@ -76,9 +76,10 @@ body의 `user_id`를 신뢰하지 않는다. 2026-08-17 이전의 nickname 인�
 | `content` | `text` | NOT NULL | 메시지 본문. 마크다운 포함 |
 | `attachment_url` | `text` | nullable | 첨부파일 첫 번째 항목의 Storage URL |
 | `grounding_sources` | `jsonb` | nullable | Gemini/OpenAI 웹 출처(칩·출처 바). `[{title, uri, citationNumber?, cited?}]` 배열 |
-| `created_at` | `timestamptz` | DEFAULT now() | 메시지 시각. 조회 정렬 기준 |
+| `created_at` | `timestamptz` | DEFAULT now() | 메시지 시각. 조회 정렬 기준. 저장은 UTC — 볼 때는 `created_at at time zone 'Asia/Seoul'` |
+| `trace_id` | `uuid` | nullable, 부분 인덱스(`where trace_id is not null`) | 턴 ID(2026-11-09). 같은 턴의 user·assistant 행이 같은 값 — Vercel `[turn].traceId`·LangSmith 루트 run ID 와 같다. 서버가 매 턴 새로 만들며 사용자·세션과 무관. 그 전 행은 null. SQL: [chat-messages-trace-id.sql](db/chat-messages-trace-id.sql) — 🔴 운영 DB 는 main 반영 전에 적용 |
 
-**API 접근:** `app/api/sessions/route.ts`(조회), `app/api/chat/route.ts`(삽입)  
+**API 접근:** `app/api/sessions/route.ts`(조회), `app/api/chat/route.ts`(삽입 — [`createMessageSaver`](../../server/chat-message-save.ts) 가 `role`·`trace_id` 를 붙이고 user → assistant 순서를 지킨다. 실패는 `[save]` 로그에 코드만)  
 **조작:** GET(session_id로 목록, created_at ASC), INSERT(user 메시지, assistant 메시지)
 
 **현재 미저장 항목 (로컬 only):**

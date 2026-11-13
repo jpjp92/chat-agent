@@ -1,6 +1,6 @@
 # Chat Agent 문서
 
-> 최종 갱신: 2026-11-01
+> 최종 갱신: 2026-11-13
 
 이 페이지는 현재 상태와 최근 작업을 찾는 문서 진입점이다. 장기 이력은 [DEV_HISTORY](DEV_HISTORY.md), 아직 남은 일은 [TODO](TODO.md), 실행 순서는 [PLAN_INDEX](plans/PLAN_INDEX.md)를 기준으로 한다.
 
@@ -8,21 +8,29 @@
 
 | 영역 | 현재 정책 | 상세 |
 |---|---|---|
-| 채팅 모델 | Gemini 3.6 Flash 기본. Gemini 3.8/3.5/2.5 및(3.7 은 퇴역 예정 → 3.8 로 보냄, 2026-10-18) **GPT-6 luna**/GPT-5.6 luna 선택 가능(GPT-5.4 mini 는 2026-09-23 legacy 강등 — 목록에서만 내렸고 계속 동작한다). ✅ 3.8 은 2026-10-18 부터 **선택 옵션에 노출**된다(`CHAT_MODEL_OPTIONS` 최상단, 기본은 여전히 3.6). TTS 는 3.8 Flash Lite TTS | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
+| 채팅 모델 | Gemini 3.6 Flash 기본. 선택 목록은 **Gemini 3.8·3.6, GPT-6 luna·GPT-5.6 luna 4종**(3.7 은 퇴역 예정 → 3.8 로 보냄, 2026-10-18). 이전 모델 3종(Gemini 3.5·2.5, GPT-5.4 mini)은 **11-13 선택 목록에서 숨김** — 저장된 선택값은 대체 모델로 옮기고(3.5·2.5 → 3.6, 5.4 mini → 5.6 luna), 서버 허용 목록에는 남는다(2.5 는 라우터·강등이 내부에서 쓴다). 되살리려면 `src/lib/models.ts` 의 `hiddenFallback` 줄만 지운다([DEV_261113 §8](logs/2026/11/DEV_261113.md)). ✅ 3.8 은 2026-10-18 부터 **선택 옵션에 노출**된다(`CHAT_MODEL_OPTIONS` 최상단, 기본은 여전히 3.6). TTS 는 3.8 Flash Lite TTS | [Architecture — Model Policy](guide/REF_Architecture.md#model-policy), [Gemini 3.8 계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md) |
 | Gemini 키 등급 | **회원은 유료 키(`API_KEY_TIER1`) 우선** → 실패 시 무료 로테이션 + 2.5 강등, 게스트·무인증 라우트는 무료만. 10-05 운영 on(`GEMINI_PAID_FIRST=true`) | [PLAN_GEMINI_PAID_FIRST_261004](plans/PLAN_GEMINI_PAID_FIRST_261004.md), [DEV_261005](logs/2026/10/DEV_261005.md) |
 | 로그인 | 익명 게스트 → **Google(GIS ID 토큰, 앱 도메인으로 표시)·카카오(리다이렉트)**. 대화 있는 게스트는 link(같은 uuid), 아니면 로그인. 콘솔 설정(Google Cloud·Supabase dev/prod·Kakao Developers)까지 한곳에 | [REF_Auth](guide/REF_Auth.md), [DEV_261011 §5·§6](logs/2026/10/DEV_261011.md) |
 | GPT 라우팅 | 일반 텍스트·URL·이미지·검색과 로컬 도구 9종(법령은 `law_search`·`law_qa` 공용), **PDF(10-11, `input_file` 직접)**는 선택 GPT 유지. 영상·오디오와 알약 Vision만 Gemini 2.5 capability fallback | [멀티 공급자 라우팅 계획](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md) |
-| 알려진 라우팅 공백 | initial router는 아직 Gemini 2.5 Flash Lite 우선이며, 실패 시 규칙 분류로 복구한다. GPT 일반/도구 실행 자체는 Gemini 키와 분리됨 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
+| 알려진 라우팅 공백 | initial router는 Gemini 2.5 Flash(`ROUTER_MODEL`)이며, 실패 시 키를 바꿔 1회 재시도 후 규칙 분류로 복구한다(`intentFrom=rule`). **호출 제한 시간이 없다** — 11-13 부터 `[turn].routerMs` 를 모아 상한을 정한다([PLAN_STABILITY_261112 §4](plans/PLAN_STABILITY_261112.md)). GPT 일반/도구 실행 자체는 Gemini 키와 분리됨 | [계획 P0](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#3-현재-충돌-지점) |
 | URL Fetch | Wikidocs는 ScrapingBee render/premium/KR 우선, 일반 URL은 direct 우선. browserless는 후순위, OpenAI URL fallback은 기본 OFF | [2026-08-23 실측](logs/2026/08/DEV_260823.md) |
 | 오류 노출 | 공급자 status/code/message는 서버 로그에만 기록하고 UI에는 지역화된 정제 문구만 표시. 브라우저 쪽 업로드·로그인 오류 원본도 콘솔 대신 `/api/client-log` → 서버 로그(10-14) | [오류 분류 계약](plans/PLAN_MULTI_PROVIDER_ROUTING_260823.md#4-오류-분류-계약) |
+| 오류·결과 코드 | 7종 코드(사용자 분류·`errCode`·`outcome`·재시도 사유·OpenAI 내부·`[trace]`·`[save]`)를 한 문서에. 코드 값은 snake_case, JSON 필드 이름은 camelCase. 화면 분류와 로그 코드 어긋남 4건 정렬(11-10) | [REF_ErrorCodes](guide/REF_ErrorCodes.md), [DEV_261110](logs/2026/11/DEV_261110.md) |
+| 관측 | 요청마다 `[turn]` JSON 한 줄(허용 목록·열거값만 — 질문·답·세션 ID 없음). 턴 ID(`traceId`, 매 턴 새 UUID)가 `[turn]`·LangSmith 루트 run·`chat_messages.trace_id` 를 잇는다(T1~T3, dev 확인). 재시도 사유 `retryReasons`, 11-13 `routerMs`·`needsSearch`·`saveMs`. LangSmith 는 dev 전용·기본 숨김 모드, 운영은 고지 먼저. 🔴 운영 DB 에는 `chat-messages-trace-id.sql` 미적용 — main 반영 전 필수 | [PLAN_TURN_LOG_261105](plans/PLAN_TURN_LOG_261105.md), [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md), [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md) |
+| 안정성 | 떠돌이 rejection 은 근원(LangChain 이 버린 SDK `response` Promise)에서 막고 프로세스 리스너 1개가 로그만 — 요청별 리스너는 제거(동시 요청 전부에 오류 문구가 갔다). 메시지 저장은 `createMessageSaver` 로 순서 연결·응답 뒤 `after()` 마무리·로그는 코드만(11-13, 정상 경로 dev 확인). 남은 것: 라우터 제한 시간(측정 뒤) | [PLAN_STABILITY_261112](plans/PLAN_STABILITY_261112.md), [DEV_261113](logs/2026/11/DEV_261113.md) |
 | 검색 grounding | tier 로 판정(400 물리제약 > 300 사용자 명시 > 200 근거제공 > 100 분류기). **400 은 Gemini 전용** — OpenAI 는 이미지와 web_search 를 함께 보낼 수 있어 신호를 내지 않는다 | [2026-09-02 로그](logs/2026/09/DEV_260902.md), [검색 정책 계획](plans/PLAN_SEARCH_POLICY_260815.md) |
 | 함수 타임아웃 | 🔴 **60s 는 플랫폼 한계가 아니다** — Hobby 도 fluid 기본·최대 **300s** 다. `/api/chat` 은 `maxDuration=300`, Gemini 일반 25s·무거운 미디어 90s, OpenAI **120s(호출당)**. 새 경로를 만들 때 **60 을 베껴 오지 말 것** — 이 정정이 세 번 필요했다 | [2026-08-08 §9](logs/2026/08/DEV_260808.md), [2026-09-28 §11](logs/2026/09/DEV_260928.md) |
 | 오늘 날짜 | 주입된 `[CURRENT_SYSTEM_TIME]` 이 **유일한 출처**이고 블록은 base **맨 앞**(실측). 자정 직후 Gemini 2.5 가 기사 날짜로 "오늘" 을 재추론하는 실패는 **문구로 세 번 못 고쳤다** → 출력 사후 검증이 정정을 덧붙인다 | [2026-09-28 §13·§14](logs/2026/09/DEV_260928.md), [today-guard.ts](../server/agent/today-guard.ts) |
-| 자동 검증 | `npm test` 회귀 하니스 38종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
+| 자동 검증 | `npm test` 회귀 하니스 46종(`tests/*.mts` 자동 수집), 외부 공급자 프로브는 `tests/manual/`로 분리 | [tests/README](../tests/README.md) |
 | 서버 경계 | ⚖️ `speech` 는 인증·게스트 차단·회원 일일 한도가 **운영 배포됨**(10-05) — 운영 DB `tts-quota.sql` 적용 여부는 미확인([DEV_261003](logs/2026/10/DEV_261003.md)). ✅ 10-10 `summarize-title` 인증 + **anon 키 Bearer 우회 차단**(chat 포함, 프로필 행 필수), SSRF 공용 판정 `server/ssrf.ts`(IPv6 대괄호·DNS·리다이렉트 hop 재검사) — [DEV_261010](logs/2026/10/DEV_261010.md). ✅ 10-17 **무인증 라우트 해소** — `fetch-url`·`showtimes`·`sync-drug-image` 는 `requireProfile`(토큰 실검증), `proxy-image`·`client-log` 는 공개 + 허용목록. 계약 하니스 `test-route-auth` 가 CI 에서 강제(10-31 실행 **16/16**). ✅ 10-24 보조 라우트 **게스트 일일 한도**(`aux-quota.sql`). SSRF 남은 공백은 DNS 재바인딩 | [TODO §보안](TODO.md), [PLAN_SECURITY_REVIEW_261031](plans/PLAN_SECURITY_REVIEW_261031.md), [DEV_261017](logs/2026/10/DEV_261017.md), [PLAN_HARDENING_260822](plans/PLAN_HARDENING_260822.md) |
 
 ## 최근 문서
 
+- **2026-11-13** — [떠돌이 rejection 근원 수정 · 메시지 저장 정리 · `[turn]` 계측 · 이전 모델 숨김](logs/2026/11/DEV_261113.md) — 외부 검토안을 코드와 대조한 [안정성 계획](plans/PLAN_STABILITY_261112.md) ①~③. LangChain 이 버린 SDK Promise 가 떠돌이 rejection 의 근원(가짜 fetch 로 재현) → 근원 차단 + 프로세스 리스너 1개. 메시지 저장 순서·`after()` 마무리·`[save]` 로그 코드만(dev 정상 경로 3턴 확인). `[turn]` 에 `routerMs`·`needsSearch`·`saveMs`. 선택 목록에서 Gemini 3.5·2.5, GPT-5.4 mini 숨김
+- **2026-11-10** — [에러 코드 한곳 정리](logs/2026/11/DEV_261110.md) — 가이드 [REF_ErrorCodes](guide/REF_ErrorCodes.md)(7종 코드·원인별 대응표). 사용자 에러 분류 snake_case, 화면·로그 코드 어긋남 4건(타임아웃·OpenAI 할당량·안전 차단·키 소진) 정렬
+- **2026-11-09** — [턴 ID T1~T3 · 재시도 사유 · K-EXAONE 라우터 비교](logs/2026/11/DEV_261109.md) — `[turn].traceId` = LangSmith 루트 run ID(배포 확인), 루트 메타데이터에 턴 값·배포 커밋, `chat_messages.trace_id`(dev 적용). `retry_reason` 9종. EXAONE 은 정확도 같을 때 지연 5배·추론 끄면 JSON 깨짐·약관상 서비스 연동 불가 → 보류. [계획](plans/PLAN_TRACE_ID_261108.md)
+- **2026-11-07~08** — [LangSmith 추적 도입](logs/2026/11/DEV_261107.md) · [원문 모드·차트 출처 문구](logs/2026/11/DEV_261108.md) — dev 전용, 기본은 입출력을 비운 숨김 모드. 원문 모드는 합성 질문만(민감정보 가림·민감 의도 턴 제외·브랜치 판정). 차트 출처 P1-2A 분류, 출처에 없는 기관 내세움 2/3 → 0/3. [계획](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- **2026-11-06** — [차트 수치의 근거 실측 · P1-2 확정안](logs/2026/11/DEV_261106.md)
 - **2026-11-05** — [차트 품질 · 차트 질문 검색](logs/2026/11/DEV_261105.md) — 직선 물결·숫자 축·산점도·파이 형식·애니메이션 반복 수정, 흩어진 수치 차트 숨김. `data_viz` 도 라우터 검색 판단(실제 통계는 검색). 가짜 인용 제거가 차트 정수 배열을 지우던 버그. 가이드 [REF_Chart](guide/REF_Chart.md)
 - **2026-11-03** — [물리 도해 SVG 고도화 검토·시제품](logs/2026/11/DEV_261103.md) — Anatomy 기획 검토 → `json:diagram` 고도화로. 운영 canvas 경사면 방향 버그 발견 · AI 시안 5개 중 4개가 벡터 방향 오류 · 물리 파라미터 스키마 시제품(검산·라벨 겹침 하니스) → 같은 날 canvas 방향 수정·SVG 1~3단계·충돌·자유물체도 반영([계획](plans/PLAN_PHYSICS_SVG_261103.md)). 11-04: "원리를 그림과 수식으로 설명" 이 general 로 가던 라우터 정의 수정(visual 9/9·골든 89/89 두 모델) · canvas 제거(운영 옛 형식 11건 → 안내 카드) · 구글 로그인 버튼 지연 · 카드 PNG 저장 · 자유물체도 마찰 방향 보정 · 일반 물리 질문 TC · es·fr 카드·본문 규칙·작은 화살표. 가이드 [REF_Physics](guide/REF_Physics.md) 새 형식 + 예시 쿼리 A~F
 - **2026-11-01** — [보안 권고 팩트체크·처리](logs/2026/11/DEV_261101.md) — 권고 원문으로 10-31 검토를 재확인. `npm ci`(로컬 `sharp` 0.34.5 도 패치판으로) · `zod ^4.6.7` · 프로덕션 `warn` 로그 보존. KaTeX 는 `rehype-katex` 가 0.16 에 묶여 Low 수용으로 정정

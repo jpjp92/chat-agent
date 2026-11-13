@@ -38,7 +38,7 @@ A multi-provider AI messenger built on Gemini and OpenAI. A LangGraph.js agent r
 
 | Feature | Description |
 | --- | --- |
-| Models | **Gemini 3.6 Flash (default)**, Gemini 3.8 Flash, GPT-6 luna, GPT-5.6 luna. Gemini 3.7 (retiring 2027-01-28) is sent to 3.8. Older models (Gemini 3.5 / 2.5, GPT-5.4 mini) stay accepted for existing sessions but are hidden from the picker |
+| Models | **Gemini 3.6 Flash (default)**, Gemini 3.8 Flash, GPT-6 luna, GPT-5.6 luna. Gemini 3.7 (retiring 2027-01-28) is sent to 3.8. Older models (Gemini 3.5 / 2.5, GPT-5.4 mini) are hidden from the picker (2026-11-13) — a saved selection moves to a current model, and the server still accepts them (2.5 is used internally for routing and fallback) |
 | Intent routing | A fast router model plus rule-based guards picks the path: web answer, tool card, renderer, or document Q&A |
 | Web search | Turned on or off per turn by declared priority tiers — e.g. an explicit "search this" beats "the attached document already answers it" → [REF_SearchRouting](docs/guide/REF_SearchRouting.md) |
 | Citations | Both providers' sources become clickable `[N]` markers and source chips. Unbacked `[N]` from the model is removed |
@@ -77,7 +77,10 @@ Per-renderer schemas and test prompts: [docs/guide/](docs/guide/README.md)
 - **Lighthouse**: Performance 91 · Best Practices 100 · CLS 0.00 — JS 365 KB gzip
 - **Uploads**: presigned URLs, token required, files isolated per user by Storage RLS
 - **URL fetching**: SSRF protection on every server-side fetch (IP checks, DNS answers, per-redirect re-check) → [DEV_261010](docs/logs/2026/10/DEV_261010.md)
-- **Errors**: internal messages never reach the browser. Users see a localized notice; the original goes to server logs
+- **Errors**: internal messages never reach the browser. Users see a localized notice; the original goes to server logs. All error and result codes are listed in one place → [REF_ErrorCodes](docs/guide/REF_ErrorCodes.md)
+- **Per-turn log**: one `[turn]` JSON line per request — allowlisted fields and enum values only (intent, model, search, timings, outcome, error code). No question, answer, URL, user or session ID
+- **Turn ID**: a random per-turn UUID links the `[turn]` line, the LangSmith root run and the saved message rows (`chat_messages.trace_id`). It is not tied to a user or session → [PLAN_TRACE_ID_261108](docs/plans/PLAN_TRACE_ID_261108.md)
+- **Stability**: stray promise rejections are fixed at the source and logged by a single process-level listener (never forwarded to another user's stream); message saves keep their order, never block the answer, and log codes only → [PLAN_STABILITY_261112](docs/plans/PLAN_STABILITY_261112.md)
 - **Keys**: API key rotation with cooldown on 429 and blacklist on 401/403
 - **TTS**: token required and a daily quota checked atomically before any paid call
 - **Tracing (dev only)**: LangSmith spans per node and model call — inputs/outputs stripped by default, only model, search flag, token and source counts are sent; raw mode is local/synthetic only and never runs in Production → [PLAN_LANGSMITH_TRACING_261107](docs/plans/PLAN_LANGSMITH_TRACING_261107.md)
@@ -121,7 +124,7 @@ Step-by-step diagrams (agent flow, URL fetch fallbacks, pill ID, DB/Storage, TTS
 | Visualization | ApexCharts, smiles-drawer, NGL Viewer, SVG (physics), Canvas (sky map), astronomy-engine |
 | Backend | Next.js Route Handlers on Vercel, LangGraph.js, LangChain |
 | AI | Google GenAI SDK, OpenAI Responses API |
-| Observability | LangSmith (dev only, sanitized) |
+| Observability | Per-turn `[turn]` log + turn ID, LangSmith (dev only, sanitized) |
 | Data | Supabase (PostgreSQL + Storage) → [REF_DB](docs/guide/REF_DB.md) |
 
 ---
@@ -165,7 +168,7 @@ npm run dev      # http://localhost:3000
 
 ```bash
 npm run verify   # strict typecheck + ESLint errors + knip + harnesses — run before every commit
-npm test         # 43 harnesses, no network or secrets needed
+npm test         # 46 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)
