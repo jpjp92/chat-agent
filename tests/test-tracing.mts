@@ -352,6 +352,9 @@ check('grounding 출처는 개수만', JSON.stringify(gr).includes('"grounding_s
     const mA = metaOf(idA), mB = metaOf(idB);
     check('숨김 T2: 동시 두 턴의 값이 섞이지 않음', mA?.intent === 'weather' && mB?.intent === 'general' && mA?.model === 'gpt-6-luna' && mB?.model === 'gemini-3.8-flash', JSON.stringify({ mA, mB }));
     check('숨김 T2: 필드(search 불리언·출처 성격 평평하게·commit)', mB?.search === true && mB?.searchBy === 'router-llm' && mB?.sources === 3 && mB?.sources_official === 1 && mB?.outcome === 'empty' && mB?.modelDowngraded === false && mB?.commit === 'local', JSON.stringify(mB));
+    const mN = turnMetaOf({ outcome: 'ok', needsSearch: 'on', search: 'off', routerMs: 813, saveMs: 41 });
+    check('T2 계측: needsSearch 불리언·routerMs·saveMs', mN.needsSearch === true && mN.search === false && mN.routerMs === 813 && mN.saveMs === 41, JSON.stringify(mN));
+    check('T2 계측: needsSearch other 는 싣지 않음', !('needsSearch' in turnMetaOf({ outcome: 'ok', needsSearch: 'other' })));
     const mR = turnMetaOf({ outcome: 'ok', retries: 3, retryReasons: ['rate_limit', 'timeout', 'Bad Value!'] });
     check('T2 재시도: retries 수·사유별 불리언·형식 밖 사유 제외', mR.retries === 3 && mR.retry_rate_limit === true && mR.retry_timeout === true && !Object.keys(mR).some(k => k.includes('Bad')), JSON.stringify(mR));
     check('숨김 T2: 객체·원문 값은 안 들어감', mB !== undefined && !('sourceKinds' in mB) && !('blocks' in mB) && !('traceId' in mB));

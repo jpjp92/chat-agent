@@ -40,7 +40,9 @@ export interface DispatchState {
     /** 마지막으로 보낸 진행 상태 — 같은 상태를 두 번 보내지 않는다(재시도 루프가 검색을 다시 켜도). */
     lastStatus: string;
     /** [turn] 로그 재료 — 클라이언트로 보내지 않는다(turn-log.ts 가 열거값으로 다시 거른다) */
-    turn: { intentFrom?: string; provider?: string; model?: string; search?: boolean; searchBy?: string; retries?: string[] };
+    turn: { intentFrom?: string; provider?: string; model?: string; search?: boolean; searchBy?: string; retries?: string[];
+        /** 라우터 노드 소요(ms)·검색 필요 판정 — 제한 시간·검색 미실행을 [turn] 으로 보기 위해(PLAN_STABILITY_261112 §3) */
+        routerStartedAt?: number; routerMs?: number; needsSearch?: boolean };
 }
 
 export interface StreamDispatch {
@@ -157,7 +159,12 @@ export function createStreamDispatch(
         }
       } else if (event.event === 'on_custom_event' && event.name === STATUS_EVENT) {
         sendStatus(data?.kind ?? null);
+      } else if (event.event === 'on_chain_start' && event.name === 'router') {
+        st.turn.routerStartedAt = Date.now();
       } else if (event.event === 'on_chain_end' && event.name === 'router') {
+        if (st.turn.routerStartedAt !== undefined) st.turn.routerMs = Date.now() - st.turn.routerStartedAt;
+        // vision 으로 가는 턴은 판정이 없다 → 비워 둔다
+        if (typeof data?.output?.needsSearch === 'boolean') st.turn.needsSearch = data.output.needsSearch;
         // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
         const ri = data?.output?.intent;
         if (typeof ri === 'string') st.detectedIntent = ri;

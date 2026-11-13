@@ -380,7 +380,7 @@ const TURN_META_WAIT_MS = 30_000;
 
 /** 루트 run 메타데이터 = [turn] 값(T2, PLAN_TRACE_ID_261108). 이미 열거·정수로 정리된 값에서 키·형태를 다시 고른다 */
 type TurnMeta = Record<string, string | number | boolean>;
-const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode', 'retries'];
+const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode', 'retries', 'routerMs', 'saveMs'];
 export const turnMetaOf = (fields: unknown): TurnMeta => {
     const out: TurnMeta = {};
     const f = (fields && typeof fields === 'object' ? fields : {}) as Record<string, unknown>;
@@ -391,6 +391,7 @@ export const turnMetaOf = (fields: unknown): TurnMeta => {
     for (const k of TURN_META_KEYS) put(k, f[k]);
     // [turn].search 는 'on'|'off' — 자식 span 의 search(불리언)와 같은 형태로
     if (f.search === 'on' || f.search === 'off') out.search = f.search === 'on';
+    if (f.needsSearch === 'on' || f.needsSearch === 'off') out.needsSearch = f.needsSearch === 'on';
     // LangSmith 필터는 평평한 키가 쉽다
     const kinds = f.sourceKinds as Record<string, unknown> | null | undefined;
     if (kinds && typeof kinds === 'object') for (const k of ['official', 'secondary', 'other']) put(`sources_${k}`, kinds[k]);

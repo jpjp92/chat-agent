@@ -53,7 +53,7 @@ check('오류 메시지 대신 코드만', parse(line).errCode === 'server' && !
 check('ms 정수화', parse(line).ms === 1235);
 
 // ④ 키 집합 고정 — 새 필드는 계획 문서·이 목록을 함께 고쳐야 들어온다
-const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'outcome', 'retries', 'retryReasons', 'errCode'];
+const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'needsSearch', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'routerMs', 'saveMs', 'outcome', 'retries', 'retryReasons', 'errCode'];
 check('키 집합이 허용 목록과 같다', JSON.stringify(Object.keys(parse(line))) === JSON.stringify(KEYS), Object.keys(parse(line)).join(','));
 check('ok 경로엔 errCode 없음', !('errCode' in parse(buildTurnLog({ outcome: 'ok' }))));
 
@@ -76,6 +76,21 @@ const rl = parse(buildTurnLog({ outcome: 'ok', retries: ['rate_limit', 'timeout'
 check('retries 횟수·retryReasons 중복 없이·밖은 other', rl.retries === 4 && JSON.stringify(rl.retryReasons) === '["rate_limit","timeout","other"]' && !JSON.stringify(rl).includes('example.com'), JSON.stringify(rl));
 check('재시도 없으면 0·빈 목록', parse(buildTurnLog({ outcome: 'ok' })).retries === 0 && JSON.stringify(parse(buildTurnLog({ outcome: 'ok' })).retryReasons) === '[]');
 check('재시도 기록 상한 20', parse(buildTurnLog({ outcome: 'ok', retries: Array(500).fill('empty') })).retries === 20);
+
+// 라우터 소요·검색 필요 판정·저장 대기(PLAN_STABILITY_261112 §3)
+const d2 = createStreamDispatch(() => {});
+d2.handle({ event: 'on_chain_start', name: 'router', data: {} } as any);
+await new Promise(r => setTimeout(r, 15));
+d2.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'general', intentFrom: 'router', needsSearch: true } } } as any);
+check('routerMs: 라우터 시작~끝', (d2.state.turn.routerMs ?? -1) >= 10 && (d2.state.turn.routerMs ?? 0) < 500, String(d2.state.turn.routerMs));
+check('needsSearch: 라우터 출력에서', d2.state.turn.needsSearch === true);
+const d3 = createStreamDispatch(() => {});
+d3.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'drug_id', intentFrom: 'shortcut' } } } as any);
+check('판정 없는 턴(vision)·시작 이벤트 없음 → 비움', d3.state.turn.needsSearch === undefined && d3.state.turn.routerMs === undefined);
+const ns = parse(buildTurnLog({ outcome: 'ok', needsSearch: true, search: false, routerMs: 812.6, saveMs: 41 }));
+check('needsSearch on/off·routerMs·saveMs 정수', ns.needsSearch === 'on' && ns.search === 'off' && ns.routerMs === 813 && ns.saveMs === 41, JSON.stringify(ns));
+const nsBad = parse(buildTurnLog({ outcome: 'ok', needsSearch: 'yes; user@example.com', routerMs: '1200ms', saveMs: NaN }));
+check('형식 밖 → other·null', nsBad.needsSearch === 'other' && nsBad.routerMs === null && nsBad.saveMs === null && !JSON.stringify(nsBad).includes('example'), JSON.stringify(nsBad));
 
 // 오류 코드 분류
 check('429 → rate_limit', errCodeOf({ status: 429 }) === 'rate_limit');

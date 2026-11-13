@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       const turnStartedAt = Date.now();
       let turnOutcome: 'ok' | 'empty' | 'error' | 'url_fetch_failed' = 'ok';
       let turnErr: unknown;
+      let saveMs: number | undefined;
       let turnState: DispatchState | null = null;
       const sendEvent = (data: any) => {
         try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)); } catch {}
@@ -229,10 +230,12 @@ export async function POST(req: NextRequest) {
 
         if (fullAiResponse && session_id) {
           // user 저장이 끝난 뒤 나간다(saver 가 순서를 지킨다). 실패해도 답은 이미 나갔으므로 로그만
+          const saveStartedAt = Date.now();
           await saver.save('assistant', {
             session_id, content: fullAiResponse,
             grounding_sources: allSources.length > 0 ? allSources : null,
           });
+          saveMs = Date.now() - saveStartedAt;
         } else if (!fullAiResponse) {
           turnOutcome = 'empty';
           console.error('[Chat API] Empty model response', {
@@ -267,9 +270,9 @@ export async function POST(req: NextRequest) {
         const turnLogFields = logTurn({
           intent: ts?.detectedIntent, intentFrom: ts?.turn.intentFrom,
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
-          search: ts?.turn.search, searchBy: ts?.turn.searchBy,
+          search: ts?.turn.search, needsSearch: ts?.turn.needsSearch, searchBy: ts?.turn.searchBy,
           sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
-          ms: Date.now() - turnStartedAt, outcome: turnOutcome, err: turnErr, traceId, retries: ts?.turn.retries,
+          ms: Date.now() - turnStartedAt, routerMs: ts?.turn.routerMs, saveMs, outcome: turnOutcome, err: turnErr, traceId, retries: ts?.turn.retries,
         });
         attachTurnMeta(traceId, turnLogFields);
         clearInterval(heartbeatInterval);

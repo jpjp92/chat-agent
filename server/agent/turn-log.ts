@@ -87,12 +87,17 @@ interface TurnLogInput {
     model?: unknown;
     requestedModel?: unknown;
     search?: unknown;
+    // 라우터의 검색 필요 판정 — search(실제 실행)와 나란히 봐야 '요청했는데 미실행'이 보인다
+    needsSearch?: unknown;
     searchBy?: unknown;
     sources?: unknown;
     // 출처 성격별 개수 — 호출부가 센다. 출처 자체는 받지 않는다
     sourceKinds?: unknown;
     text?: string;
     ms?: unknown;
+    // 라우터 노드 소요 · assistant 저장 대기(둘 다 ms 에 포함돼 있다)
+    routerMs?: unknown;
+    saveMs?: unknown;
     outcome?: unknown;
     err?: unknown;
     // 재시도·강등 사유 목록(발생 순). 열거값 밖은 other
@@ -123,6 +128,7 @@ export const turnFields = (i: TurnLogInput): Record<string, unknown> => {
         provider: pick(PROVIDERS, i.provider),
         model,
         modelDowngraded: model !== 'other' && requested !== 'other' ? model !== requested : null,
+        needsSearch: i.needsSearch === true ? 'on' : i.needsSearch === false ? 'off' : 'other',
         search: i.search === true ? 'on' : i.search === false ? 'off' : 'other',
         searchBy: pick(SEARCH_BY, i.searchBy),
         sources: int(i.sources),
@@ -130,6 +136,8 @@ export const turnFields = (i: TurnLogInput): Record<string, unknown> => {
         blocks: countBlocks(typeof i.text === 'string' ? i.text : ''),
         chars: typeof i.text === 'string' ? i.text.length : 0,
         ms: int(i.ms),
+        routerMs: int(i.routerMs),
+        saveMs: int(i.saveMs),
         outcome,
         ...retryFields(i.retries),
     };
