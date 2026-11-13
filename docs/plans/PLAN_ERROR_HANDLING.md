@@ -97,8 +97,8 @@ getNextApiKey()
 진입
   ├─ API_KEYS 없음 → sendEvent({ error }) → res.end()  즉시 종료
   │
-  ├─ process.once('unhandledRejection') 가드 등록
-  │    └─ LangGraph pregel 탈출 에러 포획 → sendEvent({ error }) 시도
+  ├─ (모듈 로드 때 1회) installProcessGuard — 떠돌이 rejection 은 로그만, SSE 없음
+  │    └─ 요청별 리스너는 11-13 제거(동시 요청 전부에 오류가 갔다) → DEV_261113
   │
   └─ try { graph.streamEvents() }
        │

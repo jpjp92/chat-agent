@@ -79,7 +79,7 @@
   - ✅ 2026-10-24 **GPT 약 카드 URL 깨짐**(인코딩에 히브리어 등) — 카드 URL 3필드를 도구 값으로 덮어씀. Gemini 는 측정 0건이라 보류 → [DEV_261024 §7](logs/2026/10/DEV_261024.md)
   - [x] ✅ 2026-10-25 약 답변 출처에 식약처 링크(`mfds_url`) — 카드 답 6/6 에 칩, 웹 출처에 식약처가 있으면 생략 → [DEV_261025 §2](logs/2026/10/DEV_261025.md)
   - ⬜ 액제·시럽 약 카드 — 낱알식별 DB 밖이라 카드 없이 웹 근거 답(설계대로, §8). 원하면 허가정보·e약은요 API
-  - 🟡 **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
+  - 🟡 (11-13 근원 수정 — LangChain 이 버린 SDK Promise·요청별 리스너, [DEV_261113](logs/2026/11/DEV_261113.md). 배포 후 재발 여부 확인) **생성 스트림이 깨지면 빈 답 + 출처만** — `Failed to parse stream` 이 unhandledRejection 으로 끝나 오류 안내가 안 간다(10-18 무료 키 RPD 소진 때 재현) → [DEV_261018 §6](logs/2026/10/DEV_261018.md#6-실측-키--제목-생성-키-tier)
   - ✅ 2026-10-18 **CGV 상영시간 전 지점 0편** — CGV 가 API 를 `cgv.co.kr/api/v1/` 로 옮겼다. 주소 수정 + 지점 목록 갱신 → [DEV_261018 §8](logs/2026/10/DEV_261018.md#8-cgv-api-이전--지점-목록-갱신). 남은 것: CGV 수집 실패가 오류 없이 빈 목록(200)으로 끝나 "상영 없음" 과 구분되지 않는다(PLAN_HARDENING P1-3)
   - ✅ 2026-10-17 인증 계약 완료 — 무인증·위조 토큰 통과 라우트 4개에 `requireProfile`, proxy-image 는 약품 호스트 허용목록, 하니스 `test-route-auth` 가 새 무인증 라우트를 막는다 → [PLAN_PUBLIC_ROUTE_AUTH_261017](plans/PLAN_PUBLIC_ROUTE_AUTH_261017.md) · [DEV_261017](logs/2026/10/DEV_261017.md). **남은 것: 호출 제한(쿼터)**, sync-drug-image `safeFetch`(MEDIUM-4)
   - ✅ **2026-10-10** — `summarize-title` 인증(프로필 행 필수) · 🔴 신규 발견 anon 키 Bearer 로 `/api/chat` 게스트 한도 우회 → 차단 · SSRF 공용 판정 [`server/ssrf.ts`](../server/ssrf.ts)(대괄호 IPv6·mapped·DNS·리다이렉트 hop 재검사) → [DEV_261010](logs/2026/10/DEV_261010.md). **남은 무인증 4개**: `fetch-url`·`proxy-image`·`showtimes`·`sync-drug-image`. 아래 기록은 당시 상태.
