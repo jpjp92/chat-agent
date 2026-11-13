@@ -427,7 +427,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] ✅ 11-09 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` · T2 루트 메타데이터·커밋 · T3 `chat_messages.trace_id`, 모두 dev 배포 확인 — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md). 남은: T4·T5 보류, 운영 DB SQL(맨 위 🔴 항목)
 - [x] ✅ 11-10 에러 코드 한곳 정리·snake_case·어긋남 4건 — [REF_ErrorCodes](guide/REF_ErrorCodes.md). 남은: 보조 라우트의 영어 오류 문장 코드화, 날씨 조건 코드 camelCase
 - [ ] 안정성 계획 — ① 떠돌이 rejection ② 메시지 저장 ③ `[turn]` 계측 완료(11-13, dev 정상 경로 확인) — [PLAN_STABILITY_261112](plans/PLAN_STABILITY_261112.md)
-  - [ ] ④ 라우터 제한 시간 — 며칠 `routerMs` p50/p90/p95(`intentFrom=router`·`rule` 만) 모은 뒤 시도당 상한·전체 예산 결정
+  - [ ] ④ 라우터 제한 시간 — 며칠 `routerMs` p50/p90/p95(`intentFrom=router`·`rule` 만) 모은 뒤 시도당 상한·전체 예산 결정. 집계는 LangSmith 루트 메타데이터로(Vercel CLI 는 `[turn]` 줄이 빠진다). 첫 표본 1298ms(11-13)
   - [ ] 배포 확인 남은 것 — URL 실패 경로·생성 즉시 실패 경로의 `after()` 저장 마무리(`outcome=url_fetch_failed` 턴이 나오면 그 `traceId` 로 DB 조회) · `[process]`·`[save]` 줄이 찍히는지
   - [ ] 보류 — 근거 재사용 규칙(P1-1, 실패 사례 나오면) · 공급자별 재시도 계측 통일·Generator 실행 함수 분리·카드 참조 ID(P2)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4

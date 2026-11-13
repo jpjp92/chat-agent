@@ -168,7 +168,7 @@ npm run dev      # http://localhost:3000
 
 ```bash
 npm run verify   # strict typecheck + ESLint errors + knip + harnesses — run before every commit
-npm test         # 46 harnesses, no network or secrets needed
+npm test         # 47 harnesses, no network or secrets needed
 ```
 
 Harness list and how to add one: [tests/README.md](tests/README.md)

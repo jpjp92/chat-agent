@@ -10,9 +10,9 @@
 >
 > 📌 **검증 스크립트는 원칙적으로 링크가 아니라 인라인 코드로 적습니다** — `scripts/test-*` 는 `.gitignore` 대상이라(`.gitignore` §54–86: `audit-`·`test-`·`debug-`·`check-`·`verify-` 등 접두사) **레포에 올라가지 않습니다.** 클론한 환경에는 없으므로 링크로 걸면 항상 깨집니다. 실행 방법과 결과는 해당 날짜의 `docs/logs/` 로그 본문에 남깁니다.
 >
-> **회귀 하니스 46종**(2026-11-13 기준, `npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
+> **회귀 하니스 47종**(2026-11-13 기준, `npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
-- **2026-11-13 · 떠돌이 rejection 근원 수정(LangChain 이 버린 SDK `response` Promise) · 요청별 `unhandledRejection` 리스너 제거 · 메시지 저장 순서·`[save]` 로그 코드만 · `[turn]` 계측 3개(routerMs·needsSearch·saveMs) · 이전 모델 3종 선택 목록 숨김 · 채팅 라우트 로그 오류 원문 제거** → [DEV_261113](logs/2026/11/DEV_261113.md)
+- **2026-11-13 · 떠돌이 rejection 근원 수정(LangChain 이 버린 SDK `response` Promise) · 요청별 `unhandledRejection` 리스너 제거 · 메시지 저장 순서·`[save]` 로그 코드만 · `[turn]` 계측 3개(routerMs·needsSearch·saveMs) · 이전 모델 3종 선택 목록 숨김 · 채팅 라우트 로그 오류 원문 제거 · 사이드바 폭 드래그 조절** → [DEV_261113](logs/2026/11/DEV_261113.md)
 - **2026-11-10 · 에러 코드 한곳 정리(REF_ErrorCodes) · 사용자 에러 분류 snake_case · 화면·로그 코드 어긋남 4건 고침** → [DEV_261110](logs/2026/11/DEV_261110.md)
 - **2026-11-09 · 턴 ID T1 배포 검증(Vercel `[turn].traceId` = LangSmith 루트 run ID) · T2 루트 메타데이터 · K-EXAONE 라우터 비교(지연 5배·JSON 깨짐 → 보류)** → [DEV_261109](logs/2026/11/DEV_261109.md)
 - **2026-11-08 · 차트 출처 문구 규칙(실측 2/3 → 0/3) · LangSmith 원문 모드 민감정보 가리기·모델 입력 기록·캐시 토큰·배포 dev 원문(브랜치 판정·민감 턴 제외)** → [DEV_261108](logs/2026/11/DEV_261108.md)

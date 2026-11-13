@@ -79,13 +79,15 @@
 
 **결과(11-13)** — `routerMs` 는 라우터를 고치지 않고 stream-dispatch 가 노드 시작~끝으로 잰다(지름길 턴은 0 근처 — `intentFrom` 으로 가른다). `needsSearch` 는 라우터 출력에서, `saveMs` 는 route 에서. LangSmith 루트 메타에도 같은 값(`needsSearch` 는 불리언). → [DEV_261113 §7](../logs/2026/11/DEV_261113.md)
 
+**배포 확인(11-13, `66054c1`)** — 17:06 KST 턴에 세 필드가 찍힘(`routerMs` 1298·`saveMs` 59·`needsSearch` off) → [DEV_261113 §10](../logs/2026/11/DEV_261113.md).
+
 **완료 기준** — `test-turn-log` 에 두 필드 허용·값 범위 확인, dev 배포에서 `[turn]` 줄에 찍힘.
 
 ## 4. P1-2 라우터 제한 시간
 
 **현재** — [router.ts](../../server/agent/nodes/router.ts) Gemini 호출에 상한 없음, 키를 바꿔 최대 2회. 실패 시 규칙 폴백과 `intentFrom=rule` 기록은 이미 된다.
 
-**순서** — 3번 배포 → 며칠간 `routerMs` p50/p90/p95 수집(추가 비용 0) → 시도당 상한과 라우터 전체 예산을 따로 정한다(예: p99 근처 시도당, 전체는 2회 합). 타임아웃도 규칙 폴백으로 가고 `retryReasons` 에 `timeout`.
+**순서** — 3번 배포 → 며칠간 `routerMs` p50/p90/p95 수집(추가 비용 0, Vercel CLI 는 `[turn]` 줄을 일부만 돌려주므로 LangSmith 루트 메타데이터에서 집계) → 시도당 상한과 라우터 전체 예산을 따로 정한다(예: p99 근처 시도당, 전체는 2회 합). 타임아웃도 규칙 폴백으로 가고 `retryReasons` 에 `timeout`.
 
 **완료 기준** — 수정 전후 p95 TTFT·`intentFrom=rule` 비율 비교. 비율이 눈에 띄게 늘면 상한을 늘린다.
 
