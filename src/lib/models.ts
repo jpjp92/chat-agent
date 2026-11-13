@@ -31,7 +31,7 @@ type Localized = string | Record<Language, string>;
 export const pickLabel = (value: Localized, language: Language): string =>
   typeof value === 'string' ? value : (value[language] ?? value.ko);
 
-export const CHAT_MODEL_SECTIONS: ReadonlyArray<{ id: string; label: Localized }> = [
+const ALL_CHAT_MODEL_SECTIONS: ReadonlyArray<{ id: string; label: Localized }> = [
   { id: 'gemini', label: 'Google Gemini' },
   { id: 'openai', label: 'OpenAI' },
   {
@@ -45,11 +45,17 @@ export const CHAT_MODEL_SECTIONS: ReadonlyArray<{ id: string; label: Localized }
   },
 ];
 
-export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
+/**
+ * `hiddenFallback` 이 있으면 선택 목록에 안 보인다(11-13 이전 모델 3종). 다시 보이게 하려면 그 줄만 지운다.
+ * 숨겼을 뿐 서버 허용 목록(`server/models.ts`·`openai/models.ts`)에서는 빼지 않는다 — 내부 강등·라우터가 쓴다.
+ * 로컬에 이 모델이 저장돼 있던 사용자는 `hiddenFallback` 모델로 옮긴다(목록에 없는 모델이 선택된 채 남지 않게).
+ */
+const ALL_CHAT_MODEL_OPTIONS: ReadonlyArray<{
   id: ChatModelId;
   section: string;
   label: Localized;
   description: Localized;
+  hiddenFallback?: ChatModelId;
 }> = [
   {
     id: CHAT_MODELS.FLASH_3_8,
@@ -98,6 +104,7 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
   {
     id: CHAT_MODELS.FLASH_3_5,
     section: 'legacy',
+    hiddenFallback: CHAT_MODELS.FLASH_3_6,
     label: 'Gemini 3.5 Flash',
     description: {
       ko: '균형 잡힌 이전 세대 모델',
@@ -109,6 +116,7 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
   {
     id: CHAT_MODELS.FLASH,
     section: 'legacy',
+    hiddenFallback: CHAT_MODELS.FLASH_3_6,
     label: 'Gemini 2.5 Flash',
     description: {
       ko: '빠르고 균형 잡힌 응답',
@@ -117,13 +125,10 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
       fr: 'Rapide et équilibré',
     },
   },
-  // legacy — OpenAI 칸은 최신 2종만 보인다.
-  // 목록에서 내렸을 뿐 **계속 동작한다** — `preferred_model` 로컬 스토리지에 이 값을 가진
-  // 세션이 그대로 올라오므로, 서버 허용 목록(`server/models.ts`·`openai/models.ts`)에서는
-  // 빼지 않는다. 빼면 그 사용자는 다음 전송에서 오류를 본다.
   {
     id: CHAT_MODELS.GPT_5_4_MINI,
     section: 'legacy',
+    hiddenFallback: CHAT_MODELS.GPT_5_6_LUNA,
     label: 'GPT-5.4 mini',
     description: {
       ko: '빠르고 효율적인 OpenAI 모델',
@@ -134,6 +139,10 @@ export const CHAT_MODEL_OPTIONS: ReadonlyArray<{
   },
 ];
 
+/** 화면에 보이는 모델·섹션 — 숨긴 모델만 있는 섹션은 같이 빠진다 */
+export const CHAT_MODEL_OPTIONS = ALL_CHAT_MODEL_OPTIONS.filter(option => !option.hiddenFallback);
+export const CHAT_MODEL_SECTIONS = ALL_CHAT_MODEL_SECTIONS.filter(section => CHAT_MODEL_OPTIONS.some(option => option.section === section.id));
+
 export const isChatModelId = (value: string | null): value is ChatModelId =>
   Object.values(CHAT_MODELS).includes(value as ChatModelId);
 
@@ -142,8 +151,9 @@ const RETIRED_CHAT_MODELS: Partial<Record<ChatModelId, ChatModelId>> = {
   [CHAT_MODELS.FLASH_3_7]: CHAT_MODELS.FLASH_3_8,
 };
 
-/** 로컬에 저장된 선택값 → 쓸 모델. 모르는 값은 기본값, 퇴역 모델은 후속 모델. */
+/** 로컬에 저장된 선택값 → 쓸 모델. 모르는 값은 기본값, 퇴역 모델은 후속 모델, 숨긴 모델은 대체 모델. */
 export const resolveStoredModel = (value: string | null): ChatModelId => {
   if (!isChatModelId(value)) return DEFAULT_CHAT_MODEL;
-  return RETIRED_CHAT_MODELS[value] ?? value;
+  const resolved = RETIRED_CHAT_MODELS[value] ?? value;
+  return ALL_CHAT_MODEL_OPTIONS.find(option => option.id === resolved)?.hiddenFallback ?? resolved;
 };

@@ -18,14 +18,14 @@ const check = (name: string, condition: boolean, detail = '') => {
     else { fail++; console.log(`❌ ${name}${detail ? `\n     ${detail}` : ''}`); }
 };
 
-const expectedIds = ['gemini-3.8-flash', 'gpt-6-luna', 'gpt-5.6-luna', 'gpt-5.4-mini'];
+const expectedIds = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gpt-6-luna', 'gpt-5.6-luna'];
 for (const id of expectedIds) {
     check(`클라이언트 레지스트리  ${id}`, isChatModelId(id));
     check(`선택 목록  ${id}`, CHAT_MODEL_OPTIONS.some(option => option.id === id));
 }
 check('알 수 없는 모델 거부', !isChatModelId('gpt-future-user-input'));
 check('기본 모델은 기존 3.6 유지', CHAT_MODELS.FLASH_3_6 === 'gemini-3.6-flash');
-check('모델 선택 섹션 순서', CHAT_MODEL_SECTIONS.map(section => section.id).join(',') === 'gemini,openai,legacy');
+check('모델 선택 섹션 순서', CHAT_MODEL_SECTIONS.map(section => section.id).join(',') === 'gemini,openai');
 check('현재 Gemini 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'gemini').map(option => option.id).join(',') === 'gemini-3.8-flash,gemini-3.6-flash');
 // 3.7 은 2027-01-28 퇴역 — 목록에서 내리고 저장된 선택값·요청 ID 는 3.8 로 바꾼다(2026-10-18).
 check('3.7 은 선택 목록에 없다', !CHAT_MODEL_OPTIONS.some(option => option.id === 'gemini-3.7-flash'));
@@ -35,7 +35,10 @@ check('다른 저장값은 그대로', resolveStoredModel('gpt-6-luna') === 'gpt
 // luna를 먼저 노출한다 — 카드 멀티턴 실측에서 5.4 mini보다 일관되게 정확했다(2026-08-23).
 // 2026-09-23: gpt-6-luna 추가, gpt-5.4-mini 는 legacy 로 내렸다.
 check('OpenAI 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'openai').map(option => option.id).join(',') === 'gpt-6-luna,gpt-5.6-luna');
-check('이전 모델 배치', CHAT_MODEL_OPTIONS.filter(option => option.section === 'legacy').map(option => option.id).join(',') === 'gemini-3.5-flash,gemini-2.5-flash,gpt-5.4-mini');
+// 2026-11-13: 이전 모델 3종(3.5·2.5·5.4 mini)은 화면에서 내렸다 — 되살리려면 src/lib/models.ts 의 hiddenFallback 줄만 지운다.
+check('이전 모델은 선택 목록에 없다', ['gemini-3.5-flash', 'gemini-2.5-flash', 'gpt-5.4-mini'].every(id => !CHAT_MODEL_OPTIONS.some(option => option.id === id)));
+check('숨긴 모델이 저장돼 있으면 대체 모델로', resolveStoredModel('gemini-3.5-flash') === 'gemini-3.6-flash' && resolveStoredModel('gemini-2.5-flash') === 'gemini-3.6-flash' && resolveStoredModel('gpt-5.4-mini') === 'gpt-5.6-luna');
+check('대체 모델은 모두 화면에 보이는 모델', ['gemini-3.5-flash', 'gemini-2.5-flash', 'gpt-5.4-mini'].every(id => CHAT_MODEL_OPTIONS.some(option => option.id === resolveStoredModel(id))));
 // legacy 로 내려도 **선택은 계속 동작해야 한다** — 이미 그 모델을 쓰던 세션이 있다.
 check('legacy 로 내린 모델도 서버가 받는다', isChatModelId('gpt-5.4-mini'));
 check('legacy 로 내린 모델도 OpenAI 경로로 간다', isOpenAIChatModel('gpt-5.4-mini'));

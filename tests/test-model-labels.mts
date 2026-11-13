@@ -33,7 +33,7 @@ type L10n = Record<Language, string>;
 const GOLDEN_SECTIONS: Record<string, L10n> = {
     gemini: { ko: 'Google Gemini', en: 'Google Gemini', es: 'Google Gemini', fr: 'Google Gemini' },
     openai: { ko: 'OpenAI', en: 'OpenAI', es: 'OpenAI', fr: 'OpenAI' },
-    legacy: { ko: '이전 모델', en: 'Previous models', es: 'Modelos anteriores', fr: 'Modèles précédents' },
+    // legacy(이전 모델) 섹션과 3.5·2.5·5.4 mini 는 11-13 화면에서 내렸다 — 골든은 화면에 나가는 것만 담는다
 };
 
 const GOLDEN_MODELS: Record<string, { section: string; label: L10n; description: L10n }> = {
@@ -67,30 +67,6 @@ const GOLDEN_MODELS: Record<string, { section: string; label: L10n; description:
         description: {
             ko: '균형 잡힌 OpenAI 모델', en: 'Balanced OpenAI model',
             es: 'Modelo OpenAI equilibrado', fr: 'Modèle OpenAI équilibré',
-        },
-    },
-    'gpt-5.4-mini': {
-        section: 'legacy',
-        label: { ko: 'GPT-5.4 mini', en: 'GPT-5.4 mini', es: 'GPT-5.4 mini', fr: 'GPT-5.4 mini' },
-        description: {
-            ko: '빠르고 효율적인 OpenAI 모델', en: 'Fast, efficient OpenAI model',
-            es: 'Modelo OpenAI rápido y eficiente', fr: 'Modèle OpenAI rapide et efficace',
-        },
-    },
-    'gemini-3.5-flash': {
-        section: 'legacy',
-        label: { ko: 'Gemini 3.5 Flash', en: 'Gemini 3.5 Flash', es: 'Gemini 3.5 Flash', fr: 'Gemini 3.5 Flash' },
-        description: {
-            ko: '균형 잡힌 이전 세대 모델', en: 'Balanced previous-generation model',
-            es: 'Modelo equilibrado de generación anterior', fr: 'Modèle équilibré de génération précédente',
-        },
-    },
-    'gemini-2.5-flash': {
-        section: 'legacy',
-        label: { ko: 'Gemini 2.5 Flash', en: 'Gemini 2.5 Flash', es: 'Gemini 2.5 Flash', fr: 'Gemini 2.5 Flash' },
-        description: {
-            ko: '빠르고 균형 잡힌 응답', en: 'Fast & balanced',
-            es: 'Rápido y equilibrado', fr: 'Rapide et équilibré',
         },
     },
 };
