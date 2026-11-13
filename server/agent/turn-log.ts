@@ -62,6 +62,32 @@ export const errCodeOf = (err: unknown): (typeof ERR_CODES)[number] | 'other' =>
     return 'other';
 };
 
+// 오류 문구에서 **있는지만** 보는 고정 표지 — 문구 자체는 로그에 싣지 않는다(입력 일부·모델 출력·URL 이 섞여 온다).
+// 한도 종류(PerDay/PerMinute)·공급자 상태 문자열처럼 errCode 만으로는 안 갈리는 진단 단서만 고른다
+const ERR_MARKERS = [
+    'RESOURCE_EXHAUSTED', 'UNAVAILABLE', 'DEADLINE_EXCEEDED', 'INTERNAL', 'INVALID_ARGUMENT', 'PERMISSION_DENIED', 'NOT_FOUND',
+    'API_KEY_INVALID', 'PerDay', 'PerMinute', 'All API keys', 'No API key available',
+    'Failed to parse stream', 'fetch failed', 'MALFORMED_FUNCTION_CALL', 'MAX_TOKENS', 'SAFETY', 'context_length_exceeded',
+] as const;
+const ERR_TAG_RE = /^[A-Za-z0-9_.:-]{1,60}$/;
+const errTag = (v: unknown): string | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? String(v) : typeof v === 'string' && ERR_TAG_RE.test(v) ? v : undefined;
+
+/** 모델 요청 실패 로그 필드 — 원문 없이 코드·표지·길이만. `[turn].errCode` 와 같은 분류를 쓴다 → REF_ErrorCodes */
+export const errLogFields = (err: unknown) => {
+    const e = err as { status?: unknown; code?: unknown; type?: unknown; name?: unknown; message?: unknown } | null;
+    const msg = typeof e?.message === 'string' ? e.message : typeof err === 'string' ? err : '';
+    return {
+        errCode: errCodeOf(err),
+        status: typeof e?.status === 'number' && Number.isFinite(e.status) ? e.status : undefined,
+        code: errTag(e?.code),
+        type: errTag(e?.type),
+        name: errTag(e?.name),
+        markers: ERR_MARKERS.filter(m => msg.includes(m)),
+        msgLen: msg.length,
+    };
+};
+
 /** 본문의 ```json:<종류> 펜스를 세고 JSON 파싱 성공 수를 센다. 파싱 결과·오류는 버린다. */
 export const countBlocks = (text: string): Record<string, { n: number; ok: number | null }> => {
     const out: Record<string, { n: number; ok: number | null }> = {};

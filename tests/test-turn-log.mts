@@ -4,7 +4,7 @@
  *
  * 감시 대상: ① 블록 n/ok 판정 ② 열거값 밖 → "other" ③ 사용자 내용·주입 문자열이 출력에 없음 ④ 키 집합 고정
  */
-import { buildTurnLog, turnFields, countBlocks, errCodeOf } from '../server/agent/turn-log.js';
+import { buildTurnLog, turnFields, countBlocks, errCodeOf, errLogFields } from '../server/agent/turn-log.js';
 import { createStreamDispatch } from '../server/agent/stream-dispatch.js';
 
 let pass = 0, fail = 0;
@@ -102,6 +102,18 @@ check('OpenAI 할당량 → openai_quota(429 와 구분)', errCodeOf({ status: 4
 check('안전 차단 → safety', errCodeOf(Object.assign(new Error('Content blocked'), { safetyBlock: true })) === 'safety');
 check('키 전부 소진 → keys_exhausted', errCodeOf(new Error('[LangGraph] All API keys exhausted for LangChain path.')) === 'keys_exhausted' && errCodeOf(new Error('No API key available')) === 'keys_exhausted');
 check('메시지 문장은 값으로 안 나간다', errCodeOf(new Error('user@example.com 010-1234-5678')) === 'other');
+
+// 모델 요청 실패 로그 — 원문 없이 코드·표지·길이만(11-13)
+const PII_MSG = '[429 Too Many Requests] RESOURCE_EXHAUSTED quota GenerateRequestsPerDayPerProjectPerModel-FreeTier for "내 주민번호 900101-1234567 user@example.com https://x.example/secret"';
+const lf = errLogFields(Object.assign(new Error(PII_MSG), { status: 429, code: 'x"; DROP\n[turn] {}', type: 'insufficient_quota' }));
+const lfJson = JSON.stringify(lf);
+check('실패 로그: errCode·status·표지', lf.errCode === 'openai_quota' && lf.status === 429 && JSON.stringify(lf.markers) === '["RESOURCE_EXHAUSTED","PerDay"]', lfJson);
+check('실패 로그: 원문·개인정보·URL 없음', !/900101|example|secret|Too Many|주민/.test(lfJson), lfJson);
+check('실패 로그: 형식 밖 code 는 버리고 type 은 유지', lf.code === undefined && lf.type === 'insufficient_quota' && lf.name === 'Error', lfJson);
+check('실패 로그: 길이만 남김', lf.msgLen === PII_MSG.length);
+check('실패 로그: 키 집합 고정', Object.keys(lf).join() === 'errCode,status,code,type,name,markers,msgLen');
+const lfStr = errLogFields('Failed to parse stream');
+check('실패 로그: 문자열·빈 오류도 처리', JSON.stringify(lfStr.markers) === '["Failed to parse stream"]' && errLogFields(null).msgLen === 0 && errLogFields(undefined).errCode === 'other');
 
 // LangSmith 루트 메타데이터(T2)와 [turn] 줄이 같은 필드 객체에서 나온다
 {

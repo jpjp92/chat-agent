@@ -12,7 +12,8 @@ type InsertResult = { error: { code?: unknown } | null };
 
 // Postgres SQLSTATE(5자) · PostgREST(PGRSTnnn)만 그대로, 나머지는 고정 코드
 const CODE_RE = /^(?:[0-9A-Z]{5}|PGRST\d{3})$/;
-const codeOf = (error: { code?: unknown } | null | undefined) =>
+/** DB 오류 → 로그에 남겨도 되는 코드. 문구(`message`·`hint`·`details`)는 입력값이 섞여 싣지 않는다 */
+export const dbErrorCode = (error: { code?: unknown } | null | undefined) =>
     typeof error?.code === 'string' && CODE_RE.test(error.code) ? error.code : 'db_error_unknown';
 
 export const createMessageSaver = (opts: {
@@ -33,7 +34,7 @@ export const createMessageSaver = (opts: {
         const run = last.then(() => insert({ ...row, role, trace_id: traceId })).then(
             ({ error }) => {
                 if (!error) return { ok: true };
-                fail(role, codeOf(error));
+                fail(role, dbErrorCode(error));
                 return { ok: false };
             },
             () => {

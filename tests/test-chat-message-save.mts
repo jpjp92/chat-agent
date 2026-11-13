@@ -6,7 +6,7 @@
  * ④ DB Promise reject 가 떠돌이 rejection 이 되지 않음 ⑤ 종료 뒤 마무리(settle) 상한 ⑥ 턴끼리 섞이지 않음
  * DB 호출 없음 — insert 를 가짜로 넣는다.
  */
-import { createMessageSaver } from '../server/chat-message-save.js';
+import { createMessageSaver, dbErrorCode } from '../server/chat-message-save.js';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean, detail = '') => {
@@ -109,6 +109,9 @@ const mk = (traceId: string, behave: (row: Row) => Promise<{ error: any }>, capM
 
 // ⑧ 저장이 없던 턴(세션 없음·인증 실패) — settle 즉시 done
 check('저장 0건: settle 즉시 done', await mk('t-8', async () => ({ error: null })).saver.settle() === 'done');
+
+// ⑨ 프로필 조회 실패 로그도 같은 코드 규칙
+check('dbErrorCode: SQLSTATE·PGRST 만, 밖은 고정', dbErrorCode({ code: '42P01' }) === '42P01' && dbErrorCode({ code: 'PGRST301' }) === 'PGRST301' && dbErrorCode({ code: PII }) === 'db_error_unknown' && dbErrorCode(null) === 'db_error_unknown');
 
 await sleep(20);
 check('전체: 떠돌이 rejection 0건', stray === 0, `stray=${stray}`);

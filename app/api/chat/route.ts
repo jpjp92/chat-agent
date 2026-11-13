@@ -13,11 +13,11 @@ import { buildHistoryMessages, deriveLastTurnSearched, deriveLastTurnSourceLabel
 import { classifyChatError, forGuest, type ChatErrorType } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
-import { logTurn } from '../../../server/agent/turn-log';
+import { logTurn, errLogFields } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
 import { traceCallbacks, flushTraces, tracingEnabled, attachTurnMeta } from '../../../server/agent/tracing';
 import { installProcessGuard } from '../../../server/process-guard';
-import { createMessageSaver } from '../../../server/chat-message-save';
+import { createMessageSaver, dbErrorCode } from '../../../server/chat-message-save';
 
 installProcessGuard();
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     // 토큰 위조/만료(PGRST301)는 401. 그 외(마이그레이션 미적용 등)는 500 —
     // DB 에러를 401로 위장하면 원인이 인증 문제로 오인된다.
     if (isAuthError(profileError)) return unauthorized();
-    console.error('[Chat API] Profile gate error:', profileError.message);
+    console.error('[Chat API] Profile gate error', { traceId, code: dbErrorCode(profileError) });
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
   // 프로필 없음 = 공개 anon 키를 Bearer 로 보낸 요청(유효 JWT·role=anon → RLS 로 빈 결과).
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
         } else if (!fullAiResponse) {
           turnOutcome = 'empty';
           console.error('[Chat API] Empty model response', {
-            model: finalModel,
+            traceId, model: finalModel,
             status: 502,
             code: 'empty_model_response',
           });
@@ -251,13 +251,8 @@ export async function POST(req: NextRequest) {
       } catch (error: any) {
         // 원문은 서버 로그에만 남긴다. UI에는 아래 화이트리스트 안내 문구만 보낸다.
         console.error('[Chat API] Model request failed', {
-          model: finalModel,
-          status: error?.status,
-          code: error?.code,
-          type: error?.type,
-          name: error?.name,
-          // 원문은 의도적(DEV_260823 §9 — 오류 분류 오진 추적용). 길이만 자른다(PLAN_TURN_LOG_261105 §3)
-          message: String(error?.message ?? error).slice(0, 300),
+          // 원문은 싣지 않는다 — 입력 일부·모델 출력·URL 이 섞여 온다. 분류 오진은 표지(markers)와 traceId(LangSmith)로 쫓는다
+          traceId, model: finalModel, ...errLogFields(error),
         });
         const errorType = forGuest(classifyChatError(error, {
           geminiDailyQuota: isDailyQuotaError(error) || isAllKeysDailyExhausted(),
