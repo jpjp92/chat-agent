@@ -8,6 +8,8 @@
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
+> **2026-11-15 UI 실측 도면:** [PLAN_UI_MEASURE_261115](PLAN_UI_MEASURE_261115.md) — 외부 검토안(dimensional-drawing) 대조. SourceBar 실측은 "도면"보다 **실측 하니스**로(출처 1~2개 칩에 `min-h` 없음 — 터치 목표 미달 가능성이 첫 질문). 사용자 응답용 AnatomyCard 는 11-03 판단대로 보류. 상태: 미리보기·실측 완료, 칩 34.5px → 44px 반영(항상 적용 A안).
+
 > **2026-11-15 공개 준비:** [PLAN_PRODUCTION_READINESS_261115](PLAN_PRODUCTION_READINESS_261115.md) — 소규모 공개 기준으로 남은 일을 4단계로. **A 공개 전 필수 6**(운영 DB `trace_id` SQL · 운영 이관 점검 · 회원 호출 한도 · 비용 상한 · 개인정보 문구 · 재시도 편차/`Retry-After`) · B 공개 직후 5(알림 최소판 등) · C 일반 공개 4(턴 예산 등) · D 유료 수준 4(공유 차단기·공급자 전환 등). 상태: 계획.
 
 > **2026-11-13 Gemini 4 Hydrogen:** [PLAN_GEMINI_4_HYDROGEN_261113](PLAN_GEMINI_4_HYDROGEN_261113.md) — 모델 ID·접근·가격·thinking 확인(과금 없음). Hydrogen 은 지금 3.8 Flash 의 2배지만 3.8·3.6 이 2027-01-01 같은 값으로 오른다. 기본 thinking `high`. **11-15 0·1단계 실행(39회, 약 $0.09)** — 10문항 품질 동률(정답 7/7), Hydrogen 이 첫 글자 +0.7s·비용 약 5배(1월 뒤에도 2.6배: thinking 을 끌 수 없다) → 도입 보류, 2단계 미진행. thinking 끄기 조사: 스위치 없음, 지시문 방식은 40% 빈 응답(`MALFORMED_RESPONSE`) — 최저는 `low`.
