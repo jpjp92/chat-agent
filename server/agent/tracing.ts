@@ -380,7 +380,7 @@ const TURN_META_WAIT_MS = 30_000;
 
 /** 루트 run 메타데이터 = [turn] 값(T2, PLAN_TRACE_ID_261108). 이미 열거·정수로 정리된 값에서 키·형태를 다시 고른다 */
 type TurnMeta = Record<string, string | number | boolean>;
-const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode', 'retries', 'routerMs', 'saveMs'];
+const TURN_META_KEYS = ['intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'searchBy', 'sources', 'outcome', 'errCode', 'retries', 'routerMs', 'routerRetries', 'saveMs'];
 export const turnMetaOf = (fields: unknown): TurnMeta => {
     const out: TurnMeta = {};
     const f = (fields && typeof fields === 'object' ? fields : {}) as Record<string, unknown>;

@@ -19,7 +19,7 @@ const BLOCKS = ['chart', 'diagram', 'smiles', 'bio', 'constellation', 'drug', 'w
 const OUTCOMES = ['ok', 'empty', 'error', 'url_fetch_failed'] as const;
 const ERR_CODES = ['timeout', 'rate_limit', 'openai_quota', 'keys_exhausted', 'unavailable', 'safety', 'bad_request', 'auth', 'server'] as const;
 // 재시도·강등 사유 — generator 가 다시 부를 때마다 하나씩 알린다(stream-dispatch 가 모은다)
-export const RETRY_REASONS = ['rate_limit', 'timeout', 'unavailable', 'auth', 'media_error', 'empty', 'malformed_call', 'tool_code', 'primary_failed'] as const;
+export const RETRY_REASONS = ['rate_limit', 'timeout', 'unavailable', 'auth', 'media_error', 'empty', 'malformed_call', 'tool_code', 'primary_failed', 'stream_error', 'pdf_fallback'] as const;
 export type RetryReason = (typeof RETRY_REASONS)[number];
 // 한 턴의 재시도는 키 수·강등으로 묶여 많아야 몇 번이다 — 이상값이 로그를 키우지 않게 자른다
 const MAX_RETRY_LOG = 20;
@@ -55,7 +55,7 @@ export const errCodeOf = (err: unknown): (typeof ERR_CODES)[number] | 'other' =>
     if (status === 429) return 'rate_limit';
     // 키 로테이션이 다 막혀 던진 오류 — status 가 없어 전엔 other 였다
     if (msg.includes('No API key available') || msg.includes('All API keys')) return 'keys_exhausted';
-    if (status === 503) return 'unavailable';
+    if (status === 503 || e?.code === 'network_error') return 'unavailable';
     if (status === 400) return 'bad_request';
     if (status === 401 || status === 403) return 'auth';
     if (status !== null && status >= 500) return 'server';
@@ -123,6 +123,8 @@ interface TurnLogInput {
     ms?: unknown;
     // 라우터 노드 소요 · assistant 저장 대기(둘 다 ms 에 포함돼 있다)
     routerMs?: unknown;
+    // 라우터 LLM 재시도 횟수(키를 바꿔 다시 부른 수) — routerMs 가 '느린 1회'인지 '재시도'인지 가른다. 사유는 retries 에 같이 든다
+    routerRetries?: unknown;
     saveMs?: unknown;
     outcome?: unknown;
     err?: unknown;
@@ -163,6 +165,7 @@ export const turnFields = (i: TurnLogInput): Record<string, unknown> => {
         chars: typeof i.text === 'string' ? i.text.length : 0,
         ms: int(i.ms),
         routerMs: int(i.routerMs),
+        routerRetries: int(i.routerRetries),
         saveMs: int(i.saveMs),
         outcome,
         ...retryFields(i.retries),

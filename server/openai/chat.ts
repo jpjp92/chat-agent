@@ -7,6 +7,8 @@ import { assertSafeFastPassOutput, cardHasResults, pinCardToProse } from '../age
 import { buildEmptyCardRules } from '../agent/card-followup';
 import { toOpenAIFilePart } from './media';
 import { llmSpan } from '../agent/tracing';
+import type { RetryReason } from '../agent/turn-log';
+import { OPENAI_QUOTA_ERROR_CODES } from '../chat-error-policy';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 /**
@@ -22,6 +24,19 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
  * 주의: 이 값도 추정이다. 아래 elapsed 로그가 쌓이면 측정값으로 다시 정한다.
  */
 const OPENAI_CHAT_TIMEOUT_MS = 120_000;
+// 일시 오류(429·5xx·네트워크 끊김)는 같은 요청을 다시 보낸다 — 키가 하나라 Gemini 처럼 키를 바꿀 수는 없고 잠깐 기다린다.
+// 타임아웃(120s)은 다시 보내지 않는다: 두 번이면 함수 상한(300s)에 닿는다. 할당량 소진·400·401 도 다시 보내도 같다.
+const OPENAI_RETRY_DELAYS_MS: readonly number[] = [600, 1800];
+
+/** 다시 보낼 만한 오류면 사유를, 아니면 null */
+const openAIRetryReason = (error: any): RetryReason | null => {
+    if (error?.name === 'AbortError') return null;
+    if (!(error instanceof OpenAIChatError)) return 'unavailable'; // fetch 자체가 던진 것 — 네트워크 끊김
+    if (OPENAI_QUOTA_ERROR_CODES.has(String(error.code ?? '')) || error.type === 'insufficient_quota') return null;
+    if (error.status === 429) return 'rate_limit';
+    if (error.status === 500 || error.status === 502 || error.status === 503) return 'unavailable';
+    return null;
+};
 
 type JsonObject = Record<string, any>;
 
@@ -47,6 +62,10 @@ export type OpenAIChatOptions = {
     apiKey?: string;
     timeoutMs?: number;
     fetchImpl?: typeof fetch;
+    /** 다시 보낼 때 사유를 알린다 — [turn].retryReasons */
+    onRetry?: (reason: RetryReason) => void;
+    /** 재시도 전 대기(ms) 목록 — 길이가 최대 재시도 횟수. 하니스가 0 으로 줄인다 */
+    retryDelaysMs?: readonly number[];
     functionTool?: LocalFunctionTool;
 };
 
@@ -295,11 +314,27 @@ export async function generateOpenAIChat(options: OpenAIChatOptions): Promise<Op
          * "턴 전체 예산" 이 되어, initial 이 느릴수록 followup 이 받는 잔액이 줄어든다(먼저 끝난 호출이 뒤 호출을 굶김).
          */
         // 호출 1회 = LangSmith llm run 1개(추적이 꺼져 있으면 그대로 호출). 반환 json 의 usage 가 토큰 수가 된다
-        const request = (body: JsonObject, phase: string) => llmSpan('openai', {
-            call: phase === 'initial' ? 'openai_initial' : phase === 'followup' ? 'openai_followup' : 'openai_other',
-            model: typeof body.model === 'string' ? body.model : 'other',
-            search: Array.isArray(body.tools) && body.tools.some((t: JsonObject) => t?.type === 'web_search'),
-        }, () => requestOnce(body, phase), () => ({ ...body }));
+        const delays = options.retryDelaysMs ?? OPENAI_RETRY_DELAYS_MS;
+        const request = async (body: JsonObject, phase: string) => {
+            let why: RetryReason | undefined;
+            for (let attempt = 0; ; attempt++) {
+                try {
+                    return await llmSpan('openai', {
+                        call: phase === 'initial' ? 'openai_initial' : phase === 'followup' ? 'openai_followup' : 'openai_other',
+                        model: typeof body.model === 'string' ? body.model : 'other',
+                        search: Array.isArray(body.tools) && body.tools.some((t: JsonObject) => t?.type === 'web_search'),
+                        attempt, retryReason: why,
+                    }, () => requestOnce(body, phase), () => ({ ...body }));
+                } catch (error: any) {
+                    const reason = openAIRetryReason(error);
+                    if (!reason || attempt >= delays.length) throw error;
+                    why = reason;
+                    options.onRetry?.(reason);
+                    console.warn(`[OpenAI] ${phase} retry ${attempt + 1}/${delays.length} · ${reason}`);
+                    if (delays[attempt] > 0) await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+                }
+            }
+        };
         const requestOnce = async (body: JsonObject, phase: string) => {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
           provider: ts?.turn.provider, model: ts?.turn.model, requestedModel: finalModel,
           search: ts?.turn.search, needsSearch: ts?.turn.needsSearch, searchBy: ts?.turn.searchBy,
           sources: ts?.allSources.length, sourceKinds: ts ? countSourceKinds(ts.allSources) : null, text: ts?.fullAiResponse ?? '',
-          ms: Date.now() - turnStartedAt, routerMs: ts?.turn.routerMs, saveMs, outcome: turnOutcome, err: turnErr, traceId, retries: ts?.turn.retries,
+          ms: Date.now() - turnStartedAt, routerMs: ts?.turn.routerMs, routerRetries: ts?.turn.routerRetries, saveMs, outcome: turnOutcome, err: turnErr, traceId, retries: ts?.turn.retries,
         });
         attachTurnMeta(traceId, turnLogFields);
         clearInterval(heartbeatInterval);

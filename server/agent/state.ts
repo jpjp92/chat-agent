@@ -158,6 +158,12 @@ export const GraphState = Annotation.Root({
         default: () => "rule",
     }),
 
+    // 라우터 LLM 호출이 실패한 사유(시도 순) — [turn] 로그 전용. 라우팅에는 쓰지 않는다
+    routerRetries: Annotation<string[]>({
+        reducer: (x, y) => y ?? x,
+        default: () => [],
+    }),
+
     // Google Search 응답에서 추출한 grounding 출처 (generator 노드가 채움).
     groundingSources: Annotation<any[]>({
         reducer: (x, y) => (y && y.length > 0 ? y : x),

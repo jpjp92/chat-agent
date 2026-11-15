@@ -39,6 +39,8 @@ export const classifyChatError = (
     }
     // 타임아웃은 "일시적" 이다 — 전엔 이름을 안 봐 generic("응답 생성 중 문제")으로 나갔다 → REF_ErrorCodes §4
     if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return 'unavailable';
+    // OpenAI 연결 실패(재시도 뒤에도) — 일시적이다. 전엔 generic 이었다
+    if (error?.code === 'network_error') return 'unavailable';
     if (
         status === 503 || status === 504 ||
         message.includes('503') || message.includes('UNAVAILABLE') || message.includes('DEADLINE_EXCEEDED')

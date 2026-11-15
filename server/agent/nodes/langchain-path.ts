@@ -17,6 +17,7 @@ import { cardHasResults, pinCardToProse } from "../card-tool-output";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage, shouldTryPillWebFallback, buildPillWebQuery } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
+import type { RetryReason } from "../turn-log";
 import { shouldAddWebSearchToPaperFollowup } from "../search-signals";
 
 // LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. 25s 넘게 무응답이면 끊고 키 로테이션으로 넘긴다.
@@ -46,6 +47,8 @@ export const runLangChainPath = async (args: {
     sdkSuccess: boolean;
     isYoutubeRequest: boolean;
     hasVideoData: boolean;
+    /** 키를 바꿔 다시 부를 때 사유를 알린다 — [turn].retryReasons */
+    onRetry?: (reason: RetryReason) => void;
     langName: LangName;
 }): Promise<{ messages: any[] }> => {
     const { state, resolvedModel, apiKey, useLangChain, sdkSuccess, isYoutubeRequest, hasVideoData, langName } = args;
@@ -366,8 +369,9 @@ export const runLangChainPath = async (args: {
                 if (nextKey && nextKey !== lcApiKey) {
                     lcApiKey = nextKey;
                     lcAttempt++;
-                    const reason = isRateLimit ? '429' : isTimeout ? 'timeout/504' : isUnavailable ? '503' : 'stream-error';
-                    console.log(`[LangGraph] LangChain retry (attempt ${lcAttempt + 1}) reason:`, reason, err?.message?.slice(0, 80));
+                    const reason: RetryReason = isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : isUnavailable ? 'unavailable' : 'stream_error';
+                    args.onRetry?.(reason);
+                    console.log(`[LangGraph] LangChain retry (attempt ${lcAttempt + 1}) reason:`, reason);
                     continue;
                 }
             }

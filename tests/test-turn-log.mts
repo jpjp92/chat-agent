@@ -53,7 +53,7 @@ check('오류 메시지 대신 코드만', parse(line).errCode === 'server' && !
 check('ms 정수화', parse(line).ms === 1235);
 
 // ④ 키 집합 고정 — 새 필드는 계획 문서·이 목록을 함께 고쳐야 들어온다
-const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'needsSearch', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'routerMs', 'saveMs', 'outcome', 'retries', 'retryReasons', 'errCode'];
+const KEYS = ['v', 'traceId', 'intent', 'intentFrom', 'provider', 'model', 'modelDowngraded', 'needsSearch', 'search', 'searchBy', 'sources', 'sourceKinds', 'blocks', 'chars', 'ms', 'routerMs', 'routerRetries', 'saveMs', 'outcome', 'retries', 'retryReasons', 'errCode'];
 check('키 집합이 허용 목록과 같다', JSON.stringify(Object.keys(parse(line))) === JSON.stringify(KEYS), Object.keys(parse(line)).join(','));
 check('ok 경로엔 errCode 없음', !('errCode' in parse(buildTurnLog({ outcome: 'ok' }))));
 
@@ -87,6 +87,13 @@ check('needsSearch: 라우터 출력에서', d2.state.turn.needsSearch === true)
 const d3 = createStreamDispatch(() => {});
 d3.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'drug_id', intentFrom: 'shortcut' } } } as any);
 check('판정 없는 턴(vision)·시작 이벤트 없음 → 비움', d3.state.turn.needsSearch === undefined && d3.state.turn.routerMs === undefined);
+const d4 = createStreamDispatch(() => {});
+d4.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'general', intentFrom: 'rule', routerRetries: ['timeout', 'rate_limit', 42] } } } as any);
+d4.trackingEvent({ turnRetry: 'stream_error' });
+check('routerRetries: 횟수는 따로·사유는 같은 목록에 발생 순', d4.state.turn.routerRetries === 2 && JSON.stringify(d4.state.turn.retries) === '["timeout","rate_limit","stream_error"]', JSON.stringify(d4.state.turn));
+check('routerRetries: 실패 없으면 0', (() => { const d = createStreamDispatch(() => {}); d.handle({ event: 'on_chain_end', name: 'router', data: { output: { intent: 'general', routerRetries: [] } } } as any); return d.state.turn.routerRetries === 0 && d.state.turn.retries === undefined; })());
+const rr = parse(buildTurnLog({ outcome: 'ok', routerRetries: 2, retries: ['timeout', 'pdf_fallback', 'stream_error'] }));
+check('새 사유 stream_error·pdf_fallback 은 열거값', rr.routerRetries === 2 && JSON.stringify(rr.retryReasons) === '["timeout","pdf_fallback","stream_error"]', JSON.stringify(rr));
 const ns = parse(buildTurnLog({ outcome: 'ok', needsSearch: true, search: false, routerMs: 812.6, saveMs: 41 }));
 check('needsSearch on/off·routerMs·saveMs 정수', ns.needsSearch === 'on' && ns.search === 'off' && ns.routerMs === 813 && ns.saveMs === 41, JSON.stringify(ns));
 const nsBad = parse(buildTurnLog({ outcome: 'ok', needsSearch: 'yes; user@example.com', routerMs: '1200ms', saveMs: NaN }));

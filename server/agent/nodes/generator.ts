@@ -237,13 +237,15 @@ export const createGeneratorNode = (
                     useWebSearch,
                     maxOutputTokens: effectiveMaxTokens,
                     functionTool,
+                    onRetry: noteRetry,
                 });
             } catch (error: any) {
                 // OpenAI 가 PDF 링크를 못 받아 왔다(봇 차단·로그인 필요·만료 — 400 "Error while downloading file.").
                 // 이 턴만 Gemini 2.5 로 다시 부른다. 2.5 는 지금까지 PDF 를 받아 온 검증된 경로다.
                 const openAIPdfFallback = isOpenAIFileFetchError(error) && hasOpenAIPdf(state.messages);
                 if (!openAIPdfFallback) throw error;
-                console.warn(`[LangGraph] OpenAI PDF fetch failed (${error.message}) — retrying this turn on ${SERVER_MODELS.FLASH}`);
+                noteRetry('pdf_fallback');
+                console.warn(`[LangGraph] OpenAI PDF fetch failed — retrying this turn on ${SERVER_MODELS.FLASH}`);
                 return generate({ ...state, model: SERVER_MODELS.FLASH });
             }
             // Responses API는 현재 비스트리밍 호출이다. 텍스트 전송·DB 누적은 route의
@@ -815,6 +817,7 @@ export const createGeneratorNode = (
             isYoutubeRequest,
             hasVideoData,
             langName,
+            onRetry: noteRetry,
         });
     };
     return generate;

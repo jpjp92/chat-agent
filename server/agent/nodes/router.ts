@@ -8,6 +8,8 @@ import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, h
 import { decideWeatherFollowup } from "../weather-followup";
 import { extractCardEntityNames, decideLawInteraction, lawCardHasArticles, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 import { traceGemini } from '../tracing';
+import { isTimeoutError } from './retry';
+import type { RetryReason } from '../turn-log';
 
 // 영화 카드가 떠 있을 때 "새 카드 요청"이 아닌 "표시된 상영표에 대한 질문"을 가려내는 패턴.
 // (movie_search로 분류된 메시지에만 적용 — 이미 영화 맥락이므로 물음표 단독도 후속 신호로 충분)
@@ -34,6 +36,18 @@ const AFFIRM = /^\s*(응+|어+|네+|예+|그래요?|좋아요?|부탁(해|드릴
  * 후속 질문의 의도 연속성을 위해 직전 assistant 메시지를 문맥으로 넣는다.
  * LLM 이 실패하면 키워드 규칙으로 폴백한다.
  */
+
+// 라우터 LLM 1회 상한. 매 턴 맨 앞에서 응답을 막는 호출이라 멈추면 첫 토큰이 그만큼 늦는다 — 넘으면 끊고
+// 다음 키로 1회, 그래도 안 되면 규칙 분류로 간다. 값은 dev 관측(1.1~1.3s, n=5)의 약 4배 — 표본이 쌓이면 조정
+// (PLAN_STABILITY_261112 §4). 하니스가 짧게 바꿀 수 있게 env 로 덮는다.
+const ROUTER_CALL_TIMEOUT_MS = Number(process.env.ROUTER_CALL_TIMEOUT_MS) > 0 ? Number(process.env.ROUTER_CALL_TIMEOUT_MS) : 5_000;
+
+/** 라우터 LLM 실패 → [turn] 재시도 사유. 열거값만(오류 문구는 싣지 않는다) */
+const routerFailReason = (error: any, isRateLimit: boolean, isInvalidKey: boolean): RetryReason =>
+    isRateLimit ? 'rate_limit'
+        : isInvalidKey || error?.status === 401 || error?.status === 403 ? 'auth'
+            : isTimeoutError(error) ? 'timeout'
+                : 'unavailable';
 
 export const routerNode = async (state: AgentStateType) => {
     const lastMessage = state.messages[state.messages.length - 1] as HumanMessage;
@@ -128,6 +142,8 @@ export const routerNode = async (state: AgentStateType) => {
     let llmIntentDecided = false;
     // [turn] 로그의 intentFrom — 최종 의도가 LLM 판정 그대로인지, 규칙·가드가 바꿨는지
     let llmIntent: IntentType | null = null;
+    // 라우터 LLM 실패 사유(시도 순) — 재시도·규칙 폴백이 [turn] 에 보이게
+    const routerRetries: RetryReason[] = [];
     const intentFromOf = (final: IntentType) => (llmIntent === null ? 'rule' : final === llmIntent ? 'router' : 'guard');
     const apiKey = getNextApiKey();
 
@@ -220,8 +236,8 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                 // 인텐트 분류는 얕은 패턴 작업이라 thinking 불필요. flash-lite 기본 off라도
                 // 명시 핀(API 기본값 변동 면역). 라우터는 매 턴 serial-blocking이라 영향 직접적.
                 // 같은 flash-lite인 summarize-title도 thinkingBudget:0 사용.
-                config: { systemInstruction: prompt, temperature: 0, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
-            });
+                config: { systemInstruction: prompt, temperature: 0, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 }, abortSignal: AbortSignal.timeout(ROUTER_CALL_TIMEOUT_MS) }
+            }, attempt, routerRetries.at(-1));
 
             if (response.text) {
                 const parsed = JSON.parse(response.text);
@@ -288,7 +304,8 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
             // Gemini는 무효 API 키를 401이 아닌 400(API_KEY_INVALID)으로 반환 → 로테이션에서 영구 제외
             const isInvalidKey = /api key not valid|API_KEY_INVALID/i.test(error?.message ?? '');
             if (isInvalidKey) markKeyInvalid(routerKey);
-            console.warn(`[LangGraph] Semantic Router LLM failed (attempt ${attempt + 1}):`, error?.status ?? '', (error?.message ?? String(error)).slice(0, 140));
+            routerRetries.push(routerFailReason(error, isRateLimit, isInvalidKey));
+            console.warn(`[LangGraph] Semantic Router LLM failed (attempt ${attempt + 1}):`, error?.status ?? '', routerRetries.at(-1));
             const nextKey = getNextApiKey();
             if (attempt === 0 && nextKey && nextKey !== routerKey) {
                 routerKey = nextKey;
@@ -556,7 +573,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     if (intent === "drug_id") {
         if (hasImage) {
             console.log('[LangGraph] Router decided: VISION processing required');
-            return { nextNode: "vision", intent: "drug_id", intentFrom: intentFromOf("drug_id") };
+            return { nextNode: "vision", intent: "drug_id", intentFrom: intentFromOf("drug_id"), routerRetries };
         } else {
             intent = "drug_info";
         }
@@ -604,5 +621,5 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
     console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, paperFollowup=${paperFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}, paperCardShown=${paperCardShown}`);
-    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
+    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), routerRetries, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
 };
