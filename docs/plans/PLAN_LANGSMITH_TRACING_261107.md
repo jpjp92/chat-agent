@@ -1,9 +1,9 @@
 # PLAN_LANGSMITH_TRACING_261107 — LangSmith 추적 (관측만 추가)
 
-> 상태: L0·L1·L2·원문 모드 완료(11-07~08), L3 → PLAN_TRACE_ID, L4 일부 — 아래 "진행 현황" · 범위 dev 로컬 → `chat-agent-dev` 배포. 운영(Production) 제외.
+> 상태: L0·L1·L2·원문 모드 완료(11-07~08), L3(턴 ID T1~T3) 완료(11-09), 재시도 사유 전 경로(11-15), **L4 실배포 측정 남음** — 아래 "진행 현황" · 범위 dev 로컬 → `chat-agent-dev` 배포. 운영(Production) 제외.
 > 출발점: 사용자 공유 안(GPT 검토, "Hybrid Tracing") — 이 문서는 그 안을 현재 코드에 대 보고 고친 확정안이다.
 
-## 진행 현황 (11-08 기준)
+## 진행 현황 (11-15 기준)
 
 | 단계 | 상태 |
 |---|---|
@@ -11,10 +11,10 @@
 | L1 노드 계층 | ✅ 실화면 확인(별도 작업 없음) |
 | L2 SDK 직접 호출 9곳 span(모델·검색·토큰·출처 수·캐시 토큰) | ✅ 11-07, 배포 dev 확인 11-08 |
 | 원문 모드(로컬·배포 dev — 브랜치 판정·허용 의도·앞 턴 생략·마스킹·정규화·꺼진 사유 로그) | ✅ 11-08, 배포 dev 연속 턴 실화면 확인 |
-| L3 루트 메타데이터 | ➡️ [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) T1~T3 로 확장 — **미착수** |
+| L3 루트 메타데이터 | ➡️ [PLAN_TRACE_ID_261108](PLAN_TRACE_ID_261108.md) T1~T3 로 확장 — ✅ 11-09 dev 배포 확인. 11-13 `routerMs`·`needsSearch`·`saveMs`, 11-15 `routerRetries` 추가 |
 | L4 배포·측정 | 🟡 env 등록·수집 확인·합성 벤치 3차(숨김 +1ms·원문 +6ms) 완료 / 실배포 켜기 전후 `[turn].ms`·`[trace]` 전송 실패 수 남음 |
 
-남은 코드 작업: ~~`retry_reason`~~(11-09 완료 — DEV_261109 §5) · ~~T1→T2→T3~~(dev 완료) · L4 실측(T1 뒤 — 턴 ID 로 로그와 trace 를 짝지어 비교).
+남은 코드 작업: ~~`retry_reason`~~(11-09 완료 — DEV_261109 §5, 11-15 라우터·LangChain·OpenAI 경로까지 — DEV_261115) · ~~T1→T2→T3~~(dev 완료) · L4 실측(턴 ID 로 로그와 trace 를 짝지어 비교 — 공개 전에 하면 라우터 5초 상한 조정용 `routerMs` 분포도 같이 얻는다, [PLAN_PRODUCTION_READINESS_261115](PLAN_PRODUCTION_READINESS_261115.md)).
 
 ### 사용자가 직접 할 일 (대시보드)
 

@@ -26,6 +26,7 @@
 
 ## 최근 문서
 
+- **2026-11-15** — [UI 실측 · 출처 칩 44px](plans/PLAN_UI_MEASURE_261115.md) — 출처 바 미리보기(`/dev/source-bar-preview`)로 실측, 칩 34.5px → 44px(전 기기, A안). 11-15 배포 확인: 접힌 바·출처 창(데스크톱·모바일) 정상
 - **2026-11-15** — [공개 준비 계획](plans/PLAN_PRODUCTION_READINESS_261115.md) — 소규모 공개 기준으로 공개 전 필수 6·공개 직후 5·규모별 장기 과제 8
 - **2026-11-15** — [재시도 사유 전 경로 · 라우터 제한 시간](logs/2026/11/DEV_261115.md) — 라우터·LangChain·OpenAI PDF 전환의 재시도가 `[turn]` 에 남는다. 라우터 호출 시도당 5초 상한. OpenAI 호출은 429·5xx·끊김에 최대 2회 재시도. 실패를 주입하는 하니스(가짜 fetch)로 재시도·폴백·제한 시간 검증
 - **2026-11-13** — [떠돌이 rejection 근원 수정 · 메시지 저장 정리 · `[turn]` 계측 · 이전 모델 숨김](logs/2026/11/DEV_261113.md) — 외부 검토안을 코드와 대조한 [안정성 계획](plans/PLAN_STABILITY_261112.md) ①~③. LangChain 이 버린 SDK Promise 가 떠돌이 rejection 의 근원(가짜 fetch 로 재현) → 근원 차단 + 프로세스 리스너 1개. 메시지 저장 순서·`after()` 마무리·`[save]` 로그 코드만(dev 정상 경로 3턴 확인). `[turn]` 에 `routerMs`·`needsSearch`·`saveMs`. 선택 목록에서 Gemini 3.5·2.5, GPT-5.4 mini 숨김

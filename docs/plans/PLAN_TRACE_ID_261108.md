@@ -1,6 +1,6 @@
 # PLAN_TRACE_ID_261108 — 턴 ID 로 Supabase·Vercel·LangSmith 잇기
 
-> 상태: T1 완료(11-09) · T2 완료(11-09) · T3 다음 · 상위 계획 [PLAN_LANGSMITH_TRACING_261107](PLAN_LANGSMITH_TRACING_261107.md) §4 L3 를 넓힌 것
+> 상태: T1 완료(11-09) · T2 완료(11-09) · T3 완료(11-09 dev 배포 확인) · T4·T5 보류 · 상위 계획 [PLAN_LANGSMITH_TRACING_261107](PLAN_LANGSMITH_TRACING_261107.md) §4 L3 를 넓힌 것
 > 출발점: 11-08 GPT 검토(역할 분담) — Supabase = 원문 기준 저장소, Vercel = 운영 로그, LangSmith = 실행 분석. 계획 GPT 2차 검토 반영(11-08, §3 주의).
 > Supabase: **dev 와 운영(main)은 서로 다른 프로젝트**(DB·Storage 모두, 11-08 사용자 확인).
 

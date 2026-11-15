@@ -6,6 +6,7 @@
 - [x] ✅ **Gemini 3.8 Flash 선택 옵션 도입** (2026-10-18) — 3.7 퇴역 공지(2027-01-28)로 3.7 자리를 3.8 로 대체, 3.7 저장값은 3.8 로 보낸다 → [DEV_261018 §7](logs/2026/10/DEV_261018.md#7-gemini-37--38) · [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
   - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
 - [ ] 🔴 **공개 준비(소규모 프로덕션) — 공개 전 필수 A1~A6** → [PLAN_PRODUCTION_READINESS_261115](plans/PLAN_PRODUCTION_READINESS_261115.md). A1 운영 DB `trace_id` SQL(아래 항목) · A2 운영 이관 점검 · A3 회원 호출 한도(지금 무제한) · A4 비용 상한·알림 · A5 개인정보 문구 · A6 재시도 편차·`Retry-After`. 공개 직후 B·규모별 C·D 도 같은 문서
+- [ ] 출처 칩 44px 배포 확인 — 출처 1~2개 답변에서 칩·접힌 바 높이 동일한지(11-15 배포 화면은 5개라 접힌 바만 확인) · 모바일 출처 시트 닫기 버튼 포커스 테두리가 터치로 열어도 보임 → 키보드일 때만(`focus-visible`) 검토 — [PLAN_UI_MEASURE_261115](plans/PLAN_UI_MEASURE_261115.md)
 - [ ] 🔴 **main 반영(또는 운영 DB 새로 세팅) 때 운영 Supabase 에 `chat-messages-trace-id.sql` 먼저** — T3 코드가 `chat_messages.trace_id` 를 넣으므로 열이 없으면 운영 메시지 저장이 실패한다. dev 는 11-09 적용·확인. 새로 세우면 `auth-mvp-schema.sql` 에 포함 → [PLAN_TRACE_ID_261108 T3](plans/PLAN_TRACE_ID_261108.md) · [DB 실행 순서 10](guide/db/README.md)
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
@@ -424,7 +425,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [x] 차트 y축 `1000.0k` → 만·억 축약·툴팁 원본+단위·`yAxis.unit`·관측점 마커·값 2개 막대 — [PLAN_CHART_P1_261105](plans/PLAN_CHART_P1_261105.md) P1-1. 남은 P1-2: 출처(이름만)·공식 1차 출처·잠정/확정·스키마 검증 분리
 - [x] 차트 P1-2A 출처 분류·`sourceKinds`·`[STATISTICS SOURCING]` 보강 — [DEV_261107](logs/2026/11/DEV_261107.md). 출처에 없는 기관 내세움 금지 한 줄·`smbs.biz` 공식도 완료(11-08, 2/3 → 0/3) — [DEV_261108](logs/2026/11/DEV_261108.md)
 - [x] 차트 연.월 범주(`2026.10`·`26.10`)를 소수로 읽어 선이 뒤엉키던 축 버그 · 모바일 12개월 무스크롤·라벨 간격·툴팁 — [DEV_261107](logs/2026/11/DEV_261107.md)
-- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08), 턴 ID·`retry_reason` 완료(11-09). 남은: **L4 실배포 측정** · `retry_reason` 을 OpenAI·LangChain·라우터 경로로 확장 · 대시보드 할 일(스위치 Sensitive 해제, 보관 14일 확인됨, 무료 플랜 5,000/월 상한) · 운영은 고지 먼저 · run 조회는 v2 API — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
+- [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08), 턴 ID·`retry_reason` 완료(11-09). 남은: **L4 실배포 측정**(공개 전 — `routerMs` 분포 겸용) · ~~`retry_reason` 경로 확장~~(11-15 완료) · 대시보드 할 일(스위치 Sensitive 해제, 보관 14일 확인됨, 무료 플랜 5,000/월 상한) · 운영은 고지 먼저 · run 조회는 v2 API — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
 - [x] ✅ 11-09 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` · T2 루트 메타데이터·커밋 · T3 `chat_messages.trace_id`, 모두 dev 배포 확인 — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md). 남은: T4·T5 보류, 운영 DB SQL(맨 위 🔴 항목)
 - [x] ✅ 11-10 에러 코드 한곳 정리·snake_case·어긋남 4건 — [REF_ErrorCodes](guide/REF_ErrorCodes.md). 남은: 보조 라우트의 영어 오류 문장 코드화, 날씨 조건 코드 camelCase
 - [ ] ⬜ 어려운 평가셋 20문항(다단계 추론·긴 문서·검색 종합·법률/의학) — Hydrogen 재비교와 1월 기본 모델 재선정에 같이 쓴다 → [PLAN_GEMINI_4_HYDROGEN_261113 §8](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
