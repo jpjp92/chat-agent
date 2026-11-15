@@ -10,7 +10,7 @@
 
 > **2026-11-15 공개 준비:** [PLAN_PRODUCTION_READINESS_261115](PLAN_PRODUCTION_READINESS_261115.md) — 소규모 공개 기준으로 남은 일을 4단계로. **A 공개 전 필수 6**(운영 DB `trace_id` SQL · 운영 이관 점검 · 회원 호출 한도 · 비용 상한 · 개인정보 문구 · 재시도 편차/`Retry-After`) · B 공개 직후 5(알림 최소판 등) · C 일반 공개 4(턴 예산 등) · D 유료 수준 4(공유 차단기·공급자 전환 등). 상태: 계획.
 
-> **2026-11-13 Gemini 4 Hydrogen:** [PLAN_GEMINI_4_HYDROGEN_261113](PLAN_GEMINI_4_HYDROGEN_261113.md) — 모델 ID·접근·가격·thinking 확인(과금 없음). Hydrogen 은 지금 3.8 Flash 의 2배지만 3.8·3.6 이 2027-01-01 같은 값으로 오른다. 기본 thinking `high`. 테스트는 스모크 9회 → A/B 30회 → 호환성 12회(합 $1.5 미만). 상태: 계획만 — 유료 호출 전.
+> **2026-11-13 Gemini 4 Hydrogen:** [PLAN_GEMINI_4_HYDROGEN_261113](PLAN_GEMINI_4_HYDROGEN_261113.md) — 모델 ID·접근·가격·thinking 확인(과금 없음). Hydrogen 은 지금 3.8 Flash 의 2배지만 3.8·3.6 이 2027-01-01 같은 값으로 오른다. 기본 thinking `high`. **11-15 0·1단계 실행(39회, 약 $0.09)** — 10문항 품질 동률(정답 7/7), Hydrogen 이 첫 글자 +0.7s·비용 약 5배(1월 뒤에도 2.6배: thinking 을 끌 수 없다) → 도입 보류, 2단계 미진행. thinking 끄기 조사: 스위치 없음, 지시문 방식은 40% 빈 응답(`MALFORMED_RESPONSE`) — 최저는 `low`.
 
 > **2026-11-12 안정성:** [PLAN_STABILITY_261112](PLAN_STABILITY_261112.md) — 외부 검토안 P0~P3 를 코드와 대조해 순서를 다시 정함. ① 요청별 `unhandledRejection` 리스너 → 모듈 1개 ② user 저장 await 위치·저장 로그 ③ `[turn]` `routerMs`·`needsSearch` ④ 측정 뒤 라우터 제한 시간. 근거 재사용 규칙(P1-1)·구조 개선(P2·P3)은 보류. 상태: ①~④ 완료(④는 11-15, 5초 잠정 — 공개 뒤 조정).
 

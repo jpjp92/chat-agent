@@ -427,7 +427,8 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [ ] LangSmith 추적 — L0·L1·L2·원문 모드(배포 dev 포함) 완료(11-07~08), 턴 ID·`retry_reason` 완료(11-09). 남은: **L4 실배포 측정** · `retry_reason` 을 OpenAI·LangChain·라우터 경로로 확장 · 대시보드 할 일(스위치 Sensitive 해제, 보관 14일 확인됨, 무료 플랜 5,000/월 상한) · 운영은 고지 먼저 · run 조회는 v2 API — 진행 현황 [PLAN_LANGSMITH_TRACING_261107](plans/PLAN_LANGSMITH_TRACING_261107.md)
 - [x] ✅ 11-09 턴 ID(`traceId`)로 Supabase·Vercel·LangSmith 연결 — T1 루트 run ID·`[turn]` · T2 루트 메타데이터·커밋 · T3 `chat_messages.trace_id`, 모두 dev 배포 확인 — [PLAN_TRACE_ID_261108](plans/PLAN_TRACE_ID_261108.md). 남은: T4·T5 보류, 운영 DB SQL(맨 위 🔴 항목)
 - [x] ✅ 11-10 에러 코드 한곳 정리·snake_case·어긋남 4건 — [REF_ErrorCodes](guide/REF_ErrorCodes.md). 남은: 보조 라우트의 영어 오류 문장 코드화, 날씨 조건 코드 camelCase
-- [ ] Gemini 4 Hydrogen A/B — 계획만(11-13). 스모크 9회($0.05 미만)부터, 실행 전 승인 → [PLAN_GEMINI_4_HYDROGEN_261113](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
+- [ ] ⬜ 어려운 평가셋 20문항(다단계 추론·긴 문서·검색 종합·법률/의학) — Hydrogen 재비교와 1월 기본 모델 재선정에 같이 쓴다 → [PLAN_GEMINI_4_HYDROGEN_261113 §8](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
+- [x] ✅ 11-15 Gemini 4 Hydrogen A/B 0·1단계 — 품질 동률·더 느리고 비쌈 → 도입 보류. 어려운 평가셋이 생기면 재비교 → [PLAN_GEMINI_4_HYDROGEN_261113](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
 - [ ] 🔴 **2027-01-01 Gemini 3.6·3.8 Flash 가격 2배**(입력 $0.75 → $1.50, 출력 $3.75 → $7.50) — 기본 모델이 3.6 이라 비용 계획·GCP 예산 알림 재검토 → [PLAN_GEMINI_4_HYDROGEN_261113 §2](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
 - [ ] 안정성 계획 — ① 떠돌이 rejection ② 메시지 저장 ③ `[turn]` 계측 완료(11-13, dev 정상 경로 확인) — [PLAN_STABILITY_261112](plans/PLAN_STABILITY_261112.md)
   - [x] ✅ 11-15 ④ 라우터 제한 시간 시도당 5초(잠정)·재시도 사유 전 경로·실패 주입 하니스 → [DEV_261115](logs/2026/11/DEV_261115.md). 공개 뒤 `retryReasons=timeout`·`intentFrom=rule` 비율로 5초 재검토
