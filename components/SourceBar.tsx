@@ -42,12 +42,13 @@ const KindTag: React.FC<{ source: GroundingSource; labels: KindLabels }> = ({ so
 
 const isValidUri = (uri: string) => { try { new URL(uri); return true; } catch { return false; } };
 
+// 칩도 접힌 바·닫기 버튼과 같은 44px — 출처 개수(2개↔3개)에 따라 출처 줄 높이가 달라지지 않게, 터치 목표도 맞춘다(PLAN_UI_MEASURE_261115)
 const SourceChip: React.FC<{ source: GroundingSource; kinds?: KindLabels }> = ({ source, kinds }) => (
   <a
     href={source.uri}
     target="_blank"
     rel="noopener noreferrer"
-    className="inline-flex items-center px-4 py-2 rounded-full bg-slate-50 dark:bg-white/[0.07] border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-400/60 transition-all group"
+    className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-full bg-slate-50 dark:bg-white/[0.07] border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-400/60 transition-all group"
   >
     <img src={faviconUrl(faviconDomain(source))} alt="" className="w-3.5 h-3.5 mr-2" />
     {source.citationNumber && (
