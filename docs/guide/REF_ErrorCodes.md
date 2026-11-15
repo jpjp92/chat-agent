@@ -19,7 +19,7 @@
 | ② 로그 에러 코드 `errCode` | `timeout`·`rate_limit`·`openai_quota`·`keys_exhausted`·`unavailable`·`safety`·`bad_request`·`auth`·`server`·`other` | `server/agent/turn-log.ts` `errCodeOf` | `[turn]`(outcome=error 일 때만) · LangSmith 루트 `errCode` |
 | ③-b 검색 판정 `needsSearch` | `on`·`off`·`other`(`search` 와 같은 모양) | 라우터 출력 → `turn-log.ts` | `[turn]` · LangSmith 루트(불리언) |
 | ③ 턴 결과 `outcome` | `ok`·`empty`·`error`·`url_fetch_failed` | route.ts 종료 경로 | `[turn]` · LangSmith 루트 |
-| ④ 재시도·강등 사유 | `rate_limit`·`timeout`·`unavailable`·`auth`·`media_error`·`empty`·`malformed_call`·`tool_code`·`primary_failed` | `turn-log.ts` `RETRY_REASONS`, generator `noteRetry` | `[turn].retryReasons`·`retries` · LangSmith 루트 `retry_<사유>: true` · 재시도 span `retry_reason` |
+| ④ 재시도·강등 사유 | `rate_limit`·`timeout`·`unavailable`·`auth`·`media_error`·`empty`·`malformed_call`·`tool_code`·`primary_failed`·`stream_error`·`pdf_fallback` | `turn-log.ts` `RETRY_REASONS`, generator `noteRetry`·라우터 `routerRetries`·LangChain `onRetry` | `[turn].retryReasons`·`retries` · LangSmith 루트 `retry_<사유>: true` · 재시도 span `retry_reason` |
 | ⑤ OpenAI 내부 코드 | 할당량 5종(§3) · `key_missing`·`timeout`·`network_error`·`tool_policy_conflict`·`unknown_function_call`·`invalid_function_arguments`·`function_execution_error`·`invalid_function_output` | `chat-error-policy.ts` `OPENAI_QUOTA_ERROR_CODES` · `server/openai/chat.ts` `OpenAIChatError` | 분류 입력으로만 쓴다(①·② 로 바뀌어 남음) |
 | ⑥ LangSmith 전송 상태 `[trace]` | `send:"paused"` + `status:429` 또는 `error:"timeout"`·`"network"` · `flush:"timeout"` · `raw` + `why` | `server/agent/tracing.ts` | Vercel 로그 `[trace]` 줄 |
 | ⑦ 원문 모드 꺼진 사유 `why` | `on`·`off`·`switch_value`·`allow_missing`·`allow_value`·`branch_missing`·`branch_other` | `tracing.ts` `rawModeWhy` | `[trace] {"raw":…,"why":…}` 인스턴스당 1줄 |
@@ -34,7 +34,7 @@
 | `openai_quota`¹ | OpenAI 할당량 코드 5종 · `type: insufficient_quota` | GPT 토큰 할당량 소진 |
 | `rate_limit`¹ | 429 · `RESOURCE_EXHAUSTED` · "No API key available"·"All API keys" | 요청이 많아 지연, 잠시 후 |
 | `daily_exhausted`¹ | 위와 같은 조건 + Gemini 일일 한도 소진 판정 | 오늘 사용량 소진, 내일 |
-| `unavailable` | 타임아웃 오류(`TimeoutError`·`AbortError`) · 503·504 · `UNAVAILABLE`·`DEADLINE_EXCEEDED` | 서버 일시 불안정, 잠시 후 |
+| `unavailable` | 타임아웃 오류(`TimeoutError`·`AbortError`) · OpenAI 연결 실패(`code: network_error`) · 503·504 · `UNAVAILABLE`·`DEADLINE_EXCEEDED` | 서버 일시 불안정, 잠시 후 |
 | `auth` | 401·403 | 인증 오류 |
 | `guest_capacity`¹ | 게스트 + (`rate_limit`·`daily_exhausted`·`unavailable`) | 무료 이용량 포화, 로그인하면 계속 |
 | `generic` | 그 밖 전부(빈 응답 포함) | 응답 생성 중 문제 |
@@ -48,6 +48,7 @@
 | Gemini 429·RESOURCE_EXHAUSTED | `rate_limit`(게스트 `guest_capacity`) | `rate_limit` | `rate_limit` | 키 로테이션·유료 키 상태, `[turn].retries` 급증 여부 |
 | 키 전부 소진("No API key"·"All API keys") | `rate_limit` 또는 `daily_exhausted`(게스트 `guest_capacity`) | `keys_exhausted` | — | 무료 키 RPD, 유료 키 우선 스위치 |
 | OpenAI 할당량(`insufficient_quota` 등) | `openai_quota` | `openai_quota` | — | OpenAI 크레딧·프로젝트 한도 |
+| OpenAI 네트워크 끊김(`network_error`) | `unavailable` | `unavailable` | `unavailable`(2회 재시도) | OpenAI 상태·함수 네트워크 |
 | 503·UNAVAILABLE | `unavailable` | `unavailable` | `unavailable` | 모델 혼잡 — 강등(2.5) 됐는지 `modelDowngraded` |
 | 타임아웃(`TimeoutError`·`AbortError`·504·`DEADLINE_EXCEEDED`·OpenAI `code: timeout`) | `unavailable` | `timeout` | `timeout` | 무거운 미디어 턴인지, 함수 시간 상한 |
 | 401·403(키 무효) | `auth` | `auth` | `auth` | 키 값·권한 |

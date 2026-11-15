@@ -5,6 +5,7 @@
 - [x] ~~**검색 경로만 Gemini 3.8 로 — 프로브 선행**~~ → **10-04 측정: 보류.** 어려운 문항에서 3.6·3.7·3.8 정답 21/21 동률, 3.8 이 ~2.2s 느림 ([PLAN_GEMINI_PAID_FIRST §7-2](plans/PLAN_GEMINI_PAID_FIRST_261004.md)). 원문: (2026-10-04 검토): 2.5 폴백은 유지하기로 결정. 검색 grounding 만 3.8 후보 — 난이도 올린 grounding 문항(검색 끄면 틀리는가)으로 `tests/manual/gemini-3-8/` `TIER1=1` 측정 후 판단 → [3.8 계획 §8](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
 - [x] ✅ **Gemini 3.8 Flash 선택 옵션 도입** (2026-10-18) — 3.7 퇴역 공지(2027-01-28)로 3.7 자리를 3.8 로 대체, 3.7 저장값은 3.8 로 보낸다 → [DEV_261018 §7](logs/2026/10/DEV_261018.md#7-gemini-37--38) · [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
   - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
+- [ ] 🔴 **공개 준비(소규모 프로덕션) — 공개 전 필수 A1~A6** → [PLAN_PRODUCTION_READINESS_261115](plans/PLAN_PRODUCTION_READINESS_261115.md). A1 운영 DB `trace_id` SQL(아래 항목) · A2 운영 이관 점검 · A3 회원 호출 한도(지금 무제한) · A4 비용 상한·알림 · A5 개인정보 문구 · A6 재시도 편차·`Retry-After`. 공개 직후 B·규모별 C·D 도 같은 문서
 - [ ] 🔴 **main 반영(또는 운영 DB 새로 세팅) 때 운영 Supabase 에 `chat-messages-trace-id.sql` 먼저** — T3 코드가 `chat_messages.trace_id` 를 넣으므로 열이 없으면 운영 메시지 저장이 실패한다. dev 는 11-09 적용·확인. 새로 세우면 `auth-mvp-schema.sql` 에 포함 → [PLAN_TRACE_ID_261108 T3](plans/PLAN_TRACE_ID_261108.md) · [DB 실행 순서 10](guide/db/README.md)
 
 > 현재 남은 일과 선행 완료 상태를 함께 보여준다. 상세 완료 이력과 실측 근거는 [DEV_HISTORY.md](DEV_HISTORY.md)에 기록한다.
@@ -429,7 +430,9 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [ ] Gemini 4 Hydrogen A/B — 계획만(11-13). 스모크 9회($0.05 미만)부터, 실행 전 승인 → [PLAN_GEMINI_4_HYDROGEN_261113](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
 - [ ] 🔴 **2027-01-01 Gemini 3.6·3.8 Flash 가격 2배**(입력 $0.75 → $1.50, 출력 $3.75 → $7.50) — 기본 모델이 3.6 이라 비용 계획·GCP 예산 알림 재검토 → [PLAN_GEMINI_4_HYDROGEN_261113 §2](plans/PLAN_GEMINI_4_HYDROGEN_261113.md)
 - [ ] 안정성 계획 — ① 떠돌이 rejection ② 메시지 저장 ③ `[turn]` 계측 완료(11-13, dev 정상 경로 확인) — [PLAN_STABILITY_261112](plans/PLAN_STABILITY_261112.md)
-  - [ ] ④ 라우터 제한 시간 — 며칠 `routerMs` p50/p90/p95(`intentFrom=router`·`rule` 만) 모은 뒤 시도당 상한·전체 예산 결정. 집계는 LangSmith 루트 메타데이터로(Vercel CLI 는 `[turn]` 줄이 빠진다). 첫 표본 1298ms(11-13)
+  - [x] ✅ 11-15 ④ 라우터 제한 시간 시도당 5초(잠정)·재시도 사유 전 경로·실패 주입 하니스 → [DEV_261115](logs/2026/11/DEV_261115.md). 공개 뒤 `retryReasons=timeout`·`intentFrom=rule` 비율로 5초 재검토
+  - [x] ✅ 11-15 OpenAI 재시도 — 429·5xx·네트워크 끊김은 0.6s·1.8s 뒤 최대 2회 → [DEV_261115 §6](logs/2026/11/DEV_261115.md)
+  - [x] ~~④ 라우터 제한 시간 (원래 계획: 측정 뒤)~~ — 며칠 `routerMs` p50/p90/p95(`intentFrom=router`·`rule` 만) 모은 뒤 시도당 상한·전체 예산 결정. 집계는 LangSmith 루트 메타데이터로(Vercel CLI 는 `[turn]` 줄이 빠진다). 첫 표본 1298ms(11-13)
   - [ ] 배포 확인 남은 것 — URL 실패 경로·생성 즉시 실패 경로의 `after()` 저장 마무리(`outcome=url_fetch_failed` 턴이 나오면 그 `traceId` 로 DB 조회) · `[process]`·`[save]` 줄이 찍히는지
   - [ ] 보류 — 근거 재사용 규칙(P1-1, 실패 사례 나오면) · 공급자별 재시도 계측 통일·Generator 실행 함수 분리·카드 참조 ID(P2)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
