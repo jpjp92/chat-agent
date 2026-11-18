@@ -1,6 +1,6 @@
 # PLAN_DECISION_ROUTER_261019 — 라우터 의도 분류에 판단 전용 API(OpenAI Decisions) 검토
 
-> 작성일: 2026-10-19 · 상태: **측정 완료(§6~§14) · 하이브리드 적용 보류 · 재평가 §17(병렬안)** · 현행 라우터 1차 개선 완료(§16, 미배포) · 관련: [PLAN_INTENT_RULES_PRECISION_260816](PLAN_INTENT_RULES_PRECISION_260816.md) · 기록: [DEV_261019](../logs/2026/10/DEV_261019.md)
+> 작성일: 2026-10-19 · 상태: **측정 완료(§6~§14) · 하이브리드 적용 보류 · 재평가 §17(병렬안) · Gemini Decision 1 검토 §19(보류, 재개 시 1순위 후보)** · 현행 라우터 1차 개선 완료(§16, 미배포) · 관련: [PLAN_INTENT_RULES_PRECISION_260816](PLAN_INTENT_RULES_PRECISION_260816.md) · 기록: [DEV_261019](../logs/2026/10/DEV_261019.md)
 
 
 ## 0. 결론 요약
@@ -648,3 +648,28 @@ v2 문구, 새 멀티턴 세트(26행, 현행은 v1 실행의 같은 문장 결�
 **최종(3라운드, Gemini):** golden 85문장 267/267 · bio · pet · wobble 57/57(칼로리 alt 후) · causes 75/75 · domains 102/102 · domains2 105/105 · base 57/57 · law 36/36 · final 45/45, judge 89/89, `npm test` 36 통과. 지연 p50 약 1.1s 변화 없음.
 
 **오후 비용:** Gemini 라우터 약 4,000회(약 $3.7) · 답변 생성 12회 · gpt-6-luna 약 300회 · Decisions 약 300회 · judge 약 230회(약 $0.8). 문구를 바꿨다 되돌린 반복이 절반쯤이다.
+
+## 19. Gemini Decision 1 검토 (2026-11-18, 호출 0)
+
+**계기** — 외부 검토안: "현행 2.5 Flash 라우터 · GPT-6 Luna Decisions · Gemini Decision 1 · Decision 1 + 현행 하이브리드" 4자 A/B(정확도·p50/p95·calibration·폴백률).
+
+**사실 확인(웹, 11-18)**
+- `gemini-decision-1` — 11-11 Gemini Decisions API 로 출시(v1beta, google-genai SDK). 선택지별 확률을 돌려주고 출력 토큰이 없다. 질문 최대 1,000개, 입력은 텍스트·이미지·음성·영상·PDF. Vertex AI 는 아직.
+- 가격 입력 $0.10/M · 출력 무료(정리 사이트 기준, **공식 가격 페이지 원문 미확인**) · 지연 150~250ms(Google 발표). 무료 티어 있음.
+
+**검토안이 빠뜨린 우리 결과**
+1. 정확도 차이는 이미 없다 — 2차 개선 뒤 6세트 현행 417/420 · gpt-6-luna 413/420(§18). 남은 이득은 지연(약 0.8s)뿐.
+2. Decisions 계열은 검색 판정이 약하다(§14-1) — general 의 약 37% 는 Gemini 라우터가 필요해 완전 교체 불가.
+3. 순서는 §17-4 로 정해 뒀다 — 운영 메시지로 skip 가능 비율(승인 필요, 30% 미만이면 중단) → shadow 병렬 → 판정. 오프라인 다자 비교가 먼저가 아니다.
+4. 고정 골든셋(85문장)·judge 가 이미 있다(§18-1).
+
+**Decision 1 에만 있는 이점(검토안에 없음)**
+- **전송처가 늘지 않는다.** GPT Decisions 하이브리드는 Gemini 로 대화하는 사용자 메시지도 매 턴 OpenAI 로 보낸다(§17-3). Decision 1 은 이미 쓰는 Google 이라 처리방침 변경이 없다.
+- 기존 Gemini 키·유료 티어를 그대로 쓴다 — 공급자·키 관리가 늘지 않는다.
+
+**판단**
+- **보류 유지** — 공개 준비(PLAN_PRODUCTION_READINESS A3·A6)가 먼저이고, 라우터는 5초 상한·`routerMs` 분포 수집이 진행 중이다.
+- **재개하면 후보 1순위를 Decision 1 로 바꾼다**(GPT Decisions 대신). 핵심 질문은 **검색 필요 판정(`SEARCH_GRAY`)을 Decision 1 이 맡을 수 있는가** — 되면 직렬 구조로 Gemini 라우터 호출 자체가 줄어 이득이 지연만이 아니게 된다(§17-2 의 "직렬로 비용 이득을 보려면 검색 판정까지").
+- **재개 조건** — 공개 후 `routerMs` p95 나 `intentFrom=rule`(타임아웃 폴백) 비율이 문제로 드러날 때, 또는 §17-4 ① skip 비율 측정을 승인할 때.
+
+**측정하게 되면(안)** — `decisions-client.mts` 에 Decision 1 호출 추가, `probe-decisions-router`·`-extra` 에 팔 추가. 골든 85 + `SEARCH_GRAY` 30 × 2라운드 ≈ 230회, $0.1 미만(유료 키). 같은 날 같은 세트로 현행·gpt-6-luna Decisions 도 다시 돌려 지연을 맞비교. 판정 기준: 정확도 현행 이상 · 고확신 오답이 GPT Decisions 이하 · 검색 판정 현행 이상 · p95 개선.

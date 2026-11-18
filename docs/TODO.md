@@ -366,10 +366,11 @@
 - [~] 개선 후 하이브리드 재평가 — [§17](plans/PLAN_DECISION_ROUTER_261019.md#17-하이브리드-재평가--1차-개선-뒤-2026-10-20-추가-호출-0) (10-20)
   - 결론(안): 넣는다면 병렬. 직렬은 gray 턴을 느리게 만든다. 비용 차이는 월 1달러 미만이다.
   - [ ] 운영 메시지로 skip 가능 비율 세기 — 규칙만 돌리고 개수만 낸다. 사용자 승인이 필요하다.
-  - [ ] 처리방침 확인 — 하이브리드는 Gemini 사용자 메시지도 매 턴 OpenAI 로 보낸다.
+  - [ ] 처리방침 확인 — 하이브리드는 Gemini 사용자 메시지도 매 턴 OpenAI 로 보낸다. (Gemini Decision 1 이면 전송처가 Google 그대로라 불필요)
   - [ ] shadow 병렬 1~2주 → 도입 판정(남은 쟁점: Decisions GA · Jev)
   - [x] Jev 가격 확인(10-23) — `jev-1.14.0` 입력 $0.042/M · 출력 무료, 병렬로 넣어도 월 약 $0.02. 비용은 선택 기준이 아니다 → [§17-5](plans/PLAN_DECISION_ROUTER_261019.md#17-5-jev-가격접근-확인-2026-10-23-콘솔문서-화면-기준-호출-0)
   - [ ] Jev 측정 전 확인 — API billing 충전 필요, Data handling(보존·학습·리전), 새 전송처라 처리방침 추가
+  - [ ] ⬜ **Gemini Decision 1**(11-11 출시) — 재개 시 1순위 후보(GPT Decisions 대신). 관건은 검색 판정(`SEARCH_GRAY`)을 맡을 수 있는지. 측정안: 골든 85 + 검색 30 × 2라운드 ≈ 230회 · $0.1 미만, 현행·gpt-6-luna 같은 날 재측정. 보류 — 공개 준비 A3·A6 먼저, 공개 후 `routerMs` p95·`intentFrom=rule` 비율이 문제일 때 재개 → [§19](plans/PLAN_DECISION_ROUTER_261019.md#19-gemini-decision-1-검토-2026-11-18-호출-0)
 
 ### 0-i. 물리 도해(`json:diagram`) SVG 고도화 (2026-11-03)
 
