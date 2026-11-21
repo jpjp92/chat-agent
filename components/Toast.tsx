@@ -29,7 +29,7 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', onClose, duration
 
     return (
         <div className="fixed top-24 right-0 sm:right-6 z-[11000] w-fit max-w-[320px] px-4">
-            <div className={`flex items-start sm:items-center gap-2.5 px-4 py-3 rounded-2xl text-white shadow-lg animate-in slide-in-from-right-8 fade-in duration-500 ${colors[type]}`}>
+            <div className={`flex items-start sm:items-center gap-2.5 px-4 py-3 rounded-2xl text-white shadow-lg motion-enabled animate-in slide-in-from-right-8 fade-in ${colors[type]}`}>
                 <div className="flex-shrink-0 mt-0.5 sm:mt-0">
                     <i className={`fa-solid ${icons[type]} text-base`}></i>
                 </div>

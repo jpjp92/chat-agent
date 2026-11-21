@@ -334,7 +334,7 @@ const BioRenderer: React.FC<BioRendererProps> = ({ bioData, language = 'ko' }) =
     };
 
     return (
-        <div className="w-full my-6 animate-in fade-in zoom-in-95 duration-1000 ease-out">
+        <div className="w-full my-6 animate-in fade-in zoom-in-95">
             <div className={`rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden flex flex-col group transition-all duration-500`}>
 
                 {type === 'pdb' ? (

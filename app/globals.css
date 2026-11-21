@@ -193,6 +193,50 @@ html {
   .modal-panel-in { animation: none; }
 }
 
+/* 등장 모션 — 컴포넌트에 적혀 있던 animate-in·fade-in·slide-in-from-*·zoom-in-95(tailwindcss-animate 클래스)가
+   플러그인 없이 무효였다. 한꺼번에 살리지 않고 켠 곳만 돈다(PLAN_MOTION_UX_261005 §7-2·§7-3):
+   메시지 밖 요소는 .motion-enabled, 새 메시지는 루트의 data-motion="new" 아래에서만.
+   클래스마다 animation 을 주면 서로 덮어쓰므로 키프레임 하나에 변수로 조합한다.
+   duration-*·ease-out 은 transition 전용이라 여기에 안 먹는다 — 길이는 토큰으로. */
+:root {
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-enter: 200ms;
+  --motion-panel: 260ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ui-enter {
+  from {
+    opacity: var(--enter-opacity);
+    transform: translate3d(var(--enter-x), var(--enter-y), 0) scale(var(--enter-scale));
+  }
+}
+
+/* 기본값을 먼저 두고 조합 클래스가 뒤에서 덮는다 — 부모의 값이 자식 애니로 새지 않게 */
+.animate-in { --enter-opacity: 1; --enter-x: 0px; --enter-y: 0px; --enter-scale: 1; }
+.fade-in { --enter-opacity: 0; }
+.slide-in-from-bottom-1 { --enter-y: 0.25rem; }
+.slide-in-from-bottom-2 { --enter-y: 0.5rem; }
+.slide-in-from-bottom-3 { --enter-y: 0.75rem; }
+.slide-in-from-top-2 { --enter-y: -0.5rem; }
+.slide-in-from-left-2 { --enter-x: -0.5rem; }
+.slide-in-from-right-8 { --enter-x: 2rem; }
+.zoom-in-95 { --enter-scale: 0.95; }
+
+/* backwards: 끝나면 원래 스타일로 — transform 이 남으면 쌓임 맥락이 생겨 다음 메시지가 메뉴를 덮었다(ChatMessage 컨텍스트 메뉴) */
+.motion-enabled.animate-in,
+[data-motion="new"].animate-in,
+[data-motion="new"] .animate-in {
+  animation: ui-enter var(--motion-enter) var(--motion-ease-out) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-enabled.animate-in,
+  [data-motion="new"].animate-in,
+  [data-motion="new"] .animate-in { animation: none; }
+}
+
 /* 응답 대기 문구 shimmer — ChatGPT·Claude 의 "Thinking…" 처럼 글자 위로 빛이 지나간다.
    진행감은 문구(소요 시간·"...")가 아니라 이 효과로 준다(src/lib/loading-status.ts).
    문구가 바뀌면 status-fade-in 으로 부드럽게 교체(ChatArea 가 key 로 다시 마운트). */

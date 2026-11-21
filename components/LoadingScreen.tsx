@@ -10,7 +10,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message, children }) => {
         <div className="flex h-dvh items-center justify-center" style={{ background: document.documentElement.classList.contains('dark')
             ? 'linear-gradient(135deg, #141629 0%, #1a1f3c 50%, #141629 100%)'
             : 'linear-gradient(135deg, #f0f2ff 0%, #eef2ff 40%, #e6fff7 100%)' }}>
-            <div className="flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-700">
+            <div className="flex flex-col items-center justify-center space-y-8 motion-enabled animate-in fade-in">
                 <div className="relative">
                     <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30 animate-pulse">
                         <i className="fa-solid fa-comment-dots text-white text-4xl"></i>

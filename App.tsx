@@ -390,6 +390,7 @@ const App: React.FC = () => {
                   isTyping={isTyping}
                   loadingStatus={loadingStatus}
                   isLoadingHistory={isLoadingMessages}
+                  sessionId={currentSessionId}
                   onEdit={handleEditMessage}
                 />
               )}

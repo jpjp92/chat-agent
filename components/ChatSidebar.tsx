@@ -200,7 +200,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       {/* 모바일 오버레이 */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] md:hidden animate-in fade-in duration-300"
+          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-[60] md:hidden motion-enabled animate-in fade-in"
           onClick={onClose}
         ></div>
       )}
@@ -244,7 +244,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
           {/* 동작 영역: 새 채팅·검색 (펼쳤을 때 또는 모바일에서 열었을 때) */}
           {(!isCollapsed || isOpen) && (
-            <div className="px-3 pb-2 space-y-1 animate-in fade-in slide-in-from-left-2 duration-300">
+            <div className="px-3 pb-2 space-y-1 motion-enabled animate-in fade-in slide-in-from-left-2">
               <button
                 onClick={() => {
                   onNewSession();
@@ -439,7 +439,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           {(!isCollapsed || isOpen) ? (
             <div className="relative" ref={dropdownRef}>
               {isLangMenuOpen && (
-                <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-[60]">
+                <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden motion-enabled animate-in fade-in slide-in-from-bottom-2 z-[60]">
                   {languages.map((lang) => (
                     <button
                       key={lang.code}

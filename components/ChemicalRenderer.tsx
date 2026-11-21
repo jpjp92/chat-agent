@@ -222,7 +222,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
     };
 
     return (
-        <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
+        <div className="w-full my-8 animate-in fade-in slide-in-from-bottom-2">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-[#1e1e1f] shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* 헤더 — 항상 표시 */}
@@ -316,7 +316,7 @@ const ChemicalRenderer: React.FC<ChemicalRendererProps> = ({ smiles, name, width
                     </div>
 
                     {isExpanded && (
-                        <div className="mt-3 animate-in slide-in-from-top-2 duration-300">
+                        <div className="mt-3 motion-enabled animate-in fade-in slide-in-from-top-2">
                             <div className="p-4 bg-white dark:bg-black/40 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-inner select-all">
                                 <code className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all leading-relaxed block max-h-[120px] overflow-y-auto custom-scrollbar">
                                     {activeSmiles}

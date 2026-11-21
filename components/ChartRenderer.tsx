@@ -456,7 +456,7 @@ const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData, language = 'ko
     const chartMinWidth = scrolls ? dataCount * 28 : '100%';
 
     return (
-        <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
+        <div className="w-full my-4 sm:my-6 lg:my-8 animate-in fade-in slide-in-from-bottom-3">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/5 bg-white dark:bg-white/[0.07] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* 헤더 */}

@@ -88,6 +88,14 @@ const compressImage = (dataUrl: string, mimeType: string): Promise<string> => {
   });
 };
 
+// 문구는 리터럴뿐이라 모듈 상수로 둔다 — 컴포넌트 안에 두면 음성 인식 이펙트의 의존성이 된다
+const i18n = {
+  fr: { placeholder: "Posez une question", sizeError: "Trop lourd (Max 100Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers", micDenied: "Autorisez le micro", micNetwork: "Vérifiez votre connexion", micError: "Échec de la dictée. Réessayez" },
+  ko: { placeholder: "무엇이든 물어보세요", sizeError: "용량 초과 (최대 100MB)", typeError: "지원하지 않는 파일", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개 파일만 첨부 가능", micDenied: "마이크 권한을 허용해 주세요", micNetwork: "네트워크 연결을 확인해 주세요", micError: "음성 인식에 실패했습니다. 다시 시도해 주세요" },
+  en: { placeholder: "Ask anything", sizeError: "Too large (Max 100MB)", typeError: "Unsupported file", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Max 3 files", micDenied: "Allow microphone access", micNetwork: "Check your connection", micError: "Voice input failed. Try again" },
+  es: { placeholder: "Haz una pregunta", sizeError: "Muy grande (Máx 100MB)", typeError: "Archivo no soportado", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máx 3 archivos", micDenied: "Permite el micrófono", micNetwork: "Revisa tu conexión", micError: "Falló el dictado. Inténtalo de nuevo" }
+};
+
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko', showToast, editValue, selectedModel, onModelChange, welcome = false, prefill }) => {
   const [input, setInput] = useState('');
   const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
@@ -103,12 +111,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const rafRef = useRef<number | null>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
 
-  const i18n = {
-    fr: { placeholder: "Posez une question", sizeError: "Trop lourd (Max 100Mo)", typeError: "Fichier non supporté", dropTitle: "Déposer le fichier ici", dropSubtitle: "Ajouter au chat", limitError: "Max 3 fichiers" },
-    ko: { placeholder: "무엇이든 물어보세요", sizeError: "용량 초과 (최대 100MB)", typeError: "지원하지 않는 파일", dropTitle: "파일을 여기에 놓으세요", dropSubtitle: "채팅에 추가하기", limitError: "최대 3개 파일만 첨부 가능" },
-    en: { placeholder: "Ask anything", sizeError: "Too large (Max 100MB)", typeError: "Unsupported file", dropTitle: "Drop file here", dropSubtitle: "Add to chat", limitError: "Max 3 files" },
-    es: { placeholder: "Haz una pregunta", sizeError: "Muy grande (Máx 100MB)", typeError: "Archivo no soportado", dropTitle: "Suelta el archivo aquí", dropSubtitle: "Añadir al chat", limitError: "Máx 3 archivos" }
-  };
 
   const t = i18n[language] || i18n.ko;
 
@@ -191,14 +193,14 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
       recognition.onerror = (event: any) => {
         console.error("Speech recognition error", event.error);
         if (event.error === 'not-allowed') {
-          showToast(language === 'ko' ? '마이크 접근 권한이 없거나 거부되었습니다.' : 'Microphone access denied.', "error");
+          showToast((i18n[language] || i18n.ko).micDenied, "error");
         } else if (event.error === 'network') {
-          showToast(language === 'ko' ? '네트워크 연결 상태가 불안정합니다.' : 'Network connection error.', "error");
+          showToast((i18n[language] || i18n.ko).micNetwork, "error");
         } else if (event.error === 'no-speech') {
           // no-speech 는 말을 잠깐 멈출 때 흔하므로 무시
           console.warn("Speech recognition paused (no-speech)");
         } else {
-          showToast(language === 'ko' ? '음성 인식 도중 오류가 발생했습니다.' : 'Speech recognition error occurred.', "error");
+          showToast((i18n[language] || i18n.ko).micError, "error");
         }
 
         // UI 가 멈췄으면 중단
@@ -540,7 +542,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 relative">
       {selectedAttachments.length > 0 && (
-        <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-2 animate-in slide-in-from-bottom-2 duration-300">
+        <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-2 motion-enabled animate-in fade-in slide-in-from-bottom-2">
           {selectedAttachments.map((attachment, index) => (
             <div key={index} className="relative group">
               <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-md bg-white dark:bg-slate-800/60" style={{ height: '72px' }}>
@@ -604,7 +606,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
         className={`relative flex flex-wrap items-center justify-between gap-y-1 bg-white/80 dark:bg-white/[0.07] backdrop-blur-sm px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-[24px] sm:rounded-[28px] transition-all focus-within:ring-2 focus-within:ring-indigo-400/30 dark:focus-within:ring-indigo-500/30 border border-slate-200/80 dark:border-white/[0.13] shadow-sm min-h-[40px] sm:min-h-[48px] ${isDragging ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : ''}`}
       >
         {isDragging && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[24px] sm:rounded-[28px] animate-in fade-in duration-200 pointer-events-none">
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-[24px] sm:rounded-[28px] motion-enabled animate-in fade-in pointer-events-none">
             <p className="text-sm font-bold text-primary-600 dark:text-primary-400">{t.dropTitle}</p>
           </div>
         )}

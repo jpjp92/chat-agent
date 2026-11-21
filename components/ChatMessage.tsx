@@ -159,6 +159,8 @@ interface ChatMessageFullProps extends ChatMessageProps {
   language?: Language;
   onEdit?: (content: string) => void;
   isStreaming?: boolean;
+  /** 이번 화면에서 새로 추가된 메시지 — 등장 모션은 이 메시지와 그 안의 카드에만(ChatArea 가 판정) */
+  isNew?: boolean;
 }
 
 /** TTS 실패 안내 문구 — 상태 코드·원문은 노출하지 않는다(services/geminiService.ts `TtsError`). */
@@ -201,7 +203,7 @@ const TTS_ERROR_MESSAGES: Record<TtsErrorKind, Record<Language, string>> = {
   },
 };
 
-const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko', onEdit, isStreaming = false }) => {
+const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko', onEdit, isStreaming = false, isNew = false }) => {
   const isUser = message.role === Role.USER;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -851,7 +853,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
       : 'max-w-[95%] sm:max-w-[85%]';
 
   return (
-    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} ${isUser ? 'mb-8' : 'mt-4 mb-10 sm:mt-0 sm:mb-8'} group animate-in fade-in duration-500`}>
+    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} ${isUser ? 'mb-8' : 'mt-4 mb-10 sm:mt-0 sm:mb-8'} group animate-in fade-in slide-in-from-bottom-1`} data-motion={isNew ? 'new' : undefined}>
       <div className={`flex ${outerMaxWidth} ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 sm:gap-4`}>
 
         {!isUser && (
@@ -941,7 +943,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
             const hasGrounding = message.groundingSources && message.groundingSources.length > 0;
             if (!hasGrounding && drugChips.length === 0) return null;
             return (
-              <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in duration-700">
+              <div className="mt-6 flex flex-wrap gap-2 animate-in fade-in">
                 {/* 출처 성격 라벨은 차트 답변에만 — 범위가 "차트 수치의 근거" 다(PLAN_CHART_SOURCE_261106 §5) */}
                 {hasGrounding && <SourceBar sources={message.groundingSources!} language={language} showKinds={/```json\s*:\s*chart/i.test(message.content || '')} />}
                 {drugChips.map((chip, idx) => {
@@ -972,7 +974,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
           })()}
 
           {!isUser && message.isCutOff && (
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-400/80 animate-in fade-in duration-500">
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-400/80 animate-in fade-in">
               <i className="fa-solid fa-triangle-exclamation text-[10px]" />
               <span>응답이 불완전할 수 있습니다</span>
             </div>
@@ -983,7 +985,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
       {/* 커스텀 컨텍스트 메뉴 — body 로 포털: 메시지 루트의 animate-in 이 쌓임 맥락을 만들어 다음 턴 메시지가 메뉴 위에 그려진다 */}
       {contextMenu.visible && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed z-[9999] min-w-[140px] overflow-hidden rounded-2xl bg-white/80 dark:bg-[#262626]/90 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 shadow-2xl animate-in zoom-in-95 duration-200"
+          className="fixed z-[9999] min-w-[140px] overflow-hidden rounded-2xl bg-white/80 dark:bg-[#262626]/90 backdrop-blur-xl border border-slate-200/50 dark:border-white/10 shadow-2xl motion-enabled animate-in fade-in zoom-in-95"
           style={{ 
             left: `${Math.min(contextMenu.x, window.innerWidth - 150)}px`, 
             top: `${Math.min(contextMenu.y, window.innerHeight - 100)}px` 

@@ -273,7 +273,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
     return (
         <>
-        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3 duration-700 ease-out">
+        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3">
             <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* 히어로: 제목 + 이미지 */}

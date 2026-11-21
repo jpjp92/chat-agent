@@ -17,7 +17,7 @@ const YoutubeEmbed: React.FC<YoutubeEmbedProps> = ({ url }) => {
   if (!videoId) return null;
 
   return (
-    <div className="w-full my-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
+    <div className="w-full my-4 animate-in fade-in slide-in-from-bottom-2">
       <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-slate-200/50 dark:border-white/10 shadow-2xl bg-black group">
         <iframe
           src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
