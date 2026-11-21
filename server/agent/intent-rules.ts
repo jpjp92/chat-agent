@@ -298,8 +298,12 @@ export const wantsGroundedDetail = (currentText: string, prevSearched: boolean):
  * @param prevSearched 직전 턴 검색 발생 여부(history.ts `lastTurnSearched`, 판단 불가면 근사)
  * @returns true면 needsSearch를 false로 무력화해야 함
  */
+// 직전 답이 낡았다·틀렸다는 정정 — "그거" 가 붙어도 가공이 아니라 새 근거를 요구한다(PLAN_RECENCY_SEARCH_261120)
+const STALE_CORRECTION_PATTERN = /(옛날|예전|오래된|오래됐|낡은|구버전|지난\s*(정보|자료|버전)|최신\s*(이|정보가|자료가)?\s*아닌|틀린|틀렸|잘못(된|됐)|outdated|out of date)/i;
+
 export const shouldSuppressSearchForFollowup = (currentText: string, prevSearched: boolean): boolean => {
     if (!prevSearched || !FOLLOWUP_REF_PATTERN.test(currentText)) return false;
+    if (STALE_CORRECTION_PATTERN.test(currentText)) return false;
     const { onTags } = evalSearchNeed(currentText);
     const pastRef = PAST_REF_PATTERN.test(currentText);
     const wantsFresh = (onTags.includes("temporal") || onTags.includes("domain")) && !pastRef;

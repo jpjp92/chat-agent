@@ -50,6 +50,12 @@ type Case = {
 };
 
 const CASES: Case[] = [
+    // ── 정정 턴(11-20, PLAN_RECENCY_SEARCH_261120) — 직전 답이 낡았다/틀렸다 → 재검색 ──
+    { grp: 'CORRECTION', msg: '그거 옛날 정보 아니야?', prevSearched: true, want: true, why: '"그거" 가 가공형으로 걸려 억제되던 것' },
+    { grp: 'CORRECTION', msg: '그건 예전 모델이잖아', prevSearched: true, want: true, why: '낡은 답 지적' },
+    { grp: 'CORRECTION', msg: '그거 틀린 것 같은데', prevSearched: true, want: true, why: '틀린 답 지적' },
+    { grp: 'CORRECTION', msg: '그거 표로 정리해줘', prevSearched: true, want: false, why: '대조군 — 순수 가공은 계속 억제' },
+
     // ── 이번 버그 (RED 예상) ────────────────────────────────────────────
     // 공통 구조: 새 검색 요구 + "정리/비교" 같은 가공 어휘 동반 → 가드가 오발한다.
     {
