@@ -12,6 +12,7 @@
 >
 > **회귀 하니스 48종**(2026-11-15 기준, `npm test`, 전체 목록은 [tests/README](../tests/README.md))은 링크해도 됩니다. 추가 기준은 **셋 다** 만족: ⓐ시크릿·환경변수를 안 읽는다 ⓑ네트워크를 안 탄다 ⓒ프로덕션 로직을 import 해서 잰다. 외부 공급자 프로브는 `tests/manual/`에 두고 자동 테스트와 분리합니다.
 
+- **2026-11-20 · 최신 정보 질문 흔들림 조사 · 정정 턴 재검색** → [DEV_261120](logs/2026/11/DEV_261120.md) — "최신 모델" 질문이 가끔 옛 라인업으로 답함. 독립 프로브 120회(최신성 규칙 A/B)는 전부 정답으로 재현 안 됨 — 규칙은 기준 날짜 명시·검색어 연월만 올렸고, 모델이 검색어에 기억 속 버전 번호를 넣는 경로를 찾음. 정정 턴: 후속 가드가 "그거 옛날 정보 아니야?" 를 막던 것 수정(하니스 CORRECTION 4건) — 그리고 **한국어 짧은 정정은 라우터 LLM 자체가 검색을 끈다**(ko 15/24, en·es·fr 18/18 — 화면 증상 재현). 11-21 라우터 needs_search 문구를 운영에 반영해 21/24(골든 의도 178/178·검색 세트 무변화). ⚠️ 첫 측정은 프로브가 env 를 안 실어 LLM 이 0회 호출된 default-on 값이었다 — 그 결론 철회. 계획 [PLAN_RECENCY_SEARCH_261120](plans/PLAN_RECENCY_SEARCH_261120.md)
 - **2026-11-15 · 재시도 사유 전 경로(`routerRetries`·`stream_error`·`pdf_fallback`) · 라우터 호출 5초 상한 · OpenAI 재시도 · 실패 주입 하니스 · 공개 준비 계획 · Gemini 4 Hydrogen A/B(보류) · 출처 칩 높이 44px** → [DEV_261115](logs/2026/11/DEV_261115.md)
 - **2026-11-13 · 떠돌이 rejection 근원 수정(LangChain 이 버린 SDK `response` Promise) · 요청별 `unhandledRejection` 리스너 제거 · 메시지 저장 순서·`[save]` 로그 코드만 · `[turn]` 계측 3개(routerMs·needsSearch·saveMs) · 이전 모델 3종 선택 목록 숨김 · 채팅 라우트 로그 오류 원문 제거 · 사이드바 폭 드래그 조절** → [DEV_261113](logs/2026/11/DEV_261113.md)
 - **2026-11-10 · 에러 코드 한곳 정리(REF_ErrorCodes) · 사용자 에러 분류 snake_case · 화면·로그 코드 어긋남 4건 고침** → [DEV_261110](logs/2026/11/DEV_261110.md)

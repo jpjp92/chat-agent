@@ -6,6 +6,7 @@
 - [x] ✅ **Gemini 3.8 Flash 선택 옵션 도입** (2026-10-18) — 3.7 퇴역 공지(2027-01-28)로 3.7 자리를 3.8 로 대체, 3.7 저장값은 3.8 로 보낸다 → [DEV_261018 §7](logs/2026/10/DEV_261018.md#7-gemini-37--38) · [계획](plans/PLAN_MODEL_3_8_MIGRATION_260906.md)
   - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
 - [ ] 🔴 **공개 준비(소규모 프로덕션) — 공개 전 필수 A1~A6** → [PLAN_PRODUCTION_READINESS_261115](plans/PLAN_PRODUCTION_READINESS_261115.md). A1 운영 DB `trace_id` SQL(아래 항목) · A2 운영 이관 점검 · A3 회원 호출 한도(지금 무제한 — 기획 11-18: 하루 100턴 추천, 결정 대기) · A4 비용 상한·알림 · A5 개인정보 문구 · A6 재시도 편차·`Retry-After`. 공개 직후 B·규모별 C·D 도 같은 문서
+- [ ] 🟡 **Next.js 16.4.2 보안 취약점 안내** — 11-20 `next build` 가 컴파일 뒤 SecurityFatalError 로 종료. 해당 권고·패치 버전 확인 후 업그레이드(별도 작업, 회귀 확인)
 - [ ] 출처 칩 44px 배포 확인 — 출처 1~2개 답변에서 칩·접힌 바 높이 동일한지(11-15 배포 화면은 5개라 접힌 바만 확인) · 모바일 출처 시트 닫기 버튼 포커스 테두리가 터치로 열어도 보임 → 키보드일 때만(`focus-visible`) 검토 — [PLAN_UI_MEASURE_261115](plans/PLAN_UI_MEASURE_261115.md)
 - [ ] 🔴 **main 반영(또는 운영 DB 새로 세팅) 때 운영 Supabase 에 `chat-messages-trace-id.sql` 먼저** — T3 코드가 `chat_messages.trace_id` 를 넣으므로 열이 없으면 운영 메시지 저장이 실패한다. dev 는 11-09 적용·확인. 새로 세우면 `auth-mvp-schema.sql` 에 포함 → [PLAN_TRACE_ID_261108 T3](plans/PLAN_TRACE_ID_261108.md) · [DB 실행 순서 10](guide/db/README.md)
 
@@ -440,6 +441,7 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
   - [ ] 보류 — 근거 재사용 규칙(P1-1, 실패 사례 나오면) · 공급자별 재시도 계측 통일·Generator 실행 함수 분리·카드 참조 ID(P2)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
+- [ ] 🟡 최신 정보 질문 흔들림(11-20) — ① 정정 턴 재검색: 가드 예외 수정(11-20) · **한국어 짧은 정정을 라우터 LLM 이 검색 off**(ko 15/24, en·es·fr 18/18) → 라우터 needs_search 문구 운영 반영(11-21, ko 21/24·골든 회귀 무변화), 남은 "오래된 모델인데?" ② `[RECENCY]` 규칙(검색어 연월·출처 날짜 비교·기억 속 버전 번호 금지) ③ 운영 경로 재현 → [PLAN_RECENCY_SEARCH_261120](plans/PLAN_RECENCY_SEARCH_261120.md)
 - [ ] 최신·뉴스 검색 범위(연도 단위 검색어)·출처 부족 시 개수 채우기 — [DEV_261108](logs/2026/11/DEV_261108.md) §3
 - [ ] 🔴 차트 수치 근거 — 설계 확정(11-06), P1-2A 완료(11-07): P1-2A `[STATISTICS SOURCING]`·도메인 분류·`sourceKinds` → P1-2B `origin`·출처 칩 영역 안내·상대 날짜 검사 → P1-2C 실측/잠정/전망. 차트-본문 자동 대조는 보류 — [PLAN_CHART_SOURCE_261106](plans/PLAN_CHART_SOURCE_261106.md) §5
 - [ ] GPT 파이 범례 음역("아이오에스"·"카이오에스") — 표기만, 값 무관
