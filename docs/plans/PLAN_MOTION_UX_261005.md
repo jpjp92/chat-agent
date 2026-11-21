@@ -1,6 +1,6 @@
 # 모션 UX 정비 · 추천 문구 재구성
 
-> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4) 구현(10-05), Thinking Orb(§3-1) 구현(10-09), 모션 0단계·나머지 1단계 미구현 · **11-21 재검토(§7·§7-1·§7-2 외부 검토 보완) — 1차 범위·구현 규칙 확정 — 기획 종료, M0·M1 착수 대기**
+> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4) 구현(10-05), Thinking Orb(§3-1) 구현(10-09), 모션 0단계·나머지 1단계 미구현 · **11-21 재검토(§7·§7-1·§7-2 외부 검토 보완) — 1차 범위·구현 규칙 확정 — 기획 종료 · **M0·M1·M2 완료(§7-3~§7-5)**, M3 대기**
 > 출발점: Codex 기획안 `reference/모션그래픽참고.md`(로컬 전용·gitignore) — 코드와 대조해 **채택/보류/기각**을 가렸다
 > 원칙: 새 모션 시스템보다 **이미 넣었는데 안 도는 것**부터. 1차는 CSS 만, 메인 번들에 Framer 추가 없음
 
@@ -224,3 +224,52 @@
 **커밋 단위(안)** — 되돌리기·비교가 쉽게 단계별로: M0·M1 토큰·한정 키프레임 → M2 새 메시지·카드 등장 → M3 대기 표시 종료 전환 → M4 하단 액션 → M5 미리보기·회귀. 메시지는 레포 관례(짧게 + 문서 링크).
 
 **판정** — **기획 확정(11-21, 외부 3차 검토 승인)**. 추가 기획 없이 M0·M1 부터 착수. 첫 확인은 `/dev/loading-preview`. 카드 확장·스프링·stagger 는 이번 작업 뒤 실제 모바일 화면을 보고.
+
+### 7-3. M0 — 적용 대상 확정 (11-21, 코드 변경 없음)
+
+**전수(18곳 · 10파일, `grep animate-in components`)**
+
+| # | 위치 | 요소 | 현재 클래스 | 범위 | 순서 | 메모 |
+|---|---|---|---|---|---|---|
+| 1 | Toast.tsx:32 | 알림 | `slide-in-from-right-8 fade-in duration-500` | 요소 | 1 | 매번 새로 뜨는 요소라 위험 낮음. 첫 검증 대상 |
+| 2 | ChatSidebar.tsx:203 | 모바일 사이드바 오버레이 | `fade-in duration-300` | 요소 | 4 | 열 때마다 |
+| 3 | ChatSidebar.tsx:247 | 새 채팅·검색 영역 | `fade-in slide-in-from-left-2 duration-300` | 요소 | 4 | 접기/펼치기마다 다시 실행 — 의도대로인지 확인 |
+| 4 | ChatSidebar.tsx:442 | 언어 메뉴(위로 열림) | `fade-in slide-in-from-bottom-2 duration-200` | 요소 | 4 | 드롭다운 |
+| 5 | ChatInput.tsx:543 | 첨부 미리보기 줄 | `slide-in-from-bottom-2 duration-300` | 요소 | 3 | 첫 첨부 때만(줄이 마운트될 때) |
+| 6 | ChatInput.tsx:607 | 드래그 오버레이 | `fade-in duration-200` | 요소 | 3 | |
+| 7 | LoadingScreen.tsx:13 | 첫 로딩 화면 | `fade-in duration-700` | 요소 | 8 | 앱 진입 1회. 길이만 줄인다 |
+| 8 | ChatMessage.tsx:854 | **메시지 루트** | `fade-in duration-500` | **새 메시지** | 2 | 지금 켜면 기록 로드·세션 전환 때 전부 페이드 → 새 메시지에만 |
+| 9 | ChatMessage.tsx:944 | 출처·약 칩 줄(SourceBar 감쌈) | `fade-in duration-700` | 새 메시지 | 2 | 스트리밍 끝에 붙는다. 44px 규격 영향 없음(opacity 만) |
+| 10 | ChatMessage.tsx:975 | "응답이 불완전할 수 있습니다" | `fade-in duration-500` | 새 메시지 | 2 | |
+| 11 | ChatMessage.tsx:986 | 컨텍스트 메뉴(포털) | `zoom-in-95 duration-200` | 요소 | 2 | body 포털이라 메시지 범위 밖 — 요소로 켠다 |
+| 12 | ChartRenderer.tsx:459 | 차트 카드 | `fade-in slide-in-from-bottom-3 duration-700 ease-out` | 새 메시지 | 5 | 스트리밍 중 카드가 **재마운트되지 않는지** 확인(재생 반복) |
+| 13 | ChemicalRenderer.tsx:225 | 분자 카드 | `fade-in slide-in-from-bottom-2 duration-700` | 새 메시지 | 6 | |
+| 14 | ChemicalRenderer.tsx:319 | SMILES 펼침 | `slide-in-from-top-2 duration-300` | 요소 | 6 | 사용자 펼침 동작 — 기록 메시지에서도 돌아야 한다 |
+| 15 | DrugRenderer.tsx:276 | 약 카드 | `fade-in slide-in-from-bottom-3 duration-700 ease-out` | 새 메시지 | 6 | Framer 는 카드 안쪽(:316)만 — 컨테이너와 안 겹침 |
+| 16 | BioRenderer.tsx:337 | 생물 카드 | `fade-in zoom-in-95 duration-1000 ease-out` | 새 메시지 | 6 | Framer 는 안쪽 팝업(:83·:393)만. 1000ms → 토큰 |
+| 17 | YoutubeEmbed.tsx:20 | 영상 카드 | `fade-in slide-in-from-bottom-2 duration-700` | 새 메시지 | 7 | iframe 재마운트(재로드) 없는지 |
+| — | ChatMessage.tsx:898 | 본문 빈 모델 메시지의 점 3개 `animate-bounce` | (Tailwind 기본, 동작 중) | — | — | Orb 와 겹치는지 M3 에서 확인 |
+
+**M0 에서 찾은 함정 → 구현 규칙에 추가**
+1. **`duration-*`·`ease-out` 은 animation 에 안 먹는다** — Tailwind 의 이 클래스는 `transition-*` 만 정한다. 지금 적힌 500·700·1000ms 는 처음부터 의미가 없었다. 길이는 토큰(`--motion-enter` 200ms)으로 통일하고, 이 클래스들은 해당 줄을 켤 때 지운다(다른 transition 에 쓰이는지 확인 후).
+2. **애니가 끝난 뒤 `transform` 이 남으면 안 된다** — ChatMessage:983 주석: 메시지 루트의 `animate-in` 이 쌓임 맥락을 만들어 다음 턴 메시지가 메뉴 위에 그려졌다(그래서 메뉴를 body 포털로 뺐다). 끝 프레임을 유지하는 `both`·`forwards` 대신 **`backwards`**(시작 전에만 첫 프레임 적용, 끝나면 원래 스타일) — 끝난 요소에 transform·쌓임 맥락이 남지 않는다.
+3. **"새 메시지" 범위는 부모에서 켠다** — 카드 렌더러는 자기가 새 메시지 안에 있는지 모른다. 새 메시지 루트에 `data-motion="new"` 를 붙이고 CSS 는 `[data-motion="new"].animate-in, [data-motion="new"] .animate-in` 로 그 안의 등장만 켠다. 메시지 밖 요소(Toast·사이드바·입력창·컨텍스트 메뉴·LoadingScreen)는 요소에 `motion-enabled`. 사용자 동작으로 열리는 #14 는 메시지 안이지만 `motion-enabled` 로 따로 켠다.
+4. **"새 메시지" 판정** — 대화 목록을 불러온(세션 전환·기록 복원) 뒤에 추가된 메시지 id 만. 스트리밍 중 리렌더·카드 재파싱으로 재실행되지 않는지 M2 에서 확인.
+
+**켜는 순서** — 1 Toast → 2 메시지(루트·출처 줄·잘림 경고·메뉴) → 3 입력창 → 4 사이드바 → 5 차트 → 6 분자·약·생물 → 7 영상 → 8 로딩 화면. 단계마다 `/dev/loading-preview` 와 실화면 확인 후 다음.
+
+### 7-4. M1 — 토큰·한정 키프레임 (11-22)
+
+- [globals.css](../../app/globals.css) 에 토큰 · `ui-enter` 키프레임 · 조합 클래스(쓰는 7개) · opt-in 선택자(`.motion-enabled.animate-in`, `[data-motion="new"]` 안) · `backwards` · reduced-motion 해제.
+- 켠 요소 0 → 화면 변화 없음. 빌드 CSS 에 규칙 보존 확인. 하니스 48개·tsc·knip 통과.
+- 같은 CSS 로 만든 As-is / To-be 비교 페이지로 체감 확인 → [DEV_261122](../logs/2026/11/DEV_261122.md).
+- 다음 M2: 토스트(`motion-enabled`)부터.
+
+### 7-5. M2 — 등장 모션 켜기 (11-22)
+
+- **요소 단위(`motion-enabled`)** — 토스트 · 입력창 첨부 줄·드래그 덮개 · 사이드바 오버레이·새 채팅 영역·언어 메뉴 · 컨텍스트 메뉴 · SMILES 펼침 · 로딩 화면.
+- **새 메시지 범위** — 메시지 루트에 `data-motion="new"`(`isNew` prop), 그 안의 출처 줄·잘림 경고·카드 5종(차트·분자·약·생물·영상)이 함께 돈다. 루트는 `fade-in slide-in-from-bottom-1`(4px).
+- **"새 메시지" 판정** — [src/lib/new-messages.ts](../../src/lib/new-messages.ts)(순수, [test-new-messages](../../tests/test-new-messages.mts) 12건): 첫 마운트는 5초 안에 만든 메시지만(새 대화는 첫 메시지가 생겨야 ChatArea 가 마운트), 이후는 새로 나타난 id — 단 세션 전환(null → id 제외)·기록 로딩 중·한 번에 3개 이상 늘면 기록으로 본다. ChatArea 에서 렌더 중 ref 를 읽지 않게 `useState` 로 만든 추적기를 쓴다(react-hooks 린트).
+- 죽은 `duration-*`·`ease-out` 16곳 제거(해당 줄에 transition 없음 확인).
+- 덤: ChatInput `i18n` 을 모듈 상수로 — 마이크 문구를 옮기며 생긴 이펙트 의존성 경고 1건 해소.
+- 검증: 하니스 49개 · tsc · knip 통과, 린트 경고 수 변화 0. **실화면 확인 남음**: 스트리밍 중 카드가 재마운트돼 등장이 반복되지 않는지 · 세션 전환·새로고침 때 움직임 없음 · 스크롤 흔들림 · 컨텍스트 메뉴 깔림 재발 없음 · reduced-motion.

@@ -242,6 +242,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-weather-summary.mts` | **날씨 카드 한 줄 설명** — 카드 데이터로 만든 문장 형식, 한국어 연결형·조사, 4개 언어, 오류 카드 제외, 여러 도시에서 각 카드 위에 짝지어 붙는지, 실제 SSE 루프에서 문장이 카드보다 앞인지(DEV_261015) |
 | `test-image-multiturn.mts` | **이미지 멀티턴** — 히스토리 미디어 창(`mediaWindow`)을 지나 턴별로 모델이 이미지를 받는지·새 이미지 식별·창 밖 강등을 관측. 3턴째 강등은 **현재 동작 기록**(바꾸면 기대 갱신) (DEV_261010 §2-4) |
 | `test-loading-status.mts` | **응답 대기 문구** — 상황별 판정(알약 `'정'` 오판·영상·arXiv·문서 형식 9종), 4개 언어 키 완비·문구 원칙("..."·괄호·소요시간·모델명 금지), 훅이 URL 처리 뒤 한 번 정하는지, shimmer reduced-motion (DEV_261010 §2-11) |
+| `test-new-messages.mts` | **등장 모션 "새 메시지" 판정** — 기록을 열고 마운트·세션 전환·기록 로딩·한 번에 3개 이상 복원은 모션 없음, 새 대화 첫 질문(null → 세션 id)·같은 세션 새 턴은 모션, StrictMode 이중 호출 결과 동일 (PLAN_MOTION_UX_261005 §7-3) |
 | `test-status-event.mts` | **서버 진행 상태** — 라우터 → `lookup`(카드 후속 제외), 실제 검색 → `searching`(라우터 needsSearch 만으론 안 보냄), 중복·본문 후 금지. 실제 LangGraph `streamEvents` → 디스패처 → SSE 경로 (DEV_261010 §2-12) |
 
 ## `server-only` 를 임포트하는 모듈 직접 돌리기
