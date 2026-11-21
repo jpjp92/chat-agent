@@ -7,6 +7,7 @@
   - [ ] 기본 모델 승격 평가(3.6 vs 3.8, 계획 §3 D) — 현재 기본은 3.6
 - [ ] 🔴 **공개 준비(소규모 프로덕션) — 공개 전 필수 A1~A6** → [PLAN_PRODUCTION_READINESS_261115](plans/PLAN_PRODUCTION_READINESS_261115.md). A1 운영 DB `trace_id` SQL(아래 항목) · A2 운영 이관 점검 · A3 회원 호출 한도(지금 무제한 — 기획 11-18: 하루 100턴 추천, 결정 대기) · A4 비용 상한·알림 · A5 개인정보 문구 · A6 재시도 편차·`Retry-After`. 공개 직후 B·규모별 C·D 도 같은 문서
 - [ ] 🟡 **Next.js 16.4.2 보안 취약점 안내** — 11-20 `next build` 가 컴파일 뒤 SecurityFatalError 로 종료. 해당 권고·패치 버전 확인 후 업그레이드(별도 작업, 회귀 확인)
+- [ ] 🟡 **모션 1차(11-21 재검토)** — 0단계 무효 `animate-in` 클래스 정상화(약 46개·10파일)·모션 토큰·reduced-motion·새 메시지만 → Orb→아바타 crossfade·상태 문구 전환 → 하단 액션 fade-in(지금은 스트리밍 중에도 보임 → `!isStreaming` 조건). 순차 활성화(`motion-enabled` opt-in)·조합형 키프레임·Orb 종료 오버레이·액션 표시/애니 분리(§7-1·§7-2, 착수 가능). 완료 체크·"생성 중" 문구는 기각 → [PLAN_MOTION_UX_261005 §7](plans/PLAN_MOTION_UX_261005.md)
 - [ ] 출처 칩 44px 배포 확인 — 출처 1~2개 답변에서 칩·접힌 바 높이 동일한지(11-15 배포 화면은 5개라 접힌 바만 확인) · 모바일 출처 시트 닫기 버튼 포커스 테두리가 터치로 열어도 보임 → 키보드일 때만(`focus-visible`) 검토 — [PLAN_UI_MEASURE_261115](plans/PLAN_UI_MEASURE_261115.md)
 - [ ] 🔴 **main 반영(또는 운영 DB 새로 세팅) 때 운영 Supabase 에 `chat-messages-trace-id.sql` 먼저** — T3 코드가 `chat_messages.trace_id` 를 넣으므로 열이 없으면 운영 메시지 저장이 실패한다. dev 는 11-09 적용·확인. 새로 세우면 `auth-mvp-schema.sql` 에 포함 → [PLAN_TRACE_ID_261108 T3](plans/PLAN_TRACE_ID_261108.md) · [DB 실행 순서 10](guide/db/README.md)
 

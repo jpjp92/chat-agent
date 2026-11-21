@@ -1,6 +1,6 @@
 # 모션 UX 정비 · 추천 문구 재구성
 
-> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4) 구현(10-05), Thinking Orb(§3-1) 구현(10-09), 모션 0단계·나머지 1단계 미구현
+> 작성일: 2026-10-05 · 상태: 계획 — 추천 칩(§4) 구현(10-05), Thinking Orb(§3-1) 구현(10-09), 모션 0단계·나머지 1단계 미구현 · **11-21 재검토(§7·§7-1·§7-2 외부 검토 보완) — 1차 범위·구현 규칙 확정 — 기획 종료, M0·M1 착수 대기**
 > 출발점: Codex 기획안 `reference/모션그래픽참고.md`(로컬 전용·gitignore) — 코드와 대조해 **채택/보류/기각**을 가렸다
 > 원칙: 새 모션 시스템보다 **이미 넣었는데 안 도는 것**부터. 1차는 CSS 만, 메인 번들에 Framer 추가 없음
 
@@ -132,3 +132,95 @@
 3. 1차
 4. 오브 opacity 결정
 5. (별도) SSE 상태 이벤트 계획
+
+## 7. 재검토 (2026-11-21) — 외부 UI·Motion 개선안 대조
+
+**출발점** — 외부 개선안 두 건(11-21, `dev` `2c4e1c0` 기준): ① 답변 상단 상태 영역에서 "분석 중 → 생성 중 → 완료(체크)" 전환 ② "UI·Motion 개선 계획"(Phase 1 기존 모션 정상화 → 2 응답 상태 전환 → 3 컴포넌트 인터랙션 → 4 회귀 검증, 공통 모션 토큰). 대부분 이 계획 §2·§3 과 겹친다 — **새 계획을 세우지 않고 이 문서를 이어서 실행**한다.
+
+**코드 대조(11-21)**
+
+| 개선안 주장 | 확인 |
+|---|---|
+| `animate-in` 등 49곳 무효 | ✅ 여전히 무효(플러그인·키프레임 없음, Dialog 만 별도 수정). 수는 줄었다 — `animate-in` 19곳, 관련 클래스 약 46개 · 10개 파일(Toast·ChatMessage·ChatInput·ChatSidebar·LoadingScreen·YoutubeEmbed·Chart·Chemical·Bio·DrugRenderer) |
+| 모션 토큰은 CSS 변수 | ✅ §2 결론과 같음 |
+| 새 메시지만 등장, 기록·세션 전환 때 재실행 금지 | ✅ §3-0 의 3 과 같음 |
+| 상태 문구 Shimmer·Fade-in 유지 | ✅ 이미 구현(`status-shimmer`·`statusFadeIn`, [WaitingIndicator](../../components/WaitingIndicator.tsx)) |
+| 렌더러 내부 애니와 중복 금지 | ✅ §2 "순차 reveal 기각·컨테이너 등장만" 과 같음 |
+| 복사 버튼 Copy → Check | 코드 블록 복사는 이미 `Copy → Copied`(2초). 없는 곳만 더한다 |
+
+**판정**
+
+| 항목 | 판정 | 이유 |
+|---|---|---|
+| Phase 1 기존 모션 정상화 | ✅ **1순위** = §3-0 | 이미 있는데 안 도는 것부터. 얹을 모션의 기준이 된다 |
+| 공통 토큰(`--motion-fast` 120 · `--motion-normal` 180 · `--motion-enter` 200 · `--motion-panel` 260, ease-out `cubic-bezier(0.16,1,0.3,1)`, offset 4px) | ✅ 채택 | 값은 개선안 그대로 시작, 육안 확인에서 조정 |
+| Orb → 아바타 Crossfade 180ms | ✅ 채택 | 지금은 즉시 교체 — 같은 자리라 이음매만 부드럽게 |
+| 상태 문구 교체 전환(Slide Y 3px · 150ms) | ✅ 채택 | "분석 중 → 웹 검색 중" 이 딱 끊긴다 |
+| 하단 액션(듣기·복사) Fade-in 180ms | ✅ 채택 | **완료 신호를 이것으로 대신한다** — ⚠️ 지금은 스트리밍 중에도 보여 조건 변경이 필요(§7-1 의 4) |
+| "답변 생성 중" 문구 | ❌ 기각 | 본문 스트리밍 자체가 진행 표시 — 같은 말을 두 번 |
+| 완료 체크 + 완료 문구(전 응답 또는 "작업성 높은 요청만") | ❌ 기각 | 매 답변에 쌓이는 반복 노출. "작업성" 판정 기준이 하나 더 생긴다. 주요 채팅 UI 도 쓰지 않는다. 이에 딸린 `useChatStream` 정상 완료·실패 구분도 불필요 |
+| 카드 확장·축소, 사이드바·SourceBar 시트·모델 드롭다운 전환(Phase 3) | ⏸ 2차 | 0단계로 무효 클래스가 살아나면 드롭다운 등은 일부 해결된다. 남는 것만 |
+| 제한적 Stagger(논문·검색 결과 30~50ms) | ⏸ 2차 | §2 의 추천 칩 stagger 와 같은 규칙으로 |
+| 신규 확인 — **응답 중간 멈춤 구간** | 🔎 실측 후 | 첫 조각 뒤 차트·도해 JSON 생성·도구 호출 중 화면이 멈춰 보일 수 있다. "생성 중" 표시가 필요하다면 여기 — 몇 초 멈추는지 먼저 잰다 |
+
+**1차 범위(확정안)**
+1. **0단계(§3-0)** — 쓰는 조합만 `globals.css` 키프레임(`animate-in` + `fade-in` / `slide-in-from-{bottom,top,left,right}-*` / `zoom-in-95`) · 모션 토큰 · `prefers-reduced-motion` 일괄 해제 · 700·1000ms → 200~300ms · 새 메시지만 · 10개 파일 육안 확인 목록.
+2. Orb → 아바타 Crossfade · 상태 문구 교체 전환.
+3. 하단 액션 Fade-in(완료 신호).
+4. 검증 — `/dev/loading-preview` 확장, 375·390·430·1280px, 라이트·다크, 4개 언어, 세션 전환·기록 로드 때 재실행 없음, 스트리밍 중 반복 없음, 오류·부분 응답 화면.
+
+**하지 않는 것** — Orb·SSE 스트리밍·카드 레이아웃·SourceBar 44px 규격 변경, 모션 라이브러리 추가.
+
+**참고** — DesignBookmark Motion(인터랙션 사례) · hankimui "UI·Motion 용어 48"(용어) · dimensional-drawing(치수 실측, [PLAN_UI_MEASURE_261115](PLAN_UI_MEASURE_261115.md)).
+
+### 7-1. §7 보완 — 외부(GPT) 검토 반영 (11-21)
+
+**코드 확인으로 바뀐 전제**
+- 🔴 **하단 액션(듣기·복사)은 지금 스트리밍 중에도 보인다** — [ChatMessage.tsx](../../components/ChatMessage.tsx) 액션 줄 조건이 `!isUser && message.content` 뿐이라 첫 조각이 오면 바로 뜬다. §7 의 "하단 액션 Fade-in 으로 완료 신호를 대신한다" 는 이대로면 성립하지 않는다(첫 조각 때 페이드되고 끝).
+- 자동 스크롤은 `scrollIntoView({ behavior: 'smooth' })`([ChatArea.tsx](../../components/ChatArea.tsx)) — 등장 모션과 겹쳐 흔들릴 수 있다.
+- Bio·Drug 렌더러는 이미 Framer Motion 을 쓴다 — 그 컨테이너의 `animate-in` 과 겹치는지 본다.
+- 덤: 본문이 빈 모델 메시지에는 옛 점 3개 bounce 가 아직 남아 있다(Orb 와 별개 경로) — 0단계 확인 목록에 넣는다.
+
+**채택한 보완**
+
+| # | 보완 | 내용 |
+|---|---|---|
+| 1 | 무효 클래스는 **컴포넌트별 순차 활성화** | 46개를 한 번에 켜지 않는다. 순서: Toast → ChatMessage(새 메시지만) → ChatInput(첨부) → ChatSidebar → ChartRenderer(컨테이너 1회) → Bio·Drug·Chemical(Framer 중복 확인) → YoutubeEmbed(재마운트 없음) → LoadingScreen |
+| 2 | **조합형 공통 키프레임** | `animate-in`·`fade-in`·`slide-in-from-*`·`zoom-in-95` 를 각각 `animation` 으로 선언하면 서로 덮어쓴다 → 키프레임 하나(`ui-enter`)에 CSS 변수(`--enter-opacity`·`--enter-x/y`·`--enter-scale`)로 조합. `animate-in` 만 `animation` 을 갖는다. 기존 `duration-*` 클래스와의 우선순위 확인 |
+| 3 | Orb → 아바타는 **종료 오버레이(Exit Overlay)** 부터 | `WaitingIndicator` 는 언마운트, `ChatMessage` 는 새로 마운트라 CSS transition 만으로는 교차가 안 된다. 1차는 Orb 자리에 180ms 짜리 사라짐 오버레이를 남기는 방식(변경 범위 최소). 공통 Avatar Slot 은 구조 변경이라 하지 않는다. **본문 표시는 기다리지 않는다** |
+| 4 | 하단 액션 = **"읽기·복사 가능" 신호** | 성공 표시가 아니다. 조건을 `content 있음 && !isStreaming` 으로 바꿔 스트리밍이 끝나면 페이드인. 부분 응답도 내용이 있으면 표시(복사·듣기는 쓸 수 있어야 한다), 내용 없는 오류는 숨김. → 정상 완료·실패 구분 상태는 여전히 불필요 |
+| 5 | 중간 멈춤 실측은 **두 간격을 나눠** 잰다 | SSE 조각 간격 · 화면에 새 내용이 보이기까지 간격 · 카드 JSON 블록 생성 시간 · JSON 수신 뒤 카드 마운트 시간. JSON 이 완성될 때까지 숨기므로 네트워크 간격만으로는 원인을 못 찾는다. 1차 범위 밖 |
+| 6 | 자동 스크롤과 모션 충돌 검증 | smooth 스크롤 중 등장 모션이 겹칠 때 위치 점프·흔들림 |
+
+**검증 목록 추가**(§7 의 4 에 더함) — 빠른 일반 질문에서 Orb 가 남지 않음 · 상태 문구 두 개가 겹치지 않음 · 첫 토큰 표시가 모션 때문에 늦지 않음 · 부분 응답이 성공처럼 보이지 않음 · 재시도 때 Orb 중복 없음 · 세션 전환 뒤 모션 잔존 없음 · 모바일 스크롤 중 위치 점프 없음 · SourceBar 44px 유지.
+
+**순서·공수(개략, 외부 검토안)** — M0 대상 확정 0.5 · M1 토큰·키프레임 0.5 · M2 새 메시지·카드 등장 범위 0.5 · M3 Orb→아바타·문구 전환 1 · M4 하단 액션 0.5 · M5 모바일·다국어·회귀 1 = 약 4일.
+
+### 7-2. 착수 전 구현 규칙 — 외부(GPT) 2차 검토 (11-21)
+
+§7-1 의 6개 보완은 모두 반영 확인. 남은 세 가지는 **구현 규칙**으로 고정한다.
+
+1. **켠 곳만 돈다(opt-in)** — `.animate-in` 에 `animation` 을 걸면 기존 19곳이 한꺼번에 살아나 순차 활성화가 불가능하다 → `.motion-enabled.animate-in` 에만 `animation: ui-enter var(--motion-enter) var(--motion-ease-out) both`. 검증한 컴포넌트부터 `motion-enabled` 를 붙인다. 전부 켜진 뒤 이 한정자를 걷을지는 마지막에 정한다.
+   - CSS 변수 상속: `.animate-in` 에서 `--enter-opacity:1; --enter-x:0; --enter-y:0; --enter-scale:1` 로 **먼저 초기화**하고, `.fade-in`·`.slide-in-from-*`·`.zoom-in-95` 는 그 뒤에 선언해 덮는다(같은 특이도 → 선언 순서). 부모 값이 자식 애니에 새지 않게.
+   - `prefers-reduced-motion: reduce` 에서 `.motion-enabled.animate-in { animation: none }`.
+2. **종료 오버레이 수명**
+
+   | 조건 | 처리 |
+   |---|---|
+   | 첫 응답 조각 | 오버레이 전환 시작(본문은 즉시 표시) |
+   | 180ms 경과 | 제거 |
+   | 세션 전환 · 새 요청 시작 · 오류 | 즉시 제거 |
+   | reduced-motion | 생략 |
+
+   - `pointer-events: none` · `aria-hidden="true"`, 메시지 레이아웃에 영향 없음(절대 위치).
+   - 위치 동기화가 복잡해지면 **아바타 짧은 fade-in 만**으로 물러선다.
+3. **표시와 애니메이션 조건 분리**(하단 액션)
+   - `showActions = !isUser && !!message.content && !isStreaming`
+   - `animateActions = showActions && justFinishedStreaming` — `ChatMessage` 가 `isStreaming` true → false 전환을 ref 로 기억. 기록 복원·세션 전환으로 처음부터 false 인 메시지는 애니 없음. 서버 SSE·성공/실패 상태 추가 없음.
+   - **같은 메시지의 종료만** 센다(외부 3차 검토, 11-21) — `isTyping` 은 세션 전환에서도 풀린다. 메시지는 `key={msg.id}` 로 그려져 세션이 바뀌면 컴포넌트가 새로 마운트되므로, **마운트된 같은 컴포넌트 안에서** true → false 를 본 경우만 `justFinishedStreaming`. 마운트 직후 첫 렌더의 false 는 무시.
+
+**상태 흐름(확정)** — Waiting(Orb + 분석·검색 문구) →(첫 조각 · 180ms 전환)→ Streaming(본문 즉시, 추가 문구 없음) →(스트림 종료 · 액션 fade-in 180ms)→ Readable(완료 체크·문구 없음).
+
+**커밋 단위(안)** — 되돌리기·비교가 쉽게 단계별로: M0·M1 토큰·한정 키프레임 → M2 새 메시지·카드 등장 → M3 대기 표시 종료 전환 → M4 하단 액션 → M5 미리보기·회귀. 메시지는 레포 관례(짧게 + 문서 링크).
+
+**판정** — **기획 확정(11-21, 외부 3차 검토 승인)**. 추가 기획 없이 M0·M1 부터 착수. 첫 확인은 `/dev/loading-preview`. 카드 확장·스프링·stagger 는 이번 작업 뒤 실제 모바일 화면을 보고.
