@@ -442,7 +442,13 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
   - [ ] 보류 — 근거 재사용 규칙(P1-1, 실패 사례 나오면) · 공급자별 재시도 계측 통일·Generator 실행 함수 분리·카드 참조 ID(P2)
 - [ ] 날씨 턴 프롬프트 — `[WEATHER FORMATTING]`(표)·`[INTENT FOCUS: WEATHER]`(표 금지) 충돌 정리, 카드 요약 문장이 질문 의도(우산·옷차림)에 답하게 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
-- [ ] 🟡 **웹 검색 답변 품질(11-22)** — W1 출처 표시: GPT 턴 출처 분류·칩이 페이지 제목 기준이라 imf.org 가 "기타", 제목 마크다운 원문 → 도메인 한 곳에서 구해 분류·라벨(호출 0, 먼저) · W2 최신성: Flash 가 기억 속 버전 번호로 검색 → 운영 프롬프트에선 시스템 규칙이 묻혀 V3(사용자 메시지에 기준 연·월) 구현, 갤럭시·맥북 개선·아이폰 미해결 → V5 라인업 사전 조회 → [PLAN_WEB_SEARCH_QUALITY_261122](plans/PLAN_WEB_SEARCH_QUALITY_261122.md)
+- [ ] 🔴 **gemini-2.5-flash 12-01 종료 → 3.5 Flash-Lite 자동 전환(11-22 공식 확인)** — 라우터·무료 키 검색 강등·약 검색·미디어 핀·LangChain 도구 경로가 2.5 Flash. 3.5 Flash-Lite 는 무료 검색 불가, `thinkingBudget` 수용 미확인(거부면 400). T1 호환성 스모크 먼저 → [PLAN_GEMINI_25_SHUTDOWN_261122](plans/PLAN_GEMINI_25_SHUTDOWN_261122.md)
+  - 11-22 확인: `thinkingBudget: 0` 은 400(생각 못 끔). T3 완료 — 라우터는 3.5 Flash-Lite 정리(177/178·970ms) 제안, 백업 gpt-6-luna(§6)
+  - [ ] 라우터 교체 · 유료 키 고정(게스트 포함) · `thinkingBudget: 0` 경로 정리(라우터·LangChain·약 검색·미디어) · `model-thinking.ts` 3.5 FL 행
+  - [ ] 그 뒤: Decisions 하이브리드 — 1순위 gemini-decision-1 + v4(11-23, 골든·새 검증 100%) → 단독 지연·멀티턴 — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
+  - [ ] 규칙 오판정: "영어 현재완료 시제" 를 `classifySearchNeed` 가 on
+- [ ] 🟡 **Gemini 4 Hydrogen 추가 · 3.6 내리기(11-22 기획 · 2.5 종료 대응 뒤로)** — 선택 옵션으로 추가, 3.6 숨김. 🔴 3.6 이 기본 모델이고 무료티어 긴 입력 담당 → 기본 3.8 전환 전 3.8 `fastLongInput` 무료티어 실측(T1)·게스트 무료 키 가능 여부(T0) → [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](plans/PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)
+- [ ] 🟡 **웹 검색 답변 품질(11-22)** — W1 출처 표시: GPT 턴 출처 분류·칩이 페이지 제목 기준이라 imf.org 가 "기타", 제목 마크다운 원문 → 도메인 한 곳에서 구해 분류·라벨(호출 0, 먼저) · W2 최신성: Flash 가 기억 속 버전 번호로 검색 → 운영 프롬프트에선 시스템 규칙이 묻혀 V3(사용자 메시지에 기준 연·월) 구현, 갤럭시·맥북 개선·아이폰 미해결 → V5 라인업 사전 조회 실험 8/24 → 21/24, 운영 반영 보류(기획만) → [PLAN_WEB_SEARCH_QUALITY_261122](plans/PLAN_WEB_SEARCH_QUALITY_261122.md)
 - [ ] 🟡 최신 정보 질문 흔들림(11-20) — ① 정정 턴 재검색: 가드 예외 수정(11-20) · **한국어 짧은 정정을 라우터 LLM 이 검색 off**(ko 15/24, en·es·fr 18/18) → 라우터 needs_search 문구 운영 반영(11-21, ko 21/24·골든 회귀 무변화), 남은 "오래된 모델인데?" ② `[RECENCY]` 규칙(검색어 연월·출처 날짜 비교·기억 속 버전 번호 금지) ③ 운영 경로 재현 · ④ 멀티턴 키워드 가드가 라우터 검색 on 을 덮던 것 → LLM 판정 우선(11-22, [DEV_261122 §10](logs/2026/11/DEV_261122.md)) → [PLAN_RECENCY_SEARCH_261120](plans/PLAN_RECENCY_SEARCH_261120.md)
 - [ ] 최신·뉴스 검색 범위(연도 단위 검색어)·출처 부족 시 개수 채우기 — [DEV_261108](logs/2026/11/DEV_261108.md) §3
 - [ ] 🔴 차트 수치 근거 — 설계 확정(11-06), P1-2A 완료(11-07): P1-2A `[STATISTICS SOURCING]`·도메인 분류·`sourceKinds` → P1-2B `origin`·출처 칩 영역 안내·상대 날짜 검사 → P1-2C 실측/잠정/전망. 차트-본문 자동 대조는 보류 — [PLAN_CHART_SOURCE_261106](plans/PLAN_CHART_SOURCE_261106.md) §5
