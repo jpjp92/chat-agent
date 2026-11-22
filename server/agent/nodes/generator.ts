@@ -3,7 +3,7 @@ import type { RetryReason } from '../turn-log';
 import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, markKeyInvalid, isPaidKey, API_KEYS } from "../../config";
 import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
-import { AIMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
 import { resolveMaxTokens, resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from "./generation-config";
@@ -20,6 +20,7 @@ import { generateOpenAIChat } from "../../openai/chat";
 import { hasOpenAIUnsupportedMedia, hasOpenAIPdf, isOpenAIFileFetchError } from "../../openai/media";
 import { isOpenAIChatModel } from "../../openai/models";
 import { withSearchProviderInstruction } from "../search-provider";
+import { isLatestProductRequest, buildRecencyHint, appendHintToSdkContents, appendHintToMessages } from "../recency-hint";
 import { getLocalFunctionTool } from "../local-tool-registry";
 import { withExplicitSearchFollowup, shouldDropImageForSearch } from "../search-signals";
 import { emitStatus } from "../status-event";
@@ -228,12 +229,17 @@ export const createGeneratorNode = (
                 intent: state.intent,
             });
             const effectiveMaxTokens = useWebSearch && resolvedMaxTokens < 8192 ? 8192 : resolvedMaxTokens;
-            console.log('[LangGraph] Starting OpenAI Responses call | model:', resolvedModel, '| useWebSearch:', useWebSearch, '| maxTokens:', effectiveMaxTokens);
+            // Gemini 경로와 같은 기준 시점 한 줄 — 모델 입력 복제본에만 붙고 state·기록은 그대로다
+            const openaiRecencyHint = useWebSearch && isLatestProductRequest(latestUserText) ? buildRecencyHint(now, tz, langName) : null;
+            const openaiMessages = openaiRecencyHint
+                ? appendHintToMessages(state.messages, openaiRecencyHint, content => new HumanMessage({ content }))
+                : state.messages;
+            console.log('[LangGraph] Starting OpenAI Responses call | model:', resolvedModel, '| useWebSearch:', useWebSearch, '| maxTokens:', effectiveMaxTokens, '| recencyHint:', !!openaiRecencyHint);
             let result;
             try {
                 result = await generateOpenAIChat({
                     model: resolvedModel,
-                    messages: state.messages,
+                    messages: openaiMessages,
                     instructions: finalInstruction,
                     useWebSearch,
                     maxOutputTokens: effectiveMaxTokens,
@@ -352,6 +358,10 @@ export const createGeneratorNode = (
                         finalInstruction,
                         useGoogleSearch ? 'google' : 'none',
                     );
+                    // 최신 제품 질문의 검색 턴 — 기준 연·월을 사용자 메시지 쪽에 둬야 검색어가 기억 속 버전으로 새지 않는다(recency-hint.ts)
+                    const recencyHint = useGoogleSearch && isLatestProductRequest(latestUserText) ? buildRecencyHint(now, tz, langName) : null;
+                    const modelContents = recencyHint ? appendHintToSdkContents(sdkContents, recencyHint) : sdkContents;
+                    if (recencyHint) console.log('[LangGraph] recency hint → latest user message');
 
                     // 인텐트별 출력 토큰 상한(generation-config.ts)
                     const resolvedMaxTokens = resolveMaxTokens({
@@ -415,7 +425,7 @@ export const createGeneratorNode = (
 
                         const stage1Response = await traceGemini('stage1', genai.models, {
                             model: SEARCH_FALLBACK_MODEL,
-                            contents: sdkContents,
+                            contents: modelContents,
                             config: {
                                 abortSignal: attemptSignal,
                                 systemInstruction: googleProviderInstruction,
@@ -450,7 +460,7 @@ export const createGeneratorNode = (
                             noteRetry('empty');
                             const s1Retry = await traceGemini('stage1_retry', new GoogleGenAI({ apiKey: s1RetryKey }).models, {
                                 model: SEARCH_FALLBACK_MODEL,
-                                contents: sdkContents,
+                                contents: modelContents,
                                 config: {
                                     abortSignal: attemptSignal,
                                     systemInstruction: googleProviderInstruction,
@@ -488,7 +498,7 @@ export const createGeneratorNode = (
                         // 포기하기 전에 "minimal" 로 한 번 재시도한다.
                         let singlePassResponse = await traceGemini('single', genai.models, {
                             model: effectiveModel,
-                            contents: sdkContents,
+                            contents: modelContents,
                             config: {
                                 abortSignal: attemptSignal,
                                 systemInstruction: googleProviderInstruction,
@@ -518,7 +528,7 @@ export const createGeneratorNode = (
                             noteRetry('empty');
                             singlePassResponse = await traceGemini('single_retry', genai.models, {
                                 model: effectiveModel,
-                                contents: sdkContents,
+                                contents: modelContents,
                                 config: {
                                     abortSignal: attemptSignal,
                                     systemInstruction: googleProviderInstruction,
@@ -563,7 +573,7 @@ export const createGeneratorNode = (
                                 noteRetry('malformed_call');
                                 const mfRetry = await traceGemini('malformed_retry', genai.models, {
                                     model: SEARCH_FALLBACK_MODEL,
-                                    contents: sdkContents,
+                                    contents: modelContents,
                                     config: {
                                         abortSignal: attemptSignal,
                                         systemInstruction: googleProviderInstruction,
@@ -613,7 +623,7 @@ export const createGeneratorNode = (
                             noteRetry('tool_code');
                             const groundRetry = await traceGemini('ground_retry', genai.models, {
                                 model: groundModel,
-                                contents: sdkContents,
+                                contents: modelContents,
                                 config: {
                                     abortSignal: attemptSignal,
                                     systemInstruction: withSearchProviderInstruction(finalInstruction, 'google'),
