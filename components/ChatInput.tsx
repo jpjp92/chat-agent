@@ -103,6 +103,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   const [isSTTSupported, setIsSTTSupported] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  // 고정 상한(60vh)만 두면 확대 화면에서 메뉴가 화면 밖으로 잘려 내부 스크롤이 안 생긴다 — 열 때 실제 남은 공간으로 상한을 잡는다
+  const [modelMenuMaxH, setModelMenuMaxH] = useState<number | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -660,14 +662,19 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
             <div ref={modelMenuRef} className="hidden md:block relative">
               <button
                 type="button"
-                onClick={() => setIsModelMenuOpen(prev => !prev)}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const space = welcome ? window.innerHeight - r.bottom : r.top;
+                  setModelMenuMaxH(Math.max(120, Math.min(304, space - 16)));
+                  setIsModelMenuOpen(prev => !prev);
+                }}
                 className="flex items-center gap-1 pl-2.5 pr-2 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition"
               >
                 <span className="text-[13px] font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">{pickLabel(selectedModelOption.label, language)}</span>
                 <i className={`fa-solid fa-chevron-down text-[10px] text-indigo-400/70 dark:text-indigo-400/60 transition-transform ${isModelMenuOpen ? 'rotate-180' : ''}`}></i>
               </button>
               {isModelMenuOpen && (
-                <div className={`model-menu-scrollbar absolute right-0 w-60 sm:w-64 max-h-[min(19rem,60vh)] overflow-y-auto overscroll-contain bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 py-1 z-50 ${welcome ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
+                <div style={{ maxHeight: modelMenuMaxH }} className={`model-menu-scrollbar absolute right-0 w-60 sm:w-64 max-h-[min(19rem,60vh)] overflow-y-auto overscroll-contain bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-white/10 py-1 z-50 ${welcome ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
                   {CHAT_MODEL_SECTIONS.map((section, sectionIndex) => (
                     <div key={section.id} className={sectionIndex > 0 ? 'border-t border-slate-100 dark:border-white/10' : ''}>
                       <div className={`px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] flex items-center gap-1.5 ${section.id === 'gemini' ? 'text-indigo-500/75 dark:text-indigo-300/65' : section.id === 'openai' ? 'text-emerald-600/75 dark:text-emerald-300/65' : 'text-slate-400 dark:text-white/35'}`}>

@@ -140,11 +140,12 @@ const SourceBar: React.FC<{ sources: GroundingSource[]; language?: Language; sho
       {open && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center sm:p-6">
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm modal-backdrop-in" onClick={() => setOpen(false)} />
+          {/* 85dvh 만으로는 출처 10개 이상일 때 창이 화면을 거의 덮는다 — 6줄 남짓에서 끊고 안에서 스크롤 */}
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="source-sheet-title"
-            className="relative w-full sm:max-w-md max-h-[85dvh] flex flex-col bg-white dark:bg-[#1c2238] rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-white/[0.12] shadow-[0_20px_50px_rgba(0,0,0,0.35)] modal-panel-in"
+            className="relative w-full sm:max-w-md max-h-[min(85dvh,30rem)] flex flex-col bg-white dark:bg-[#1c2238] rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-white/[0.12] shadow-[0_20px_50px_rgba(0,0,0,0.35)] modal-panel-in"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-300 dark:bg-white/20 sm:hidden" aria-hidden="true" />
