@@ -23,6 +23,10 @@
 | Gemini 4 Hydrogen | 1.50 | 7.50 |
 | Gemini 3.8 · 3.6 Flash | 0.75(12-31 까지) → **1.50(2027-01-01~)** | 3.75 → **7.50** |
 | Gemini 4 Argon · Carbon | 2.00(11-30 까지) → 4.00 | 10.00 → 20.00 |
+| Gemini 4 Neon(11-22 추가) | 3.00 | 15.00 |
+
+> **11-22 재확인**(공식 가격 페이지, 현재 `aistudio.google.com/docs/pricing` 로 넘어감 · 갱신일 표시 없음): 위 값 그대로. Neon·Hydrogen 은 예정된 변경 없음. Gemini 4 넷 다 명시적 캐싱 없음(암시적만)·장문 구간 없음. Batch·Flex 반값, Priority 1.8배. 12월부터 Gemini 4 중 Hydrogen 이 가장 싸다(Argon·Carbon 의 1/3, Neon 의 1/2). 3.6·3.8 Flash 는 서로 같은 값.
+> 최신성 질문 실측(11-22, [PLAN_WEB_SEARCH_QUALITY_261122 §3 W2](PLAN_WEB_SEARCH_QUALITY_261122.md)): Neon 101~110s · Hydrogen 54~60s, 둘 다 현행 세대 정답 — 같은 질문에서 Flash + 검색 규칙도 10/10(13~31s). 생각 토큰을 빼고도 1턴 출력 비용이 3.8 Flash 대비 Hydrogen 약 3×, Neon 약 6×.
 
 **thinking** — 공식 문서.
 - Hydrogen: `low`·`medium`·`high`·`xhigh`, **기본 `high`**. `minimal` 미지원.
