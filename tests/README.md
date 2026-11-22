@@ -196,7 +196,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 |---|---|
 | `run-all.mts` | **하니스가 아니라 러너다** — 위 "러너" 절 참조. 수집이 0건이면 실패한다(규칙이 깨진 것을 통과로 세지 않는다) |
 | `test-intent-rules.mts` | 의도 분류 룰 — 잡아야 할 것 / 잡으면 안 될 것 양방향 + **논문↔소프트웨어 산출물 가드**(`레포 검색` 이 arXiv 카드로 가지 않는가 / 진짜 논문 요청은 유지되는가) |
-| `test-search-policy.mts` | 검색 on/off 판정 + **공급자별 tier 400**(Gemini 의 이미지+grounding 제약을 OpenAI 턴에 적용하지 않는다 — 대조군으로 `provider` 미지정 시 기존 동작 고정) |
+| `test-search-policy.mts` | 검색 on/off 판정 + **공급자별 tier 400**(Gemini 의 이미지+grounding 제약을 OpenAI 턴에 적용하지 않는다 — 대조군으로 `provider` 미지정 시 기존 동작 고정). 멀티턴 가드는 라우터 LLM 이 검색 on 으로 본 턴을 덮지 않는다(DEV_261122 §10) |
 | `test-weather-followup.mts` | 날씨 후속 발화 + 날짜 경계(KST 자정) |
 | `test-card-followup.mts` | 약국·병원·동물병원·법률 카드 후속 판정 + fast-pass 내부 지시문 차단 + Gemini 도구 강제 + 약국 현재 영업 상태 계약 |
 | `test-storage-name.mts` | 업로드 파일명 정규화 — 확장자 보존은 `parse-document` 가 의존하는 계약 |
