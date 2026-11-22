@@ -40,8 +40,10 @@ export const collectTextSearchSignals = (opts: {
     prevSearched: boolean;
     needsSearch: boolean;
     isGeneralIntent: boolean;
+    /** 라우터 LLM 의 needs_search 원판정. null·undefined = 판정 없음 → 키워드 가드가 대신한다. */
+    llmNeedsSearch?: boolean | null;
 }): SearchSignal[] => {
-    const { latestUserText, prevSearched, needsSearch, isGeneralIntent } = opts;
+    const { latestUserText, prevSearched, needsSearch, isGeneralIntent, llmNeedsSearch } = opts;
     const signals: SearchSignal[] = [];
 
     // tier 300 — 사용자 명시 요청. 멀티턴 가드(100)도, 첨부문서(200)도 이걸 뒤집지 못한다(DEV_260815).
@@ -66,7 +68,9 @@ export const collectTextSearchSignals = (opts: {
 
     // tier 100 — 멀티턴 가드. 동 tier에서 router-llm보다 앞선다(SAME_TIER_PRECEDENCE).
     // "최근 검색한 내용 요약해줘"의 temporal ON을 과거참조로 정정하는 것이 존재 이유다.
-    if (shouldSuppressSearchForFollowup(latestUserText, prevSearched)) {
+    // 라우터 LLM 이 직전 답을 보고 검색 필요(true)로 판정했으면 끼어들지 않는다 — 키워드("비교"·"정리")만
+    // 보는 가드가 새 주제 질문("주요국 GDP 비교 차트")까지 가공형으로 묶어 검색을 껐다(DEV_261122 §10).
+    if (llmNeedsSearch !== true && shouldSuppressSearchForFollowup(latestUserText, prevSearched)) {
         signals.push({
             tier: TIER.CLASSIFIER,
             verdict: "off",

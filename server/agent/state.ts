@@ -180,6 +180,13 @@ export const GraphState = Annotation.Root({
         default: () => true,
     }),
 
+    // 라우터 LLM 의 needs_search 원판정(규칙 합성 전). null = LLM 판정 없음(실패·미호출).
+    // LLM 은 직전 답을 보고 판정하므로, true 면 멀티턴 키워드 가드가 덮어쓰지 않는다(DEV_261122 §10).
+    // 턴마다 라우터가 새로 쓴다 — 이전 턴 값이 남으면 안 되므로 `?? x` 로 잇지 않는다.
+    llmNeedsSearch: Annotation<boolean | null>({
+        reducer: (_x, y) => y,
+        default: () => null,
+    }),
     // 직전 턴에 실제로 검색이 일어났는지 (history의 grounding 출처로 판정 — history.ts).
     // search-gate의 멀티턴 가드가 쓴다. undefined면 판단 불가 → 게이트가 기존 정규식 근사로 폴백.
     // 기획: docs/plans/PLAN_SEARCH_POLICY_260815.md §3 (Step 6)

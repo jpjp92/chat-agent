@@ -211,6 +211,7 @@ export const createGeneratorNode = (
                 hasVideoData,
                 latestUserText,
                 lastTurnSearched: state.lastTurnSearched,
+                llmNeedsSearch: state.llmNeedsSearch,
             });
             // 로컬 함수와 hosted web_search를 한 호출에 섞지 않는다. drug_info의 보조 웹
             // 검색은 기존 도구 내부에서 수행되며, 나머지 로컬 intent는 단일 책임 함수만 강제한다.
@@ -344,6 +345,7 @@ export const createGeneratorNode = (
                         hasVideoData,
                         latestUserText,
                         lastTurnSearched: state.lastTurnSearched,
+                        llmNeedsSearch: state.llmNeedsSearch,
                     });
                     if (useGoogleSearch) await emitStatus('searching');
                     const googleProviderInstruction = withSearchProviderInstruction(

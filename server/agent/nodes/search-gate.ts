@@ -27,6 +27,8 @@ export const decideGoogleSearch = (ctx: {
     latestUserText: string;
     /** 직전 턴 실제 검색 여부(state). undefined면 정규식 근사로 폴백. */
     lastTurnSearched?: boolean;
+    /** 라우터 LLM 의 needs_search 원판정(state). null·undefined = 판정 없음. */
+    llmNeedsSearch?: boolean | null;
     /**
      * 어느 공급자로 이 턴을 생성하는가. **TIER 400 의 적용 여부를 가른다.**
      *
@@ -47,7 +49,7 @@ export const decideGoogleSearch = (ctx: {
     rendererIntents: Set<string>;
     explicitSearchRequested: boolean;
 } => {
-    const { webContent, messages, intent, needsSearch, hasMultimodalContent, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched, provider = 'gemini' } = ctx;
+    const { webContent, messages, intent, needsSearch, hasMultimodalContent, isYoutubeRequest, hasVideoData, latestUserText, lastTurnSearched, llmNeedsSearch, provider = 'gemini' } = ctx;
 
     const signals: SearchSignal[] = [];
 
@@ -172,6 +174,7 @@ export const decideGoogleSearch = (ctx: {
         latestUserText,
         prevSearched,
         needsSearch,
+        llmNeedsSearch,
         // data_viz 도 라우터 판정을 따른다 — 위 렌더러 off 에서 뺀 이유(통계는 검색)와 짝
         isGeneralIntent: intent === 'general' || intent === 'data_viz',
     }));

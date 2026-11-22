@@ -621,5 +621,5 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
     console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, paperFollowup=${paperFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}, paperCardShown=${paperCardShown}`);
-    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), routerRetries, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn };
+    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), routerRetries, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn, llmNeedsSearch: llmNeedsSearch ?? null };
 };

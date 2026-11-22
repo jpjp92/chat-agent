@@ -663,5 +663,22 @@ const routerSrc = readFileSync(new URL('../server/agent/nodes/router.ts', import
 e('배선: router 가 data_viz 에도 needsSearch 를 계산한다',
     /intent === "general" \|\| intent === "data_viz"\)[\s\S]{0,400}classifySearchNeed/.test(routerSrc), true);
 
+// ── 라우터 LLM 판정 우선 — 키워드 가드는 LLM 이 검색 필요라 본 턴을 덮지 않는다(DEV_261122 §10) ──
+// 실측(11-22): 배터리 비교 차트(검색) 다음 턴 "주요국 GDP 상위 5개국 막대 차트로 비교해줘" — "비교" 가
+// 가드에 걸려 라우터의 검색 on 을 껐고, 출처 없이 기억 수치로 답했다. 첫 턴에서는 출처가 나왔다.
+const withLlm = (text: string, needsSearch: boolean, llmNeedsSearch: boolean | null | undefined) =>
+    decideSearch(collectTextSearchSignals({ latestUserText: text, prevSearched: true, needsSearch, isGeneralIntent: true, llmNeedsSearch })).useGoogleSearch;
+e('★ 새 주제 + "비교" · LLM on → 검색 유지', withLlm('주요국 GDP 상위 5개국 막대 차트로 비교해줘', true, true), true);
+e('대조: 같은 질문 · LLM 판정 없음 → 키워드 가드가 대신(기존 동작)', withLlm('주요국 GDP 상위 5개국 막대 차트로 비교해줘', true, null), false);
+e('순수 가공 · LLM off → 검색 off', withLlm('그거 표로 정리해줘', false, false), false);
+e('가드 존재 이유 · 규칙 on(최근) 인데 LLM off → 가드가 끈다', withLlm('최근 검색한 내용 요약해줘', true, false), false);
+e('LLM on 이어도 사용자 명시 요청과 충돌 없음', withLlm('방금 거 출처 찾아서 다시 비교해줘', true, true), true);
+
+// 배선 — 라우터가 원판정을 넘기고, generator 가 게이트에 싣는다
+const gateSrc = readFileSync(new URL('../server/agent/nodes/search-gate.ts', import.meta.url), 'utf8');
+e('배선: router 가 llmNeedsSearch 를 반환한다', /llmNeedsSearch: llmNeedsSearch \?\? null/.test(routerSrc), true);
+e('배선: generator 가 게이트에 llmNeedsSearch 를 넘긴다', (genSrc.match(/llmNeedsSearch: state\.llmNeedsSearch/g) ?? []).length === 2, true);
+e('배선: 게이트가 신호 수집에 llmNeedsSearch 를 넘긴다', /collectTextSearchSignals\(\{[\s\S]{0,300}llmNeedsSearch/.test(gateSrc), true);
+
 console.log(`\nPart E: ${ePass}/${ePass + eFail}`);
 if (eFail > 0) process.exitCode = 1;
