@@ -51,3 +51,50 @@ export const splitInlineDisplayMath = (text: string): string => {
   }
   return out.join('\n');
 };
+
+/**
+ * 단일 `$…$` 중 LaTeX 명령(`\text` 등)이 든 것만 `$$…$$`(인라인 수식)로 올린다.
+ * 단일 `$` 수식은 통화("$0.3 … $0.7")가 수식으로 묶여 꺼 뒀다(DEV_260624 §6). 그 바람에 모델이 쓰는
+ * `$-\text{CH}_3$` 같은 인라인 수식이 원문으로 노출된다 — 통화엔 역슬래시 명령이 없으니 이것만 구제한다.
+ * 코드 펜스·인라인 코드 안은 건드리지 않는다.
+ */
+const SINGLE_TEX = /(?<![\\$])\$(?![\s$])([^$\n]*?\\[a-zA-Z]+[^$\n]*?)(?<!\s)\$(?!\$)/g;
+export const promoteTexInlineMath = (text: string): string => {
+  let inCodeFence = false;
+  return text.split('\n').map(line => {
+    if (/^\s*(```|~~~)/.test(line)) { inCodeFence = !inCodeFence; return line; }
+    if (inCodeFence) return line;
+    // 홀수 칸이 인라인 코드 안이다
+    return line.split('`').map((seg, k) => k % 2 ? seg : seg.replace(SINGLE_TEX, '$$$$$1$$$$')).join('`');
+  }).join('\n');
+};
+
+// 원소 기호 — 화학식 판정용. 없는 기호(A·B·X 등)가 섞이면 수학 변수로 본다
+const ELEMENTS = new Set('H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu'.split(' '));
+const CHEM_BODY = /^(?:[A-Z][a-z]?(?:_\{?\d+\}?)?)+$/;
+const CHEM_TOKEN = /([A-Z][a-z]?)(?:_\{?\d+\}?)?/g;
+const CHEM_SIGN = /^[-=+]\s*/;
+const isChemFormula = (body: string): boolean => {
+  if (!CHEM_BODY.test(body) || !/_\{?\d/.test(body)) return false;
+  const syms = [...body.matchAll(CHEM_TOKEN)].map(m => m[1]);
+  // 원소 둘 이상 — `V_1`·`P_2` 같은 첨자 변수를 화학식으로 오인하지 않는다
+  return syms.length >= 2 && syms.every(s => ELEMENTS.has(s));
+};
+
+/**
+ * 같은 줄의 `$$화학식$$` 을 `\mathrm{}` 으로 감싼다 — 수식 기본체(기울임)로 그리면 C₈H₁₀N₄O₂ 가
+ * 변수 곱처럼 보인다. 화학식 관례는 정체(正體).
+ */
+export const uprightChemFormulas = (text: string): string => {
+  let inCodeFence = false;
+  return text.split('\n').map(line => {
+    if (/^\s*(```|~~~)/.test(line)) { inCodeFence = !inCodeFence; return line; }
+    if (inCodeFence) return line;
+    return line.split('`').map((seg, k) => k % 2 ? seg : seg.replace(/\$\$([^$\n]+?)\$\$/g, (m, expr: string) => {
+      const t = expr.trim();
+      const sign = t.match(CHEM_SIGN)?.[0] ?? '';
+      const body = t.slice(sign.length);
+      return isChemFormula(body) ? `$$${sign}\\mathrm{${body}}$$` : m;
+    })).join('`');
+  }).join('\n');
+};

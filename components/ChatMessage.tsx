@@ -19,7 +19,7 @@ import { gateStreamingTables } from '../utils/streamingMarkdown';
 import { playSpeechStream, stopAudio, initAudioContext, TtsError, type TtsErrorKind } from '../services/geminiService';
 import { toSpeakableText } from '../lib/tts-speakable';
 import { normalizePhysics } from '../lib/physics/params';
-import { splitInlineDisplayMath } from '../utils/mathNormalize';
+import { splitInlineDisplayMath, promoteTexInlineMath, uprightChemFormulas } from '../utils/mathNormalize';
 
 
 
@@ -558,7 +558,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
       if (match.index > lastIndex) {
         let textPart = content.substring(lastIndex, match.index);
         // <br> 태그를 구분 기호로 — rehypeRaw 가 없어 표 셀 안의 <br> 이 글자로 보인다
-        textPart = splitInlineDisplayMath(textPart.replace(/<br\s*\/?>/gi, ' · '));
+        textPart = splitInlineDisplayMath(uprightChemFormulas(promoteTexInlineMath(textPart)).replace(/<br\s*\/?>/gi, ' · '));
         // 숫자 범위 처리 (1~10 -> 1&#126;10)
         textPart = textPart.replace(/(\d)~(\d)/g, '$1&#126;$2');
         // 한글 조사 앞 `**` 보정은 remarkCjkFriendly 가 파서 단에서 한다 — 정규식으로 하면 앞 강조의 닫는
@@ -636,7 +636,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
 
         if (visibleText.trim()) {
           // 숫자 범위 처리 (1~10 -> 1&#126;10)
-          let processedVisible = splitInlineDisplayMath(visibleText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
+          let processedVisible = splitInlineDisplayMath(uprightChemFormulas(promoteTexInlineMath(visibleText))).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
           // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
           // 스트리밍 중 닫히지 않은 코드 블록 닫기
@@ -660,7 +660,7 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
         }
       } else {
         // 숫자 범위 처리 (1~10 -> 1&#126;10)
-        let processedRemaining = splitInlineDisplayMath(remainingText).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
+        let processedRemaining = splitInlineDisplayMath(uprightChemFormulas(promoteTexInlineMath(remainingText))).replace(/<br\s*\/?>/gi, ' · ').replace(/(\d)~(\d)/g, '$1&#126;$2');
         // (제거됨) 한글 볼드 보정 정규식 — remarkCjkFriendly 로 대체. 사유는 위 동일 지점 주석 참조.
 
         // 스트리밍 중 닫히지 않은 코드 블록 닫기

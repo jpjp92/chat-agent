@@ -14,7 +14,7 @@ import remarkParse from 'remark-parse';
 import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
-import { splitInlineDisplayMath } from '../utils/mathNormalize.js';
+import { splitInlineDisplayMath, promoteTexInlineMath, uprightChemFormulas } from '../utils/mathNormalize.js';
 
 let pass = 0, fail = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -129,6 +129,82 @@ for (const [name, md, prose] of VARIANTS) {
     const r = render(splitInlineDisplayMath(md));
     check(`변형  ${name}: katex-error 0 · "${prose}" 본문`, r.errors === 0 && r.proseText.includes(prose),
         JSON.stringify({ errors: r.errors, out: splitInlineDisplayMath(md) }));
+}
+
+
+// ── 단일 `$…$` LaTeX 구제 — 앱 설정(singleDollarTextMath:false) 그대로 렌더 ─────────────
+// 실측(2026-11-22, 카페인 구조 답변): `$-\text{CH}_3$` 가 원문으로 노출됐다.
+const renderApp = (md: string): Render => {
+    const proc = unified().use(remarkParse).use(remarkMath, { singleDollarTextMath: false }).use(remarkRehype).use(rehypeKatex);
+    const tree: any = proc.runSync(proc.parse(md));
+    let errors = 0, mathNodes = 0, proseText = '';
+    const walk = (n: any, inMath: boolean) => {
+        const cls: string[] = n.properties?.className ?? [];
+        if (cls.includes('katex-error')) errors++;
+        const isMath = cls.includes('katex') || cls.includes('katex-display') || cls.includes('katex-error');
+        if (isMath && !inMath) mathNodes++;
+        if (n.type === 'text' && !inMath && !isMath) proseText += n.value;
+        for (const c of n.children ?? []) walk(c, inMath || isMath);
+    };
+    walk(tree, false);
+    return { errors, mathNodes, proseText };
+};
+const appPipe = (md: string) => splitInlineDisplayMath(promoteTexInlineMath(md));
+{
+    const md = '3개의 메틸기($-\\text{CH}_3$)와 2개의 카보닐 산소($=\\text{O}$)가 결합된 구조입니다.';
+    const before = renderApp(md), after = renderApp(appPipe(md));
+    check('🔴 실측 카페인: 보정 전엔 원문 노출(수식 0)', before.mathNodes === 0 && before.proseText.includes('\\text'));
+    check('🔴 실측 카페인: 보정 후 수식 2 · 원문 없음 · 문장 유지', after.mathNodes === 2 && after.errors === 0 && !after.proseText.includes('\\text') && after.proseText.includes('결합된 구조'),
+        JSON.stringify({ ...after, out: appPipe(md) }));
+}
+{
+    const md = '입력 토큰 $0.3, 출력 토큰 $0.7 입니다. 월 $5 요금제도 있습니다.';
+    check('통화는 그대로(수식 0)', appPipe(md) === md && renderApp(appPipe(md)).mathNodes === 0);
+}
+{
+    const md = '가격 $3 \\frac 표기와 $4 차이';
+    check('공백으로 시작하는 짝은 올리지 않음', appPipe(md) === md, appPipe(md));
+}
+{
+    const md = '코드 `echo $\\alpha$` 는 그대로';
+    check('인라인 코드 안은 그대로', appPipe(md) === md);
+}
+{
+    const md = '```\nprint("$\\alpha$")\n```';
+    check('코드 펜스 안은 그대로', appPipe(md) === md);
+}
+{
+    const md = '이미 $$\\alpha$$ 인 것과 $\\beta$';
+    const r = renderApp(appPipe(md));
+    check('기존 $$…$$ 는 유지 + 단일도 구제', r.mathNodes === 2 && r.errors === 0, appPipe(md));
+}
+{
+    const md = '$\\Delta G = \\Delta H - T\\Delta S$ 로 계산합니다.';
+    const r = renderApp(appPipe(md));
+    check('줄 첫머리 단일 수식 + 문장 — 디스플레이로 삼키지 않음', r.mathNodes === 1 && r.errors === 0 && r.proseText.includes('계산합니다'), appPipe(md));
+}
+
+// ── 화학식 정체 — 실측(2026-11-22): `$$C_8H_{10}N_4O_2$$`·`$$-CH_3$$` 가 기울임 변수체로 보였다 ──
+{
+    const chem = (md: string) => splitInlineDisplayMath(uprightChemFormulas(promoteTexInlineMath(md)));
+    const cases: [string, string, string][] = [
+        ['분자식', '화학식은 $$C_8H_{10}N_4O_2$$이며', '$$\\mathrm{C_8H_{10}N_4O_2}$$'],
+        ['부호 붙은 작용기', '메틸기($$-CH_3$$)가', '$$-\\mathrm{CH_3}$$'],
+        ['물(줄 첫머리 — 블록으로 분리돼도 정체)', '$$H_2O$$ 분자', '\\mathrm{H_2O}'],
+        ['단일 $ + \\text 경로와 겹쳐도 무해', '산소($=\\text{O}$)', '$$=\\text{O}$$'],
+    ];
+    for (const [name, md, want] of cases) {
+        const out = chem(md);
+        check(`화학식 ${name}`, out.includes(want) && renderApp(out).errors === 0, out);
+    }
+    const keep: [string, string][] = [
+        ['첨자 변수 하나', '부피 $$V_1$$ 과'],
+        ['원소 아닌 기호', '$$A_2B_3$$ 행렬'],
+        ['수식', '$$x_1 + x_2$$ 합'],
+        ['첨자 없는 대문자열', '$$CO$$ 표기'],
+        ['디스플레이 블록', '$$\nC_6H_{12}O_6\n$$'],
+    ];
+    for (const [name, md] of keep) check(`화학식 아님 — ${name} 그대로`, chem(md) === appPipe(md), chem(md));
 }
 
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
