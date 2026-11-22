@@ -228,7 +228,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-doc-links.mts` | **문서 링크·앵커·행번호** — `docs/**` 의 상대링크를 전수 검사한다. 파일 부재와 `.md` 앵커 부재는 실패, 코드 `#L` 행번호는 **`docs/logs/` 안에서만 경고**(날짜 로그는 그날의 기록이라 코드가 움직였다고 고치지 않는다). 코드블록·인라인 코드는 제외한다 — 안 거르면 인용 마커 예시 `[1](A)` 가 대량 오탐이다. 계기: [DEV_260913](../docs/logs/2026/09/DEV_260913.md) |
 | `test-doc-index.mts` | **문서 인덱스 등록** — 날짜 로그가 월 `README`·`DEV_HISTORY` 에, 계획서가 `PLAN_INDEX` 에, `REF_*` 가 `guide/README` 에, `.sql` 이 `guide/db/README` 에, 하니스가 이 파일에 올라 있는지. 링크 검사기는 *있는 링크가 깨졌나* 를 보고 이쪽은 *있어야 할 링크가 없나* 를 본다(10-31 누락 6건) |
 | `test-key-tier.mts` | **Gemini 키 등급** — 회원 유료 키 우선·실패 시 무료 로테이션·게스트는 무료만(PLAN_GEMINI_PAID_FIRST) |
-| `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2) |
+| `test-math-normalize.mts` | **수식 후처리** — 실제 렌더 체인(remark-math → rehype-katex)으로 줄 첫머리 `$$식$$ 문장` 삼킴 재현·보정, 펜스 블록+목록 등 정상 입력은 바이트 동일(DEV_261009 §2-2). LaTeX 명령이 든 단일 `$…$` 를 인라인 수식으로 올리고 통화·코드는 그대로, 화학식은 정체(DEV_261122 §9) |
 | `test-google-id.mts` | **Google 로그인(GIS ID 토큰)** — nonce 원문/SHA-256 일치, 충돌 판정, link 는 게스트에게만, 계정 전환 버튼 없음, 충돌 시 토큰 재사용, 클라이언트 ID 없으면 리다이렉트 폴백, CSP · 카카오 link/signIn, 충돌 재시도는 시도한 공급자로 (DEV_261011 §5·§6) |
 | `test-openai-pdf.mts` | **GPT PDF 직접** — PDF part → Responses `input_file`(업로드·링크 `file_url`, 인라인 `file_data`, image_url 분기보다 먼저), 핀은 영상·오디오만, 링크 다운로드 400 만 2.5 재시도, generator 배선 (DEV_261011) |
 | `test-route-auth.mts` | **API 라우트 인증 소스 계약** — 공개 허용목록(`client-log`·`proxy-image`) 밖의 모든 라우트가 토큰을 실제로 검증하는지(`requireProfile` 또는 user-scoped DB/Storage), 인증이 본문 파싱·직행 분기보다 앞인지, proxy-image 가 약품 호스트 허용목록을 쓰는지(DEV_261017) |
