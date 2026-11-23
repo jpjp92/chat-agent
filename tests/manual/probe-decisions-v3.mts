@@ -76,10 +76,15 @@ const V4_AUX = [
     V3_AUX[0],
     { type: 'predicate', name: 'wants_visual', instructions: 'Does the user want something drawn, modeled, shown in 3D, simulated, located in the sky, or charted, even together with an explanation?' },
 ];
+// v5(Gemini 가이드 재검토 11-23) — 애매한 yes/no 에 criteria(true/false 정의). 의도 선택지·검색 문항은 v4 그대로
+const V5_AUX = [
+    { ...V4_AUX[0], criteria: { true_description: 'The health, behavior, or care question is about a pet, livestock, or other animal.', false_description: 'It is about a person, or the message is not a health or care question.' } },
+    { ...V4_AUX[1], criteria: { true_description: 'The user asks to see, draw, model, simulate, chart, or locate something in the sky, alone or together with an explanation.', false_description: 'The user wants only a text answer: an explanation, list, number, or advice.' } },
+];
 const RENDERERS = new Set(['biology', 'chemistry', 'physics', 'astronomy', 'data_viz']);
 
-type Arm = 'f2' | 'f3' | 'g2' | 'g3' | 'f4' | 'g4';
-const qsOf = (arm: Arm) => arm.endsWith('2') ? [...INTENT_QUESTIONS_V2, ...SEARCH_Q] : arm.endsWith('4') ? [V4_INTENT, PAPER_Q, ...V4_AUX, ...SEARCH_Q] : [V3_INTENT, PAPER_Q, ...V3_AUX, ...SEARCH_Q];
+type Arm = 'f2' | 'f3' | 'g2' | 'g3' | 'f4' | 'g4' | 'g5';
+const qsOf = (arm: Arm) => arm.endsWith('2') ? [...INTENT_QUESTIONS_V2, ...SEARCH_Q] : arm === 'g5' ? [V4_INTENT, PAPER_Q, ...V5_AUX, ...SEARCH_Q] : arm.endsWith('4') ? [V4_INTENT, PAPER_Q, ...V4_AUX, ...SEARCH_Q] : [V3_INTENT, PAPER_Q, ...V3_AUX, ...SEARCH_Q];
 
 // gemini-decision-1 — questions 는 이름 키 맵, choice 는 criteria 맵, predicate 는 noul
 async function callGemini(input: string, questions: any[]) {
@@ -87,7 +92,7 @@ async function callGemini(input: string, questions: any[]) {
     const qmap: Record<string, unknown> = {};
     for (const q of questions) qmap[q.name] = q.type === 'choice'
         ? { type: 'choice', instructions: q.instructions, criteria: Object.fromEntries(q.choices.map((c: any) => [c.value, c.description ?? ''])) }
-        : { type: 'noul', instructions: q.instructions };
+        : { type: 'noul', instructions: q.instructions, ...(q.criteria ? { criteria: q.criteria } : {}) };
     try {
         const res = await fetch('https://generativelanguage.googleapis.com/v1beta/decisions', {
             method: 'POST', headers: { 'x-goog-api-key': process.env.API_KEY_TIER1!, 'Content-Type': 'application/json' },
@@ -109,7 +114,7 @@ function intentOf(arm: Arm, c: any): { intent: string; conf: number } {
     let intent = ia.choice as string; let conf = ia.confidence ?? 0;
     if (intent === 'paper_search') { const s = c.answers?.paper_source?.choice; intent = s === 'arxiv' ? 'arxiv_search' : s === 'pubmed' ? 'paper_search' : 'general'; }
     if (!arm.endsWith('2')) {
-        const vcut = arm.endsWith('4') ? 0.3 : 0.5;
+        const vcut = arm.endsWith('4') || arm === 'g5' ? 0.3 : 0.5;
         const animal = prob(c, 'subject_animal') ?? 0, visual = prob(c, 'wants_visual') ?? 0;
         if (intent === 'medical_qa' && animal >= 0.5) { intent = 'general'; conf = Math.min(conf, animal); }
         if (RENDERERS.has(intent) && visual < vcut) { intent = 'general'; conf = Math.min(conf, 1 - visual); }
@@ -129,21 +134,23 @@ console.log(`튜닝 ${TUNING.length} · 골든 ${GOLDEN_V1.length} · 검색 ${c
 for (const arm of ARMS) {
     const ms: number[] = []; let errs = 0;
     const intentSet = async (set: any[], rounds: number) => {
-        let ok = 0, n = 0, low = 0, lowRight = 0, wrongHigh = 0; const miss: string[] = [];
+        let ok = 0, n = 0, low = 0, lowRight = 0, wrongHigh = 0; const miss: string[] = []; const recs: { right: boolean; conf: number }[] = [];
         for (let r = 0; r < rounds; r++) for (const c of set) {
             const call = await ask(arm, c.q); ms.push(call.ms); n++;
             if (call.error) { errs++; continue; }
-            const { intent, conf } = intentOf(arm, call); const right = isRight(intent, c);
+            const { intent, conf } = intentOf(arm, call); const right = isRight(intent, c); recs.push({ right, conf });
             if (right) ok++; if (conf < 0.7) { low++; if (right) lowRight++; } else if (!right) wrongHigh++;
             if (!right && r === 0) miss.push(`${intent}(${conf.toFixed(2)}) 기대 ${c.want} "${c.q}"`);
         }
-        return { ok, n, low, lowRight, wrongHigh, miss };
+        return { ok, n, low, lowRight, wrongHigh, miss, recs };
     };
-    const tun = await intentSet(TUNING, 1);
-    const gold = await intentSet(GOLDEN_V1 as any[], 2);
-    const hold = await intentSet(cases.DECISIONS_HOLDOUT_V4 as any[], 2);
+    // QUICK=1 — 지연만: 골든 1라운드(동시 실행 없이 팔 하나씩)
+    const QUICK = process.env.QUICK === '1';
+    const tun = await intentSet(QUICK ? [] : TUNING, 1);
+    const gold = await intentSet(GOLDEN_V1 as any[], QUICK ? 1 : 2);
+    const hold = await intentSet(QUICK ? [] : cases.DECISIONS_HOLDOUT_V4 as any[], 2);
     let sOk = 0, sN = 0;
-    for (let r = 0; r < 2; r++) for (const c of [...cases.SEARCH_GRAY, ...cases.SEARCH_HOLDOUT]) {
+    for (let r = 0; r < (process.env.QUICK === '1' ? 0 : 2); r++) for (const c of [...cases.SEARCH_GRAY, ...cases.SEARCH_HOLDOUT]) {
         const call = await ask(arm, c.q); ms.push(call.ms); sN++;
         if (call.error) { errs++; continue; }
         if (searchOf(call) === c.wantSearch) sOk++;
@@ -155,5 +162,15 @@ for (const arm of ARMS) {
     console.log(`  지연 p50 ${pct(ms, 0.5)}ms · p90 ${pct(ms, 0.9)}ms · 최대 ${Math.max(...ms)}ms · 오류 ${errs}`);
     console.log(`  골든 오답(1라운드): ${gold.miss.join(' | ') || '없음'}`);
     console.log(`  v4검증 오답(1라운드): ${hold.miss.join(' | ') || '없음'}`);
+    if (arm === 'g5') {
+        // 기준값은 튜닝 세트로만 정한다(실행 전 고정 규칙): 기준 이상 자동 처리분 정답률 ≥ 99% 인 가장 낮은 값
+        const T = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9];
+        const at = (recs: { right: boolean; conf: number }[], t: number) => { const a = recs.filter(x => x.conf >= t); return { acc: a.filter(x => x.right).length / Math.max(1, a.length), pass: 1 - a.length / Math.max(1, recs.length), wrong: a.filter(x => !x.right).length }; };
+        console.log('  확신도 기준별(튜닝): ' + T.map(t => { const x = at(tun.recs, t); return `${t} 정답 ${(x.acc * 100).toFixed(1)}% 넘김 ${(x.pass * 100).toFixed(0)}%`; }).join(' · '));
+        const chosen = T.find(t => at(tun.recs, t).acc >= 0.99) ?? 0.9;
+        for (const [name, set] of [['골든', gold], ['v4검증', hold]] as const) { const x = at(set.recs, chosen), y = at(set.recs, 0.7); console.log(`  ${name} 기준 ${chosen}: 고확신 오답 ${x.wrong} · 넘김 ${(x.pass * 100).toFixed(0)}%  (0.7: 오답 ${y.wrong} · 넘김 ${(y.pass * 100).toFixed(0)}%)`); }
+        const inj = await intentSet(cases.INJECTION as any[], 2);
+        console.log(line('인젝션', inj)); console.log(`  인젝션 오답: ${inj.miss.join(' | ') || '없음'}`);
+    }
     console.log(`  튜닝 오답: ${tun.miss.length}건`); for (const m of tun.miss) console.log(`    ✗ ${m}`);
 }
