@@ -444,8 +444,9 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [ ] 비교 질문 출처 균형 — 비교 대상마다 그 대상의 1차 출처 인용(LangSmith·Langfuse 비교가 langchain.com 만 인용) · 태그/목록 페이지 인용 지양 — [DEV_261108](logs/2026/11/DEV_261108.md) §4
 - [ ] 🔴 **gemini-2.5-flash 12-01 종료 → 3.5 Flash-Lite 자동 전환(11-22 공식 확인)** — 라우터·무료 키 검색 강등·약 검색·미디어 핀·LangChain 도구 경로가 2.5 Flash. 3.5 Flash-Lite 는 무료 검색 불가, `thinkingBudget` 수용 미확인(거부면 400). T1 호환성 스모크 먼저 → [PLAN_GEMINI_25_SHUTDOWN_261122](plans/PLAN_GEMINI_25_SHUTDOWN_261122.md)
   - 11-22 확인: `thinkingBudget: 0` 은 400(생각 못 끔). T3 완료 — 라우터는 3.5 Flash-Lite 정리(177/178·970ms) 제안, 백업 gpt-6-luna(§6)
+  - [x] 경로 전수(§7)·T1/T2(§8, 11-23) — 400 5곳·폴백 8곳, 3.5 FL `minimal` 전 기능 통과, 게스트 검색 = 2.5 Flash-Lite
   - [ ] 라우터 교체 · 유료 키 고정(게스트 포함) · `thinkingBudget: 0` 경로 정리(라우터·LangChain·약 검색·미디어) · `model-thinking.ts` 3.5 FL 행
-  - [ ] 그 뒤: Decisions 하이브리드 — 1순위 gemini-decision-1 + v4(11-23, 골든·새 검증 100%) → 단독 지연·멀티턴 — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
+  - [ ] 그 뒤: Decisions 하이브리드 — 1순위 g5(gemini-decision-1 + v4 + criteria, 기준 0.7 · 11-23 튜닝 98.6%·골든·검증 100%·인젝션 10/10) → 멀티턴 직렬화·follow_up·topic_field · 가격 원문 · shadow — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
   - [ ] 규칙 오판정: "영어 현재완료 시제" 를 `classifySearchNeed` 가 on
 - [ ] 🟡 **Gemini 4 Hydrogen 추가 · 3.6 내리기(11-22 기획 · 2.5 종료 대응 뒤로)** — 선택 옵션으로 추가, 3.6 숨김. 🔴 3.6 이 기본 모델이고 무료티어 긴 입력 담당 → 기본 3.8 전환 전 3.8 `fastLongInput` 무료티어 실측(T1)·게스트 무료 키 가능 여부(T0) → [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](plans/PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)
 - [ ] 🟡 **웹 검색 답변 품질(11-22)** — W1 출처 표시: GPT 턴 출처 분류·칩이 페이지 제목 기준이라 imf.org 가 "기타", 제목 마크다운 원문 → 도메인 한 곳에서 구해 분류·라벨(호출 0, 먼저) · W2 최신성: Flash 가 기억 속 버전 번호로 검색 → 운영 프롬프트에선 시스템 규칙이 묻혀 V3(사용자 메시지에 기준 연·월) 구현, 갤럭시·맥북 개선·아이폰 미해결 → V5 라인업 사전 조회 실험 8/24 → 21/24, 운영 반영 보류(기획만) → [PLAN_WEB_SEARCH_QUALITY_261122](plans/PLAN_WEB_SEARCH_QUALITY_261122.md)

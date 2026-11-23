@@ -8,7 +8,7 @@
 
 ## 지금 순서 (2026-08-02 · 부분 갱신 2026-08-23)
 
-> 🔴 **2026-11-22 gemini-2.5-flash 종료(12-01) 대응:** [PLAN_GEMINI_25_SHUTDOWN_261122](PLAN_GEMINI_25_SHUTDOWN_261122.md) — 공식 공지: 12-01 부터 2.5 Flash 요청이 **3.5 Flash-Lite 로 자동 전환**(깨지는 API 변경 있음). 우리 코드의 2.5 Flash 역할 10곳(라우터·무료 키 검색 강등·약 검색·미디어 핀·LangChain 도구 경로 전부·법령 해석·알약 식별 등). 위험: ① 3.5 Flash-Lite 는 **무료 검색 불가** → 게스트 검색 ② 2.5 경로가 보내는 `thinkingBudget` 을 3.5 가 거부하면 전부 400(3.6 은 거부) ③ sampling 파라미터 무시·향후 400. T1 호환성 스모크(<$0.05)부터. Hydrogen 도입은 이 뒤로. **11-22: `thinkingBudget: 0` 400 확인, T3 라우터 후보 완료(3.5 FL 정리 제안) · Decisions 가이드 문구 재측정 → PLAN_DECISION_ROUTER §20 · 11-23 의도 v4 + gemini-decision-1 골든·새 검증 100%(§21, 하이브리드 후보 — 12-01 뒤).**
+> 🔴 **2026-11-22 gemini-2.5-flash 종료(12-01) 대응:** [PLAN_GEMINI_25_SHUTDOWN_261122](PLAN_GEMINI_25_SHUTDOWN_261122.md) — 공식 공지: 12-01 부터 2.5 Flash 요청이 **3.5 Flash-Lite 로 자동 전환**(깨지는 API 변경 있음). 우리 코드의 2.5 Flash 역할 10곳(라우터·무료 키 검색 강등·약 검색·미디어 핀·LangChain 도구 경로 전부·법령 해석·알약 식별 등). 위험: ① 3.5 Flash-Lite 는 **무료 검색 불가** → 게스트 검색 ② 2.5 경로가 보내는 `thinkingBudget` 을 3.5 가 거부하면 전부 400(3.6 은 거부) ③ sampling 파라미터 무시·향후 400. T1 호환성 스모크(<$0.05)부터. Hydrogen 도입은 이 뒤로. **11-22: `thinkingBudget: 0` 400 확인, T3 라우터 후보 완료(3.5 FL 정리 제안) · Decisions 가이드 문구 재측정 → PLAN_DECISION_ROUTER §20 · 11-23 의도 v4 + gemini-decision-1 골든·새 검증 100%(§21, 하이브리드 후보 — 12-01 뒤) · g5 기준값 0.7 확인·인젝션 10/10(§21-2) · 2.5 종료 경로 전수·T1/T2 완료(§7·§8).**
 >
 > **2026-11-22 Gemini 4 Hydrogen 추가 · 3.6 내리기:** [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md) — 기획. Hydrogen 을 "깊이 생각하는" 선택지로 넣고, 같은 단가의 3.8 이 있어 3.6 은 숨김(서버 허용 목록엔 남김). 🔴 3.6 은 지금 **기본 모델**이고 무료티어 긴 입력(`fastLongInput`)을 직접 처리하는 유일한 3.x — 기본을 3.8 로 바꾸면 URL 턴이 2.5 로 강등된다(3.8 무료티어 실측 T1 먼저). 결정 D1~D7, 테스트 T0~T4(~$0.8).
 >
