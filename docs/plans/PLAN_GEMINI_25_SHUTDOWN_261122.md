@@ -1,6 +1,6 @@
 # PLAN_GEMINI_25_SHUTDOWN_261122 — gemini-2.5-flash 종료(12-01) 대응
 
-> 2026-11-22 작성. 상태: **T3(라우터 후보) 측정 완료 §6 · 🔴 기한 2026-12-01**. 코드 변경 없음. 작업은 dev 기준.
+> 2026-11-22 작성. 상태: **T1·T2·T3 측정 완료(§6·§8) · 경로 전수 §7 · 다음 = 구현 · 🔴 기한 2026-12-01**. 코드 변경 없음. 작업은 dev 기준.
 > 근거(공식, 11-22 확인): [Deprecations — Gemini 2.5 Flash models](https://aistudio.google.com/docs/deprecations#gemini-2.5-flash-models) · [Migrate to gemini-3.5-flash-lite](https://aistudio.google.com/docs/whats-new-gemini-3.6#migrate-to-gemini-3-5-flash-lite) · [Pricing](https://aistudio.google.com/docs/pricing)
 > 관련: [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)(기본 모델 3.6 → 3.8 — 같은 파일을 만진다)
 
@@ -112,3 +112,78 @@ Hydrogen 도입(3.6 → 3.8 기본 변경)은 같은 파일을 만지므로 **�
 - 백업(3.5 Flash-Lite 400·503): D(gpt-6-luna) — E 보다 싸고 정확도 같거나 높다. 규칙 폴백(64%)까지 떨어지지 않게.
 - **그 뒤: F 하이브리드**(Decisions 1회 ~0.26s, 의도 확신 <0.7 만 C) — 넘기는 비율·처리방침(매 턴 OpenAI 전송)·운영 shadow 가 먼저. 의도 정확도 개선은 PLAN_DECISION_ROUTER §20 다음.
 - 별건: "영어 **현재**완료 시제 설명해줘" 를 키워드 규칙(`classifySearchNeed`)이 on 으로 — 모델은 off 로 맞혔다. 운영에도 있는 규칙 오판정.
+
+## 7. 경로 전수 조사 (2026-11-23, 코드 변경 없음)
+
+판정 원리: 12-01 부터 `gemini-2.5-flash` 이름 요청이 3.5 Flash-Lite 로 가지만 코드는 여전히 2.5 로 알고 설정을 만든다(`model-thinking.ts` 2.5 = budget, `isThreeXFlash` 밖) → `thinkingBudget: 0` 이면 400(§6-1), 3.5 FL 이 못 하는 일을 맡긴 곳은 실패.
+
+### 7-1. 400 이 나는 곳(`thinkingBudget: 0`)
+
+| # | 경로 | 위치 |
+|---|---|---|
+| A1 | 라우터(매 턴) | `nodes/router.ts:239` |
+| A2 | LangChain 도구 경로(약국·병원·동물병원·영화·법령·날씨) | `nodes/langchain-path.ts:91·99` |
+| A3 | 알약 각인 판독 | `drug-info-tool.ts:174·179` |
+| A4 | 2.5 핀 생성(YouTube·URL 요약·이미지/영상) | `nodes/generation-config.ts:65` `resolveThinkingConfig` |
+| A5 | 검색 강등·재시도 호출 | `nodes/generator.ts:439·474·585·635` |
+| — | 제목 생성 2순위 | `app/api/summarize-title/route.ts:55`(1순위 2.5 FL 실패 때만) |
+
+medical_qa 는 `thinkingBudget: 3000`(`generator.ts:439·474`) — 512 는 통과, 3000 미확인.
+
+### 7-2. 2.5 로 내리던 폴백
+
+| # | 폴백 | 위치 | 12-01 뒤 |
+|---|---|---|---|
+| B1 | 🔴 무료 키 검색 턴 강등(`SEARCH_FALLBACK_MODEL`) | `generator.ts:179·393·427` | 3.5 FL 무료 검색 불가 → 게스트 검색 턴 실패 |
+| B2 | 🔴 약 검색(`DRUG_SEARCH_MODEL`) | `drug-info-tool.ts:36·65` | B1 과 같음 |
+| B3 | 3.x 503·timeout·전 키 429 → 2.5 강등(`unavailableDowngrade`) | `generator.ts:732~` | 2.5 식 설정으로 3.5 FL 호출 → 400 |
+| B4 | 무거운 미디어 timeout 1회 강등 | `generator.ts:704` | B3 과 같음 |
+| B5 | MALFORMED 함수 호출 재시도 | `generator.ts:570~585` | budget 0 → 400 |
+| B6 | tool_code 환각 재시도 | `generator.ts:621~635` | budget 0 → 400 |
+| B7 | 업로드 URL fileData·URL 요약·YouTube 핀(`MODEL_CAPS` 2.5 행) | `generator.ts:144~162` | 3.x 임의 URL fileData 429 이력(DEV_260808) — 실측 필요 |
+| B8 | GPT PDF 링크 실패 → 2.5 재시도 | `generator.ts:250~256` | B7 과 같음 |
+
+### 7-3. 400 은 아니지만
+
+- 법령 질의 해석(`law-tool.ts:140`)·약 이미지 판독(`nodes/vision.ts:82`) — temperature 만(무시). 향후 400 대비 정리.
+- 라우터 키 — 게스트는 무료 로테이션(`router.ts:148`). 3.x 무료 티어 throughput 이력 → **라우터 유료 키 고정**.
+- 서버 허용 목록에 2.5 가 남아 예전 클라이언트가 보내면 A4 경로.
+
+### 7-4. 수정 방향
+
+1. 역할별 모델 상수 — 라우터 3.5 FL(유료 키) · 도구·vision·핀·강등 3.5 FL(B7 은 T1 로) · **무료 키 검색 B1·B2 = 2.5 Flash-Lite**(T2 로, 안 되면 게스트 검색도 유료 키).
+2. `model-thinking.ts` 에 3.5 FL 행(budget 불가 · 최저 `minimal`), 직접 `thinkingBudget` 쓰는 9곳을 공통 함수로.
+3. `isThreeXFlash` 에 3.5 FL — sampling 제거.
+4. 하니스 — 위 경로가 3.5 FL 에 `thinkingBudget` 을 보내지 않는지 정적 검사.
+
+### 7-5. 진행 단계
+
+T1·T2 측정 → 결과로 7-4 확정 → 구현(모델 상수 → thinking 공통 함수 → sampling → 하니스) → dev 배포·실화면(게스트 검색·도구 카드·YouTube·업로드) → 12-01 로그 감시.
+
+## 8. T1·T2 결과 (2026-11-23, `tests/manual/probe-35-flash-lite-compat.mts`, 13회 · 각 1회 표본)
+
+| 3.5 Flash-Lite · 유료 키 | 결과 |
+|---|---|
+| `thinkingBudget: 3000`(medical_qa) | ✓ 5.5s · 생각 토큰 633 — 받지만 느리다 |
+| `minimal` + googleSearch | ✓ 1.5s · 출처 2 |
+| `minimal` + 함수 호출 | ✓ 0.6s · functionCall 반환 |
+| `minimal` + 인라인 이미지 | ✓ 1.5s |
+| `minimal` + YouTube fileData | ✓ 1.8s |
+| `minimal` + **임의 URL fileData(PDF)** | ✓ 1.2s — 3.x 의 429 이력과 달리 정상(작은 공개 PDF 1건, 업로드 영상은 미확인) |
+| `temperature: 0` + JSON(법령) | ✓ 0.5s |
+| `temperature/topP/topK` + `minimal` | ✓ 1.2s(무시) |
+| `thinkingBudget: 0` | ✗ **400 재확인** |
+
+| 무료 키 | 결과 |
+|---|---|
+| 3.5 FL + googleSearch | ✗ **429** RESOURCE_EXHAUSTED(무료 검색 불가 확인) |
+| 3.5 FL 검색 없음 | ✗ 503 UNAVAILABLE 3.7s(표본 1 — 혼잡) |
+| **2.5 Flash-Lite** + googleSearch, budget 0 | ✓ 2.3s · 출처 3 |
+| **2.5 Flash-Lite** + googleSearch(약 검색형) | ✓ 3.6s · 출처 9 · 933자 |
+
+**확정**
+- 400 원인은 `thinkingBudget: 0` 하나 — `minimal` 로 바꾸면 도구·이미지·YouTube·URL fileData·JSON·검색 모두 통과.
+- medical_qa 는 budget 3000 이 통하지만 5.5s — `minimal`(또는 `low`) 로 바꿀지 구현 때 품질 비교.
+- **게스트 검색 강등(B1)·약 검색(B2) = 2.5 Flash-Lite** — 무료 검색 grounding 정상. 3.5 FL 무료 키는 검색 429.
+- 3.5 FL 무료 키는 검색 없이도 503 이 났다 → 라우터·도구 경로 등 3.5 FL 호출은 **유료 키 우선**이 안전(무료 throughput 은 T2 확장으로 추가 확인).
+- 남은 확인: 업로드 영상(Storage URL fileData)·LangChain 래퍼 경로(T4) — 구현 후 dev 실화면에서.
