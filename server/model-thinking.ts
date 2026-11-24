@@ -22,6 +22,9 @@ export const THINKING_MODE: Record<string, { levels: readonly ThinkingLevel[]; b
     "gemini-2.5-flash-lite": { levels: [],                                budget: true  },  // 기본 thinking Off
     "gemini-3.5-flash":      { levels: ["minimal", "low", "medium", "high"], budget: true  },
     "gemini-3.6-flash":      { levels: ["minimal", "low", "medium", "high"], budget: false },  // budget 거부
+    // 3.5 Flash-Lite — 12-01 부터 2.5 Flash 요청이 이 모델로 간다. thinkingBudget 0 은 400(512·3000 은 받지만
+    // 2.5 경로가 보내는 값이 0 이라 budget 경로로 두면 400) → 레벨 경로로만 보낸다(PLAN_GEMINI_25_SHUTDOWN §6-1·§8)
+    "gemini-3.5-flash-lite": { levels: ["minimal", "low", "medium", "high"], budget: false },
     // 3.7은 minimal을 거부하므로 선택 경로에서도 반드시 이 표를 통해 low를 사용한다.
     "gemini-3.7-flash":      { levels: ["low", "medium", "high"],            budget: true  },  // minimal 없음
     // 3.8 — minimal 400("not supported"), low·medium·high·thinkingBudget 수용. 3.7 과 같다.

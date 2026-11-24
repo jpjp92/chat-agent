@@ -148,7 +148,7 @@ export const shouldDropImageForSearch = (opts: {
  * LangChain 경로는 grounding 을 쓰지 않으므로 논문 의도에 웹 탈출구가 따로 있어야 한다
  * (`drug_info` 는 `[searchDrugInfoTool, searchWebTool]` 로 웹을 함께 준다) → DEV_260902 §9.3
  *
- * `afterToolResult` 가 필수인 이유: 1차 호출에 도구를 둘 주면 `forceDomainTool`(`allTools.length === 1` 요구)이
+ * `afterToolResult` 가 필수인 이유: 1차 호출에 도구를 둘 주면 `forcedTool`(단일 도구일 때만)이
  * 풀려 모델이 논문 도구를 안 부를 수 있다(그 강제는 Gemini 가 지원하는 요청도 스스로 거절하는 것을 막는다).
  * 그래서 조회는 단독·강제로 끝내고, `ToolMessage` 이후에만 웹을 더한다.
  * OpenAI 의 `functionPhase: 'followup'`(`withExplicitSearchFollowup`)과 같은 구조다.

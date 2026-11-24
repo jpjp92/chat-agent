@@ -2,7 +2,7 @@ import { AgentStateType } from "../state";
 import { type LangName, pickByLang } from "../lang";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { getNextApiKey, markKeyInvalid, API_KEYS } from "../../config";
-import { SERVER_MODELS, isThreeXFlash } from "../../models";
+import { SERVER_MODELS, usesThinkingLevel, lowestThinkingLevel, supportsThinkingLevel } from "../../models";
 import { identifyPillTool, searchWebTool } from "../tools";
 import { searchDrugInfoTool } from "../drug-info-tool";
 import { pharmacyTool } from "../pharmacy-tool";
@@ -89,13 +89,19 @@ export const runLangChainPath = async (args: {
             const PINNED_CARD_INTENTS = { paper_search: "paper", arxiv_search: "paper" } as const;
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
             const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
-            const is3xLcModel = isThreeXFlash(pathModel);
+            // 계열(isThreeXFlash)이 아니라 측정표로 고른다 — 3.5 Flash-Lite 는 3.x 계열 목록에 없어
+            // 계열로 판정하면 2.5 용 `thinkingBudget: 0` 이 나가 400 이 된다.
+            const levelLcModel = usesThinkingLevel(pathModel);
+            // fast-pass 는 도구 인자만 고르면 된다(출력 폐기) → 그 모델의 최저. 합성은 `low` 캡(없으면 최저).
+            const lcLevel = FAST_PASS_INTENTS.has(state.intent)
+                ? lowestThinkingLevel(pathModel)
+                : supportsThinkingLevel(pathModel, 'low') ? 'low' : lowestThinkingLevel(pathModel);
             console.log(`[LangGraph] LangChain path: intent=${state.intent} → model=${pathModel}${isToolIntent ? ' (tool intent)' : ''}`);
             const llm = new ChatGoogleGenerativeAI({
                 model: pathModel,
                 apiKey: lcApiKey,
-                ...(is3xLcModel
-                    ? { thinkingConfig: { thinkingLevel: "LOW" as const } }
+                ...(levelLcModel
+                    ? { thinkingConfig: { thinkingLevel: lcLevel!.toUpperCase() as any } }
                     : { temperature: 0.2, topP: 0.8, topK: 40, ...(FAST_PASS_INTENTS.has(state.intent) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) }),
                 // 약 카드 JSON 은 짧다 — 8192 면 충분하고 생성 시간도 줄인다
                 maxOutputTokens: 8192,
@@ -286,7 +292,7 @@ export const runLangChainPath = async (args: {
                 allTools = [movieTool];
             } else if (state.intent === "paper_search" || state.intent === "arxiv_search") {
                 // 조회는 논문 도구 **단독·강제**로 끝내고, ToolMessage 이후 종합 단계에서만 웹 검색을 더한다.
-                // 1차에 둘 다 주면 아래 forceDomainTool(allTools.length===1)이 풀려 모델이 논문 도구를 안 부를 수 있다.
+                // 1차에 둘 다 주면 아래 forcedTool(단일 도구일 때)이 풀려 모델이 논문 도구를 안 부를 수 있다.
                 // OpenAI 의 withExplicitSearchFollowup 과 같은 구조 — 라우터가 미끄러져도 사용자의 명시 검색 요청이
                 // 사라지지 않게 하는 2차 방어다 → DEV_260902 §9.3
                 const paperCardTool = state.intent === "paper_search" ? paperTool : arxivTool;
@@ -300,11 +306,17 @@ export const runLangChainPath = async (args: {
             // 로컬 카드 intent의 첫 턴은 반드시 해당 도구를 호출한다. 자동 선택에 맡기면
             // Gemini가 도로명 검색처럼 실제로 지원하는 요청도 자체 판단으로 거절할 수 있다.
             // ToolMessage 이후에는 강제하지 않아 law_qa 같은 합성 경로의 재귀 호출을 막는다.
-            const forceDomainTool = isToolIntent && allTools.length === 1 && lastMsg._getType() !== 'tool';
+            // drug_info 는 도구가 둘(식약처·웹)이라 단일 도구 조건에 안 걸린다 — 그러면 3.5 Flash-Lite 가
+            // 성분 질문("이부프로펜이 어떤 약이야?")에서 도구 없이 기억으로 답한다(3/3, PLAN_GEMINI_25_SHUTDOWN §10-2).
+            // 첫 턴만 식약처 도구로 강제하고, 웹 검색은 그 결과를 본 다음 턴에 고를 수 있게 둔다.
+            const forcedTool = !isToolIntent || lastMsg._getType() === 'tool' ? null
+                : allTools.length === 1 ? allTools[0]
+                : state.intent === 'drug_info' ? searchDrugInfoTool
+                : null;
             const llmWithTools = allTools.length === 0
                 ? llm
-                : llm.bindTools(allTools, forceDomainTool
-                    ? { tool_choice: allTools[0].name, allowedFunctionNames: [allTools[0].name] }
+                : llm.bindTools(allTools, forcedTool
+                    ? { tool_choice: forcedTool.name, allowedFunctionNames: [forcedTool.name] }
                     : undefined);
 
             // 약 이미지 요청은 vision 노드가 전처리한다. 원본 이미지를 LangChain 도구 경로에

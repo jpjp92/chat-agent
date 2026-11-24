@@ -372,7 +372,9 @@ check('law_qa는 중간 법률 카드를 SSE로 노출하지 않음', dispatchSo
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
 check('약국 intent가 도로명 keyword 지원을 명시', promptSource.includes('The tool supports a keyword for a road name'), true);
 const langchainSource = fs.readFileSync(new URL('../server/agent/nodes/langchain-path.ts', import.meta.url), 'utf8');
-check('Gemini 로컬 카드 도구 호출 강제', langchainSource.includes('tool_choice: allTools[0].name'), true);
+check('Gemini 로컬 카드 도구 호출 강제', langchainSource.includes('allTools.length === 1 ? allTools[0]') && langchainSource.includes('tool_choice: forcedTool.name'), true);
+// drug_info 는 도구가 둘이라 단일 도구 강제에 안 걸린다 — 첫 턴은 식약처 도구로 강제(PLAN_GEMINI_25_SHUTDOWN §10-2)
+check('drug_info 첫 턴 식약처 도구 강제', langchainSource.includes("state.intent === 'drug_info' ? searchDrugInfoTool"), true);
 check('약국 빈 결과를 웹 검색으로 넘기지 않음', langchainSource.includes('allTools = [pharmacyTool, searchWebTool]'), false);
 
 

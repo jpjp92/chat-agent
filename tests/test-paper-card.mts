@@ -924,7 +924,7 @@ console.log('\n§5 배선 — 카드가 실제로 화면까지 가는가');
     check('arxiv_search 가 LANGCHAIN_INTENTS 에 있다', /"arxiv_search"/.test(read('../server/agent/nodes/generator.ts')));
     // 2026-09-02: 논문 두 의도가 한 분기로 합쳐졌다(§9.3 — 종합 단계 웹검색). 검사 대상은
     // 리터럴 모양이 아니라 **계약**이다: ① arxiv_search 는 arxivTool 을 묶는다
-    // ② 조회 1차 호출은 반드시 단일 도구다(forceDomainTool 이 allTools.length===1 을 요구하므로,
+    // ② 조회 1차 호출은 반드시 단일 도구다(forcedTool 이 단일 도구일 때만 걸리므로,
     //    풀리면 모델이 논문 도구를 아예 안 부를 수 있다).
     check('arxiv_search 에 arxivTool 을 묶는다',
         /state\.intent === "paper_search" \? paperTool : arxivTool/.test(lc));

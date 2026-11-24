@@ -633,7 +633,7 @@ e('카드 intent 는 SDK 경로가 아니라 무관', drop('movie_search', false
 
 // ── shouldAddWebSearchToPaperFollowup ───────────────────────────────────────
 // §9.3: LangChain(Gemini) 논문 경로는 웹 탈출구가 아예 없었다.
-// 주의: 1차 호출에 도구를 둘 주면 forceDomainTool(allTools.length===1)이 풀려 논문 도구를
+// 주의: 1차 호출에 도구를 둘 주면 forcedTool(단일 도구일 때)이 풀려 논문 도구를
 //    아예 안 부를 수 있다 → ToolMessage 이후 종합 단계에서만 더한다.
 const web = shouldAddWebSearchToPaperFollowup;
 e('arxiv + 종합단계 + 명시 요청 → 웹 도구 추가', web('arxiv_search', true, '레포 검색해줘'), true);
