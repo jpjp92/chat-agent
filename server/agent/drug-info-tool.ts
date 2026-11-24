@@ -20,6 +20,8 @@ import {
     type DrugSearchUnavailable,
 } from "./drug-fallback-policy";
 
+import { fetchEasyDrugBySeq, fetchEasyDrugByName, formatEasyDrug, type EasyDrugInfo } from "./drug-easy-info";
+
 export { buildDrugFallbackInstruction } from "./drug-fallback-policy";
 export type { DrugQueryKind, DrugSearchUnavailable } from "./drug-fallback-policy";
 
@@ -47,7 +49,30 @@ const isQuotaError = (e: any): boolean =>
  * Gemini SDK + Google Search grounding 으로 약 정보를 찾는다.
  * 성분·계열 질문, 그리고 MFDS 제품 조회 결과가 없을 때 호출된다.
  */
-async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOutcome> {
+const REFERENCE_PROMPT = (drugName: string) => `사용자 입력 "${drugName}"은 오타나 음역 차이가 있을 수 있습니다. 검색 결과를 근거로 대한민국 허가 문서의 공식 한글 성분명을 먼저 확인하고, 허가된 주요 효능과 핵심 안전성 정보를 정리하세요. 입력과 공식 명칭이 다르면 둘의 관계를 명시하세요. 적응증별 정확한 용량은 근거에서 명확히 확인되는 경우에만 포함하세요.`;
+
+// 제품 카드의 성분·용법 근거 — 모델에게 "필요하면 검색하라"고 맡기면 3.5 Flash-Lite 는 부르지 않고
+// 기억으로 채웠다(아모잘탄 0/2, PLAN_GEMINI_25_SHUTDOWN §10-6). 도구가 결정론적으로 한 번 찾는다.
+const PRODUCT_LABEL_PROMPT = (productName: string) => `대한민국 의약품 "${productName}"의 허가사항을 검색해 다음 두 가지만 근거 문서의 표현 그대로 옮겨 적으세요. 1) 주성분과 1정(또는 1단위)당 함량 2) 용법·용량. 숫자와 단위를 바꾸거나 계산하지 마세요. 근거에서 확인되지 않는 항목은 "확인 불가"라고 쓰세요.`;
+
+// 허가사항은 자주 바뀌지 않는다 — 인스턴스 메모리에 품목기준코드별로 잠깐 둔다(같은 약 재질문 지연 제거)
+const LABEL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const LABEL_CACHE_MAX = 200;
+const labelCacheStore = new Map<string, { text: string; at: number }>();
+const labelCache = {
+    get(seq: string): string | undefined {
+        const hit = labelCacheStore.get(seq);
+        if (!hit) return undefined;
+        if (Date.now() - hit.at > LABEL_CACHE_TTL_MS) { labelCacheStore.delete(seq); return undefined; }
+        return hit.text;
+    },
+};
+const setLabelCache = (seq: string, text: string) => {
+    if (labelCacheStore.size >= LABEL_CACHE_MAX) labelCacheStore.delete(labelCacheStore.keys().next().value!);
+    labelCacheStore.set(seq, { text, at: Date.now() });
+};
+
+async function searchDrugViaGoogleSearch(drugName: string, prompt: string = REFERENCE_PROMPT(drugName)): Promise<DrugSearchOutcome> {
     if (API_KEYS.length === 0) {
         return { status: 'unavailable', kind: 'error', reason: 'API 키 없음' };
     }
@@ -63,7 +88,7 @@ async function searchDrugViaGoogleSearch(drugName: string): Promise<DrugSearchOu
             const genai = new GoogleGenAI({ apiKey });
             const response = await genai.models.generateContent({
                 model: DRUG_SEARCH_MODEL,
-                contents: [{ role: 'user', parts: [{ text: `사용자 입력 "${drugName}"은 오타나 음역 차이가 있을 수 있습니다. 검색 결과를 근거로 대한민국 허가 문서의 공식 한글 성분명을 먼저 확인하고, 허가된 주요 효능과 핵심 안전성 정보를 정리하세요. 입력과 공식 명칭이 다르면 둘의 관계를 명시하세요. 적응증별 정확한 용량은 근거에서 명확히 확인되는 경우에만 포함하세요.` }] }],
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
                     tools: [{ googleSearch: {} }],
                     temperature: 0.1,
@@ -261,7 +286,7 @@ export const searchDrugInfoTool = tool(
             }
 
             if (shouldQueryMfdsProductDatabase(query_kind) && (!Array.isArray(items) || items.length === 0)) {
-                // Strategy 3: 구 표기 변환 — MFDS DB는 "밀리그람"(구 표기) 기준 저장
+                // Strategy 3: 구 표기 변환 — 신 표기로 못 찾은 품목은 "밀리그람"(구 표기)으로 저장된 경우가 많다
                 // "타이레놀정500밀리그램" → "타이레놀정500밀리그람" 으로 재검색
                 const oldSpelling = searchName
                     .replace(/밀리그램/g, '밀리그람')
@@ -272,19 +297,38 @@ export const searchDrugInfoTool = tool(
                 }
             }
 
+            if (shouldQueryMfdsProductDatabase(query_kind) && (!Array.isArray(items) || items.length === 0)) {
+                // Strategy 4: 반대 방향 — DB 가 품목마다 신·구 표기를 섞어 쓴다. 모델이 구 표기로 넘기면
+                // ("아모잘탄정5/50밀리그람") 신 표기 품목("…밀리그램")을 놓쳐 느린 참조 검색으로 빠졌다(§10-6)
+                const newSpelling = searchName
+                    .replace(/밀리그람/g, '밀리그램')
+                    .replace(/마이크로그람/g, '마이크로그램')
+                    .replace(/그람/g, '그램');
+                if (newSpelling !== searchName) {
+                    searchName = newSpelling;
+                    items = await fetchMFDS(newSpelling);
+                }
+            }
+
             if (!Array.isArray(items) || items.length === 0) {
                 const evidencePrefix = query_kind === 'product'
                     ? `[MFDS_NOT_FOUND] "${drug_name}"의 정확한 제품 레코드를 식약처 알약식별 DB에서 확인하지 못했습니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거만 사용해 마크다운으로 설명하세요. 내부 조회 상태를 사용자에게 설명하지 마세요.\n\n`
                     : `[DRUG_REFERENCE_DATA] "${drug_name}"은 제품명 조회가 아닌 성분명 또는 약물 계열 질문입니다. json:drug 블록을 생성하지 말고 아래 외부 검색 근거로 일반 의학 정보를 마크다운으로 설명하세요. 국내 공식 표기가 사용자 표현과 다르면 첫 문장에서 짧게 교정하세요. 사용자가 용량을 묻지 않았다면 적응증별 세부 용량을 나열하지 마세요.\n\n`;
 
+                // 낱알식별 DB 는 고형제만 — 액제·시럽(판콜에이내복액 등)은 e약은요에 공식 용법이 있다
+                const easy = query_kind === 'product' ? await fetchEasyDrugByName(drug_name) : null;
+                const easyBlock = easy
+                    ? `[MFDS_EASY_DRUG_DATA] 식약처 e약은요 공식 문장 — "${easy.itemName}". 용법·효능·주의사항은 이 문장을 우선 근거로 쓰고 숫자는 그대로 옮기세요.\n${formatEasyDrug(easy)}\n`
+                    : '';
                 if (reference_search === 'none') {
-                    return `${evidencePrefix}[DRUG_HOSTED_SEARCH_REQUIRED]\n공식 허가 문서와 신뢰할 수 있는 의학 자료를 웹 검색해 공식 표기, 효능, 핵심 안전성을 확인하세요.`;
+                    return `${evidencePrefix}${easyBlock}[DRUG_HOSTED_SEARCH_REQUIRED]\n공식 허가 문서와 신뢰할 수 있는 의학 자료를 웹 검색해 공식 표기, 효능, 핵심 안전성을 확인하세요.`;
                 }
 
                 const referenceResult = await searchDrugReferences(drug_name);
                 if (referenceResult.status === 'ok') {
-                    return evidencePrefix + referenceResult.text;
+                    return evidencePrefix + easyBlock + referenceResult.text;
                 }
+                if (easyBlock) return evidencePrefix + easyBlock;
 
                 const searchUnavailable = referenceResult.status === 'unavailable'
                     ? { kind: referenceResult.kind, reason: referenceResult.reason }
@@ -317,6 +361,33 @@ export const searchDrugInfoTool = tool(
                 }
             }));
 
+            // 공식 용법 — 낱알식별에는 없어 품목기준코드로 e약은요를 한 번 더 부른다(전문의약품은 미수록 → null)
+            // 허가사항 검색 대상은 질문과 가장 맞는 후보 1건 — 맞는 이름이 없으면 첫 후보(모델도 대개 그걸 고른다).
+            // "e약은요에 없는 첫 후보"로 잡으면 타이레놀정500mg(수록)인데 2번 후보 우먼스타이레놀을 검색했다(§10-6).
+            const norm = (v: unknown) => String(v ?? '').replace(/\s/g, '');
+            const labelTarget = items.find((it: any) => norm(it.ITEM_NAME).startsWith(norm(searchName))) ?? items[0];
+            const labelSeq = String(labelTarget?.ITEM_SEQ ?? '');
+            // 검색은 e약은요 결과를 본 뒤에만 시작한다 — e약은요는 ~0.5s 라 동시에 시작해도 그만큼만 줄고,
+            // 대신 일반의약품(대부분 수록) 조회마다 버려지는 검색 호출이 생긴다(§10-6 실측).
+            const easyBySeq = new Map<string, EasyDrugInfo>();
+            await Promise.all(items.map(async (item: any) => {
+                const info = await fetchEasyDrugBySeq(String(item.ITEM_SEQ ?? ''));
+                if (info) easyBySeq.set(String(item.ITEM_SEQ), info);
+            }));
+            console.log(`[Agent Tool] e약은요 용법 ${easyBySeq.size}/${items.length}건`);
+
+            let labelBlock = '';
+            if (labelTarget && !easyBySeq.has(labelSeq)) {
+                let text = labelSeq ? labelCache.get(labelSeq) ?? null : null;
+                if (text === null) {
+                    const r = await searchDrugViaGoogleSearch(labelTarget.ITEM_NAME, PRODUCT_LABEL_PROMPT(labelTarget.ITEM_NAME));
+                    text = r.status === 'ok' ? r.text : null;
+                    if (labelSeq && text) setLabelCache(labelSeq, text);
+                    console.log(`[Agent Tool] 허가사항 검색 ${r.status}`);
+                }
+                if (text) labelBlock = `[PRODUCT_LABEL_SEARCH] "${labelTarget.ITEM_NAME}" 허가사항 검색 결과(웹 근거)\n${text}\n\n`;
+            }
+
             // json:drug 생성에 쓸 결과 블록을 LLM 용으로 정리
             let result = `[MFDS_DRUG_DATA] 식약처 공식 데이터 (총 ${items.length}건)\n\n`;
             items.forEach((item: any, idx: number) => {
@@ -341,6 +412,8 @@ export const searchDrugInfoTool = tool(
                     ? `https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${item.ITEM_SEQ}`
                     : 'null';
                 result += `MFDS_DETAIL_URL: ${mfdsDetailUrl}\n`;
+                const easy = easyBySeq.get(String(item.ITEM_SEQ ?? ''));
+                if (easy) result += formatEasyDrug(easy);
                 // ConnectDI reference URL (약품명만으로 검색 - 사용자가 여러 옵션 중 선택 가능)
                 const connectdiSearchName = item.ITEM_NAME.split('(')[0].replace(/\(.*?\)/g, '').trim();
                 const connectdiUrl = `https://www.connectdi.com/mobile/drug/?pap=search_result&search_keyword_type=all&search_keyword=${encodeURIComponent(connectdiSearchName)}`;
@@ -348,13 +421,14 @@ export const searchDrugInfoTool = tool(
                 result += `\n`;
             });
 
+            result += labelBlock;
             result += `[MANDATORY INSTRUCTIONS FOR json:drug GENERATION]
 1. Use ONLY [MFDS_DRUG_DATA] for all visual fields. NEVER use internal knowledge for these.
 2. "name": use "약품명(KO)" exactly as-is from the BEST matching item.
 3. "engName": use "약품명(EN)" if available.
-4. "ingredient": Derive the active ingredient(s) with dosage amounts from your drug knowledge (e.g. "암로디핀베실산염 5mg + 올메사탄메독소밀 20mg"). The MFDS data does not include this directly.
+4. "ingredient": [MFDS_DRUG_DATA] has no ingredient field. Never fill it from memory. Use, in order: (a) the ingredient in parentheses in "약품명(KO)" with the strength written in the product name (e.g. "타이레놀정500밀리그람(아세트아미노펜)" → "아세트아미노펜 500mg"); (b) otherwise copy the main ingredients and amounts exactly as [PRODUCT_LABEL_SEARCH] states for that product; (c) if neither confirms it (or it says "확인 불가"), set null.
 5. "category": use "분류" from MFDS_DRUG_DATA.
-6. "dosage": Write the actual detailed dosage and usage instructions based on your medical knowledge (e.g., "1일 1회 1정 섭취..."). Do NOT use a generic placeholder like "반드시 의사 처방전에 따라 복용하세요". If it's a 전문의약품, add that it requires a prescription, but STILL provide the actual default dosage amounts.
+6. "dosage": If the chosen item has "용법(e약은요·식약처)", use that official sentence — you may shorten it, but copy every number and unit exactly (per-dose amount, frequency, interval, daily maximum). Without it, do NOT write dose numbers from memory: copy 용법·용량 exactly as [PRODUCT_LABEL_SEARCH] states for that product; only if it is absent or says "확인 불가", write one short line pointing to the official label, e.g. "용법·용량은 제품 설명서 또는 '자세히'(식약처)에서 확인하세요". For 전문의약품, add that it is taken as prescribed by a doctor. When "효능(e약은요·식약처)"/"주의사항(e약은요·식약처)" exist, base efficacy and cautions in your prose on them.
 7. "pill_visual.imprint_front": EXACT value from "각인(앞면)". Set to null if "null".
 8. "pill_visual.imprint_back": EXACT value from "각인(뒷면)". Set to null if "null".
 9. "pill_visual.shape": EXACT Korean value from "모양". DO NOT translate to English. (e.g. "마름모형", "원형", "타원형" as-is)

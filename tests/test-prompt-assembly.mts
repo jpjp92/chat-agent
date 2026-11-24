@@ -238,9 +238,9 @@ console.log('\n── 골든 해시 ──');
 //    감소폭이 19개 의도·6개 턴에서 **전부 동일**한 것이 "그 블록만 빠졌다"의 증거다.
 //    영상 턴 base 는 바이트 동일하다(아래 BASE_GOLDEN).
 const GOLDEN: Record<string, { len: number; sha: string }> = {
-    drug_id:         { len: 23962, sha: 'a720d6807286aeeb' },
-    drug_info:       { len: 25021, sha: '4e72a7a634812070' },
-    medical_qa:      { len: 30027, sha: '89c5e64b0add8b99' },
+    drug_id:         { len: 23977, sha: 'e694c190c3915904' },
+    drug_info:       { len: 25257, sha: '9ef0c76a43aa484f' },
+    medical_qa:      { len: 30042, sha: 'fe5f6a361c6b15c4' },
     biology:         { len: 18872, sha: '70daf026598e58a2' },
     chemistry:       { len: 23431, sha: 'e0a54b0a36961410' },
     physics:         { len: 28286, sha: '28f33bb055d7dc88' },
