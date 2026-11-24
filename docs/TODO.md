@@ -445,6 +445,10 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
 - [ ] 🔴 **gemini-2.5-flash 12-01 종료 → 3.5 Flash-Lite 자동 전환(11-22 공식 확인)** — 라우터·무료 키 검색 강등·약 검색·미디어 핀·LangChain 도구 경로가 2.5 Flash. 3.5 Flash-Lite 는 무료 검색 불가, `thinkingBudget` 수용 미확인(거부면 400). T1 호환성 스모크 먼저 → [PLAN_GEMINI_25_SHUTDOWN_261122](plans/PLAN_GEMINI_25_SHUTDOWN_261122.md)
   - 11-22 확인: `thinkingBudget: 0` 은 400(생각 못 끔). T3 완료 — 라우터는 3.5 Flash-Lite 정리(177/178·970ms) 제안, 백업 gpt-6-luna(§6)
   - [x] 경로 전수(§7)·T1/T2(§8, 11-23) — 400 5곳·폴백 8곳, 3.5 FL `minimal` 전 기능 통과, 게스트 검색 = 2.5 Flash-Lite
+  - [x] 2.5 vs 3.5 FL 역할·품질 비교(§8-1~§8-3, 11-24) — 결정: 게스트도 유료 키(범위 A) · 전부 3.5 FL(의학 ~~`low`~~ `medium` — §8-4~§8-6 정정) · 3.6 폴백 불필요(§9)
+  - [x] 일반 질문 확대 측정(20문항 × 2회, §8-7) — 7.90 / 8.03 동등 → §9 구성 확정
+  - [ ] 도구 의도 11개 실측(§10) — 답변 생성 전체가 2.5 고정 · `isThreeXFlash` 가 3.5 FL 을 못 잡아 상수만 바꾸면 400
+  - [ ] 의학 지침 보강 — 응급·진료 기준 섹션 필수 · 해열제 교차 복용 등 투약 오류 권고 금지 · 표준 치료 누락(CBT-I 등) — 2.5·3.5 FL 공통 감점(PLAN_GEMINI_25_SHUTDOWN §8-4), 별건
   - [ ] 라우터 교체 · 유료 키 고정(게스트 포함) · `thinkingBudget: 0` 경로 정리(라우터·LangChain·약 검색·미디어) · `model-thinking.ts` 3.5 FL 행
   - [ ] 그 뒤: Decisions 하이브리드 — 1순위 g5(gemini-decision-1 + v4 + criteria, 기준 0.7 · 11-23 튜닝 98.6%·골든·검증 100%·인젝션 10/10) → 멀티턴 직렬화·follow_up·topic_field · 가격 원문 · shadow — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
   - [ ] 규칙 오판정: "영어 현재완료 시제" 를 `classifySearchNeed` 가 on
