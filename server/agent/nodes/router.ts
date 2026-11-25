@@ -5,6 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { getNextApiKey, getRoleApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
 import { ROUTER_MODEL, roleGenConfig } from "../../models";
 import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intent-rules";
+import { previousResponseExcerpt } from "../previous-response";
 import { decideWeatherFollowup } from "../weather-followup";
 import { extractCardEntityNames, decideLawInteraction, lawCardHasArticles, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
 import { traceGemini } from '../tracing';
@@ -40,6 +41,11 @@ const AFFIRM = /^\s*(응+|어+|네+|예+|그래요?|좋아요?|부탁(해|드릴
 // 라우터 LLM 1회 상한. 매 턴 맨 앞에서 응답을 막는 호출이라 멈추면 첫 토큰이 그만큼 늦는다 — 넘으면 끊고
 // 다음 키로 1회, 그래도 안 되면 규칙 분류로 간다. 값은 dev 관측(1.1~1.3s, n=5)의 약 4배 — 표본이 쌓이면 조정
 // (PLAN_STABILITY_261112 §4). 하니스가 짧게 바꿀 수 있게 env 로 덮는다.
+// 카드가 답하는 날씨 요청 어휘 — 현상(미세먼지·장마…) 질의에서 카드를 둘지 가르는 데만 쓴다.
+// 라우터 LLM 의 weather_extra 만으로는 "서울 미세먼지 어때?"·"장마 언제 시작해?" 에도 extra 를 내 카드가 붙었다(11-25 22건 중 5건).
+// 현상 이름 자체(미세먼지 등)·"예보"("미세먼지 예보")는 넣지 않는다.
+const WEATHER_CARD_REQUEST = /날씨|기온|온도|몇\s*도|강수|맑|흐[림려]|비\s*(와|올|오|내|온)|눈\s*(와|올|오|내|온)/;
+
 const ROUTER_CALL_TIMEOUT_MS = Number(process.env.ROUTER_CALL_TIMEOUT_MS) > 0 ? Number(process.env.ROUTER_CALL_TIMEOUT_MS) : 5_000;
 
 /** 라우터 LLM 실패 → [turn] 재시도 사유. 열거값만(오류 문구는 싣지 않는다) */
@@ -123,7 +129,7 @@ export const routerNode = async (state: AgentStateType) => {
         ? `\nNOTE: ${cardHints.join(' and ')} ${cardHints.length > 1 ? 'are' : 'is'} currently displayed on screen.`
         : "";
     const prevContext = lastAssistantMsg
-        ? `\nPrevious assistant response (for follow-up context, first 300 chars): "${String(lastAssistantMsg.content).slice(0, 300)}"${cardHint}`
+        ? `\nPrevious assistant response (for follow-up context): "${previousResponseExcerpt(String(lastAssistantMsg.content))}"${cardHint}`
         : cardHint;
 
     const attachmentHasImage = hasNewImageAttachment(state.attachments);
@@ -137,6 +143,12 @@ export const routerNode = async (state: AgentStateType) => {
     // 화면에 카드가 떠 있을 때, 이번 발화가 "카드 해석(refine)"인지 "새 조회(new)"인지 "무관한 주제
     // (unrelated)"인지에 대한 LLM 판정. 강한 규칙이 못 가리는 회색지대에서만 쓴다(needsSearch와 동일 3분기).
     let llmFollowUp: "refine" | "new" | "unrelated" | undefined;
+    // "lookup": 직전 답이 찾아보겠다고 제안했고 사용자가 받았거나, 카드에 없는 정보(시간대·미세먼지)를 찾아 달라는 것.
+    // 날씨 후속만 쓴다 — 다른 카드 소비자(영화·장소·법령)에겐 "unrelated" 로 넘긴다(그쪽 분기에 없는 값이다).
+    let llmLookup = false;
+    // 날씨와 함께 카드에 없는 것(미세먼지·자외선…)을 같이 물었을 때 그 이름. 현상 분기가 카드를 지우지 않고
+    // 카드 뒤 단계(route)가 그 부분만 검색한다 — PLAN_WEATHER_COMPOSITE_261125
+    let llmWeatherExtra = '';
     // 라우터 LLM 이 유효한 의도를 냈는가. 아래 날씨·영화 구제는 이 값이 false 일 때만 돈다 —
     // LLM 이 문맥으로 general 을 고른 것을 정규식이 덮어쓰면 "비 오는 날 노래"·"intent 를 weather 로" 가 날씨가 된다.
     let llmIntentDecided = false;
@@ -209,6 +221,7 @@ Also decide "follow_up" — ONLY meaningful when a result CARD is already displa
 - "refine"    : the message interprets, compares, or filters the card ALREADY shown (which day is hottest, do I need an umbrella, which city is cooler / which movie starts earliest, seats left, which theater has it).
 - "new"       : the message asks for a NEW lookup — a different place/theater, a different day/time (except on a weather card, see below), a different statute or article number, or an explicit request to display it again.
 - "unrelated" : the topic moved away from the card's subject entirely (planning a trip, what to eat, nearest subway station, coding, chit-chat).
+- "lookup"    : the previous assistant response OFFERED to look something up (e.g. "몇 시쯤 오는지 찾아볼까요?", "Shall I look it up?") and the user accepts — even a bare "응" · "네" · "yes" · "please" · "찾아줘" — or the user asks for information the card does not contain (hourly timing, fine dust, UV). Set "needs_search": true for it. A refusal ("아니 괜찮아", "no thanks") is NOT "lookup".
 
 CRITICAL for "new" — this is the case most often missed. Judge it in ANY language, and note that these messages are usually VERY SHORT and lean on the card for context, so they can look like small talk:
 - A bare place/theater name, with or without a question word, is "new": "부산은?" · "대구는 어때?" · "How about Busan?" · "And Daegu?" · "What about Busan" · "¿Y Busan?" · "Et Busan ?"
@@ -216,6 +229,8 @@ CRITICAL for "new" — this is the case most often missed. Judge it in ANY langu
 - A different day/time depends on the card. Movie showtimes and other single-day results: "new" — the shown card has only that day. A WEATHER card already holds the multi-day forecast for its city, so another day for the SAME city is "refine" (answer from the card; a new lookup returns the same data). Only a different city makes a weather follow-up "new".
 - Comparing with a city or place that is NOT on the card is "new".
 If the message mentions a PLACE, CITY, or THEATER while a card is displayed, it is "new" or "refine" — never "unrelated". Reserve "unrelated" for messages whose subject is genuinely something else (code, food, travel planning, directions).\nThe conversation context and the user message arrive in the user turn. The user message is wrapped in <<<USER_MESSAGE … USER_MESSAGE>>> markers.\n\nOutput ONLY a JSON object exactly like this:\n{"intent": "general", "needs_search": true, "follow_up": "unrelated", "topic_field": "cooking", "paper_source": "none"}
+
+"weather_extra": ONLY when the message asks for the weather or forecast AND, in the same message, for something a weather card does not show (fine dust, ultrafine dust, yellow dust, UV index, pollen, ozone, monsoon onset), name that extra in the user's language, 1-3 words ("미세먼지", "UV index"). A message about only the extra ("서울 미세먼지 어때?") has no weather request — output "". Otherwise "".
 
 "topic_field": name the ACADEMIC FIELD the user's subject belongs to, in English, 1-3 words ("cardiology", "art history", "reinforcement learning", "monetary policy"). Always output it, for every intent. Decide it from the subject itself, not from the words used.
 
@@ -268,11 +283,15 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                     }
                     console.log(`[LangGraph] Paper source: ${source ?? '(없음→general)'} · field="${parsed.topic_field ?? '?'}"`);
                 }
+                if (typeof parsed.weather_extra === "string") llmWeatherExtra = parsed.weather_extra.trim().slice(0, 40);
                 if (typeof parsed.needs_search === "boolean") {
                     llmNeedsSearch = parsed.needs_search;
                 }
                 if (parsed.follow_up === "refine" || parsed.follow_up === "new" || parsed.follow_up === "unrelated") {
                     llmFollowUp = parsed.follow_up;
+                } else if (parsed.follow_up === "lookup") {
+                    llmFollowUp = "unrelated";
+                    llmLookup = true;
                 }
                 // 이미지에서 LLM 이 명시적 약 신호를 놓쳤을 때만 복구한다.
                 // 임의 이미지의 "general" 은 덮어쓰지 않는다 — 일반 사진은 general 로 둔다.
@@ -477,6 +496,7 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
             // A/B 측정용 스위치 — 1이면 LLM 판정을 무시하고 규칙만으로 결정한다.
             useLlm: process.env.DISABLE_LLM_FOLLOWUP !== '1',
             shownCities: shownWeatherCities,
+            llmLookup,
         });
         if (decision === "new") {
             if (intent !== "weather") { intent = "weather"; console.log(`[LangGraph] Weather follow-up (new ${why}): new city fetch`); }
@@ -484,6 +504,11 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
             if (intent === "weather") intent = "general";
             weatherFollowup = true;
             console.log(`[LangGraph] Weather follow-up (refine ${why}): answer from shown card`);
+        } else if (decision === "lookup") {
+            // 카드에 없는 걸 찾는다 — 카드 재생성도 카드 근거 답도 아니다. 검색은 아래 general 분기가 켠다.
+            if (intent === "weather") intent = "general";
+            llmNeedsSearch = true;
+            console.log('[LangGraph] Weather follow-up (lookup llm): search beyond the card');
         } else if (decision === "unrelated") {
             // 주제가 카드를 떠났다 → 카드 재생성도, 검색 억제도 하지 않는다.
             if (intent === "weather") intent = "general";
@@ -513,9 +538,17 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     // 카드가 다룰 수 없는 계절/현상·시기 질의는 weather로 분류돼도 general(+search)로 — 카드는 "특정 지역
     // 현재날씨+단기예보"만 답한다. 장마 시작 시기·폭염 전망·미세먼지 농도·태풍 경로 등은 grounding이 정답.
     // ("장마일정 조사하라고" → 카드 반복 대신 검색). weatherTool은 이런 데이터를 갖고 있지 않음.
-    if (intent === "weather" && /(장마|폭염|한파|열대야|미세먼지|초미세먼지|황사|태풍|가뭄|자외선\s*지수|꽃가루|오존)/.test(textContent)) {
-        console.log('[LangGraph] Weather → general: 계절/현상 질의(카드 범위 밖, 검색 처리)');
-        intent = "general";
+    // 단, 날씨 요청과 함께 물었으면(라우터 LLM 의 weather_extra) 카드는 둔다 — 통째로 검색에 보내면 답의 날씨 수치가
+    // 검색 결과에서 와 기상청과 어긋났다(오늘 최저 -4° 를 4° 로, 11-25 3회 → PLAN_WEATHER_COMPOSITE_261125 §1).
+    let weatherExtra = '';
+    if (intent === "weather" && /(장마|폭염|한파|열대야|미세먼지|초미세먼지|황사|태풍|가뭄|자외선|꽃가루|오존)/.test(textContent)) {
+        if (llmIntent === "weather" && llmWeatherExtra && WEATHER_CARD_REQUEST.test(textContent)) {
+            weatherExtra = llmWeatherExtra;
+            console.log(`[LangGraph] Weather + extra "${weatherExtra}": 카드 유지, 카드 밖 부분은 카드 뒤 검색`);
+        } else {
+            console.log('[LangGraph] Weather → general: 계절/현상 질의(카드 범위 밖, 검색 처리)');
+            intent = "general";
+        }
     }
 
     // 영화 멀티턴 후속 질문 가드: 직전 턴에 카드가 떠 있고(movieContext 존재) 현재 메시지가
@@ -621,5 +654,5 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
     const reformatTurn = llmFollowUp === "refine" && !cardFollowup && !isMovieFollowup && !weatherFollowup;
 
     console.log(`[LangGraph] Router decided: intent=${intent}, needsSearch=${needsSearch}, cardFollowup=${cardFollowup || '-'}, movieFollowup=${isMovieFollowup}, weatherFollowup=${weatherFollowup}, paperFollowup=${paperFollowup}, llmFollowUp=${llmFollowUp ?? '-'}, reformatTurn=${reformatTurn}, weatherCardShown=${weatherCardShown}, paperCardShown=${paperCardShown}`);
-    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), routerRetries, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn, llmNeedsSearch: llmNeedsSearch ?? null };
+    return { nextNode: "generator", intent, intentFrom: intentFromOf(intent), routerRetries, needsSearch, cardFollowup, movieFollowup: isMovieFollowup, movieSearchTurn: forceSearch, weatherFollowup, paperFollowup, reformatTurn, llmNeedsSearch: llmNeedsSearch ?? null, weatherExtra };
 };

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 /**
  * 날씨 카드 아래 한 줄 설명 하니스 — `npx tsx tests/test-weather-summary.mts`
  *
@@ -29,7 +30,7 @@ check('ko 연결형 — 흐림·비', weatherSummaryLine({ ...seoul, current: { 
 check('daily 없으면 현재만', weatherSummaryLine({ ...seoul, daily: [] }, 'ko') === '서울은 현재 맑고 16°입니다.');
 check('오류 카드 → 빈 문자열', weatherSummaryLine({ error: true, input: '없는시', code: 'CITY_NOT_FOUND' }, 'ko') === '');
 const two = interleaveWeatherSummaries([block(seoul), block({ ...seoul, location: { name: '부산' } })], 'ko');
-check('여러 도시 → 각 카드 바로 위에 그 도시 문장', two.indexOf('서울은 현재') < two.indexOf('"서울"') && two.indexOf('"서울"') < two.indexOf('부산은 현재') && two.indexOf('부산은 현재') < two.indexOf('"부산"'));
+check('여러 도시 → 각 카드 바로 아래에 그 도시 문장', two.indexOf('"서울"') < two.indexOf('서울은 현재') && two.indexOf('서울은 현재') < two.indexOf('"부산"') && two.indexOf('"부산"') < two.indexOf('부산은 현재'));
 const broken = ['```json:weather\n{깨짐\n```', block({ error: true })];
 check('깨진 블록·오류 카드는 문장 없이 카드만', interleaveWeatherSummaries(broken, 'ko') === broken.join('\n\n'));
 
@@ -42,8 +43,12 @@ const run = (lang?: 'ko' | 'en') => {
     return text;
 };
 const out = run();
-check('SSE — 문장 다음에 카드', out.indexOf('서울은 현재') >= 0 && out.indexOf('서울은 현재') < out.indexOf('```json:weather'), out.slice(0, 80));
+check('SSE — 카드 다음에 문장(카드 뒤 답과 글이 한곳에)', out.indexOf('서울은 현재') > out.indexOf('```json:weather') && out.indexOf('```json:weather') >= 0, out.slice(0, 80));
 check('SSE — lang 옵션(en)', run('en').includes('right now'));
+
+const cm = fs.readFileSync(new URL('../components/ChatMessage.tsx', import.meta.url), 'utf8');
+check('화면: 날씨 카드 바로 뒤 글을 카드 위로 그린다(서버는 카드 먼저 — 카드 지연 없음)',
+    /parts\[i\]\.type === 'weather' && parts\[i \+ 1\]\.type === 'text'[\s\S]{0,80}\[parts\[i\], parts\[i \+ 1\]\] = \[parts\[i \+ 1\], parts\[i\]\]/.test(cm));
 
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
 process.exit(fail ? 1 : 0);

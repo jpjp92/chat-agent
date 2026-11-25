@@ -13,6 +13,10 @@ import { buildHistoryMessages, deriveLastTurnSearched, deriveLastTurnSourceLabel
 import { classifyChatError, forGuest, type ChatErrorType } from '../../../server/chat-error-policy';
 import { sanitizeActiveCards, sanitizeCardContexts } from '../../../server/agent/card-tool-output';
 import { createStreamDispatch, type DispatchState } from '../../../server/agent/stream-dispatch';
+import { weatherQuickAnswer } from '../../../server/agent/weather-answer';
+import { weatherExtraAnswer } from '../../../server/agent/weather-extra';
+import { fastPassWeatherCards } from '../../../server/agent/weather-answer-prompt';
+import type { WeatherLang } from '../../../lib/weather-labels';
 import { logTurn, errLogFields } from '../../../server/agent/turn-log';
 import { countSourceKinds } from '../../../lib/source-kind';
 import { traceCallbacks, flushTraces, tracingEnabled, attachTurnMeta } from '../../../server/agent/tracing';
@@ -224,6 +228,25 @@ export async function POST(req: NextRequest) {
 
         // 이벤트 → SSE 프레임 변환은 stream-dispatch.ts 가 한다(하니스가 같은 루프를 태울 수 있게) → DEV_260830 §6.14
         for await (const event of streamEvents) dispatch.handle(event);
+
+        // 날씨 카드 뒤 답 — 카드·한 줄만 나간 턴에서만.
+        //  · 카드 밖 정보(미세먼지 등)를 같이 물었으면 생성기와 같은 모델이 그 부분만 검색(weather-extra.ts)
+        //  · 아니면(또는 검색 실패) 역할 모델이 판단 질문에만 1~2문장(weather-answer.ts) — 검색 실패 땐 "찾아볼까요?" 로 끝난다
+        if (st.detectedIntent === 'weather') {
+          const cards = fastPassWeatherCards(st.fullAiResponse, publicLang as WeatherLang);
+          if (cards) {
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: timeZone || 'Asia/Seoul' });
+            const extra = st.weatherExtra
+              ? await weatherExtraAnswer({ question: prompt, cards, lang: publicLang as WeatherLang, today, extra: st.weatherExtra, model: finalModel })
+              : null;
+            const answer = extra?.text ?? await weatherQuickAnswer(prompt, cards, publicLang as WeatherLang, today);
+            if (answer) { const t = `\n${answer}\n`; st.fullAiResponse += t; sendEvent({ text: t }); }
+            if (extra?.sources.length) {
+              for (const s of extra.sources) if (!st.allSources.some((e: any) => e.uri === s.uri)) st.allSources.push(s);
+              sendEvent({ sources: st.allSources });
+            }
+          }
+        }
 
         const fullAiResponse = st.fullAiResponse;
         const allSources = st.allSources;

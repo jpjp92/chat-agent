@@ -70,13 +70,16 @@ export const weatherSummaryLine = (data: any, lang: WeatherLang = 'ko'): string 
 };
 
 /**
- * 도구 출력의 json:weather 블록들 → 각 카드 **바로 위**에 그 도시의 한 줄을 둔 텍스트.
- * 카드 아래 끝에 몰아 두면 여러 도시일 때 문장과 카드가 떨어진다. 문장 → 카드 순서로 짝짓는다.
+ * 도구 출력의 json:weather 블록들 → 각 카드 **바로 아래**에 그 도시의 한 줄을 둔 텍스트.
+ * 여러 도시를 끝에 몰아 두면 문장과 카드가 떨어진다 — 카드 → 문장 순서로 짝짓는다.
+ * 본문에선 아래인 이유: 카드 뒤 답(weather-answer.ts)이 카드 다음에 붙는다 — 한 줄도 아래 두어야 글이 한곳에 모인다.
+ * 답을 본문 위로 보내려면 답이 나올 때까지(2~3s) 카드를 붙잡아야 한다. **화면에선 위로** 그린다 —
+ * ChatMessage 가 카드 바로 뒤 글을 카드 앞으로 옮긴다(모바일에서 아래 글이 안 보임, DEV_261125 §11-8).
  * 오류 카드·깨진 블록은 문장 없이 카드만.
  */
 export const interleaveWeatherSummaries = (blocks: string[], lang: WeatherLang = 'ko'): string =>
     blocks.map(b => {
         let line = '';
         try { line = weatherSummaryLine(JSON.parse(b.replace(/^```json:weather\n/, '').replace(/\n```$/, '')), lang); } catch { /* 카드만 */ }
-        return line ? `${line}\n\n${b}` : b;
+        return line ? `${b}\n\n${line}` : b;
     }).join('\n\n');

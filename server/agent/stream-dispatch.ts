@@ -23,6 +23,8 @@ export interface DispatchState {
     allSources: any[];
     /** router 가 정한 intent. 카드 전송 판정과 sports 게이트가 함께 본다. */
     detectedIntent: string;
+    /** 날씨와 함께 물은 카드 밖 정보(미세먼지 등) — route 의 카드 뒤 단계가 그 부분만 검색한다(PLAN_WEATHER_COMPOSITE_261125). */
+    weatherExtra?: string;
     /** 청크 경계에 걸린 미완성 인용 마커 보류분. */
     lcCitationBuffer: string;
     /**
@@ -174,6 +176,7 @@ export function createStreamDispatch(
         // router가 정한 intent를 캡처 — generator 스트리밍보다 먼저 끝나므로 sports 게이트에 사용.
         const ri = data?.output?.intent;
         if (typeof ri === 'string') st.detectedIntent = ri;
+        if (typeof data?.output?.weatherExtra === 'string' && data.output.weatherExtra) st.weatherExtra = data.output.weatherExtra;
         if (typeof data?.output?.intentFrom === 'string') st.turn.intentFrom = data.output.intentFrom;
         sendStatus(statusForRouter(data?.output));
       } else if (event.event === 'on_chain_end' && event.name === 'LangGraph' && st.lcCitationBuffer) {
@@ -250,7 +253,7 @@ export function createStreamDispatch(
          * Gemini 경로에서는 아래 `pendingCardBlocks` 가 붙인다.
          */
         if (blockMatches && cardHasResults(toolOutput)) {
-          // 날씨는 각 카드 위에 카드와 같은 데이터로 만든 한 줄 설명을 둔다(weather-summary.ts) — fast-pass 라 산문이 없다.
+          // 날씨는 각 카드 아래에 카드와 같은 데이터로 만든 한 줄 설명을 둔다(weather-summary.ts) — fast-pass 라 산문이 없다.
           const body = blockType === 'weather' ? interleaveWeatherSummaries(blockMatches, lang) : blockMatches.join('\n\n');
           const jsonBlock = '\n' + body + '\n\n';
           st.fullAiResponse += jsonBlock; sendEvent({ text: jsonBlock });

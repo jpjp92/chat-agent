@@ -19,7 +19,7 @@
 
 import { isKnownCityName } from "../lib/weather";
 
-export type WeatherFollowupDecision = "new" | "refine" | "unrelated" | "none";
+export type WeatherFollowupDecision = "new" | "refine" | "unrelated" | "lookup" | "none";
 type LlmFollowUp = "new" | "refine" | "unrelated" | null | undefined;
 
 interface WeatherFollowupInput {
@@ -32,6 +32,8 @@ interface WeatherFollowupInput {
     useLlm?: boolean;
     /** 화면에 떠 있는 카드의 도시들(히스토리 `json:weather`의 `location.name`) */
     shownCities?: string[];
+    /** 라우터 LLM 이 "lookup" 이라 판정 — 직전 답의 "찾아볼까요?" 를 받았거나 카드에 없는 정보를 찾아 달라는 것 */
+    llmLookup?: boolean;
 }
 
 interface WeatherFollowupResult {
@@ -128,7 +130,7 @@ const detectCityMention = (text: string, shownCities: string[] = []): CityMentio
 
 
 export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollowupResult => {
-    const { text, intentIsWeather, llmFollowUp, useLlm = true, shownCities = [] } = input;
+    const { text, intentIsWeather, llmFollowUp, useLlm = true, shownCities = [], llmLookup = false } = input;
 
     const city = detectCityMention(text, shownCities);
     const weatherWord = WEATHER_WORD.test(text);
@@ -153,6 +155,12 @@ export const decideWeatherFollowup = (input: WeatherFollowupInput): WeatherFollo
         || INTERPRETIVE.test(text) || timeReask;
 
     if (newFetch) return { decision: "new", why: "rule" };
+    /**
+     * 카드 뒤 답이 "몇 시쯤 오는지 찾아볼까요?" 로 끝났는데 "응" 이 카드 답(검색 꺼짐)으로 가면 제안해 놓고 안 찾는다
+     * (11-25 실측 8/8 → DEV_261125 §11-5). "응"·"네" 는 규칙으로 가를 모양이 아니라 직전 제안을 본 LLM 판정을 따른다.
+     * refine 규칙보다 먼저 본다 — "응 비 몇 시에 오는지 찾아줘" 처럼 날씨 어휘가 섞여도 제안 수락이다.
+     */
+    if (useLlm && llmLookup) return { decision: "lookup", why: "llm" };
     if (strongRefine) return { decision: "refine", why: "rule" };
     if (useLlm && llmFollowUp) {
         if (llmFollowUp === "new") return { decision: "new", why: "llm" };

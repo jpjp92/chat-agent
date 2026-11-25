@@ -680,6 +680,15 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
       }
     }
 
+    // 날씨 카드 바로 뒤의 글(한 줄 + 카드 뒤 답)은 카드 위에 그린다 — 모바일에서 카드가 화면을 채워 아래 글이 안 보인다.
+    // 서버는 카드를 먼저 보낸다(답을 기다리면 카드가 2~3s 늦는다) → 순서는 화면에서만 바꾼다(DEV_261125 §11-8).
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (parts[i].type === 'weather' && parts[i + 1].type === 'text') {
+        [parts[i], parts[i + 1]] = [parts[i + 1], parts[i]];
+        i++;
+      }
+    }
+
     return (
       <>
         {parts.map((part, idx) => {
