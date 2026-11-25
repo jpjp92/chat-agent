@@ -1,6 +1,6 @@
 # PLAN_GEMINI_25_SHUTDOWN_261122 — gemini-2.5-flash 종료(12-01) 대응
 
-> 2026-11-22 작성. 상태: **측정 완료(§6·§8·§8-1~§8-7) · 도구 의도 실측 §10-2 · 400 방지 §10-1 · drug_info 강제 §10-3 · 약 용량 임시안 §10-4 · e약은요 연동 §10-5 · 성분·용법 도구 안 검색 §10-6(미커밋) · 다음 = §9 구현 · 경로 전수 §7 · 적용 계획 §9(11-24 결정) · 다음 = 구현 · 🔴 기한 2026-12-01**. 코드 변경 없음. 작업은 dev 기준.
+> 2026-11-22 작성. 상태: **측정 완료(§6·§8·§8-1~§8-7) · 도구 의도 실측 §10-2 · 400 방지 §10-1 · drug_info 강제 §10-3 · 약 용량 임시안 §10-4 · e약은요 연동 §10-5 · 성분·용법 도구 안 검색 §10-6 · **§9 구현 §11(미커밋, 다음 = dev 배포·실화면)** · 다음 = §9 구현 · 경로 전수 §7 · 적용 계획 §9(11-24 결정) · 다음 = 구현 · 🔴 기한 2026-12-01**. 코드 변경 없음. 작업은 dev 기준.
 > 근거(공식, 11-22 확인): [Deprecations — Gemini 2.5 Flash models](https://aistudio.google.com/docs/deprecations#gemini-2.5-flash-models) · [Migrate to gemini-3.5-flash-lite](https://aistudio.google.com/docs/whats-new-gemini-3.6#migrate-to-gemini-3-5-flash-lite) · [Pricing](https://aistudio.google.com/docs/pricing)
 > 관련: [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)(기본 모델 3.6 → 3.8 — 같은 파일을 만진다)
 
@@ -450,3 +450,31 @@ T1·T2 측정 → 결과로 7-4 확정 → 구현(모델 상수 → thinking 공
 - 허가사항 검색 1회 ≈ +10s(캐시 없을 때). 이 검색은 아직 `DRUG_SEARCH_MODEL`(2.5, 기본 thinking)로 돈다 — §9 에서 3.5 FL `minimal` 유료 검색으로 바꾸면 줄어든다(§8-1 검색 1.9s vs 4.2s).
 - 품질(같은 날 직전 측정, 캐시 공유): 아모잘탄 성분 "로사르탄칼륨 50mg, 암로디핀캄실산염 7.84mg"·용법 "1일 1회 1정" 두 모델 모두 근거대로. 채점 2.5 6.75 / 3.5 FL 7.25(4:4).
 - 성분 질문(이부프로펜)·액제(판콜에이) ~15~25s 는 기존 참조 검색 경로(Google grounding + DDG) 몫 — 이번 변경과 무관, §9 검색 모델 교체 때 함께 본다.
+
+## 11. §9 구현 (2026-11-25, 미커밋)
+
+**설계** — `SERVER_MODELS.FLASH`(2.5)는 사용자 선택 ID 이기도 해서 값을 바꾸지 않고, **역할 모델 상수 `ROLE_MODEL = gemini-3.5-flash-lite`** 를 새로 두어 역할 호출이 그것을 가리키게 했다. 설정은 측정표 기반 헬퍼 하나로, 키는 역할 호출 전용 헬퍼 하나로 모았다.
+
+| 무엇 | 어디 |
+|---|---|
+| `FLASH_LITE_3_5` · `ROLE_MODEL` · `ROUTER_MODEL = ROLE_MODEL` · `SUMMARY_MODELS` 폴백 · MODEL_CAPS 3.5 FL 행(freeTierSearch false, 나머지 true — 유료 키 실측) · 퇴역 표 2.5 → 기본 모델(서버·클라이언트) | `server/models.ts` · `src/lib/models.ts` |
+| `roleGenConfig(model, { level, sampling })` — 레벨 모델이면 `thinkingLevel`(대문자 enum)만, budget 모델이면 종전 budget 0 + sampling | `server/model-thinking.ts` |
+| `getRoleApiKey()` — 회원·게스트 구분 없이 유료 키부터(쿨다운·`GEMINI_PAID_FIRST` 스위치 존중), 아니면 무료 로테이션 | `server/config.ts` |
+| 라우터(`thinkingBudget: 0`·temperature 0 → 헬퍼, 키 유료 우선) | `nodes/router.ts` |
+| 법령 해석 JSON | `law-tool.ts` |
+| 약 웹 검색 `DRUG_SEARCH_MODEL` · 각인 판독 비전(budget 0 → 헬퍼), 검색 첫 시도 유료 키 | `drug-info-tool.ts` |
+| 알약 사진 판독 | `nodes/vision.ts` |
+| 도구 의도 11개 `pathModel` · 키 유료 우선(SDK 실패 폴백은 종전) | `nodes/langchain-path.ts` |
+| 미디어·URL 핀 · `SEARCH_FALLBACK_MODEL` · OpenAI PDF 재시도 · 검색 강등 stage1/재시도 · MALFORMED 재시도(budget 0·sampling → 헬퍼, 의학 `medium`) · tool_code 재시도(선택 모델이 3.6 이어도 budget 을 보내던 잠재 400 도 해소) · 역할 모델로 가는 시도는 유료 키 · 주 스트림 sampling 판정을 측정표로 · YouTube 최후 폴백 조건 | `nodes/generator.ts` |
+| 역할 모델 + 의학이면 `medium`(선택 모델 3.6·3.8 은 종전 최저) | `nodes/generation-config.ts` |
+| 제목 요약 폴백(budget 0 → 헬퍼, 역할 모델 첫 시도 유료 키) | `app/api/summarize-title/route.ts` |
+
+**하니스** — `test-thinking-config` +18항목(3.5 FL 설정에 budget·sampling 없음, 의학 medium, 3.6 의학 종전, ROLE_MODEL·ROUTER_MODEL 소스 고정, 역할 파일 6곳에 직접 `thinkingBudget` 없음, 검색 강등 = 역할 모델) → 93/93. 소스 검사 3개(`test-chat-models`·`test-drug-fallback`·`test-openai-pdf`)를 새 형태로, `tests/README` 에 `test-drug-easy-info` 등록.
+
+**검증** — verify(하니스 51) · knip · build · typecheck 각각 통과.
+
+**실호출 스모크(운영 코드 그대로, 유료 키)**
+- 라우터 `live-intent-routing.mts`: **19/19**, 지연 중앙 857ms · p90 1061ms(2.5 T3 1044ms).
+- 도구 의도 `probe-tool-intents.mts` 24문항: 오류 0 · 도구 24/24 · 카드 24/24 · 평균 7.8s. 느린 건 병원·동물병원 공공 API(22~38s, 2.5 때도 13~22s).
+
+**남은 것** — dev 배포 후 실화면: 게스트 검색 턴(검색 강등 → 3.5 FL 유료 키)·도구 카드·YouTube·업로드 PDF/영상·알약 사진·제목 요약. 게스트 본 답변(3.6·3.8)은 종전처럼 무료 키(범위 A).

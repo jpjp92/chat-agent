@@ -455,7 +455,8 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
   - [ ] 허가사항 검색 지연(+~10s, 2.5 기본 thinking) — §9 에서 `DRUG_SEARCH_MODEL` 을 3.5 FL `minimal` 로. 허가정보 주성분 오퍼레이션 이름 확인되면 검색 대신 API
   - (이전 메모) 약 카드 용법 근거 — e약은요·허가정보 API 연동. 배경: 약 카드 `dosage` 가 모델 기억 — 식약처 낱알식별에 용법이 없고 도구 지침이 "의학 지식으로 써라". 3.5 FL 이 타이레놀 1일 최대 2,000mg(2/2). e약은요·허가정보 API 연동 또는 임시안 결정(§10-3)
   - [ ] 의학 지침 보강 — 응급·진료 기준 섹션 필수 · 해열제 교차 복용 등 투약 오류 권고 금지 · 표준 치료 누락(CBT-I 등) — 2.5·3.5 FL 공통 감점(PLAN_GEMINI_25_SHUTDOWN §8-4), 별건
-  - [ ] 라우터 교체 · 유료 키 고정(게스트 포함) · `thinkingBudget: 0` 경로 정리(라우터·LangChain·약 검색·미디어) · `model-thinking.ts` 3.5 FL 행
+  - [x] §9 구현(PLAN §11) — `ROLE_MODEL` 3.5 FL · `roleGenConfig` · `getRoleApiKey` · 직접 `thinkingBudget` 0곳 · 스모크 라우터 19/19·도구 24/24
+  - [ ] dev 배포·실화면 — 게스트 검색 턴·도구 카드·YouTube·업로드 PDF/영상·알약 사진·제목 요약
   - [ ] 그 뒤: Decisions 하이브리드 — 1순위 g5(gemini-decision-1 + v4 + criteria, 기준 0.7 · 11-23 튜닝 98.6%·골든·검증 100%·인젝션 10/10) → 멀티턴 직렬화·follow_up·topic_field · 가격 원문 · shadow — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
   - [ ] 규칙 오판정: "영어 현재완료 시제" 를 `classifySearchNeed` 가 on
 - [ ] 🟡 **Gemini 4 Hydrogen 추가 · 3.6 내리기(11-22 기획 · 2.5 종료 대응 뒤로)** — 선택 옵션으로 추가, 3.6 숨김. 🔴 3.6 이 기본 모델이고 무료티어 긴 입력 담당 → 기본 3.8 전환 전 3.8 `fastLongInput` 무료티어 실측(T1)·게스트 무료 키 가능 여부(T0) → [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](plans/PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)
