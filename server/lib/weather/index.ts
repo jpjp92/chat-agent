@@ -245,8 +245,12 @@ type OwmEntry = {
 const OWM_FETCH_TIMEOUT_MS = 8_000;
 const KMA_FETCH_TIMEOUT_MS = 9_000;
 
-async function fetchOwm<T>(url: string): Promise<T> {
-  const res = await fetch(url, { next: { revalidate: 600 }, signal: AbortSignal.timeout(OWM_FETCH_TIMEOUT_MS) } as any);
+// 현재·예보는 캐시하지 않는다. `next.revalidate` 는 만료 뒤 첫 요청에 **오래된 캐시를 그대로 주고** 뒤에서 갱신한다
+// (stale-while-revalidate). 서울은 평소 KMA 가 답해 OWM 캐시가 안 갱신되다가, KMA 시간 초과 폴백 때 3일 전
+// (11-22) 응답이 오늘 카드로 나갔다 → DEV_261125 §7. 좌표 변환(geocode)만 캐시한다 — 바뀌지 않는 값이다.
+async function fetchOwm<T>(url: string, { cacheable = false }: { cacheable?: boolean } = {}): Promise<T> {
+  const cacheOpt = cacheable ? { next: { revalidate: 86_400 } } : { cache: 'no-store' };
+  const res = await fetch(url, { ...cacheOpt, signal: AbortSignal.timeout(OWM_FETCH_TIMEOUT_MS) } as any);
   const data = await res.json();
   if (!res.ok) throw new Error(data?.message || `OpenWeather request failed (${res.status})`);
   return data as T;
@@ -258,7 +262,7 @@ async function geocode(city: string, apiKey: string): Promise<Resolved> {
   const normalized = normalizeCityInput(city);
   const query = cityAliasQuery(normalized) || normalized;
   const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${apiKey}`;
-  const geo = await fetchOwm<Array<{ name: string; local_names?: Record<string, string>; lat: number; lon: number; country: string }>>(url);
+  const geo = await fetchOwm<Array<{ name: string; local_names?: Record<string, string>; lat: number; lon: number; country: string }>>(url, { cacheable: true });
   const match = geo[0];
   if (!match) {
     const err: any = new Error('도시를 찾지 못했습니다.');
@@ -539,6 +543,27 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
   };
 }
 
+// ── 관측 신선도 ──────────────────────────────────────────────────────
+// 캐시·공급자 지연 어느 쪽이든 오래된 관측을 "지금 날씨"로 내보내지 않는다. 실황은 정시 발표(KMA)·10분 주기(OWM)라
+// 3시간이면 정상 응답은 걸리지 않는다.
+export const WEATHER_MAX_OBSERVATION_AGE_MS = 3 * 60 * 60 * 1000;
+
+/** 관측 시각이 너무 오래됐거나(또는 읽을 수 없으면) true. 미래 시각은 시계 차이로 보고 통과시킨다. */
+export function isStaleObservation(observedAtIso: string | null | undefined, now: Date = new Date()): boolean {
+  const t = Date.parse(observedAtIso ?? '');
+  if (!Number.isFinite(t)) return true;
+  return now.getTime() - t > WEATHER_MAX_OBSERVATION_AGE_MS;
+}
+
+const assertFresh = (data: WeatherData): WeatherData => {
+  if (isStaleObservation(data.current?.observedAt)) {
+    const err: any = new Error(`관측 시각이 오래됐습니다(${data.source})`);
+    err.code = 'WEATHER_STALE';
+    throw err;
+  }
+  return data;
+};
+
 // ── 진입점 ──────────────────────────────────────────────────────────
 export async function buildWeatherData(city: string): Promise<WeatherData> {
   const apiKey = openWeatherKey();
@@ -552,11 +577,11 @@ export async function buildWeatherData(city: string): Promise<WeatherData> {
 
   if (resolved.country === 'KR' && kmaKey()) {
     try {
-      return await buildKmaData(resolved);
+      return assertFresh(await buildKmaData(resolved));
     } catch (error: any) {
-      console.warn('[weather] KMA 실패 → OpenWeather 폴백:', resolved.label, error?.message);
-      return buildOpenWeatherData(resolved, apiKey);
+      console.warn('[weather] KMA 실패 → OpenWeather 폴백:', resolved.label, error?.code ?? error?.message);
+      return assertFresh(await buildOpenWeatherData(resolved, apiKey));
     }
   }
-  return buildOpenWeatherData(resolved, apiKey);
+  return assertFresh(await buildOpenWeatherData(resolved, apiKey));
 }
