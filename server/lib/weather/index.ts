@@ -242,7 +242,10 @@ type OwmEntry = {
 // 외부 API가 멈추면 함수 최대 실행 시간까지 매달린다 → 툴 실행엔 상위 타임아웃이 없으므로
 // per-fetch로 끊는다. KMA 정상 응답은 ~2~3.6s 라 8s면 정상 응답은 안 잘리고 행만 차단한다.
 const OWM_FETCH_TIMEOUT_MS = 8_000;
-const KMA_FETCH_TIMEOUT_MS = 9_000;
+// 11-25 측정: 단기예보 최대 3.45s(30회, 19시), 오전엔 간헐적으로 9.5s+ 시간 초과. 5s 면 정상 응답은 안 끊고
+// 느릴 땐 OWM 폴백까지 4s 빨라진다. 느린 응답은 아래 로그로 운영 분포를 본다(DEV_261125 §11).
+const KMA_FETCH_TIMEOUT_MS = 5_000;
+const KMA_SLOW_LOG_MS = 3_000;
 // 중기는 단기와 병렬이고 없어도 카드가 나간다 — 단기보다 오래 기다리게 하지 않는다
 const KMA_MID_TIMEOUT_MS = 4_000;
 
@@ -388,12 +391,22 @@ async function fetchKma(path: string, query: Record<string, string>, timeoutMs =
     throw err;
   }
   const params = new URLSearchParams({ ...query, authKey: apiKey });
-  const res = await fetch(`${KMA_BASE}${path}?${params.toString()}`, {
-    headers: { Accept: 'application/json,*/*', 'User-Agent': 'chat-agent-weather/1.0' },
-    next: { revalidate: 600 },
-    signal: AbortSignal.timeout(timeoutMs),
-  } as any);
-  const text = await res.text();
+  const op = path.split('/').pop();
+  const startedAt = Date.now();
+  let res: Response, text: string;
+  try {
+    res = await fetch(`${KMA_BASE}${path}?${params.toString()}`, {
+      headers: { Accept: 'application/json,*/*', 'User-Agent': 'chat-agent-weather/1.0' },
+      next: { revalidate: 600 },
+      signal: AbortSignal.timeout(timeoutMs),
+    } as any);
+    text = await res.text();
+  } catch (error: any) {
+    console.warn(`[weather] KMA 지연 ${op} ${Date.now() - startedAt}ms ${error?.name === 'TimeoutError' ? 'timeout' : 'error'}`);
+    throw error;
+  }
+  const ms = Date.now() - startedAt;
+  if (ms >= KMA_SLOW_LOG_MS) console.warn(`[weather] KMA 지연 ${op} ${ms}ms ok`);
   let data: any;
   try { data = JSON.parse(text); } catch { throw new Error(`KMA JSON 파싱 실패 (${res.status})`); }
   const header = data?.response?.header;
