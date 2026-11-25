@@ -3,7 +3,8 @@
  *
  * 설계(PLAN_WEATHER_TOOL_260706):
  *  - 격자좌표는 하드코딩 표가 아니라 `dfsXyConv(lat,lon)` LCC 공식(전국 커버). geocoding은 1회.
- *  - 한국(country=KR) → KMA(실황+단기 2콜, 육상예보 생략), 실패 시 OpenWeather 폴백. 그 외 → OpenWeather.
+ *  - 한국(country=KR) → KMA(실황+단기 2콜 + 중기 2콜 병렬), 실패 시 OpenWeather 폴백. 그 외 → OpenWeather.
+ *  - 국내 지명은 OWM 위치 변환 없이 `kr-places.ts` 좌표표로.
  *  - 출력은 **언어 중립 구조 데이터**(condition/note 코드 + 숫자). i18n은 클라이언트(WeatherRenderer)가 담당.
  *  - 강수: 현재 우선 + 예보 fallback + PCP 범위/미만 파싱(폭우 시 강수량 소실 방지).
  *
@@ -11,6 +12,7 @@
  */
 
 import { findKrPlace } from './kr-places';
+import { mergeDaily, midLandReg, midTmFcCandidates, parseMidDays } from './kma-mid';
 
 // ── 공개 타입 (렌더러/툴 공용 — 언어 중립) ──────────────────────────
 
@@ -65,7 +67,7 @@ type WeatherData = {
     precip: { state: PrecipState; mm: number; pop: number };
     observedAt: string;              // ISO
   };
-  daily: WeatherDaily[];             // KMA +3일 / OWM 5일 (렌더러가 가변 처리)
+  daily: WeatherDaily[];             // 최대 5일 — KMA 단기 + 중기(kma-mid.ts) / OWM 5일 (렌더러가 가변 처리)
   forecastDays: number;              // daily 길이(렌더러 note용)
   notes: WeatherNote[];
 };
@@ -241,6 +243,8 @@ type OwmEntry = {
 // per-fetch로 끊는다. KMA 정상 응답은 ~2~3.6s 라 8s면 정상 응답은 안 잘리고 행만 차단한다.
 const OWM_FETCH_TIMEOUT_MS = 8_000;
 const KMA_FETCH_TIMEOUT_MS = 9_000;
+// 중기는 단기와 병렬이고 없어도 카드가 나간다 — 단기보다 오래 기다리게 하지 않는다
+const KMA_MID_TIMEOUT_MS = 4_000;
 
 // 현재·예보는 캐시하지 않는다. `next.revalidate` 는 만료 뒤 첫 요청에 **오래된 캐시를 그대로 주고** 뒤에서 갱신한다
 // (stale-while-revalidate). 서울은 평소 KMA 가 답해 OWM 캐시가 안 갱신되다가, KMA 시간 초과 폴백 때 3일 전
@@ -253,12 +257,12 @@ async function fetchOwm<T>(url: string, { cacheable = false }: { cacheable?: boo
   return data as T;
 }
 
-type Resolved = { input: string; label: string; name: string; country: string; lat: number; lon: number };
+type Resolved = { input: string; label: string; name: string; country: string; lat: number; lon: number; midTaReg?: string };
 
 async function geocode(city: string, apiKey: string): Promise<Resolved> {
   const normalized = normalizeCityInput(city);
   const kr = findKrPlace(normalized);
-  if (kr) return { input: normalized, label: kr.label, name: kr.label, country: 'KR', lat: kr.lat, lon: kr.lon };
+  if (kr) return { input: normalized, label: kr.label, name: kr.label, country: 'KR', lat: kr.lat, lon: kr.lon, midTaReg: kr.midTaReg };
   const query = cityAliasQuery(normalized) || normalized;
   const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${apiKey}`;
   const geo = await fetchOwm<Array<{ name: string; local_names?: Record<string, string>; lat: number; lon: number; country: string }>>(url, { cacheable: true });
@@ -376,7 +380,7 @@ async function buildOpenWeatherData(resolved: Resolved, apiKey: string): Promise
 // ── KMA ─────────────────────────────────────────────────────────────
 type KmaItem = Record<string, string | number | undefined>;
 
-async function fetchKma(path: string, query: Record<string, string>) {
+async function fetchKma(path: string, query: Record<string, string>, timeoutMs = KMA_FETCH_TIMEOUT_MS) {
   const apiKey = kmaKey();
   if (!apiKey) {
     const err: any = new Error('KMA_API_KEY가 없습니다.');
@@ -387,7 +391,7 @@ async function fetchKma(path: string, query: Record<string, string>) {
   const res = await fetch(`${KMA_BASE}${path}?${params.toString()}`, {
     headers: { Accept: 'application/json,*/*', 'User-Agent': 'chat-agent-weather/1.0' },
     next: { revalidate: 600 },
-    signal: AbortSignal.timeout(KMA_FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   } as any);
   const text = await res.text();
   let data: any;
@@ -423,13 +427,15 @@ function groupKmaForecast(rows: KmaItem[]) {
   }
   return [...grouped.values()].sort((a, b) => `${a.fcstDate}${a.fcstTime}`.localeCompare(`${b.fcstDate}${b.fcstTime}`));
 }
-function summarizeKmaDaily(villageRows: KmaItem[]): WeatherDaily[] {
+// 단기예보 마지막 날은 몇 시간만 온다(11-28 TMP 8개, 11-29 자정 1개) — TMN·TMX 둘 다 있거나 이만큼 있어야 하루 값
+const KMA_DAY_MIN_HOURS = 20;
+function summarizeKmaDaily(villageRows: KmaItem[]): (WeatherDaily & { complete: boolean })[] {
   const byDate = new Map<string, Record<string, string>[]>();
   for (const row of groupKmaForecast(villageRows)) {
     const date = dateFromYmd(row.fcstDate);
     byDate.set(date, [...(byDate.get(date) || []), row.values]);
   }
-  return [...byDate.entries()].slice(0, 5).map(([date, entries]) => {
+  return [...byDate.entries()].map(([date, entries]) => {
     const temps = entries.map(v => numericValue(v.TMP)).filter((v): v is number => v !== null);
     const pop = entries.map(v => numericValue(v.POP)).filter((v): v is number => v !== null);
     const rain = entries.map(v => numericValue(v.PCP)).filter((v): v is number => v !== null);
@@ -451,8 +457,29 @@ function summarizeKmaDaily(villageRows: KmaItem[]): WeatherDaily[] {
       pop: pop.length ? Math.max(0, ...pop) : 0,
       rainMm: Number(rain.reduce((s, v) => s + v, 0).toFixed(1)),
       snowMm: Number(snow.reduce((s, v) => s + v, 0).toFixed(1)),
+      complete: (tmn !== undefined && tmx !== undefined) || temps.length >= KMA_DAY_MIN_HOURS,
     };
   });
+}
+
+/** 중기 육상·기온 — 최근 발표가 아직 비면(NO_DATA) 직전 발표. 실패는 빈 배열(카드는 단기 일수로 나간다). */
+async function fetchMidDaily(taReg: string | undefined): Promise<WeatherDaily[]> {
+  if (!taReg) return [];
+  const get = (op: string, regId: string, tmFc: string) =>
+    fetchKma(`/typ02/openApi/MidFcstInfoService/${op}`, { pageNo: '1', numOfRows: '10', dataType: 'JSON', regId, tmFc }, KMA_MID_TIMEOUT_MS)
+      .then(j => kmaItems(j)[0] ?? {});
+  for (const tmFc of midTmFcCandidates()) {
+    try {
+      const [land, ta] = await Promise.all([get('getMidLandFcst', midLandReg(taReg), tmFc), get('getMidTa', taReg, tmFc)]);
+      return parseMidDays(land, ta, tmFc);
+    } catch (error: any) {
+      if (!/NO_DATA/.test(String(error?.message))) {
+        console.warn('[weather] KMA 중기 실패 → 단기만:', taReg, error?.name === 'TimeoutError' ? 'timeout' : error?.message);
+        return [];
+      }
+    }
+  }
+  return [];
 }
 
 /**
@@ -480,7 +507,7 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
   const hourly = latestHourlyBase();
   const village = latestVillageForecastBase();
 
-  // 육상예보(getLandFcst) 생략 — regId/stnId는 공식 없음(코드표) + notes는 규칙기반으로 충분.
+  const midDaily = fetchMidDaily(resolved.midTaReg);   // 단기와 병렬 — 자체에서 실패를 삼킨다
   const [nowcast, villageForecast] = await Promise.all([
     fetchKma('/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst', {
       pageNo: '1', numOfRows: '1000', dataType: 'JSON',
@@ -501,7 +528,8 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
   }
   const cur = kmaCategoryMap(nowRows);
   const firstForecast = groupKmaForecast(villageRows).find(e => e.values.SKY !== undefined)?.values || {};
-  const daily = summarizeKmaDaily(villageRows);
+  const today = dateFromYmd(formatKst(new Date(Date.now() + 9 * 3600 * 1000)).ymd);
+  const daily = mergeDaily(summarizeKmaDaily(villageRows), await midDaily, today);
 
   const temp = Math.round(numericValue(cur.T1H) ?? daily[0]?.maxTemp ?? 0);
   // 카드 머리 범위와 예보 첫 칸(오늘)이 같은 숫자를 보이도록 현재 기온도 오늘 범위에 넣는다.
