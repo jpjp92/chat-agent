@@ -234,6 +234,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-route-auth.mts` | **API 라우트 인증 소스 계약** — 공개 허용목록(`client-log`·`proxy-image`) 밖의 모든 라우트가 토큰을 실제로 검증하는지(`requireProfile` 또는 user-scoped DB/Storage), 인증이 본문 파싱·직행 분기보다 앞인지, proxy-image 가 약품 호스트 허용목록을 쓰는지(DEV_261017) |
 | `test-drug-card-urls.mts` | **약 카드 URL 덮어쓰기** — 모델이 깨뜨린 `image_url`·`mfds_url`·`connectdi_url` 을 `[MFDS_DRUG_DATA]` 후보 값으로(후보 선택·못 고르면 원문·null 처리, DEV_261024 §7) |
 | `test-drug-imprint.mts` | **MFDS 각인 정리** — `PRINT_BACK` 이 "마크" 일 때 `MARK_CODE_*_ANAL` 분석값으로 "마크(dHP)" 를 만들고 비전 호출을 생략하는지(마그네스정, 2026-10-18) |
+| `test-drug-easy-info.mts` | **e약은요 용법 조회** — 태그 제거·숫자 보존, 이름 조회는 질의로 시작하는 품목만, 미수록·HTTP 오류·키 없음은 null, 실패 로그에 키 없음(네트워크 없음, PLAN_GEMINI_25_SHUTDOWN §10-5) |
 | `test-openai-text-repair.mts` | **OpenAI 최종 텍스트 보정** — 사설 영역 인용 표지·`turn0search0` 잔재 제거, 울타리 없는 약 카드 JSON 을 `json:drug` 로 감싸기(다른 JSON·산문은 그대로, DEV_261018 §9) |
 | `test-law-plan.mts` | **법령 조회 계획** — `law_qa` 기본 body, 조사 뗀 토큰 조문 매칭(DEV_261018 §11) |
 | `test-ssrf.mts` | **SSRF 판정** — `new URL()` 정규화를 거친 hostname 으로 대괄호 IPv6·IPv4-mapped·NAT64·숫자 IP·메타데이터 주소 차단, 공인 주소 통과, 스킴·자격증명 거부, 로컬 서버로 내부 주소 리다이렉트 Location 거부(DEV_261010) |
