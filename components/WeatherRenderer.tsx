@@ -5,7 +5,7 @@ import { COND_LABEL } from '../lib/weather-labels';
 /**
  * 날씨 카드 렌더러 — weatherTool의 json:weather(언어 중립 구조)를 받아 렌더.
  * i18n(라벨·상태문구·요일)은 전부 이 클라이언트에서 language prop으로 매핑(OWM lang 불필요).
- * 디자인: preview/weather-card-sample.html 확정본(바이올렛 액센트·글래스·수직 하늘 그라디언트).
+ * 디자인: 모바일 우선 정리(11-26) — 머리에 출처·시각, 기온 48px + 큰 아이콘, 지표 인라인 3열, 예보 5칸(최고/최저 세로).
  */
 
 type Lang = 'ko' | 'en' | 'es' | 'fr';
@@ -43,10 +43,10 @@ const GLYPH: Record<Condition, string> = {
 
 
 const T: Record<Lang, Record<string, string>> = {
-  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', forecast: '예보', today: '오늘', updated: '업데이트', feels: '체감', now: '현재', expected: '오늘 예상', kmaFoot: '기상청 단기·중기예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', kmaDays: 'KMA +{n}일', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
-  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', forecast: 'Forecast', today: 'Today', updated: 'Updated', feels: 'Feels', now: 'Now', expected: 'Expected', kmaFoot: 'KMA short & mid-range', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain expected · bring an umbrella', snowExp: 'Snow expected · be prepared', kmaDays: 'KMA +{n} days', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
-  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', forecast: 'Pronóstico', today: 'Hoy', updated: 'Actualizado', feels: 'Sens.', now: 'Ahora', expected: 'Previsto', kmaFoot: 'KMA corto y medio plazo', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', kmaDays: 'KMA +{n} días', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
-  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', forecast: 'Prévisions', today: "Auj.", updated: 'Màj', feels: 'Ress.', now: 'Actuel', expected: 'Prévu', kmaFoot: 'KMA court et moyen terme', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', kmaDays: 'KMA +{n} j', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
+  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', today: '오늘', feels: '체감', hi: '최고', lo: '최저', now: '현재', expected: '오늘 예상', kmaName: '기상청', daysTitle: '{n}일 예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
+  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', today: 'Today', feels: 'Feels', hi: 'H', lo: 'L', now: 'Now', expected: 'Expected', kmaName: 'KMA', daysTitle: '{n}-day forecast', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain expected · bring an umbrella', snowExp: 'Snow expected · be prepared', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
+  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', today: 'Hoy', feels: 'Sens.', hi: 'Máx', lo: 'Mín', now: 'Ahora', expected: 'Previsto', kmaName: 'KMA', daysTitle: 'Pronóstico {n} días', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
+  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', today: "Auj.", feels: 'Ress.', hi: 'Max', lo: 'Min', now: 'Actuel', expected: 'Prévu', kmaName: 'KMA', daysTitle: 'Prévisions {n} j', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
 };
 
 const LOCALE: Record<Lang, string> = { ko: 'ko-KR', en: 'en-US', es: 'es-ES', fr: 'fr-FR' };
@@ -111,7 +111,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
     const e = (data as any) as { input?: string; code?: string };
     const msg = e.code === 'CITY_NOT_FOUND' ? tt.notFound : tt.fetchFail;
     return (
-      <div className="w-full max-w-[380px] sm:max-w-[540px] my-3 rounded-[22px] border border-[#e2e8f0] dark:border-white/[0.07] bg-white dark:bg-[#0e162a] px-5 py-4 flex items-center gap-3">
+      <div className="w-full sm:max-w-[520px] my-3 rounded-[22px] border border-[#e2e8f0] dark:border-white/[0.07] bg-white dark:bg-[#0e162a] px-5 py-4 flex items-center gap-3">
         <span className="text-xl">🌫️</span>
         <div>
           <div className="text-sm font-bold text-[#0f172a] dark:text-[#f1f5f9]">{msg}</div>
@@ -131,110 +131,95 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
   const precipSub = precipState === 'now'
     ? (snowy ? tt.snowNow : tt.rainNow)
     : (snowy ? tt.snowExp : tt.rainExp);
-  const forecastNote = isKma ? tt.kmaDays.replace('{n}', String(w.forecastDays)) : 'OpenWeather';
+  const days = w.daily.slice(0, 5);
+  const muted = 'text-[#64748b] dark:text-[#94a3b8]';
+  const strong = 'text-[#0f172a] dark:text-[#f1f5f9]';
 
+  // 모바일 기준 레이아웃(11-26): 폭 100%·패딩 16px·기온 48px·지표 인라인 1줄·예보 5칸 ~110px — 카드 높이 ~450px.
+  // 출처·갱신 시각은 머리로 올려 푸터를 없앴다(전엔 배지 + 푸터 + 예보 머리 세 곳에 출처가 있었다).
   return (
-    <div className="w-full max-w-[380px] sm:max-w-[540px] my-3 font-[Inter,system-ui,sans-serif]">
-      <div className="relative rounded-[26px] overflow-hidden border border-[#e2e8f0] dark:border-white/[0.07] bg-white dark:bg-[#0e162a] shadow-[0_1px_2px_rgba(15,23,42,.05),0_12px_34px_-12px_rgba(15,23,42,.16)] dark:shadow-[0_12px_40px_-14px_rgba(0,0,0,.7)]">
-        {/* 하늘 그라디언트 */}
-        <div className={`pointer-events-none absolute inset-x-0 top-0 h-[180px] ${skyClass(c.condition, isNightAt(w.updatedAt, w.timezoneOffsetSec))}`} />
+    <div className="w-full sm:max-w-[520px] my-3 font-[Inter,system-ui,sans-serif]">
+      <div className="relative rounded-[22px] overflow-hidden border border-[#e2e8f0] dark:border-white/[0.07] bg-white dark:bg-[#0e162a] shadow-[0_1px_2px_rgba(15,23,42,.05),0_10px_28px_-12px_rgba(15,23,42,.16)] dark:shadow-[0_10px_32px_-14px_rgba(0,0,0,.7)]">
+        <div className={`pointer-events-none absolute inset-x-0 top-0 h-[150px] ${skyClass(c.condition, isNightAt(w.updatedAt, w.timezoneOffsetSec))}`} />
 
-        <div className="relative p-[18px_20px_20px]">
-          {/* 위치 + 출처 */}
-          <div className="flex justify-between items-start gap-3">
-            <div className="flex items-center gap-[7px] text-[14px] font-bold text-[#0f172a] dark:text-[#f1f5f9]">
-              <i className="fa-solid fa-location-dot text-[#6366f1] dark:text-[#a5b4fc] text-[13px]" aria-hidden />
-              <span>{w.location.name}{w.location.country && w.location.country !== 'KR' ? `, ${w.location.country}` : ''}</span>
+        <div className="relative p-4 sm:p-5">
+          {/* 머리: 위치 · 출처·갱신 시각 */}
+          <div className="flex justify-between items-center gap-3">
+            <div className={`flex items-center gap-1.5 min-w-0 text-[16px] font-bold ${strong}`}>
+              <i className="fa-solid fa-location-dot text-[#6366f1] dark:text-[#a5b4fc] text-[14px]" aria-hidden />
+              <span className="truncate">{w.location.name}{w.location.country && w.location.country !== 'KR' ? `, ${w.location.country}` : ''}</span>
             </div>
-            <span className={`text-[10.5px] font-extrabold tracking-wide px-2 py-[3px] rounded-full whitespace-nowrap border ${
-              isKma
-                ? 'text-[#4f46e5] border-[#a5b4fc]/45 bg-[#a5b4fc]/12 dark:text-[#a5b4fc] dark:bg-[#a5b4fc]/12 dark:border-[#a5b4fc]/25'
-                : 'text-[#64748b] border-[#e2e8f0] bg-[#f1f5f9] dark:text-[#94a3b8] dark:border-white/10 dark:bg-white/5'
-            }`}>{w.source}</span>
+            <span className={`shrink-0 text-[12px] font-semibold ${muted} tabular-nums`}>
+              {isKma ? tt.kmaName : 'OpenWeather'} · {localHm(w.updatedAt, w.timezoneOffsetSec)}
+            </span>
           </div>
 
-          {/* 온도 + 상태 */}
-          <div className="flex items-baseline gap-1.5 mt-3.5">
-            <span className="text-[56px] font-black tracking-[-.04em] tabular-nums leading-[.92] text-[#0f172a] dark:text-[#f1f5f9]">{c.temp}</span>
-            <span className="text-[22px] font-extrabold text-[#94a3b8] dark:text-[#7c8aa5]">°C</span>
-          </div>
-          <div className="text-[15px] font-bold mt-1.5 text-[#1e293b] dark:text-[#e2e8f0]">
-            {COND_LABEL[c.condition]?.[lang] ?? ''}
-            <span className="text-[#64748b] dark:text-[#94a3b8] font-semibold text-[13px] ml-2">{tt.feels} {c.feelsLike}°</span>
+          {/* 기온·상태 + 큰 아이콘 */}
+          <div className="flex items-center justify-between gap-3 mt-3">
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1">
+                <span className={`text-[48px] font-black tracking-[-.04em] tabular-nums leading-none ${strong}`}>{c.temp}°</span>
+                <span className="text-[18px] font-bold text-[#94a3b8] dark:text-[#7c8aa5]">C</span>
+              </div>
+              <div className={`text-[16px] font-bold mt-1.5 ${strong}`}>{COND_LABEL[c.condition]?.[lang] ?? ''}</div>
+              <div className={`text-[13px] font-medium mt-0.5 ${muted} tabular-nums`}>
+                {tt.feels} {c.feelsLike}° · {tt.hi} {c.maxTemp}° / {tt.lo} {c.minTemp}°
+              </div>
+            </div>
+            <div className="shrink-0 text-[44px] leading-none" aria-hidden>{GLYPH[c.condition]}</div>
           </div>
 
-          {/* 강수 히어로 (없으면 생략) */}
+          {/* 강수 안내(비·눈이 있을 때만) */}
           {precipState !== 'none' && (
-            <div className="mt-4 flex items-center gap-3 px-[15px] py-[13px] rounded-2xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[linear-gradient(180deg,rgba(129,140,248,.12),rgba(129,140,248,.03))] dark:bg-[linear-gradient(180deg,rgba(129,140,248,.13),rgba(129,140,248,.035))]">
-              <div className="w-[30px] h-[30px] shrink-0 grid place-items-center rounded-[9px] bg-[#a5b4fc]/18 text-[#6366f1] dark:text-[#a5b4fc] text-[15px]">{snowy ? '🌨️' : '🌧️'}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[16px] font-extrabold tabular-nums tracking-[-.01em] text-[#0f172a] dark:text-[#f1f5f9]">
-                  {c.precip.mm}mm
-                  <span className={`text-[10.5px] font-extrabold ml-1.5 px-1.5 py-0.5 rounded-md align-middle ${
-                    precipState === 'now'
-                      ? 'bg-[#c0392b]/12 text-[#c0392b] dark:text-[#e79070] dark:bg-[#e79070]/15'
-                      : 'bg-[#a5b4fc]/16 text-[#4f46e5] dark:text-[#a5b4fc]'
-                  }`}>{precipState === 'now' ? tt.now : tt.expected}</span>
-                </div>
-                <div className="text-[12px] text-[#64748b] dark:text-[#94a3b8] mt-0.5 truncate">{precipSub}</div>
-              </div>
-              <div className="shrink-0 text-right">
-                <div className="text-[15px] font-extrabold tabular-nums text-[#0f172a] dark:text-[#f1f5f9]">{c.precip.pop}%</div>
-                <div className="text-[10px] text-[#64748b] dark:text-[#94a3b8] font-bold">{tt.chance}</div>
-              </div>
+            <div className="mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[#a5b4fc]/[.08]">
+              <span className="text-[15px]" aria-hidden>{snowy ? '🌨️' : '🌧️'}</span>
+              <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${strong}`}>
+                {c.precip.mm}mm · {precipState === 'now' ? tt.now : tt.expected}
+                <span className={`ml-1.5 font-medium ${muted}`}>{precipSub}</span>
+              </span>
+              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[#0284c7] dark:text-[#7dd3fc]">{c.precip.pop}%</span>
             </div>
           )}
 
-          {/* 스탯 3칩 */}
-          <div className="flex gap-2 mt-3.5">
+          {/* 지표: 인라인 3열 */}
+          <div className={`grid grid-cols-3 gap-2 mt-3 py-3 border-y border-[#e2e8f0] dark:border-white/[0.07] text-[13px] ${strong}`}>
             {[
-              { l: tt.humidity, v: `${c.humidity}%` },
-              { l: tt.wind, v: `${c.windSpeed}m/s` },
-              { l: tt.clouds, v: `${c.clouds}%` },
+              { icon: 'fa-droplet', l: tt.humidity, v: `${c.humidity}%` },
+              { icon: 'fa-wind', l: tt.wind, v: `${c.windSpeed}m/s` },
+              { icon: 'fa-cloud', l: tt.clouds, v: `${c.clouds}%` },
             ].map((s, i) => (
-              <div key={i} className="flex-1 py-2.5 px-1 rounded-[13px] text-center bg-[#f1f5f9] dark:bg-white/[0.04] border border-[#e2e8f0] dark:border-white/[0.07]">
-                <div className="text-[10.5px] text-[#64748b] dark:text-[#94a3b8] font-bold">{s.l}</div>
-                <div className="text-[14px] font-extrabold mt-[3px] tabular-nums text-[#1e293b] dark:text-[#e2e8f0]">{s.v}</div>
+              <div key={i} className={`flex items-center gap-1.5 min-w-0 ${i === 1 ? 'justify-center' : i === 2 ? 'justify-end' : ''}`}>
+                <i className={`fa-solid ${s.icon} text-[12px] text-[#0284c7] dark:text-[#7dd3fc]`} aria-hidden />
+                <span className={`${muted} whitespace-nowrap`}>{s.l}</span>
+                <span className="font-bold tabular-nums whitespace-nowrap">{s.v}</span>
               </div>
             ))}
           </div>
 
-          {/* 예보 스트립 */}
-          {w.daily.length > 0 && (
+          {/* 5일 예보 */}
+          {days.length > 0 && (
             <>
-              <div className="flex items-center justify-between mx-0.5 mt-3 mb-1.5 sm:mt-[18px] sm:mb-[9px]">
-                <span className="text-[11px] font-extrabold text-[#64748b] dark:text-[#94a3b8] tracking-wide uppercase">{tt.forecast}</span>
-                <span className="text-[10.5px] text-[#94a3b8] dark:text-[#7c8aa5]">{forecastNote}</span>
-              </div>
-              <div className="grid grid-flow-col auto-cols-fr gap-1.5 sm:gap-2">
-                {w.daily.slice(0, 5).map((d, i) => {
+              <div className={`mt-3 mb-2 text-[15px] font-bold ${strong}`}>{tt.daysTitle.replace('{n}', String(days.length))}</div>
+              <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+                {days.map((d, i) => {
                   const today = d.date === todayYmd;
                   return (
-                    <div key={d.date + i} className={`py-2 px-1 sm:py-[11px] sm:px-1.5 rounded-xl sm:rounded-[15px] text-center border transition-colors duration-200 cursor-default ${
+                    <div key={d.date + i} className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-center border tabular-nums ${
                       today
-                        ? 'border-[#a5b4fc]/45 bg-[#a5b4fc]/[.09] hover:border-[#a5b4fc]/75 hover:bg-[#a5b4fc]/[.17] dark:hover:bg-[#a5b4fc]/[.2]'
-                        : 'border-[#e2e8f0] dark:border-white/[0.07] bg-[#f1f5f9] dark:bg-white/[0.04] hover:border-[#cbd5e1] hover:bg-[#e2e8f0] dark:hover:border-white/20 dark:hover:bg-white/[0.09]'
+                        ? 'border-[#a5b4fc]/45 bg-[#a5b4fc]/[.09]'
+                        : 'border-transparent bg-[#f1f5f9] dark:bg-white/[0.04]'
                     }`}>
-                      <div className="text-[10px] sm:text-[11px] font-extrabold text-[#64748b] dark:text-[#94a3b8]">{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
-                      <div className="text-[17px] sm:text-[20px] mt-1.5 mb-1.5 sm:mt-[5px] sm:mb-2 leading-none">{GLYPH[d.condition]}</div>
-                      <div className="flex flex-nowrap items-baseline justify-center gap-0.5 sm:gap-1 tabular-nums whitespace-nowrap">
-                        <span className="text-[9px] sm:text-[11px] font-semibold text-[#94a3b8] dark:text-[#7c8aa5] whitespace-nowrap">{d.minTemp}°</span>
-                        <span className="text-[11px] sm:text-[13px] font-extrabold text-[#1e293b] dark:text-[#e2e8f0] whitespace-nowrap">{d.maxTemp}°</span>
-                      </div>
-                      <div className="text-[9.5px] sm:text-[10px] font-bold text-[#0284c7] dark:text-[#7dd3fc] mt-1.5 sm:mt-1 tabular-nums">{d.pop}%</div>
+                      <div className={`text-[12px] font-semibold ${today ? strong : muted}`}>{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
+                      <div className="text-[22px] leading-none my-0.5" aria-hidden>{GLYPH[d.condition]}</div>
+                      <div className={`text-[14px] font-bold ${strong}`}>{d.maxTemp}°</div>
+                      <div className={`text-[12px] ${muted}`}>{d.minTemp}°</div>
+                      <div className="text-[11.5px] font-semibold text-[#0284c7] dark:text-[#7dd3fc]">{d.pop}%</div>
                     </div>
                   );
                 })}
               </div>
             </>
           )}
-
-          {/* 푸터 */}
-          <div className="flex items-center gap-2 mt-3.5 text-[11px] text-[#94a3b8] dark:text-[#7c8aa5]">
-            <span>{tt.updated} {localHm(w.updatedAt, w.timezoneOffsetSec)}</span>
-            <span className="w-[3px] h-[3px] rounded-full bg-current opacity-60" />
-            <span>{isKma ? tt.kmaFoot : 'OpenWeather'}</span>
-          </div>
         </div>
       </div>
     </div>
