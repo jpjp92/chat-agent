@@ -15,7 +15,7 @@
  */
 
 import { resolveThinkingConfig, thinkingRetryLevel, heavyMediaTimeoutAction } from '../server/agent/nodes/generation-config.js';
-import { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinkingLevel } from '../server/model-thinking.js';
+import { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinkingLevel, roleGenConfig } from '../server/model-thinking.js';
 
 let pass = 0, fail = 0;
 const check = (group: string, name: string, cond: boolean, detail = '') => {
@@ -107,6 +107,34 @@ for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'ge
 }
 check('미디어 타임아웃', '이미 2.5 면 강등할 곳이 없다 → 정지',
     action(false, FALLBACK) === 'stop', action(false, FALLBACK));
+
+// ── 역할 모델(3.5 Flash-Lite) — 2.5 Flash 12-01 종료 대응(PLAN_GEMINI_25_SHUTDOWN §9) ──────────
+// 3.5 Flash-Lite 는 thinkingBudget 0 을 400 으로 거부한다. 역할 호출이 budget·sampling 을 보내면 전 경로가 깨진다.
+{
+    const FL = 'gemini-3.5-flash-lite';
+    const g = roleGenConfig(FL, { sampling: { temperature: 0 } }) as any;
+    check('역할 모델', '3.5 FL 역할 설정에 thinkingBudget 없음', g.thinkingConfig?.thinkingBudget === undefined, JSON.stringify(g));
+    check('역할 모델', '3.5 FL 역할 설정에 sampling 없음', g.temperature === undefined, JSON.stringify(g));
+    check('역할 모델', '3.5 FL 기본은 최저(MINIMAL)', g.thinkingConfig?.thinkingLevel === 'MINIMAL', JSON.stringify(g));
+    check('역할 모델', '3.5 FL medium 요청은 MEDIUM', (roleGenConfig(FL, { level: 'medium' }) as any).thinkingConfig?.thinkingLevel === 'MEDIUM');
+    check('역할 모델', '3.8 에 minimal 요청 → 최저(LOW)로 내린다', (roleGenConfig('gemini-3.8-flash', { level: 'minimal' }) as any).thinkingConfig?.thinkingLevel === 'LOW');
+    const g25 = roleGenConfig('gemini-2.5-flash', { sampling: { temperature: 0 } }) as any;
+    check('역할 모델', '2.5 는 종전(budget 0 + sampling)', g25.thinkingConfig?.thinkingBudget === 0 && g25.temperature === 0, JSON.stringify(g25));
+    check('역할 모델', '3.5 FL 의학 질문은 medium', cfg(FL, { intent: 'medical_qa' }).thinkingLevel === 'medium', JSON.stringify(cfg(FL, { intent: 'medical_qa' })));
+    check('역할 모델', '3.5 FL 일반은 minimal', cfg(FL).thinkingLevel === 'minimal', JSON.stringify(cfg(FL)));
+    check('역할 모델', '3.6 의학은 종전대로 최저', cfg('gemini-3.6-flash', { intent: 'medical_qa' }).thinkingLevel === 'minimal');
+    // 역할 상수가 2.5 를 가리키면 12-01 부터 budget 경로로 3.5 FL 을 불러 400 — 소스로 고정한다(models.ts 는 server-only)
+    const modelsSrc = (await import('node:fs')).readFileSync(new URL('../server/models.ts', import.meta.url), 'utf8');
+    check('역할 모델', 'ROLE_MODEL = 3.5 Flash-Lite', /export const ROLE_MODEL = SERVER_MODELS\.FLASH_LITE_3_5;/.test(modelsSrc) && modelsSrc.includes('FLASH_LITE_3_5: "gemini-3.5-flash-lite"'));
+    check('역할 모델', 'ROUTER_MODEL 은 역할 모델', modelsSrc.includes('export const ROUTER_MODEL = ROLE_MODEL;'));
+    // 직접 thinkingBudget 을 적는 역할 호출이 다시 생기면 잡는다(2.5 전용 경로인 generation-config·langchain 2.5 분기는 제외)
+    const fs = await import('node:fs');
+    const roleFiles = ['server/agent/nodes/router.ts', 'server/agent/law-tool.ts', 'server/agent/drug-info-tool.ts', 'server/agent/nodes/vision.ts', 'app/api/summarize-title/route.ts'];
+    for (const f of roleFiles) check('역할 모델', `${f} 에 직접 thinkingBudget 없음`, !/thinkingBudget\s*:/.test(fs.readFileSync(f, 'utf8')));
+    const genSrc = fs.readFileSync('server/agent/nodes/generator.ts', 'utf8');
+    check('역할 모델', 'generator 에 직접 thinkingBudget 없음', !/thinkingBudget\s*:/.test(genSrc));
+    check('역할 모델', 'generator 검색 강등 = 역할 모델', genSrc.includes('const SEARCH_FALLBACK_MODEL = ROLE_MODEL;'));
+}
 
 console.log(`\n통과 ${pass} · 실패 ${fail}`);
 process.exit(fail > 0 ? 1 : 0);

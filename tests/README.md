@@ -205,7 +205,7 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 + **논문 카드 종합단계 웹검색**(명시 검색 요청일 때만·논문 intent 만·과거참조 제외, 그리고 실제로 `web_search` 툴이 실리는지 배선까지) |
 | `test-chat-models.mts` | 모델 레지스트리·Responses 멀티턴·strict function calling·카드 fast-pass/약품 합성·Gemini `googleSearch`/OpenAI `web_search` 매핑·실제 `url_citation` 번호화·quota/UI 오류 정책 |
-| `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 2.5·키 회전·내부 MFDS/쿼터 fallback 비노출 |
+| `test-drug-fallback.mts` | 약품 제품명/성분명 분기·Search 모델 = 역할 모델(3.5 Flash-Lite)·첫 시도 유료 키·키 회전·내부 MFDS/쿼터 fallback 비노출 |
 | `test-chart-axis.mts` | 차트 x축 판정 — 숫자 x·불규칙 숫자 범주는 numeric(간격 보존), 등간격·문자열·막대는 category, 깔끔한 눈금 간격·양끝 배수, 연.월 범주(`2025.11`·전부 `YY.MM`)는 category. 픽셀 간격은 `manual/check-chart-axis-pixels.py` |
 | `test-tracing.mts` | LangSmith 추적 정리 — 가짜 전송으로 실제 멀티파트 본문을 받아 질문·이메일·URL·스트리밍 토큰·오류 메시지 없음, 입출력 `{}`·오류 이름만·토큰 수만 `usage_metadata`, `CHAT_TRACING`·키 없으면 꺼짐. SDK 호출 span(노드 자식·모델·검색·토큰·출처 수, 꺼짐이면 원본 그대로), 원문 모드(배포는 허용 스위치까지·Production 불가·base64 길이만·식별자 `[id]`·문장 안 이메일·전화·키 가림·공유 참조는 순환 아님·별도 프로젝트·검색 칩·헤더·서명 제거·리다이렉트 `[redirect]`), Gemini 캐시 토큰 `cache_read`, 배포 원문은 dev 브랜치만, 민감 의도·첨부 턴은 루트 종료까지 보류 후 숨김, 대화 내역은 마지막 사용자 메시지부터·Storage URL 가림, OpenAI 응답 `instructions`·`tools` 되돌림 제거·캐시 토큰, 시스템 지시 속 앞 턴 출처 제목 개수만, LangChain 메시지 정규화·URL 쿼리 제거·사용자 없는 대화 배열 fail-closed, LangSmith 429(한도 초과) 때 응답 정상·재시도 없이 전송 정리·일시 중지 중 전송 0, 무응답 서버는 요청 상한에서 실제 중단·재시도 없음·정지 해제 뒤 전송 재개. T2 루트 메타데이터 — 턴 값 전엔 루트 끝 보류·동시 2턴 값 안 섞임·자식 바로 전송·부모 관계 유지·원문 없음·오류 턴 `releaseTurn`·다른 요청 대기 trace 안 건드림·대기 상한 뒤 메타데이터 없이 전송 |
 | `test-source-kind.mts` | 출처 성격 분류 — 점 경계 접미사·공식/2차 목록, 흉내 도메인·호스트명 아닌 제목은 기타, 개수 집계 |

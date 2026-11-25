@@ -1,7 +1,7 @@
 import { AgentStateType } from "../state";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config";
-import { SERVER_MODELS } from "../../models";
+import { getNextApiKey, getRoleApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError, API_KEYS } from "../../config";
+import { ROLE_MODEL, roleGenConfig } from "../../models";
 import { HumanMessage } from "@langchain/core/messages";
 
 /**
@@ -10,7 +10,8 @@ import { HumanMessage } from "@langchain/core/messages";
  */
 export const visionNode = async (state: AgentStateType) => {
     console.log('[LangGraph] Entering Vision Node');
-    let apiKey = getNextApiKey();
+    // 알약 사진 판독은 역할 호출 — 게스트도 유료 키부터(PLAN_GEMINI_25_SHUTDOWN §9)
+    let apiKey = getRoleApiKey();
     if (!apiKey) throw new Error("No API key available for Vision API");
 
     const visionPrompt = `You are a pharmaceutical pill identification expert. Carefully examine the pill in the image and extract its visual characteristics.
@@ -79,9 +80,9 @@ Return ONLY a JSON object in this exact format, no other text:
     while (attempt < MAX_ATTEMPTS) {
         try {
             const model = new ChatGoogleGenerativeAI({
-                model: SERVER_MODELS.FLASH,
+                model: ROLE_MODEL,
                 apiKey: apiKey,
-                temperature: 0.1,
+                ...(roleGenConfig(ROLE_MODEL, { sampling: { temperature: 0.1 } }) as any),
             });
 
             const response = await model.invoke([message]);

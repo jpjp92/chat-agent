@@ -98,7 +98,7 @@ check('채팅 route가 Gemini 키를 모든 공급자에 선행 강제하지 않
 check('GPT 일반 경로가 Gemini 키 취득보다 먼저 실행됨',
     generatorSource.indexOf('if ((!useLangChain || localFunctionTool) && isOpenAIChatModel(resolvedModel))') >= 0
     && generatorSource.indexOf('if ((!useLangChain || localFunctionTool) && isOpenAIChatModel(resolvedModel))')
-        < generatorSource.indexOf('const geminiApiKey = getNextApiKey()'));
+        < generatorSource.indexOf('const geminiApiKey = '));
 check('OpenAI 응답은 generator에서 직접 중복 전송하지 않음',
     generatorSource.includes("provider: 'openai'")
     && !generatorSource.includes('if (sendEvent) sendEvent({ text: result.text })'));

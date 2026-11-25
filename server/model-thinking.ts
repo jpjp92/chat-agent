@@ -40,3 +40,21 @@ export const usesThinkingLevel = (m: string): boolean => (THINKING_MODE[m]?.leve
 /** 그 모델이 이 레벨을 받는가. 미등록 모델은 false. */
 export const supportsThinkingLevel = (m: string, level: string): boolean =>
     (THINKING_MODE[m]?.levels as readonly string[] | undefined)?.includes(level) ?? false;
+
+/**
+ * 역할 호출 생성 설정 — 레벨 모델이면 `thinkingLevel` 만(sampling 은 3.x 가 무시하고 향후 400 위험),
+ * budget 모델(2.5)이면 종전 값(budget 0 + 넘겨받은 sampling). 직접 `thinkingBudget: 0` 을 적던 자리를 여기로 모은다 —
+ * 3.5 Flash-Lite 는 budget 0 을 400 으로 거부한다(PLAN_GEMINI_25_SHUTDOWN §6-1).
+ * `level` 이 그 모델에 없으면 최저로 내린다.
+ */
+export const roleGenConfig = (
+    m: string,
+    { level, sampling = {} }: { level?: ThinkingLevel; sampling?: Record<string, number> } = {},
+): Record<string, unknown> => {
+    if (usesThinkingLevel(m)) {
+        const lv = level && supportsThinkingLevel(m, level) ? level : lowestThinkingLevel(m)!;
+        // SDK enum(ThinkingLevel)이 대문자다 — LangChain 경로도 그대로 넘긴다
+        return { thinkingConfig: { thinkingLevel: lv.toUpperCase() } };
+    }
+    return { ...sampling, thinkingConfig: { thinkingBudget: 0 } };
+};

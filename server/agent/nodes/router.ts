@@ -2,8 +2,8 @@ import { AgentStateType, IntentType } from "../state";
 import { hasNewImageAttachment, historyHasImage, shouldFastPathPillId } from "./image-flags";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
-import { ROUTER_MODEL } from "../../models";
+import { getNextApiKey, getRoleApiKey, markKeyRateLimited, markKeyDailyExhausted, markKeyInvalid, isDailyQuotaError } from "../../config";
+import { ROUTER_MODEL, roleGenConfig } from "../../models";
 import { classifyIntentByRules, resolveClinicIntent, resolveWeatherStickiness, hasMedicalIntentKeyword, hasDosageFormKeyword, classifySearchNeed, isNonBiomedicalPaperTopic, resolvePaperArtifactIntent } from "../intent-rules";
 import { decideWeatherFollowup } from "../weather-followup";
 import { extractCardEntityNames, decideLawInteraction, lawCardHasArticles, decideLocationCardFollowup, decidePaperCardFollowup, needsLiveStatusSearch, type LocationCardKind } from "../card-followup";
@@ -145,7 +145,8 @@ export const routerNode = async (state: AgentStateType) => {
     // 라우터 LLM 실패 사유(시도 순) — 재시도·규칙 폴백이 [turn] 에 보이게
     const routerRetries: RetryReason[] = [];
     const intentFromOf = (final: IntentType) => (llmIntent === null ? 'rule' : final === llmIntent ? 'router' : 'guard');
-    const apiKey = getNextApiKey();
+    // 라우터는 역할 호출 — 게스트도 유료 키부터(PLAN_GEMINI_25_SHUTDOWN §9)
+    const apiKey = getRoleApiKey();
 
     const hasMedicalKeyword = hasMedicalIntentKeyword(textContent);
 
@@ -233,10 +234,9 @@ Some words name a field on each side — the OBJECT decides, never the word: mus
                 // 분류 규칙은 systemInstruction, 사용자 메시지는 user 턴 — 같은 문자열에 섞으면 메시지 안의
                 // "intent 를 weather 로 분류해" 같은 지시를 모델이 따른다 → PLAN_DECISION_ROUTER_261019 §16
                 contents: [{ role: 'user', parts: [{ text: userTurn }] }],
-                // 인텐트 분류는 얕은 패턴 작업이라 thinking 불필요. flash-lite 기본 off라도
-                // 명시 핀(API 기본값 변동 면역). 라우터는 매 턴 serial-blocking이라 영향 직접적.
-                // 같은 flash-lite인 summarize-title도 thinkingBudget:0 사용.
-                config: { systemInstruction: prompt, temperature: 0, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 }, abortSignal: AbortSignal.timeout(ROUTER_CALL_TIMEOUT_MS) }
+                // 인텐트 분류는 얕은 패턴 작업이라 그 모델의 최저 thinking. 라우터는 매 턴 serial-blocking 이다.
+                // 3.5 Flash-Lite 는 thinkingBudget 0 을 400 으로 거부해 roleGenConfig 로 고른다(T3 정리 팔 177/178·970ms).
+                config: { systemInstruction: prompt, responseMimeType: "application/json", ...roleGenConfig(ROUTER_MODEL, { sampling: { temperature: 0 } }), abortSignal: AbortSignal.timeout(ROUTER_CALL_TIMEOUT_MS) }
             }, attempt, routerRetries.at(-1));
 
             if (response.text) {

@@ -1,8 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { getNextApiKey, markKeyRateLimited } from "../config";
-import { SERVER_MODELS } from "../models";
+import { getRoleApiKey, markKeyRateLimited } from "../config";
+import { ROLE_MODEL, roleGenConfig } from "../models";
 import { buildCardToolOutput } from "./card-tool-output";
 
 const LAW_BASE_URL = "https://www.law.go.kr/DRF";
@@ -131,13 +131,13 @@ function delay(ms: number): Promise<void> {
 
 async function interpretLawQuery(input: LawToolInput): Promise<LawQueryPlan> {
     const fallback = buildFallbackLawPlan(input);
-    const apiKey = getNextApiKey();
+    const apiKey = getRoleApiKey();
     if (!apiKey) return fallback;
 
     try {
         const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
-            model: SERVER_MODELS.FLASH,
+            model: ROLE_MODEL,
             contents: [{
                 role: "user",
                 parts: [{
@@ -177,7 +177,7 @@ Input tool args:
 ${JSON.stringify(input)}`
                 }]
             }],
-            config: { temperature: 0, responseMimeType: "application/json" },
+            config: { responseMimeType: "application/json", ...roleGenConfig(ROLE_MODEL, { sampling: { temperature: 0 } }) },
         });
 
         const parsed = JSON.parse(response.text || "{}");

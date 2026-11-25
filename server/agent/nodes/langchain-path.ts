@@ -1,8 +1,8 @@
 import { AgentStateType } from "../state";
 import { type LangName, pickByLang } from "../lang";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { getNextApiKey, markKeyInvalid, API_KEYS } from "../../config";
-import { SERVER_MODELS, usesThinkingLevel, lowestThinkingLevel, supportsThinkingLevel } from "../../models";
+import { getNextApiKey, getRoleApiKey, markKeyInvalid, API_KEYS } from "../../config";
+import { ROLE_MODEL, usesThinkingLevel, lowestThinkingLevel, supportsThinkingLevel } from "../../models";
 import { identifyPillTool, searchWebTool } from "../tools";
 import { searchDrugInfoTool } from "../drug-info-tool";
 import { pharmacyTool } from "../pharmacy-tool";
@@ -72,23 +72,24 @@ export const runLangChainPath = async (args: {
             return { messages: [new AIMessage(pickByLang(YT_ERR, langName))] };
         }
     }
-    let lcApiKey = getNextApiKey() ?? apiKey;
+    // 도구 의도는 역할 호출(역할 모델) — 게스트도 유료 키부터. SDK 실패 폴백은 사용자 모델이라 종전 로테이션.
+    let lcApiKey = (useLangChain ? getRoleApiKey() : getNextApiKey()) ?? apiKey;
     let lcAttempt = 0;
 
     while (lcAttempt < API_KEYS.length) {
         try {
             // 모델 선택 원칙: LangChain 경로 인텐트는 전부 외부 API 도구 기반(MFDS·약국·병원·동물병원·
-            // 법령·영화)이라 핵심은 API 데이터지 모델 추론이 아니다 → 빠른 2.5-flash 를 쓴다.
+            // 법령·영화)이라 핵심은 API 데이터지 모델 추론이 아니다 → 빠른 역할 모델(ROLE_MODEL)을 쓴다.
             // (느린 기본 모델로 돌리면 도구 응답 전반이 느려진다 → DEV_260530)
-            //   · fast-pass(출력 폐기, 카드=툴 JSON): thinking 완전 off(budget 0) — 순수 tool-router.
-            //   · drug_info/drug_id(카드·산문 합성): 2.5 기본 thinking 유지.
-            //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존, 3.x 면 thinking LOW 캡.
+            //   · fast-pass(출력 폐기, 카드=툴 JSON): 그 모델의 최저 thinking — 순수 tool-router.
+            //   · 합성(drug_info·drug_id·law_qa·논문): `low` 캡.
+            //   · 비-도구 호출(=SDK 완전 실패 폴백)만 resolvedModel 보존.
             const FAST_PASS_INTENTS = new Set(["pharmacy_search", "hospital_search", "vet_search", "movie_search", "law_search", "weather"]);
             const SYNTH_TOOL_INTENTS = new Set(["drug_id", "drug_info", "law_qa", "paper_search", "arxiv_search"]);
             // 산문은 모델이, 카드는 도구 출력이 그대로 간다.
             const PINNED_CARD_INTENTS = { paper_search: "paper", arxiv_search: "paper" } as const;
             const isToolIntent = FAST_PASS_INTENTS.has(state.intent) || SYNTH_TOOL_INTENTS.has(state.intent);
-            const pathModel = isToolIntent ? SERVER_MODELS.FLASH : resolvedModel;
+            const pathModel = isToolIntent ? ROLE_MODEL : resolvedModel;
             // 계열(isThreeXFlash)이 아니라 측정표로 고른다 — 3.5 Flash-Lite 는 3.x 계열 목록에 없어
             // 계열로 판정하면 2.5 용 `thinkingBudget: 0` 이 나가 400 이 된다.
             const levelLcModel = usesThinkingLevel(pathModel);

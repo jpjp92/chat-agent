@@ -97,6 +97,20 @@ const isPaidFirstEnabled = (): boolean => process.env.GEMINI_PAID_FIRST === 'tru
 /** 이 키로 부르는 호출이 유료 등급인가 — 검색 강등(freeTierSearch) 판단에 쓴다. */
 export const isPaidKey = (apiKey: string | null | undefined): boolean => !!apiKey && apiKey === paidKey();
 
+/**
+ * 역할 호출 키 — 회원·게스트 구분 없이 유료 키부터(2.5 → 3.5 Flash-Lite: 무료 키 검색이 429 라 게스트 검색·약 검색이
+ * 무료 키로는 안 된다, PLAN_GEMINI_25_SHUTDOWN §9 범위 A). 유료 키가 쿨다운이거나 스위치(GEMINI_PAID_FIRST)가 꺼지면
+ * 무료 로테이션으로. 재시도는 기존처럼 getNextApiKey 로 넘어간다.
+ */
+export const getRoleApiKey = (): string | null => {
+    if (isPaidFirstEnabled()) {
+        const key = paidKey()!;
+        const cooldownUntil = rateLimitedUntil.get(key);
+        if (!cooldownUntil || Date.now() > cooldownUntil) return key;
+    }
+    return getNextApiKey();
+};
+
 export const getNextApiKey = (): string | null => {
     // 회원(paid-first) 요청은 유료 키부터. 실패한 유료 키는 기존 mark* 가 쿨다운을 걸므로
     // 재시도 루프가 다시 부르면 아래 무료 로테이션으로 내려간다(PLAN_GEMINI_PAID_FIRST_261004 §2-1 (a)).

@@ -8,11 +8,12 @@ import { HumanMessage } from "@langchain/core/messages";
 import {
     API_KEYS,
     getNextApiKey,
+    getRoleApiKey,
     isDailyQuotaError,
     markKeyDailyExhausted,
     markKeyRateLimited,
 } from "../config";
-import { SERVER_MODELS } from "../models";
+import { ROLE_MODEL, roleGenConfig } from "../models";
 import { searchWebTool } from "./tools";
 import {
     buildDrugFallbackInstruction,
@@ -33,9 +34,9 @@ const MFDS_API_KEY = process.env.MFDS_API_KEY || '';
  * 반드시 구분한다.** 둘을 같은 값으로 두면 429 로 검색이 안 돌았는데도 "검색해도 없다"로 처리돼
  * 모델이 훈련 지식으로 제품명을 지어낸다 → DEV_260815_DEPLOY_CHECK
  */
-// 약품 웹 검색은 무료티어 Google Search가 실제로 동작하는 2.5 Flash로 고정한다.
-// DEFAULT_CHAT_MODEL(현재 3.6)은 MODEL_CAPS상 freeTierSearch=false라 이 fallback에서 429가 난다.
-export const DRUG_SEARCH_MODEL = SERVER_MODELS.FLASH;
+// 약품 웹 검색은 역할 모델(3.5 Flash-Lite) + 유료 키. 3.x 는 무료 키 검색이 429 라 첫 시도는 getRoleApiKey,
+// 재시도는 무료 로테이션(PLAN_GEMINI_25_SHUTDOWN §9). 2.5 Flash 는 12-01 종료.
+export const DRUG_SEARCH_MODEL = ROLE_MODEL;
 
 type DrugSearchOutcome =
     | { status: 'ok'; text: string }
@@ -80,7 +81,7 @@ async function searchDrugViaGoogleSearch(drugName: string, prompt: string = REFE
     let lastQuotaReason = '웹 검색 할당량 소진(429)';
 
     while (attemptedKeys.size < API_KEYS.length) {
-        const apiKey = getNextApiKey();
+        const apiKey = attemptedKeys.size === 0 ? getRoleApiKey() : getNextApiKey();
         if (!apiKey || attemptedKeys.has(apiKey)) break;
         attemptedKeys.add(apiKey);
 
@@ -91,7 +92,7 @@ async function searchDrugViaGoogleSearch(drugName: string, prompt: string = REFE
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
                     tools: [{ googleSearch: {} }],
-                    temperature: 0.1,
+                    ...roleGenConfig(DRUG_SEARCH_MODEL, { sampling: { temperature: 0.1 } }),
                 },
             });
             const text = response.text?.trim();
@@ -169,7 +170,7 @@ async function searchDrugReferences(drugName: string): Promise<DrugSearchOutcome
  */
 async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' | 'marked'): Promise<string | null> {
     try {
-        const apiKey = getNextApiKey();
+        const apiKey = getRoleApiKey();
         if (!apiKey) return null;
 
         // 이미지 다운로드
@@ -194,14 +195,12 @@ async function extractImprintViaVision(imageUrl: string, side: 'front' | 'back' 
         const contentType = (imgRes.headers.get('content-type') || 'image/jpeg').split(';')[0];
 
         const model = new ChatGoogleGenerativeAI({
-            // 각인 1~2자 판독엔 고성능 모델이 필요 없다 — 2.5-flash 로 고정해 Vision fan-out(최대 10콜)
+            // 각인 1~2자 판독엔 고성능 모델이 필요 없다 — 빠른 역할 모델로 고정해 Vision fan-out(최대 10콜)
             // 지연을 줄인다(느린 모델이면 fan-out 이 수십 초로 늘어 drug_info 가 무응답이 된다).
-            model: SERVER_MODELS.FLASH,
+            model: ROLE_MODEL,
             apiKey: apiKey,
-            // temperature 0: 로고형 각인이 실행마다 다른 글자로 흔들리던 비결정성 제거
-            temperature: 0,
-            // OCR은 토큰 1개만 출력 — thinking 불필요. budget 0으로 호출당 지연 최소화.
-            thinkingConfig: { thinkingBudget: 0 },
+            // OCR 은 토큰 1개 — 그 모델의 최저 thinking. 2.5 였다면 temperature 0(로고형 각인 비결정성 제거)·budget 0.
+            ...(roleGenConfig(ROLE_MODEL, { sampling: { temperature: 0 } }) as any),
         });
 
         // 'marked' — 각인이 한 면에만 있을 때. MFDS 의 앞/뒤 표기가 사진 배치(왼쪽=앞)와 어긋나는 경우가 있어

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { API_KEYS, getNextApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from '../../../server/config';
-import { SUMMARY_MODELS } from '../../../server/models';
+import { API_KEYS, getNextApiKey, getRoleApiKey, markKeyRateLimited, markKeyDailyExhausted, isDailyQuotaError } from '../../../server/config';
+import { SUMMARY_MODELS, ROLE_MODEL, roleGenConfig } from '../../../server/models';
 import { requireProfile } from '../../../lib/supabase/route';
 import { runWithKeyTier } from '../../../server/key-tier';
 
@@ -45,14 +45,15 @@ async function generateTitle(req: NextRequest) {
         let modelUnavailable = false;
         for (let k = 0; k < API_KEYS.length; k++) {
             if (modelUnavailable) break;
-            const apiKey = getNextApiKey();
+            // 역할 모델(3.5 Flash-Lite) 폴백은 첫 시도를 유료 키로 — 무료 키는 503 이 잦았다(T2)
+            const apiKey = model === ROLE_MODEL && k === 0 ? getRoleApiKey() : getNextApiKey();
             if (!apiKey) continue;
             try {
                 const ai = new GoogleGenAI({ apiKey });
                 const response = await ai.models.generateContent({
                     model,
                     contents: [{ parts: [{ text: `${TITLE_PROMPT}\n\n[대화 내용]\n${chatHistoryText}` }] }],
-                    config: { temperature: 0.3, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } },
+                    config: { maxOutputTokens: 400, ...roleGenConfig(model, { sampling: { temperature: 0.3 } }) },
                 });
                 if (response.text) {
                     const firstLine = response.text.split('\n').map((l: string) => l.trim()).find((l: string) => l.length > 0) ?? '';

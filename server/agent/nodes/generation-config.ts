@@ -60,6 +60,9 @@ export const resolveThinkingConfig = (ctx: {
     intent: string;
 }) => {
     const level = lowestThinkingLevel(ctx.model);
+    // 3.5 Flash-Lite(역할 모델)로 가는 의학 질문은 `medium` — `low` 는 생각 토큰 0 이라 응급 신호를 빠뜨렸고,
+    // 2.5 budget 3000 과 품질이 같다(PLAN_GEMINI_25_SHUTDOWN §8-4·§8-5). 선택 모델(3.6·3.8)은 종전대로 최저.
+    if (ctx.model === 'gemini-3.5-flash-lite' && ctx.intent === 'medical_qa' && !ctx.isMediaTurn) return { thinkingLevel: 'medium' };
     if (level) return { thinkingLevel: level };
     return ctx.isYoutubeRequest || ctx.hasUrlContent || ctx.isMediaTurn
         ? { thinkingBudget: 0 }

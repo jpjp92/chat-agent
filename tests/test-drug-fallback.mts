@@ -29,8 +29,9 @@ check('제품 미확인 시 검증되지 않은 브랜드 금지', productFallba
 
 const toolSource = fs.readFileSync(new URL('../server/agent/drug-info-tool.ts', import.meta.url), 'utf8');
 const promptSource = fs.readFileSync(new URL('../server/agent/prompt.ts', import.meta.url), 'utf8');
-check('약품 웹 검색 모델은 Search 가능한 Gemini 2.5 레지스트리 사용',
-    toolSource.includes('DRUG_SEARCH_MODEL = SERVER_MODELS.FLASH'));
+// 2.5 Flash 12-01 종료 → 역할 모델(3.5 Flash-Lite) + 유료 키 우선. 무료 키면 3.x 검색이 429 다(PLAN_GEMINI_25_SHUTDOWN §9)
+check('약품 웹 검색 모델은 역할 모델 레지스트리 + 첫 시도 유료 키',
+    toolSource.includes('DRUG_SEARCH_MODEL = ROLE_MODEL') && toolSource.includes('attemptedKeys.size === 0 ? getRoleApiKey() : getNextApiKey()'));
 check('도구 스키마가 query_kind를 필수 요구',
     toolSource.includes("query_kind: z.enum(['product', 'ingredient_or_class'])"));
 check('성분 질문은 MFDS 제품명 조회를 건너뜀',

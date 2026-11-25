@@ -1,7 +1,7 @@
 import 'server-only';
 
 // thinking 측정표는 순수 모듈에 있다(하니스가 임포트해야 해서). 호출부 편의를 위해 re-export.
-export { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinkingLevel } from './model-thinking';
+export { THINKING_MODE, lowestThinkingLevel, usesThinkingLevel, supportsThinkingLevel, roleGenConfig } from './model-thinking';
 export type { ThinkingLevel } from './model-thinking';
 
 export const SERVER_MODELS = {
@@ -12,6 +12,7 @@ export const SERVER_MODELS = {
     FLASH_3_5: "gemini-3.5-flash",
     FLASH: "gemini-2.5-flash",
     FLASH_LITE: "gemini-2.5-flash-lite",
+    FLASH_LITE_3_5: "gemini-3.5-flash-lite",
     // 3.8 Flash Lite TTS — Gemini 중 가장 빠르고 문장 누락이 없다. 3.1(preview)은 누락·느림·비쌈,
     // 2.5 는 stream 호출도 한 덩어리 — PLAN_TTS_STREAMING_261002 §4-2d
     TTS: "gemini-3.8-flash-lite-tts",
@@ -35,10 +36,17 @@ export const DEFAULT_CHAT_MODEL: ChatModelId = SERVER_MODELS.FLASH_3_6;
  *
  * `SUMMARY_MODELS`(대화 제목)는 flash-lite 그대로다 — 별개 상수이고 성격도 다르다.
  */
-export const ROUTER_MODEL = SERVER_MODELS.FLASH;
+/**
+ * 역할 모델 — 라우터·도구 경로·약 검색·비전·미디어 핀·검색 강등·재시도처럼 사용자가 고르지 않는 호출.
+ * 2.5 Flash 가 맡았는데 2026-12-01 종료(요청이 3.5 Flash-Lite 로 자동 전환)라 미리 옮긴다.
+ * 역할 8종·품질·도구 의도 11개 실측에서 같거나 낫고 2~3배 빠르다 → PLAN_GEMINI_25_SHUTDOWN_261122 §8·§9·§10.
+ * `SERVER_MODELS.FLASH`(2.5)는 사용자 선택 ID 로만 남는다(resolveChatModel 이 후속 모델로 바꾼다).
+ */
+export const ROLE_MODEL = SERVER_MODELS.FLASH_LITE_3_5;
+export const ROUTER_MODEL = ROLE_MODEL;
 export const SUMMARY_MODELS = [
     SERVER_MODELS.FLASH_LITE,
-    SERVER_MODELS.FLASH,
+    ROLE_MODEL,
 ] as const;
 
 // 모델별 무료티어 능력 (DEV_260723 §7-9). 축마다 독립 플래그.
@@ -63,6 +71,9 @@ export const MODEL_CAPS: Record<string, { freeTierSearch: boolean; fastMultimoda
     "gemini-3.7-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5; 긴 입력은 무료티어 혼잡 때문에 핀
     "gemini-3.6-flash": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: false, groundingReliable: true  },  // 2026-10-04 21/21 (검색 끄면 0/7 인 문항, PLAN_GEMINI_PAID_FIRST §7-1). 08-17 의 2/5 는 09-22·10-04 두 번 재현 안 됨
     "gemini-3.5-flash": { freeTierSearch: false, fastMultimodal: false, fastLongInput: false, urlFileData: false, groundingReliable: true  },  // 5/5
+    // 3.5 Flash-Lite — 유료 키 실측(T1·역할 8종): 검색·함수 호출·이미지·YouTube·URL PDF fileData 정상.
+    // 무료 키 검색은 429 — 역할 호출은 유료 키 우선(getRoleApiKey)이라 freeTierSearch 는 사실대로 false.
+    "gemini-3.5-flash-lite": { freeTierSearch: false, fastMultimodal: true,  fastLongInput: true,  urlFileData: true,  groundingReliable: true  },
     "gemini-2.5-flash": { freeTierSearch: true,  fastMultimodal: true,  fastLongInput: true,  urlFileData: true , groundingReliable: true  },  // 5/5
 };
 
@@ -96,6 +107,9 @@ export const isChatModelId = (m: unknown): m is ChatModelId =>
  */
 const RETIRED_CHAT_MODELS: Partial<Record<ChatModelId, ChatModelId>> = {
     [SERVER_MODELS.FLASH_3_7]: SERVER_MODELS.FLASH_3_8,
+    // 2.5 Flash 는 2026-12-01 종료 — 그 뒤 요청은 3.5 Flash-Lite 로 가는데 우리는 budget 경로로 보내 400 이 난다.
+    // 저장된 선택값은 기본 모델로 돌린다(사용자가 고른 대화 모델은 역할 모델이 아니다).
+    [SERVER_MODELS.FLASH]: DEFAULT_CHAT_MODEL,
 };
 
 /** 요청 모델 → 실제로 부를 모델. 허용 목록 밖이면 기본값, 퇴역 모델이면 후속 모델. */

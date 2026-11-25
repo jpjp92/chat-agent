@@ -149,6 +149,8 @@ export const isChatModelId = (value: string | null): value is ChatModelId =>
 /** 퇴역 모델 → 후속 모델(서버 server/models.ts 의 RETIRED_CHAT_MODELS 와 같은 표). */
 const RETIRED_CHAT_MODELS: Partial<Record<ChatModelId, ChatModelId>> = {
   [CHAT_MODELS.FLASH_3_7]: CHAT_MODELS.FLASH_3_8,
+  // 2.5 Flash 는 2026-12-01 종료
+  [CHAT_MODELS.FLASH]: DEFAULT_CHAT_MODEL,
 };
 
 /** 로컬에 저장된 선택값 → 쓸 모델. 모르는 값은 기본값, 퇴역 모델은 후속 모델, 숨긴 모델은 대체 모델. */

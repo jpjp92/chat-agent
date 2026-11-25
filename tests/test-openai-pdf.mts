@@ -76,7 +76,7 @@ check('undefined 안전', !isOpenAIFileFetchError(undefined));
 
 console.log('\n── ⑤ generator 배선 ──');
 const gen = fs.readFileSync('server/agent/nodes/generator.ts', 'utf8');
-check('PDF 전환은 [turn] 사유 pdf_fallback 을 남기고 2.5 로 다시 부른다', /noteRetry\('pdf_fallback'\);[\s\S]{0,200}return generate\(\{ \.\.\.state, model: SERVER_MODELS\.FLASH \}\)/.test(gen));
+check('PDF 전환은 [turn] 사유 pdf_fallback 을 남기고 역할 모델로 다시 부른다', /noteRetry\('pdf_fallback'\);[\s\S]{0,200}return generate\(\{ \.\.\.state, model: ROLE_MODEL \}\)/.test(gen));
 check('핀 판정이 media.ts 의 hasOpenAIUnsupportedMedia 를 쓴다', gen.includes('hasOpenAIUnsupportedMedia(state.messages)'));
 check('예전 인라인 PDF 핀 정규식 제거', !gen.includes('application\\/pdf|audio\\/|video\\/'));
 check('🔴 Storage URL PDF 가 pinUrlFileData 로 GPT 를 2.5 로 돌리지 않는다', /pinUrlFileData = hasUrlFileData && !selCaps\.urlFileData && !isOpenAIChatModel\(sel\)/.test(gen));

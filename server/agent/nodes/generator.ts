@@ -1,8 +1,8 @@
 import { AgentStateType } from "../state";
 import type { RetryReason } from '../turn-log';
 import { GoogleGenAI } from "@google/genai";
-import { getNextApiKey, markKeyInvalid, isPaidKey, API_KEYS } from "../../config";
-import { DEFAULT_CHAT_MODEL, SERVER_MODELS, modelCaps, isThreeXFlash } from "../../models";
+import { getNextApiKey, getRoleApiKey, markKeyInvalid, isPaidKey, API_KEYS } from "../../config";
+import { DEFAULT_CHAT_MODEL, SERVER_MODELS, ROLE_MODEL, modelCaps, isThreeXFlash, roleGenConfig, usesThinkingLevel } from "../../models";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { type LangName, DEFAULT_LANG_NAME } from "../lang";
 import { buildSdkContents } from "./sdk-contents";
@@ -158,7 +158,7 @@ export const createGeneratorNode = (
         // 예산형 단일 데드라인 대상 — 영상 토큰이 무거운 단일 heavy 호출이라 25s 로는 정상 응답이 끊긴다.
         const isHeavyMediaTurn = isYtVideoTurn || hasUrlFileData;
         const resolvedModel = (pinYoutube || pinUrlFileData || pinOpenAIUnsupportedMedia || (pinUrl && !isOpenAIChatModel(sel)))
-            ? SERVER_MODELS.FLASH
+            ? ROLE_MODEL
             : sel;
         if (pinYoutube) {
             // L23 로그는 state.model(클라 선택)을 찍어 오해 소지 — 핀 실제값을 명시.
@@ -176,7 +176,7 @@ export const createGeneratorNode = (
         // 멀티모달 내용이 없으면 Google Search grounding 을 켠다.
         // 검색 턴 강등 모델 — 무료 키에서 검색이 안 되거나 grounding 이 불안정한 모델은
         // 검색이 필요할 때 2.5 Flash 로 답한다(아래 searchFallbackFor·rmCaps 가 판정).
-        const SEARCH_FALLBACK_MODEL = SERVER_MODELS.FLASH;
+        const SEARCH_FALLBACK_MODEL = ROLE_MODEL;
         // 검색 턴을 2.5 로 강등하는 조건 — **독립된 두 축의 OR** 다.
         //   ① freeTierSearch=false : 무료티어에서 3.x grounding 이 아예 429 (과금 사실)
         //   ② groundingReliable=false : 검색이 발동해도 모델이 결과를 반영하지 않음 (답변 품질)
@@ -248,12 +248,12 @@ export const createGeneratorNode = (
                 });
             } catch (error: any) {
                 // OpenAI 가 PDF 링크를 못 받아 왔다(봇 차단·로그인 필요·만료 — 400 "Error while downloading file.").
-                // 이 턴만 Gemini 2.5 로 다시 부른다. 2.5 는 지금까지 PDF 를 받아 온 검증된 경로다.
+                // 이 턴만 Gemini 역할 모델로 다시 부른다(URL PDF fileData 를 받는다 — T1·역할 8종 실측).
                 const openAIPdfFallback = isOpenAIFileFetchError(error) && hasOpenAIPdf(state.messages);
                 if (!openAIPdfFallback) throw error;
                 noteRetry('pdf_fallback');
-                console.warn(`[LangGraph] OpenAI PDF fetch failed — retrying this turn on ${SERVER_MODELS.FLASH}`);
-                return generate({ ...state, model: SERVER_MODELS.FLASH });
+                console.warn(`[LangGraph] OpenAI PDF fetch failed — retrying this turn on ${ROLE_MODEL}`);
+                return generate({ ...state, model: ROLE_MODEL });
             }
             // Responses API는 현재 비스트리밍 호출이다. 텍스트 전송·DB 누적은 route의
             // generator on_chain_end 한 곳에서만 처리해 중복 전송을 막는다.
@@ -262,7 +262,8 @@ export const createGeneratorNode = (
 
         // OpenAI 일반 요청은 Gemini 키와 독립적으로 위에서 완료된다. Gemini SDK·LangChain
         // 도구·멀티모달 capability fallback에 실제로 진입할 때만 Gemini 키를 요구한다.
-        const geminiApiKey = getNextApiKey();
+        // 역할 모델로 핀된 턴(미디어·URL)은 게스트도 유료 키부터 — 3.5 Flash-Lite 는 무료 키 검색이 429 다(§9)
+        const geminiApiKey = resolvedModel === ROLE_MODEL ? getRoleApiKey() : getNextApiKey();
         console.log('[LangGraph] Gemini key required:', true, '| available:', !!geminiApiKey, '| key:', isPaidKey(geminiApiKey) ? 'paid' : 'free', '| intent:', state.intent);
         if (!geminiApiKey) throw new Error("No Gemini API key available");
 
@@ -393,8 +394,12 @@ export const createGeneratorNode = (
                     const effectiveModel = ((useGoogleSearch && needsSearchFallback) || unavailableDowngrade || pinMedia)
                         ? SEARCH_FALLBACK_MODEL
                         : resolvedModel;
+                    // 검색 강등·503 강등·미디어 핀으로 역할 모델에 가는 호출은 유료 키부터(무료 키면 3.5 Flash-Lite 검색이 429).
+                    // 재시도 키 로테이션(sdkApiKey)은 그대로 두고 이 시도의 호출만 바꾼다.
+                    const roleKey = effectiveModel === ROLE_MODEL && !isPaidKey(sdkApiKey) ? getRoleApiKey() : null;
+                    const callGenai = roleKey && roleKey !== sdkApiKey ? new GoogleGenAI({ apiKey: roleKey }) : genai;
                     if (useGoogleSearch && needsSearchFallback) {
-                        console.log('[LangGraph]', resolvedModel, '+ Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding (free-tier)');
+                        console.log('[LangGraph]', resolvedModel, '+ Google Search → falling back to', SEARCH_FALLBACK_MODEL, 'for grounding');
                     }
                     if (pinMedia) {
                         console.log('[LangGraph] Image/video turn → pinning to', SEARCH_FALLBACK_MODEL, '(free-tier', resolvedModel, 'multimodal exceeds 60s cap)');
@@ -413,7 +418,13 @@ export const createGeneratorNode = (
                     //   - YouTube: budget 0 (끔 — 2.5-flash 에서 fileData 와 thinkingBudget>0 이면 503)
                     //   - medical_qa: budget 3000 (상한)
                     //   - 나머지: undefined (모델 기본값)
-                    const is3xModel = isThreeXFlash(effectiveModel);
+                    // sampling 을 보낼지는 계열이 아니라 측정표로 — 3.5 Flash-Lite 는 3.x 계열 목록 밖이지만 레벨 모델이다
+                    const levelModel = usesThinkingLevel(effectiveModel);
+                    // 역할 모델 재호출(검색 강등·MALFORMED 재시도) 생성 설정 — 2.5 였다면 sampling + budget 0
+                    const searchFallbackGen = roleGenConfig(SEARCH_FALLBACK_MODEL, {
+                        level: state.intent === 'medical_qa' ? 'medium' : undefined,
+                        sampling: { temperature: 0.2, topP: 0.8, topK: 40 },
+                    });
                     const thinkingConfig = resolveThinkingConfig({
                         model: effectiveModel, isYoutubeRequest, hasVideoData, hasUrlContent, isMediaTurn, intent: state.intent,
                     });
@@ -423,20 +434,16 @@ export const createGeneratorNode = (
                     if (useGoogleSearch && needsSearchFallback) {
                         console.log('[LangGraph] Grounding via 2.5 single-pass (Stage2 3.5 synthesis removed)');
 
-                        const stage1Response = await traceGemini('stage1', genai.models, {
+                        const stage1Response = await traceGemini('stage1', callGenai.models, {
                             model: SEARCH_FALLBACK_MODEL,
                             contents: modelContents,
                             config: {
                                 abortSignal: attemptSignal,
                                 systemInstruction: googleProviderInstruction,
                                 tools: [{ googleSearch: {} }],
-                                temperature: 0.2,
-                                topP: 0.8,
-                                topK: 40,
                                 maxOutputTokens: effectiveMaxTokens,
-                                // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — dynamic thinking 이 grounding 지연의
-                                // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
-                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
+                                // medical_qa 는 `medium`(3.5 Flash-Lite `low` 는 생각 0 → 응급 신호 누락), 그 외 최저 — §8-4·§8-5
+                                ...searchFallbackGen,
                             }
                         }, sdkAttempt, retryWhy);
 
@@ -465,13 +472,8 @@ export const createGeneratorNode = (
                                     abortSignal: attemptSignal,
                                     systemInstruction: googleProviderInstruction,
                                     tools: [{ googleSearch: {} }],
-                                    temperature: 0.2,
-                                    topP: 0.8,
-                                    topK: 40,
                                     maxOutputTokens: effectiveMaxTokens,
-                                    // medical_qa: budget 3000 (출처 정밀). 그 외: budget 0 — dynamic thinking 이 grounding 지연의
-                                    // 주된 원인이고 budget 0 이 출처·표·정확도에서 동등하다 (PLAN_THINKING_LATENCY §5-1).
-                                thinkingConfig: state.intent === 'medical_qa' ? { thinkingBudget: 3000 } : { thinkingBudget: 0 },
+                                    ...searchFallbackGen,
                                 }
                             }, sdkAttempt, 'empty');
                             const s1rParts = s1Retry.candidates?.[0]?.content?.parts ?? [];
@@ -496,14 +498,14 @@ export const createGeneratorNode = (
                     } else {
                         // thinkingLevel 이 사고 예산을 다 쓰면 thought 파트만 오고 텍스트가 빈다.
                         // 포기하기 전에 "minimal" 로 한 번 재시도한다.
-                        let singlePassResponse = await traceGemini('single', genai.models, {
+                        let singlePassResponse = await traceGemini('single', callGenai.models, {
                             model: effectiveModel,
                             contents: modelContents,
                             config: {
                                 abortSignal: attemptSignal,
                                 systemInstruction: googleProviderInstruction,
                                 ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
-                                ...(is3xModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
+                                ...(levelModel ? {} : { temperature: 0.2, topP: 0.8, topK: 40 }),
                                 maxOutputTokens: effectiveMaxTokens,
                                 ...videoMediaResolution,
                                 ...(thinkingConfig ? { thinkingConfig: thinkingConfig as any } : {}),
@@ -526,7 +528,7 @@ export const createGeneratorNode = (
                             const thoughtOnlyParts = singleParts.filter((p: any) => p.thought).length;
                             console.warn('[LangGraph] Empty response - finishReason:', finishReason, '| thoughtParts:', thoughtOnlyParts, '| thinkingLevel:', (thinkingConfig as any).thinkingLevel, `— retrying with thinkingLevel=${retryLevel}`);
                             noteRetry('empty');
-                            singlePassResponse = await traceGemini('single_retry', genai.models, {
+                            singlePassResponse = await traceGemini('single_retry', callGenai.models, {
                                 model: effectiveModel,
                                 contents: modelContents,
                                 config: {
@@ -571,18 +573,15 @@ export const createGeneratorNode = (
                                 console.warn('[LangGraph] MALFORMED_FUNCTION_CALL on', effectiveModel, '— retrying on', SEARCH_FALLBACK_MODEL);
                                 turnMeta({ model: SEARCH_FALLBACK_MODEL });
                                 noteRetry('malformed_call');
-                                const mfRetry = await traceGemini('malformed_retry', genai.models, {
+                                const mfRetry = await traceGemini('malformed_retry', callGenai.models, {
                                     model: SEARCH_FALLBACK_MODEL,
                                     contents: modelContents,
                                     config: {
                                         abortSignal: attemptSignal,
                                         systemInstruction: googleProviderInstruction,
                                         ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
-                                        temperature: 0.2,
-                                        topP: 0.8,
-                                        topK: 40,
                                         maxOutputTokens: effectiveMaxTokens,
-                                        thinkingConfig: { thinkingBudget: 0 },
+                                        ...searchFallbackGen,
                                     }
                                 }, sdkAttempt, 'malformed_call');
                                 const mfParts = mfRetry.candidates?.[0]?.content?.parts ?? [];
@@ -621,18 +620,16 @@ export const createGeneratorNode = (
                             const groundModel = needsSearchFallback ? SEARCH_FALLBACK_MODEL : effectiveModel;
                             turnMeta({ model: groundModel, search: true });
                             noteRetry('tool_code');
-                            const groundRetry = await traceGemini('ground_retry', genai.models, {
+                            const groundRetry = await traceGemini('ground_retry', callGenai.models, {
                                 model: groundModel,
                                 contents: modelContents,
                                 config: {
                                     abortSignal: attemptSignal,
                                     systemInstruction: withSearchProviderInstruction(finalInstruction, 'google'),
                                     tools: [{ googleSearch: {} }],
-                                    temperature: 0.2,
-                                    topP: 0.8,
-                                    topK: 40,
                                     maxOutputTokens: effectiveMaxTokens,
-                                    thinkingConfig: { thinkingBudget: 0 },
+                                    // groundModel 이 선택 모델(3.6 등)일 수도 있다 — 3.6 은 thinkingBudget 을 거부해 측정표로 고른다
+                                    ...roleGenConfig(groundModel, { sampling: { temperature: 0.2, topP: 0.8, topK: 40 } }),
                                 }
                             }, sdkAttempt, 'tool_code');
                             const grParts = groundRetry.candidates?.[0]?.content?.parts ?? [];
@@ -762,7 +759,7 @@ export const createGeneratorNode = (
         // ytPrimaryTimedOut: primary가 heavy 상한을 다 써 timeout이면 3.5 폴백(더 느림)도 끝나기 어렵다 →
         // 빠른 실패(429/500/빈응답)에서만 폴백, timeout에서는 스킵.
         // primary 가 2.5 로 핀된 경우(느린 멀티모달 모델 선택)에만 3.5 최후 폴백. 3.6 은 직접 처리라 제외.
-        if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel === SERVER_MODELS.FLASH) {
+        if (!useLangChain && !sdkSuccess && isYtVideoTurn && !ytPrimaryTimedOut && resolvedModel === ROLE_MODEL) {
             console.log('[LangGraph] YouTube fallback: all', resolvedModel, 'keys failed — retrying with', SERVER_MODELS.FLASH_3_5);
             try {
                 const fbKey = getNextApiKey() ?? geminiApiKey;
