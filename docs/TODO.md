@@ -458,6 +458,8 @@ dev 에만 있다(푸시·배포는 사용자). 라우터 쪽 확인 항목은 0
   - [x] §9 구현(PLAN §11) — `ROLE_MODEL` 3.5 FL · `roleGenConfig` · `getRoleApiKey` · 직접 `thinkingBudget` 0곳 · 스모크 라우터 19/19·도구 24/24
   - [ ] dev 배포·실화면 — 게스트 검색 턴·도구 카드·YouTube·업로드 PDF/영상·알약 사진·제목 요약 (11-25 뉴스 검색·영화·날씨 확인 — 날씨 카드 3일 전 데이터 수정, DEV_261125 §7)
   - [ ] KMA 시간 초과 9s → 4~5s 검토(며칠 지연 분포 본 뒤)
+- [ ] 날씨 카드 5일 예보 — KMA 단기 + 중기(PLAN_WEATHER_MID_FORECAST_261125). 이름 매칭 + 대표 도시 표로 확정(§4-1, 활용신청 불필요) · 그 전이라도 일부 시간만 있는 날(11-29 `0°/0°`) 빼기
+- [x] 날씨 국내 지명 위치 오류 — 중기 지점 175곳 중 60곳(못 찾음 20·외국 21·다른 동네 19). 별칭 대신 시·군 좌표표 `kr-places.ts` 로 OWM 위치 변환을 건너뜀 (11-25, [DEV_261125 §9](logs/2026/11/DEV_261125.md))
   - [ ] 그 뒤: Decisions 하이브리드 — 1순위 g5(gemini-decision-1 + v4 + criteria, 기준 0.7 · 11-23 튜닝 98.6%·골든·검증 100%·인젝션 10/10) → 멀티턴 직렬화·follow_up·topic_field · 가격 원문 · shadow — [PLAN_DECISION_ROUTER §21](plans/PLAN_DECISION_ROUTER_261019.md)
   - [ ] 규칙 오판정: "영어 현재완료 시제" 를 `classifySearchNeed` 가 on
 - [ ] 🟡 **Gemini 4 Hydrogen 추가 · 3.6 내리기(11-22 기획 · 2.5 종료 대응 뒤로)** — 선택 옵션으로 추가, 3.6 숨김. 🔴 3.6 이 기본 모델이고 무료티어 긴 입력 담당 → 기본 3.8 전환 전 3.8 `fastLongInput` 무료티어 실측(T1)·게스트 무료 키 가능 여부(T0) → [PLAN_GEMINI_4_HYDROGEN_ADOPT_261122](plans/PLAN_GEMINI_4_HYDROGEN_ADOPT_261122.md)
