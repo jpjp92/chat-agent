@@ -10,6 +10,8 @@
  * 검증 기록: DEV_260705 §4.
  */
 
+import { findKrPlace } from './kr-places';
+
 // ── 공개 타입 (렌더러/툴 공용 — 언어 중립) ──────────────────────────
 
 /** 정규화된 날씨 상태 코드. 렌더러가 이모지/라벨로 매핑. */
@@ -68,17 +70,9 @@ type WeatherData = {
   notes: WeatherNote[];
 };
 
-// ── 도시명 별칭(geocoding 질의 정규화용 — 격자 하드코딩 아님) ──────────
-// OpenWeather geocoding은 영어/로마자에 강함. 한국 도시 한글 입력을 안정적으로
-// 해석시키기 위한 이름 매핑 표. lat/lon은 여기서 얻지 않고 geocoding이 돌려준다.
+// ── 도시명 별칭(geocoding 질의 정규화용) ──────────
+// 해외 도시 한글 별칭 — 국내 시·군은 `kr-places.ts` 좌표표가 먼저 받는다(OWM 위치 변환을 거치지 않음).
 const CITY_ALIASES: Record<string, string> = {
-  서울: 'Seoul,KR', 서울시: 'Seoul,KR', 부산: 'Busan,KR', 대구: 'Daegu,KR',
-  인천: 'Incheon,KR', 광주: 'Gwangju,KR', 대전: 'Daejeon,KR', 울산: 'Ulsan,KR',
-  세종: 'Sejong,KR', 수원: 'Suwon,KR', 성남: 'Seongnam,KR', 용인: 'Yongin,KR',
-  고양: 'Goyang,KR', 제주: 'Jeju,KR', 제주시: 'Jeju,KR', 제주도: 'Jeju,KR', 서귀포: 'Seogwipo,KR',
-  춘천: 'Chuncheon,KR', 강릉: 'Gangneung,KR', 청주: 'Cheongju,KR', 전주: 'Jeonju,KR',
-  포항: 'Pohang,KR', 창원: 'Changwon,KR', 여수: 'Yeosu,KR', 목포: 'Mokpo,KR',
-  안동: 'Andong,KR', 원주: 'Wonju,KR', 천안: 'Cheonan,KR', 김해: 'Gimhae,KR',
   도쿄: 'Tokyo,JP', 오사카: 'Osaka,JP', 교토: 'Kyoto,JP', 후쿠오카: 'Fukuoka,JP',
   삿포로: 'Sapporo,JP', 베이징: 'Beijing,CN', 상하이: 'Shanghai,CN', 홍콩: 'Hong Kong,HK',
   타이베이: 'Taipei,TW', 방콕: 'Bangkok,TH', 싱가포르: 'Singapore,SG', 하노이: 'Hanoi,VN',
@@ -108,9 +102,12 @@ function kmaKey() {
  * 여기 없는 지명(순천·구미…)은 `false`지만, 호출부가 그걸 "도시 아님"이 아니라
  * "확신 없음"으로 다뤄야 한다 — 이 표는 allowlist가 아니라 geocoding 별칭이다.
  */
+// 시·군 이름이지만 평소엔 일반 명사인 말 — "영양은?"·"장수는?" 을 지명 후속으로 잡지 않는다
+const COMMON_NOUN_PLACES = new Set(['영양', '장수', '고산', '성산', '한남', '보은', '의성', '청송', '금산']);
 export function isKnownCityName(name: string): boolean {
   const n = normalizeCityInput(name);
-  return !!(CITY_ALIASES[n] || CITY_ALIASES[compactCity(n)]);
+  if (COMMON_NOUN_PLACES.has(n)) return false;
+  return !!(findKrPlace(n) || CITY_ALIASES[n] || CITY_ALIASES[compactCity(n)]);
 }
 
 function normalizeCityInput(city: string) {
@@ -260,6 +257,8 @@ type Resolved = { input: string; label: string; name: string; country: string; l
 
 async function geocode(city: string, apiKey: string): Promise<Resolved> {
   const normalized = normalizeCityInput(city);
+  const kr = findKrPlace(normalized);
+  if (kr) return { input: normalized, label: kr.label, name: kr.label, country: 'KR', lat: kr.lat, lon: kr.lon };
   const query = cityAliasQuery(normalized) || normalized;
   const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${apiKey}`;
   const geo = await fetchOwm<Array<{ name: string; local_names?: Record<string, string>; lat: number; lon: number; country: string }>>(url, { cacheable: true });
