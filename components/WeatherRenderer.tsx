@@ -43,10 +43,10 @@ const GLYPH: Record<Condition, string> = {
 
 
 const T: Record<Lang, Record<string, string>> = {
-  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', today: '오늘', feels: '체감', hi: '최고', lo: '최저', now: '현재', expected: '오늘 예상', kmaName: '기상청', daysTitle: '{n}일 예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
-  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', today: 'Today', feels: 'Feels', hi: 'H', lo: 'L', now: 'Now', expected: 'Expected', kmaName: 'KMA', daysTitle: '{n}-day forecast', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain expected · bring an umbrella', snowExp: 'Snow expected · be prepared', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
-  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', today: 'Hoy', feels: 'Sens.', hi: 'Máx', lo: 'Mín', now: 'Ahora', expected: 'Previsto', kmaName: 'KMA', daysTitle: 'Pronóstico {n} días', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
-  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', today: "Auj.", feels: 'Ress.', hi: 'Max', lo: 'Min', now: 'Actuel', expected: 'Prévu', kmaName: 'KMA', daysTitle: 'Prévisions {n} j', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
+  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', today: '오늘', feels: '체감', hi: '최고', lo: '최저', now: '현재', expected: '오늘 예상', kmaName: '기상청', observed: '관측', popHint: '강수확률 %', daysTitle: '{n}일 예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
+  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', today: 'Today', feels: 'Feels', hi: 'H', lo: 'L', now: 'Now', expected: 'Expected', kmaName: 'KMA', observed: 'Obs.', popHint: 'Rain chance %', daysTitle: '{n}-day forecast', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain expected · bring an umbrella', snowExp: 'Snow expected · be prepared', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
+  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', today: 'Hoy', feels: 'Sens.', hi: 'Máx', lo: 'Mín', now: 'Ahora', expected: 'Previsto', kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. lluvia %', daysTitle: 'Pronóstico {n} días', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
+  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', today: "Auj.", feels: 'Ress.', hi: 'Max', lo: 'Min', now: 'Actuel', expected: 'Prévu', kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. pluie %', daysTitle: 'Prévisions {n} j', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
 };
 
 const LOCALE: Record<Lang, string> = { ko: 'ko-KR', en: 'en-US', es: 'es-ES', fr: 'fr-FR' };
@@ -88,9 +88,10 @@ function localHm(iso: string, tzOffsetSec: number): string {
   const d = new Date(t + tzOffsetSec * 1000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
-// 도시 로컬 '오늘' YYYY-MM-DD
-function localYmd(tzOffsetSec: number): string {
-  const d = new Date(Date.now() + tzOffsetSec * 1000);
+// 도시 로컬 '오늘' YYYY-MM-DD — 카드를 만든 시각 기준: 지금 시각이면 지난 대화의 카드를 다음 날 열 때 첫날이 '오늘' 이 아니게 된다
+function localYmd(baseIso: string, tzOffsetSec: number): string {
+  const base = new Date(baseIso).getTime();
+  const d = new Date((Number.isFinite(base) ? base : Date.now()) + tzOffsetSec * 1000);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 function weekdayLabel(date: string, locale: string): string {
@@ -126,7 +127,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
   const isKma = w.source === 'KMA';
   const precipState = c.precip.state;
   const snowy = isSnowy(c.condition);
-  const todayYmd = localYmd(w.timezoneOffsetSec);
+  const todayYmd = localYmd(w.updatedAt, w.timezoneOffsetSec);
 
   const precipSub = precipState === 'now'
     ? (snowy ? tt.snowNow : tt.rainNow)
@@ -150,7 +151,8 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
               <span className="truncate">{w.location.name}{w.location.country && w.location.country !== 'KR' ? `, ${w.location.country}` : ''}</span>
             </div>
             <span className={`shrink-0 text-[12px] font-semibold ${muted} tabular-nums`}>
-              {isKma ? tt.kmaName : 'OpenWeather'} · {localHm(w.updatedAt, w.timezoneOffsetSec)}
+              {/* 관측 시각 — 카드를 만든 시각(updatedAt)을 쓰면 실제 관측보다 늦은 시각이 관측처럼 보였다 */}
+              {isKma ? tt.kmaName : 'OpenWeather'} · {tt.observed} {localHm(c.observedAt || w.updatedAt, w.timezoneOffsetSec)}
             </span>
           </div>
 
@@ -199,7 +201,11 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           {/* 5일 예보 */}
           {days.length > 0 && (
             <>
-              <div className={`mt-2.5 mb-1.5 sm:mt-3 sm:mb-2 text-[15px] font-bold ${strong}`}>{tt.daysTitle.replace('{n}', String(days.length))}</div>
+              {/* % 만 있으면 습도·구름으로 읽힌다 — 무엇인지 제목 줄에 밝힌다 */}
+              <div className="mt-2.5 mb-1.5 sm:mt-3 sm:mb-2 flex items-baseline justify-between gap-2">
+                <span className={`text-[15px] font-bold ${strong}`}>{tt.daysTitle.replace('{n}', String(days.length))}</span>
+                <span className="text-[11.5px] font-semibold text-[#0284c7] dark:text-[#7dd3fc] whitespace-nowrap">{tt.popHint}</span>
+              </div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
                 {days.map((d, i) => {
                   const today = d.date === todayYmd;
