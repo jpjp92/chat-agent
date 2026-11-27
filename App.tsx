@@ -340,7 +340,7 @@ const App: React.FC = () => {
 
 
         <main className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-10 lg:px-20 custom-scrollbar flex flex-col">
-          <div className="flex-1 min-h-0 max-w-4xl w-full mx-auto flex flex-col relative">
+          <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto flex flex-col relative">
 
             {/* 로딩 오버레이 — 환영 문구·지난 메시지를 흐리게 하고 스피너 표시 */}
             {isLoadingMessages && (
@@ -367,7 +367,7 @@ const App: React.FC = () => {
                 <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-6 sm:gap-9 py-4">
                   <WelcomeMessage language={language} />
                   {/* 데스크톱만 중앙 입력창 (모바일은 footer 하단) */}
-                  <div className="hidden md:block w-full max-w-4xl px-1 sm:px-2 mt-4 sm:mt-7">
+                  <div className="hidden md:block w-full max-w-3xl px-1 sm:px-2 mt-4 sm:mt-7">
                     <ChatInput
                       onSend={handleSendWithPrefillReset}
                       disabled={isTyping || isAuthLoading}
@@ -398,7 +398,7 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <footer className="w-full max-w-4xl mx-auto p-2 sm:p-4 pt-0">
+        <footer className="w-full max-w-3xl mx-auto p-2 sm:p-4 pt-0">
           {/* 입력창 하단 — 대화중: 항상 / 웰컴: 모바일만(데스크톱은 main 중앙이라 md:hidden) */}
           <div className={isWelcome ? 'md:hidden' : ''}>
             <ChatInput

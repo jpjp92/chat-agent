@@ -542,7 +542,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, language = 'ko'
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 relative">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 relative">
       {selectedAttachments.length > 0 && (
         <div className="absolute bottom-full left-4 sm:left-6 mb-3 flex flex-wrap gap-2 motion-enabled animate-in fade-in slide-in-from-bottom-2">
           {selectedAttachments.map((attachment, index) => (
