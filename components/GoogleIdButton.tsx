@@ -11,6 +11,9 @@ interface Props {
     disabled?: boolean;
 }
 
+// GIS 버튼 문구(text: 'continue_with')와 같은 말 — iframe 이 그려지기 전 자리표시자에 쓴다
+const PLACEHOLDER_LABEL = { ko: 'Google 계정으로 계속하기', en: 'Continue with Google', es: 'Continuar con Google', fr: 'Continuer avec Google' } as const;
+
 /**
  * Google 공식 로그인 버튼(GIS renderButton). ID 토큰 흐름은 **Google 이 그린 버튼**으로만 시작된다 —
  * 우리 버튼에서 `prompt()`(One Tap)를 부르면 사용자가 한 번 닫은 뒤 쿨다운으로 조용히 안 뜬다.
@@ -71,7 +74,16 @@ const GoogleIdButton: React.FC<Props> = ({ onCredential, onUnavailable, language
     return (
         <div className="relative w-full min-h-[44px]">
             {!ready && (
-                <div aria-hidden className="absolute inset-x-0 top-0 mx-auto h-10 max-w-[400px] rounded-full bg-white border border-slate-200 dark:border-white/10 animate-pulse" />
+                // 빈 알약이면 버튼이 아닌 것처럼 보였다 — GIS 버튼과 같은 로고·문구를 먼저 보인다(누를 수 없으니 흐리게)
+                <div aria-hidden className="absolute inset-x-0 top-0 mx-auto h-10 max-w-[400px] rounded-full bg-white border border-slate-200 dark:border-white/10 flex items-center justify-center gap-2.5 text-[14px] font-medium text-[#3c4043]">
+                    <svg viewBox="0 0 48 48" className="w-[18px] h-[18px] opacity-60">
+                        <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.7 17.7 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/>
+                        <path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.9-6.1z"/>
+                        <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.3 0-11.6-4.2-13.5-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/>
+                    </svg>
+                    <span className="opacity-60">{PLACEHOLDER_LABEL[language as keyof typeof PLACEHOLDER_LABEL] ?? PLACEHOLDER_LABEL.en}</span>
+                </div>
             )}
             <div
                 ref={box}
