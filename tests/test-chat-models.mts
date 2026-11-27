@@ -167,6 +167,10 @@ for (const model of ['gpt-5.4-mini', 'gpt-5.6-luna']) {
     check(`검색 요청 reasoning=${searchEffort}  ${model}`, body.reasoning?.effort === searchEffort);
     check(`요청 저장 비활성  ${model}`, body.store === false);
     check(`요청 웹 검색 강제  ${model}`, body.tools?.[0]?.type === 'web_search' && body.tool_choice === 'required');
+    check(`도메인 제한 없으면 filters 없음  ${model}`, body.tools?.[0]?.filters === undefined);
+    // 날씨 카드 밖 검색(미세먼지)은 공식 도메인으로만 — DEV_261127 §11
+    const scoped: any = buildOpenAIChatRequest({ model, messages: [new HumanMessage('미세먼지')], instructions: 'x', useWebSearch: true, webSearchDomains: ['airkorea.or.kr', 'go.kr'], maxOutputTokens: 512 });
+    check(`도메인 제한 → allowed_domains  ${model}`, JSON.stringify(scoped.tools?.[0]?.filters?.allowed_domains) === '["airkorea.or.kr","go.kr"]');
     check(`OpenAI 검색 프롬프트 매핑  ${model}`,
         body.instructions?.includes('provider=OpenAI Web Search')
         && body.instructions?.includes('tool=web_search')

@@ -14,7 +14,7 @@ import { getNextApiKey, isPaidKey, markKeyRateLimited } from '../config';
 import { modelCaps, roleGenConfig } from '../models';
 import { isOpenAIChatModel } from '../openai/models';
 import { generateOpenAIChat } from '../openai/chat';
-import { buildWeatherExtraPrompt } from './weather-answer-prompt';
+import { chipTitle, buildWeatherExtraPrompt } from './weather-answer-prompt';
 import type { WeatherLang } from '../../lib/weather-labels';
 
 // 검색 왕복이 붙는다 — 카드는 이미 나갔으니 답 한 단락을 기다리는 시간
@@ -32,10 +32,11 @@ export async function weatherExtraAnswer(args: {
         if (isOpenAIChatModel(args.model)) {
             const r = await generateOpenAIChat({
                 model: args.model, messages: [new HumanMessage(prompt)], instructions: INSTRUCTIONS,
-                useWebSearch: true, maxOutputTokens: 8192, timeoutMs: WEATHER_EXTRA_TIMEOUT_MS,
+                // 공식 출처로만 — 제한이 없으면 제3자 사이트·지난 뉴스 기사의 수치를 옮겼다(DEV_261127 §11). go.kr = 기상청·지자체 대기정보
+                useWebSearch: true, webSearchDomains: ['airkorea.or.kr', 'go.kr'], maxOutputTokens: 8192, timeoutMs: WEATHER_EXTRA_TIMEOUT_MS,
             });
             console.log(`[weather] 카드 밖 검색 ${args.model} ${Date.now() - startedAt}ms sources=${r.sources.length}`);
-            return r.text.trim() ? { text: r.text.trim(), sources: r.sources.map(s => ({ title: s.title, uri: s.uri })), model: args.model } : null;
+            return r.text.trim() ? { text: r.text.trim(), sources: r.sources.map(s => ({ title: chipTitle(s.title, s.uri), uri: s.uri })), model: args.model } : null;
         }
         const apiKey = getNextApiKey();
         if (!apiKey) return null;
@@ -53,7 +54,7 @@ export async function weatherExtraAnswer(args: {
                 config: { tools: [{ googleSearch: {} }], maxOutputTokens: 8192, abortSignal: AbortSignal.timeout(WEATHER_EXTRA_TIMEOUT_MS), ...roleGenConfig(model) },
             });
             const chunks: any[] = (res as any).candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-            const sources = chunks.map(c => c?.web).filter((w: any) => w?.uri).map((w: any) => ({ title: String(w.title ?? w.uri), uri: String(w.uri) }));
+            const sources = chunks.map(c => c?.web).filter((w: any) => w?.uri).map((w: any) => ({ title: chipTitle(w.title, w.uri), uri: String(w.uri) }));
             const text = (res.text ?? '').trim();
             console.log(`[weather] 카드 밖 검색 ${model} ${Date.now() - startedAt}ms sources=${sources.length}`);
             return text ? { text, sources, model } : null;

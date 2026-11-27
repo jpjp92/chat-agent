@@ -36,14 +36,15 @@ const SOURCE_NAME: Record<string, Record<WeatherLang, string>> = {
  * 모델에 넘길 카드 요약. 요일은 미리 붙인다(날짜 → 요일 계산을 틀리지 않게).
  * 관측(지금)과 예보(오늘 하루 대표)를 이름부터 가른다 — 같은 `condition` 이면 "지금 구름 많고" 처럼 섞였다(DEV_261125 §11-4).
  */
-function compactCard(c: any, lang: WeatherLang) {
+function compactCard(c: any, lang: WeatherLang, today: string) {
     const wd = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(LOCALE[lang], { weekday: 'short', timeZone: 'UTC' });
     return {
         city: c.location?.name,
         source: SOURCE_NAME[c.source]?.[lang] ?? c.source,
         observedNow: { temp: c.current?.temp, feelsLike: c.current?.feelsLike, condition: c.current?.condition, humidity: c.current?.humidity, windMs: c.current?.windSpeed },
         // 오늘 칸의 하늘 상태는 뺀다 — 이름을 갈라도 "지금은 구름이 많지만"(관측은 맑음)이 2건 남았다(§11-6). 지금 하늘은 관측값 하나만 둔다.
-        dailyForecast: (c.daily ?? []).map((d: any, i: number) => ({ date: d.date, weekday: wd(d.date), ...(i === 0 ? {} : { condition: d.condition }), min: d.minTemp, max: d.maxTemp, popPct: d.pop, rainMm: d.rainMm, snowMm: d.snowMm })),
+        // 첫 칸이 오늘이라 가정하지 않는다 — 밤의 OpenWeather 폴백은 내일부터 시작한다(DEV_261127 §10).
+        dailyForecast: (c.daily ?? []).map((d: any) => ({ date: d.date, weekday: wd(d.date), ...(d.date === today ? {} : { condition: d.condition }), min: d.minTemp, max: d.maxTemp, popPct: d.pop, rainMm: d.rainMm, snowMm: d.snowMm })),
     };
 }
 
@@ -54,7 +55,7 @@ export function buildWeatherAnswerPrompt(question: string, cards: any[], lang: W
 
 User message: ${JSON.stringify(question)}
 Today: ${today}
-Weather data: ${JSON.stringify(cards.map(c => compactCard(c, lang)))}
+Weather data: ${JSON.stringify(cards.map(c => compactCard(c, lang, today)))}
 
 Return JSON {"none": boolean, "answer": string, "lookup": string}.
 - "none": true if the message only asks what the weather, temperature, or forecast is, for any day ("내일 날씨는?", "이번 주 날씨 알려줘") — the card answers it; do not add tips. The default is true. But a weather request plus a question ("날씨 어때? 우산 챙겨야 할까?") is false — answer the question part.
@@ -113,18 +114,31 @@ export function composeWeatherAnswer(raw: string, lang: WeatherLang): string {
  * 날씨 + 카드 밖 정보(미세먼지 등)를 함께 물은 턴 — 선택 모델이 그 부분만 검색해 답한다(PLAN_WEATHER_COMPOSITE_261125).
  * 날씨 수치는 카드 데이터가 정답이다: 통째로 검색하던 때 답이 오늘 최저 -4° 를 4° 로 옮겼다(3회 재현).
  */
+/** 카드 도시의 지금 현지 시각("2026-11-27 22:46") — 측정값이 몇 시간 전 것인지 모델이 가르게 한다 */
+const localNow = (cards: any[]) => {
+    const tz = typeof cards[0]?.timezoneOffsetSec === 'number' ? cards[0].timezoneOffsetSec : 32400;
+    return new Date(Date.now() + tz * 1000).toISOString().slice(0, 16).replace('T', ' ');
+};
+
 export function buildWeatherExtraPrompt(question: string, cards: any[], lang: WeatherLang, today: string, extra: string): string {
     const cities = cards.map(c => c.location?.name).filter(Boolean).join(', ');
     return `A weather card for ${cities} is already shown to the user, with a one-line summary (current temperature and condition, today's range and precipitation chance).
 
 User message: ${JSON.stringify(question)}
 Today: ${today}
-Weather data (authoritative): ${JSON.stringify(cards.map(c => compactCard(c, lang)))}
+Weather data (authoritative): ${JSON.stringify(cards.map(c => compactCard(c, lang, today)))}
 
-Search the web for: ${extra} in ${cities}, today. Then answer in ${LANG_NAME[lang]} in ONE short sentence — two only if the message also asks for a judgment that does not fit in one:
-- Give the ${extra} level (e.g. 좋음/보통/나쁨, 낮음/보통/높음) and whose forecast it is. Leave out station readings, µg/m³ values, and announcement times unless the user asked for numbers.
+Search the web for: ${extra} in ${cities}, today. Then answer in ${LANG_NAME[lang]} in ONE short sentence — two only if the message also asks for a judgment that does not fit in one${lang === 'ko' ? ', polite 해요체 (~요), never ~습니다' : ''}:
+- Give the ${extra} level (e.g. 좋음/보통/나쁨, 낮음/보통/높음) with its basis in parentheses: the value with its unit (e.g. PM10 42㎍/㎥, 초미세 21㎍/㎥, UV 3) and the time it refers to ("22시 기준", "오늘 예보"). Say whether it is a current measurement or a forecast — they differ. Use only values found in the results whose page shows they are for today (${today}); news articles are not a source for values — they are often about past days. If no such value, give the level and its time only, never a made-up number, and do not say what was not found.
 - Do not state temperatures, precipitation chance, or sky condition — the card shows them. If a judgment needs them, take them ONLY from the weather data above, never from search results.
 - If the message also asks for a judgment (mask, going out, umbrella, clothes), fold the answer into the same sentence when possible ("보통이라 마스크는 없어도 돼요").
-- Prefer official sources (e.g. 에어코리아, 기상청). Do not tell the user to check another site themselves.
+- Sources: for fine dust use the AirKorea forecast (https://www.airkorea.or.kr/web/dustForecast) or AirKorea / local government (go.kr) real-time pages; for UV use 기상청 (weather.go.kr). Not news, blogs, or third-party weather sites. A current measurement counts only if it is from the last 3 hours (now: ${localNow(cards)}); otherwise use today's forecast. Do not tell the user to check another site themselves.
 - No headings, lists, tables, or emoji.`;
 }
+
+/** 출처 칩 제목 — 에어코리아 예보 페이지 제목이 "에어코리아 :" 처럼 끝이 비어 칩이 잘린 것처럼 보였다. 비면 도메인 */
+export const chipTitle = (title: unknown, uri: string): string => {
+    const t = String(title ?? '').replace(/\s*[:|\-–]\s*$/, '').trim();
+    if (t) return t;
+    try { return new URL(uri).hostname.replace(/^www\./, ''); } catch { return uri; }
+};

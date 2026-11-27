@@ -58,6 +58,8 @@ export type OpenAIChatOptions = {
     messages: any[];
     instructions: string;
     useWebSearch: boolean;
+    /** 검색할 도메인(하위 도메인 포함). 없으면 제한 없음 */
+    webSearchDomains?: string[];
     maxOutputTokens: number;
     apiKey?: string;
     timeoutMs?: number;
@@ -128,7 +130,7 @@ const toInputContent = (message: any, role: 'user' | 'assistant'): string | Json
 };
 
 export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
-    'model' | 'messages' | 'instructions' | 'useWebSearch' | 'maxOutputTokens' | 'functionTool'>,
+    'model' | 'messages' | 'instructions' | 'useWebSearch' | 'webSearchDomains' | 'maxOutputTokens' | 'functionTool'>,
     requestState: OpenAIRequestState = {},
 ): JsonObject => {
     const capabilities = openAIModelCapabilities(options.model);
@@ -162,7 +164,9 @@ export const buildOpenAIChatRequest = (options: Pick<OpenAIChatOptions,
                 code: 'tool_policy_conflict',
             });
         }
-        body.tools = [{ type: 'web_search' }];
+        body.tools = [options.webSearchDomains?.length
+            ? { type: 'web_search', filters: { allowed_domains: options.webSearchDomains } }
+            : { type: 'web_search' }];
         // 함수 결과를 정리하는 단계는 검색을 강제하지 않는다 — 이전 턴이 있으면 모델이 검색을 부르지 않고
         // 메시지만 반복하다 incomplete(max_messages)로 빈 답이 됐다(DEV_261024 §6). 근거는 이미 함수 결과에 있다.
         body.tool_choice = requestState.functionPhase === 'followup' ? 'auto' : 'required';

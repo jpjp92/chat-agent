@@ -8,8 +8,8 @@
  * ⑤ 답이 "찾아볼까요?" 로 끝나면 다음 "응" 은 검색이어야 한다 — 라우터가 직전 답 끝을 보고(lookup) 카드 답(검색 꺼짐)으로 보내지 않는다(§11-5).
  */
 import fs from 'node:fs';
-import { fastPassWeatherCards, buildWeatherAnswerPrompt, buildWeatherExtraPrompt, composeWeatherAnswer } from '../server/agent/weather-answer-prompt.js';
-import { interleaveWeatherSummaries } from '../server/agent/weather-summary.js';
+import { chipTitle, fastPassWeatherCards, buildWeatherAnswerPrompt, buildWeatherExtraPrompt, composeWeatherAnswer } from '../server/agent/weather-answer-prompt.js';
+import { interleaveWeatherSummaries, weatherSummaryLine } from '../server/agent/weather-summary.js';
 import { previousResponseExcerpt } from '../server/agent/previous-response.js';
 import { decideWeatherFollowup } from '../server/agent/weather-followup.js';
 
@@ -88,8 +88,14 @@ check('⑤ 라우터: 직전 답은 previousResponseExcerpt 로(앞 300자 자�
 // ⑥ 복합 질문 — 카드 유지 + 카드 밖 부분만 선택 모델 검색
 const xp = buildWeatherExtraPrompt('오늘 서울 날씨 어때? 미세먼지는?', [card], 'ko', '2026-11-25', '미세먼지');
 check('⑥ 프롬프트: 날씨 수치는 말하지 않음(판단에 필요하면 카드 데이터만, 검색 결과 수치 금지)', /Do not state temperatures/.test(xp) && /never from search results/.test(xp) && xp.includes('"observedNow"'));
-check('⑥ 프롬프트: 한 문장(판단 질문이 있을 때만 두 문장)·세부 수치 생략', /in ONE short sentence — two only if/.test(xp) && /Leave out station readings/.test(xp));
-check('⑥ 프롬프트: 찾을 것만 검색·공식 출처 우선·확인 떠넘기기 금지', /Search the web for: 미세먼지 in 서울/.test(xp) && /Prefer official sources/.test(xp) && /Do not tell the user to check another site/.test(xp));
+check('⑥ 프롬프트: 한 문장(판단 질문이 있을 때만 두 문장)·등급에 근거(수치·기준 시각)·측정/예보 구분·지어낸 수치 금지·해요체', /in ONE short sentence — two only if/.test(xp) && /with its basis in parentheses/.test(xp) && /current measurement or a forecast/.test(xp) && /never a made-up number/.test(xp) && /news articles are not a source for values/.test(xp) && /해요체/.test(xp));
+// 밤의 OpenWeather 폴백 — 예보가 내일부터라 첫 칸이 오늘이 아니다(DEV_261127 §10)
+const night = { ...card, updatedAt: '2026-11-27T13:39:00Z', timezoneOffsetSec: 32400, daily: card.daily.map((d: any, i: number) => ({ ...d, date: `2026-11-${28 + i}`.replace('2026-11-31', '2026-12-01').replace('2026-11-32', '2026-12-02') })) };
+check('⑦ 첫 칸이 오늘이 아니면 한 줄에 "오늘 기온" 없음', !weatherSummaryLine(night, 'ko').includes('오늘'));
+check('⑦ 첫 칸이 오늘이면 한 줄에 "오늘 기온" 있음', weatherSummaryLine({ ...night, daily: [{ ...night.daily[0], date: '2026-11-27' }, ...night.daily] }, 'ko').includes('오늘 기온'));
+check('⑦ 답 프롬프트: 오늘이 아닌 첫 칸은 하늘 상태를 남긴다', buildWeatherAnswerPrompt('우산?', [night], 'ko', '2026-11-27').includes('"date":"2026-11-28","weekday":"토","condition"'));
+
+check('⑥ 프롬프트: 찾을 것만 검색·공식 출처(에어코리아 예보)·측정값 3시간 이내·확인 떠넘기기 금지', /Search the web for: 미세먼지 in 서울/.test(xp) && /airkorea.or.kr\/web\/dustForecast/.test(xp) && /last 3 hours/.test(xp) && /Not news/.test(xp) && /Do not tell the user to check another site/.test(xp));
 check('⑥ 라우터: weather_extra 정의 + 날씨 요청 어휘가 있을 때만 카드 유지(현상만은 검색)',
     /"weather_extra": ONLY when the message asks for the weather/.test(router)
     && /llmIntent === "weather" && llmWeatherExtra && WEATHER_CARD_REQUEST\.test\(textContent\)/.test(router)
@@ -112,5 +118,9 @@ check('④ 해요체: 겠습니다·있습니다·됩니다', cw('우산을 챙�
 check('④ 해요체: 입니다 받침 구분', cw('맑은 날입니다. 내일은 금요일입니다.') === '맑은 날이에요. 내일은 금요일이에요.' && cw('토요일이 최고 기온 16도로 가장 따뜻한 하루입니다.').endsWith('하루예요.'));
 check('④ 해요체: % 뒤는 예요, 숫자 뒤는 그대로', cw('강수 확률은 60%입니다.') === '강수 확률은 60%예요.' && cw('비는 3mm입니다.') === '비는 3mm입니다.');
 check('④ 없다 문장 추가 패턴', composeWeatherAnswer(JSON.stringify({ none: false, answer: '미세먼지 정보는 제공하지 않아서 확인이 어려워요.', lookup: '미세먼지' }), 'ko') === '미세먼지도 찾아볼까요?');
+{
+    check('⑧ 출처 칩: 끝의 ":" 를 뗀다', chipTitle('에어코리아 :', 'https://www.airkorea.or.kr/web/dustForecast') === '에어코리아');
+    check('⑧ 출처 칩: 비면 도메인', chipTitle('', 'https://www.airkorea.or.kr/x') === 'airkorea.or.kr');
+}
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
 process.exit(fail ? 1 : 0);

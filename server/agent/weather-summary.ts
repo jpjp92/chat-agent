@@ -45,6 +45,13 @@ const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w
 
 const num = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? Math.round(x) : null);
 
+/** 카드를 만든 시각의 도시 현지 날짜(YYYY-MM-DD). 시각·시차가 없으면 null — 그땐 첫 칸을 오늘로 본다(예전 동작). */
+const cityToday = (data: any): string | null => {
+    const t = Date.parse(data?.updatedAt ?? '');
+    if (!Number.isFinite(t) || typeof data?.timezoneOffsetSec !== 'number') return null;
+    return new Date(t + data.timezoneOffsetSec * 1000).toISOString().slice(0, 10);
+};
+
 export const weatherSummaryLine = (data: any, lang: WeatherLang = 'ko'): string => {
     if (!data || data.error || !data.location?.name || !data.current) return '';
     const temp = num(data.current.temp);
@@ -63,7 +70,9 @@ export const weatherSummaryLine = (data: any, lang: WeatherLang = 'ko'): string 
     let now = fill(cond ? t.now : t.nowNoCond, { city, cond: cond ?? '', temp });
     if (lang === 'ko') now = now.replace(`${city}은`, `${city}${koTopic(city)}`);
 
-    const d = Array.isArray(data.daily) ? data.daily[0] : undefined;
+    // 첫 칸이 오늘일 때만 "오늘 기온" 이라 쓴다 — 밤의 OpenWeather 폴백은 예보가 내일부터라 내일 값을 오늘로 말했다(DEV_261127 §10).
+    const d0 = Array.isArray(data.daily) ? data.daily[0] : undefined;
+    const d = d0 && (!cityToday(data) || d0.date === cityToday(data)) ? d0 : undefined;
     const min = num(d?.minTemp), max = num(d?.maxTemp), pop = num(d?.pop);
     const today = min !== null && max !== null && pop !== null ? fill(t.today, { min, max, pop }) : '';
     return today ? `${now} ${today}` : now;
