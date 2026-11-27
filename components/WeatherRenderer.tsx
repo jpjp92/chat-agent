@@ -155,23 +155,23 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           </div>
 
           {/* 기온·상태 + 큰 아이콘 */}
-          <div className="flex items-center justify-between gap-3 mt-3">
+          <div className="flex items-center justify-between gap-3 mt-2 sm:mt-3">
             <div className="min-w-0">
               <div className="flex items-baseline gap-1">
-                <span className={`text-[48px] font-black tracking-[-.04em] tabular-nums leading-none ${strong}`}>{c.temp}°</span>
+                <span className={`text-[40px] sm:text-[48px] font-black tracking-[-.04em] tabular-nums leading-none ${strong}`}>{c.temp}°</span>
                 <span className="text-[18px] font-bold text-[#94a3b8] dark:text-[#7c8aa5]">C</span>
               </div>
-              <div className={`text-[16px] font-bold mt-1.5 ${strong}`}>{COND_LABEL[c.condition]?.[lang] ?? ''}</div>
+              <div className={`text-[16px] font-bold mt-1 sm:mt-1.5 ${strong}`}>{COND_LABEL[c.condition]?.[lang] ?? ''}</div>
               <div className={`text-[13px] font-medium mt-0.5 ${muted} tabular-nums`}>
                 {tt.feels} {c.feelsLike}° · {tt.hi} {c.maxTemp}° / {tt.lo} {c.minTemp}°
               </div>
             </div>
-            <div className="shrink-0 text-[44px] leading-none" aria-hidden>{GLYPH[c.condition]}</div>
+            <div className="shrink-0 text-[36px] sm:text-[44px] leading-none" aria-hidden>{GLYPH[c.condition]}</div>
           </div>
 
           {/* 강수 안내(비·눈이 있을 때만) */}
           {precipState !== 'none' && (
-            <div className="mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[#a5b4fc]/[.08]">
+            <div className="mt-2 sm:mt-3 flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[#a5b4fc]/[.08]">
               <span className="text-[15px]" aria-hidden>{snowy ? '🌨️' : '🌧️'}</span>
               <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${strong}`}>
                 {c.precip.mm}mm · {precipState === 'now' ? tt.now : tt.expected}
@@ -182,7 +182,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           )}
 
           {/* 지표: 인라인 3열 */}
-          <div className={`grid grid-cols-3 gap-2 mt-3 py-3 border-y border-[#e2e8f0] dark:border-white/[0.07] text-[13px] ${strong}`}>
+          <div className={`grid grid-cols-3 gap-2 mt-2.5 py-2 sm:mt-3 sm:py-3 border-y border-[#e2e8f0] dark:border-white/[0.07] text-[13px] ${strong}`}>
             {[
               { icon: 'fa-droplet', l: tt.humidity, v: `${c.humidity}%` },
               { icon: 'fa-wind', l: tt.wind, v: `${c.windSpeed}m/s` },
@@ -199,20 +199,20 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
           {/* 5일 예보 */}
           {days.length > 0 && (
             <>
-              <div className={`mt-3 mb-2 text-[15px] font-bold ${strong}`}>{tt.daysTitle.replace('{n}', String(days.length))}</div>
+              <div className={`mt-2.5 mb-1.5 sm:mt-3 sm:mb-2 text-[15px] font-bold ${strong}`}>{tt.daysTitle.replace('{n}', String(days.length))}</div>
               <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
                 {days.map((d, i) => {
                   const today = d.date === todayYmd;
                   return (
-                    <div key={d.date + i} className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-center border tabular-nums ${
+                    <div key={d.date + i} className={`flex flex-col items-center gap-0.5 sm:gap-1 py-1.5 sm:py-2.5 rounded-xl text-center border tabular-nums ${
                       today
                         ? 'border-[#a5b4fc]/45 bg-[#a5b4fc]/[.09]'
                         : 'border-transparent bg-[#f1f5f9] dark:bg-white/[0.04]'
                     }`}>
                       <div className={`text-[12px] font-semibold ${today ? strong : muted}`}>{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
-                      <div className="text-[22px] leading-none my-0.5" aria-hidden>{GLYPH[d.condition]}</div>
-                      <div className={`text-[14px] font-bold ${strong}`}>{d.maxTemp}°</div>
-                      <div className={`text-[12px] ${muted}`}>{d.minTemp}°</div>
+                      <div className="text-[20px] sm:text-[22px] leading-none sm:my-0.5" aria-hidden>{GLYPH[d.condition]}</div>
+                      {/* 최고·최저 한 줄 — 칸마다 한 줄이 빠져 모바일 높이가 가장 많이 준다 */}
+                      <div className="whitespace-nowrap"><span className={`text-[14px] font-bold ${strong}`}>{d.maxTemp}°</span> <span className={`text-[12px] ${muted}`}>{d.minTemp}°</span></div>
                       <div className="text-[11.5px] font-semibold text-[#0284c7] dark:text-[#7dd3fc]">{d.pop}%</div>
                     </div>
                   );
