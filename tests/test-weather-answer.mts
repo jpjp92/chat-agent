@@ -49,7 +49,7 @@ check('② compose: "없다" 문장은 뺀다(실측 문장) — 남는 게 없�
 check('② compose: lookup 없으면 답만 · 깨진 JSON 은 빈 답', composeWeatherAnswer('{"none":false,"answer":"우산 챙기세요.","lookup":""}', 'ko') === '우산 챙기세요.' && composeWeatherAnswer('NONE', 'ko') === '');
 check('② 호출: JSON 스키마(none·answer·lookup) 로 받는다', /responseMimeType: 'application\/json'/.test(fs.readFileSync(new URL('../server/agent/weather-answer.ts', import.meta.url), 'utf8')) && /composeWeatherAnswer\(res\.text/.test(fs.readFileSync(new URL('../server/agent/weather-answer.ts', import.meta.url), 'utf8')));
 check('② 출처 이름을 사용자 언어로(KMA → 기상청), 보통은 생략·수치 하나가 근거일 때만 한 번', p.includes('"source":"기상청"') && /Usually no source; name it \("기상청 예보로는 …"\) at most once/.test(p));
-check('② 현재 기온·오늘 범위 반복 금지(한 줄이 보여 준다) · 묻지 않은 lookup 금지', /Do not repeat the current temperature or today's range/.test(p) && /only if the user explicitly asked about/.test(p) && /never offer something they did not ask about/.test(p));
+check('② 현재 기온·오늘 범위·강수확률 반복 금지 · 숫자는 기호로(한 줄이 보여 준다) · 묻지 않은 lookup 금지', /Do not repeat the current temperature, today's range, or today's precipitation chance/.test(p) && /never spelled out/.test(p) && /only if the user explicitly asked about/.test(p) && /never offer something they did not ask about/.test(p));
 check('② 데이터에 없는 비교(평년·평균·과거) 금지', /no normal years, averages, or past days/.test(p));
 check('② 다른 날 예보만 묻기("내일 날씨는?")도 none · 날씨 요청 + 판단 질문은 답한다(JSON 전환 때 빠져 2/2 none 이 됐다)', /"내일 날씨는\?"/.test(p) && /"날씨 어때\? 우산 챙겨야 할까\?"\) is false/.test(p));
 check('② 하루 안의 시각을 말하지 않음(일 단위 데이터 — "내일 오전부터 맑아져요" 를 지어냈다)', /never say a time within a day/.test(p));
