@@ -5,7 +5,6 @@
 import { weatherSummaryLine } from './weather-summary';
 import type { WeatherLang } from '../../lib/weather-labels';
 
-export const NONE = 'NONE';
 const BLOCK = /```json:weather\n([\s\S]*?)\n```/g;
 
 /**
@@ -49,24 +48,65 @@ function compactCard(c: any, lang: WeatherLang) {
 }
 
 export function buildWeatherAnswerPrompt(question: string, cards: any[], lang: WeatherLang, today: string): string {
-    return `A weather card is already shown to the user, with a one-line summary right below it (current temperature and condition, today's range and precipitation chance). The card shows a 5-day forecast, one value per day — no hourly breakdown.
+    // 짧게 유지한다 — 규칙마다 실측 근거가 있다(DEV_261125 §11-4·6). 빠진 정보는 모델이 말하지 않고 `lookup` 으로만 낸다:
+    // "나와 있지 않아"·"제공된 예보에는" 을 금지·예시로 막아도 질문이 바뀌면 다시 나왔다(DEV_261127) → "찾아볼까요?" 는 서버가 붙인다.
+    return `The user sees a weather card (5-day forecast, one value per day, no hourly) with a summary line (now, today's range, precipitation chance).
 
 User message: ${JSON.stringify(question)}
 Today: ${today}
 Weather data: ${JSON.stringify(cards.map(c => compactCard(c, lang)))}
 
-Step 1 — decide. The default is ${NONE}.
-- Output exactly ${NONE} when the message only asks what the weather, temperature, or forecast is — for any day the card covers ("내일 날씨는?", "주말 날씨", "이번 주 날씨 알려줘", "기온 몇 도야?") — even if the forecast has rain or a big temperature swing. The card already answers it; do not add tips.
-- Answer when any part of the message asks for something beyond reading the forecast: a judgment or advice (umbrella, clothes, laundry, going out, exercise, car wash), a comparison or "which day is best", or something the forecast does not have. A weather request plus such a question ("날씨 어때? 우산 챙겨야 할까?") is answered — reply to the question part.
+Return JSON {"none": boolean, "answer": string, "lookup": string}.
+- "none": true if the message only asks what the weather, temperature, or forecast is, for any day ("내일 날씨는?", "이번 주 날씨 알려줘") — the card answers it; do not add tips. The default is true. But a weather request plus a question ("날씨 어때? 우산 챙겨야 할까?") is false — answer the question part.
+- "answer": otherwise, the reply to the question part (umbrella, clothes, going out, laundry, which day is best…) in ${LANG_NAME[lang]}, 1–2 short sentences, like a friend who just checked the forecast${lang === 'ko' ? ' — polite 해요체 (~요) throughout, never ~습니다' : ''}. Conclusion first, then at most two numbers as the reason; days as today/tomorrow/weekday. "Right now" = observedNow; today and later = dailyForecast. Only facts in the data, comparisons checked against the numbers — no normal years, averages, or past days. Values are per day: never say a time within a day (morning, evening, "오전부터"). Do not repeat the current temperature or today's range — the summary line shows them. Usually no source; name it ("${SOURCE_NAME.KMA[lang]} 예보로는 …") at most once, only when a single number is the whole reason. Say only what the forecast supports — do not mention anything that is missing, the card, or the data. No markdown or emoji; do not restate the summary or add unasked advice.
+- "lookup": only if the user explicitly asked about something this forecast does not have (hourly timing, fine dust, UV, other places), a short noun phrase in ${LANG_NAME[lang]} naming exactly what they asked ("미세먼지", "시간대별 강수", "자외선 지수"); otherwise "" — never offer something they did not ask about. The server adds the offer to look it up.`;
+}
 
-Step 2 — answer (only if not ${NONE}):
-- Otherwise answer that question in ${LANG_NAME[lang]}, in 1–2 short sentences, like a friend who just checked the forecast. Lead with the conclusion, then the reason with at most two numbers. Refer to days as today/tomorrow or by weekday.
-- Name the source only when a forecast number is the whole reason, at most once, woven in naturally (e.g. "${SOURCE_NAME.KMA[lang]} 예보로는 …"). Most answers need no source.
-- "Right now" comes from observedNow; today's outlook and later days come from dailyForecast. Do not mix them.
-- State only facts present in the weather data, and check every comparison against the numbers (which day is warmer/colder). No comparisons with normal years, averages, past days, or anything not in the data.
-- Never mention the card, the data, or what you have or lack — no "제공되지 않아", "정보가 없어", "가지고 있지 않은데".
-- Do not restate the summary line, list every day, or add advice they did not ask for. No markdown, no emoji.
-- If the question needs something this forecast does not have (fine dust, UV, hourly timing, other places), first give whatever conclusion the daily forecast supports, then end by offering to look it up — say what you would look up, not what is missing (e.g. "비는 금요일에 와요. 몇 시쯤 오는지 찾아볼까요?", "날은 맑아요. 미세먼지도 찾아볼까요?"). If the day they asked about has no rain, say which day does before offering. Do not tell them to check another site themselves.`;
+/** 서버가 붙이는 역질문 — 모델이 "없다" 를 설명할 자리를 없앤다 */
+const OFFER: Record<WeatherLang, (x: string) => string> = {
+    ko: x => `${x}도 찾아볼까요?`,
+    en: x => `Want me to look up ${x}?`,
+    es: x => `¿Busco ${x}?`,
+    fr: x => `Je cherche ${x} ?`,
+};
+
+/**
+ * "없다" 를 말하는 문장 — 할 말이 없을 때 모델이 answer 를 이것으로 채웠다(38건 중 6건, 프롬프트로 막히지 않음).
+ * 그 문장만 뺀다. 빈 답이 되면 역질문만 남는다("자외선 지수도 찾아볼까요?").
+ */
+const MISSING: Record<WeatherLang, RegExp> = {
+    ko: /나와 있지 않|알 수 없|확인할 수 없|확인하기 어렵|확인이 어렵|제공하지 않|정보(?:는|가)? 없|제공되지 않|제공된|가지고 있지 않|포함되(?:어 있)?지 않|예보에(?:는)? 없/,
+    en: /not (?:available|included|provided|shown)|(?:don't|do not) have|no (?:information|data)|can't tell/i,
+    es: /no (?:está|están) disponible|no (?:tengo|hay) (?:información|datos)/i,
+    fr: /pas disponible|pas d'information|pas de données|n'est pas indiqu/i,
+};
+const dropMissing = (text: string, lang: WeatherLang) =>
+    text.split(/(?<=[.!?。])\s+/).filter(x => !MISSING[lang].test(x)).join(' ').trim();
+
+/**
+ * 해요체로 맞춘다 — 프롬프트로 고정해도 22건 중 2건이 "~입니다"·"~겠습니다" 로 끝났다(DEV_261127).
+ * 흔한 어미만 바꾼다: 활용이 불규칙한 동사까지 규칙으로 덮으면 틀린 말이 생긴다.
+ */
+const HAEYO: [RegExp, string | ((m: string, ...a: string[]) => string)][] = [
+    [/겠습니다(?=[.!?]|$)/g, '겠어요'],
+    [/있습니다(?=[.!?]|$)/g, '있어요'],
+    [/없습니다(?=[.!?]|$)/g, '없어요'],
+    [/됩니다(?=[.!?]|$)/g, '돼요'],
+    [/%입니다(?=[.!?]|$)/g, '%예요'],  // "퍼센트" 로 읽혀 받침이 없다
+    // 받침 있으면 "이에요", 없으면 "예요" — 숫자 뒤는 단위에 따라 읽는 소리가 달라 그대로 둔다
+    [/([가-힣])입니다(?=[.!?]|$)/g, (_m, c) => `${c}${(c.charCodeAt(0) - 0xac00) % 28 ? '이에요' : '예요'}`],
+];
+const toHaeyo = (text: string) => HAEYO.reduce((t, [re, to]) => t.replace(re, to as any), text);
+
+/** 모델 JSON → 붙일 답(없으면 ''). 깨진 JSON·none 은 '' — 카드와 한 줄은 이미 나갔다. */
+export function composeWeatherAnswer(raw: string, lang: WeatherLang): string {
+    let j: any;
+    try { j = JSON.parse(raw); } catch { return ''; }
+    if (!j || j.none === true) return '';
+    const kept = typeof j.answer === 'string' ? dropMissing(j.answer.trim(), lang) : '';
+    const answer = lang === 'ko' ? toHaeyo(kept) : kept;
+    const lookup = typeof j.lookup === 'string' ? j.lookup.trim().slice(0, 40) : '';
+    return [answer, lookup ? OFFER[lang](lookup) : ''].filter(Boolean).join(' ');
 }
 
 /**

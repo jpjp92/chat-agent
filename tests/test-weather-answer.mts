@@ -3,12 +3,12 @@
  *
  * 왜 있는가(DEV_261125 §11): 첫 날씨 질문은 fast-pass(카드 + 템플릿 한 줄)라 "우산 챙겨야 할까?" 에 답이 없었다.
  * 카드 뒤에 역할 모델이 1~2문장을 붙이되, ① 모델 산문이 이미 있는 턴·오류 카드엔 붙이지 않고
- * ② 날씨만 물었으면 모델이 NONE 을 낸다. ①의 판정·프롬프트 계약·route 배선·KMA 시간 초과를 고정한다.
+ * ② 날씨만 물었으면 모델이 none 을 낸다(JSON). ①의 판정·프롬프트 계약·route 배선·KMA 시간 초과를 고정한다.
  * ⑥ 날씨 + 미세먼지 복합 질문: 카드를 두고 카드 밖 부분만 선택 모델이 검색(PLAN_WEATHER_COMPOSITE_261125).
  * ⑤ 답이 "찾아볼까요?" 로 끝나면 다음 "응" 은 검색이어야 한다 — 라우터가 직전 답 끝을 보고(lookup) 카드 답(검색 꺼짐)으로 보내지 않는다(§11-5).
  */
 import fs from 'node:fs';
-import { fastPassWeatherCards, buildWeatherAnswerPrompt, buildWeatherExtraPrompt } from '../server/agent/weather-answer-prompt.js';
+import { fastPassWeatherCards, buildWeatherAnswerPrompt, buildWeatherExtraPrompt, composeWeatherAnswer } from '../server/agent/weather-answer-prompt.js';
 import { interleaveWeatherSummaries } from '../server/agent/weather-summary.js';
 import { previousResponseExcerpt } from '../server/agent/previous-response.js';
 import { decideWeatherFollowup } from '../server/agent/weather-followup.js';
@@ -33,15 +33,28 @@ check('① 카드 없으면 null', fastPassWeatherCards('그냥 답변', 'ko') =
 check('① 영어 한 줄도 인식', fastPassWeatherCards(interleaveWeatherSummaries([block(card)], 'en'), 'en')?.length === 1);
 
 const p = buildWeatherAnswerPrompt('오늘 우산 챙겨야 할까?', [card], 'ko', '2026-11-25');
-check('② 프롬프트: 날씨만 물으면 NONE(기본값·팁 금지)', /Output exactly NONE/.test(p) && /The default is NONE/.test(p) && /do not add tips/.test(p));
-check('② 프롬프트: 1–2문장·결론 먼저·응답 언어', /1–2 short sentences/.test(p) && /Lead with the conclusion/.test(p) && /in Korean/.test(p));
-check('② 프롬프트: 없는 정보는 결론 먼저 + 찾아볼지 역질문(다른 사이트 안내 금지)', /end by offering to look it up/.test(p) && /Do not tell them to check another site/.test(p));
-check('② 프롬프트: 시스템 단어(카드·데이터) 금지', /Never mention the card, the data/.test(p));
-check('② 출처 이름을 사용자 언어로(KMA → 기상청), 수치가 근거일 때만 한 번', p.includes('"source":"기상청"') && /Name the source only when a forecast number is the whole reason, at most once/.test(p));
-check('② 데이터에 없는 비교(평년·평균·과거) 금지', /No comparisons with normal years, averages, past days/.test(p));
-check('② 다른 날 예보만 묻기("내일 날씨는?")도 NONE', /"내일 날씨는\?"/.test(p));
+check('② 프롬프트: 날씨만 물으면 none(기본값 true·팁 금지)', /"none": true if the message only asks/.test(p) && /The default is true/.test(p) && /do not add tips/.test(p));
+check('② 프롬프트: 1–2문장·결론 먼저·응답 언어', /1–2 short sentences/.test(p) && /Conclusion first/.test(p) && /in Korean/.test(p));
+check('② 프롬프트: 한국어는 해요체 고정·다른 언어엔 없음', /해요체/.test(p) && !/해요체/.test(buildWeatherAnswerPrompt('Will it rain?', [card], 'en', '2026-11-25')));
+check('② 프롬프트: 빠진 정보는 lookup 이름만(역질문은 서버가)', /"lookup": only if the user explicitly asked about something this forecast does not have/.test(p) && /The server adds the offer/.test(p));
+// 금지 문구 나열·예시로는 질문이 바뀌면 "나와 있지 않아" 가 다시 나왔다 → 모델은 lookup 이름만, 문장은 서버가(DEV_261127)
+check('② 프롬프트: 빠진 것·카드·데이터를 말하지 않음, 금지 문구를 나열하지 않음(나열하면 그 표현이 나왔다)', /do not mention anything that is missing, the card, or the data/.test(p) && !p.includes('나와 있지 않'));
+check('② compose: none → 빈 답', composeWeatherAnswer('{"none":true,"answer":"","lookup":""}', 'ko') === '');
+check('② compose: 답 + 서버 역질문(ko·en)', composeWeatherAnswer('{"none":false,"answer":"오늘은 비가 와요.","lookup":"미세먼지"}', 'ko') === '오늘은 비가 와요. 미세먼지도 찾아볼까요?'
+    && composeWeatherAnswer('{"none":false,"answer":"It rains today.","lookup":"fine dust"}', 'en') === 'It rains today. Want me to look up fine dust?');
+check('② compose: "없다" 문장은 뺀다(실측 문장) — 남는 게 없으면 역질문만',
+    composeWeatherAnswer('{"none":false,"answer":"자외선 지수는 이 예보에서 제공되지 않아요.","lookup":"자외선 지수"}', 'ko') === '자외선 지수도 찾아볼까요?'
+    && composeWeatherAnswer('{"none":false,"answer":"오늘 서울 미세먼지 정보는 알 수 없어요.","lookup":"미세먼지"}', 'ko') === '미세먼지도 찾아볼까요?'
+    && composeWeatherAnswer('{"none":false,"answer":"부산은 하루 종일 비가 와요. 그치는 시간은 나와 있지 않아요.","lookup":"비 그치는 시간"}', 'ko') === '부산은 하루 종일 비가 와요. 비 그치는 시간도 찾아볼까요?');
+check('② compose: lookup 없으면 답만 · 깨진 JSON 은 빈 답', composeWeatherAnswer('{"none":false,"answer":"우산 챙기세요.","lookup":""}', 'ko') === '우산 챙기세요.' && composeWeatherAnswer('NONE', 'ko') === '');
+check('② 호출: JSON 스키마(none·answer·lookup) 로 받는다', /responseMimeType: 'application\/json'/.test(fs.readFileSync(new URL('../server/agent/weather-answer.ts', import.meta.url), 'utf8')) && /composeWeatherAnswer\(res\.text/.test(fs.readFileSync(new URL('../server/agent/weather-answer.ts', import.meta.url), 'utf8')));
+check('② 출처 이름을 사용자 언어로(KMA → 기상청), 보통은 생략·수치 하나가 근거일 때만 한 번', p.includes('"source":"기상청"') && /Usually no source; name it \("기상청 예보로는 …"\) at most once/.test(p));
+check('② 현재 기온·오늘 범위 반복 금지(한 줄이 보여 준다) · 묻지 않은 lookup 금지', /Do not repeat the current temperature or today's range/.test(p) && /only if the user explicitly asked about/.test(p) && /never offer something they did not ask about/.test(p));
+check('② 데이터에 없는 비교(평년·평균·과거) 금지', /no normal years, averages, or past days/.test(p));
+check('② 다른 날 예보만 묻기("내일 날씨는?")도 none · 날씨 요청 + 판단 질문은 답한다(JSON 전환 때 빠져 2/2 none 이 됐다)', /"내일 날씨는\?"/.test(p) && /"날씨 어때\? 우산 챙겨야 할까\?"\) is false/.test(p));
+check('② 하루 안의 시각을 말하지 않음(일 단위 데이터 — "내일 오전부터 맑아져요" 를 지어냈다)', /never say a time within a day/.test(p));
 check('② 오늘 칸엔 하늘 상태가 없다(관측과 섞임 방지)', !/"weekday":"수","condition"/.test(p) && /"weekday":"금","condition":"rain"/.test(p), p.slice(p.indexOf('dailyForecast'), p.indexOf('dailyForecast') + 160));
-check('② 관측(observedNow)·예보(dailyForecast) 이름을 가른다', p.includes('"observedNow"') && p.includes('"dailyForecast"') && /Do not mix them/.test(p));
+check('② 관측(observedNow)·예보(dailyForecast) 이름을 가른다', p.includes('"observedNow"') && p.includes('"dailyForecast"') && /"Right now" = observedNow; today and later = dailyForecast/.test(p));
 check('② 요일을 미리 붙인다(11-27 = 금)', p.includes('"date":"2026-11-27","weekday":"금"'), p.slice(p.indexOf('Card data'), p.indexOf('Card data') + 200));
 check('② 원문 메타(updatedAt·timezone) 는 넘기지 않음', !p.includes('updatedAt') && !p.includes('timezoneOffsetSec'));
 
@@ -94,5 +107,10 @@ check('⑥ route: extra 있으면 검색 답, 없거나 실패하면 역할 모�
 const disp = fs.readFileSync(new URL('../server/agent/stream-dispatch.ts', import.meta.url), 'utf8');
 check('⑥ dispatch 가 라우터 weatherExtra 를 잡는다', /st\.weatherExtra = data\.output\.weatherExtra/.test(disp));
 
+const cw = (a: string) => composeWeatherAnswer(JSON.stringify({ none: false, answer: a, lookup: '' }), 'ko');
+check('④ 해요체: 겠습니다·있습니다·됩니다', cw('우산을 챙기시는 것이 좋겠습니다. 비 소식이 있습니다. 안 챙겨도 됩니다.') === '우산을 챙기시는 것이 좋겠어요. 비 소식이 있어요. 안 챙겨도 돼요.');
+check('④ 해요체: 입니다 받침 구분', cw('맑은 날입니다. 내일은 금요일입니다.') === '맑은 날이에요. 내일은 금요일이에요.' && cw('토요일이 최고 기온 16도로 가장 따뜻한 하루입니다.').endsWith('하루예요.'));
+check('④ 해요체: % 뒤는 예요, 숫자 뒤는 그대로', cw('강수 확률은 60%입니다.') === '강수 확률은 60%예요.' && cw('비는 3mm입니다.') === '비는 3mm입니다.');
+check('④ 없다 문장 추가 패턴', composeWeatherAnswer(JSON.stringify({ none: false, answer: '미세먼지 정보는 제공하지 않아서 확인이 어려워요.', lookup: '미세먼지' }), 'ko') === '미세먼지도 찾아볼까요?');
 console.log(`\n${fail ? '❌' : '✅'} 통과 ${pass} · 실패 ${fail}`);
 process.exit(fail ? 1 : 0);
