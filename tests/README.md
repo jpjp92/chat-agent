@@ -201,6 +201,8 @@ npm run verify  # strict 타입(미사용 변수·매개변수) + ESLint 오류 
 | `test-card-followup.mts` | 약국·병원·동물병원·법률 카드 후속 판정 + fast-pass 내부 지시문 차단 + Gemini 도구 강제 + 약국 현재 영업 상태 계약 |
 | `test-storage-name.mts` | 업로드 파일명 정규화 — 확장자 보존은 `parse-document` 가 의존하는 계약 |
 | `test-pill-messages.mts` | 알약 응답 문구·파싱·웹 폴백 게이트·라우터 지름길 |
+| `test-pill-face-match.mts` | **MFDS exact 면별 대조** — 앞·뒤 각인 OR 검색 1건을 exact 로 보던 것(앞 ABC/뒤 123 사진에 ABC 만 가진 약이 카드로), 읽은 면의 코드가 각각 있어야 일치(PLAN_PILL_IDENTIFY_261128 G9) |
+| `test-pill-web.mts` | **약 식별 웹 후보** — "후보 줄"(제품·제조사·각인·제형·색상·URL) 파싱(낱알식별 도메인 밖 링크 버림)과 서버가 만드는 웹 후보 표 + DB 참고 표(생성 모델이 규칙 충돌로 웹 후보를 버리던 것, 11-28) |
 | `test-ddg-parse.mts` | 웹 검색 HTML 파싱 — 실제 응답 조각을 픽스처로 고정 |
 | `test-thinking-config.mts` | Gemini 모델별 thinking level/budget 하한과 강등 규칙 |
 | `test-openai-url-fetch.mts` | OpenAI URL 폴백 모듈 + 기본 OFF 기능 플래그 + ScrapingBee 선행 배선 + **논문 카드 종합단계 웹검색**(명시 검색 요청일 때만·논문 intent 만·과거참조 제외, 그리고 실제로 `web_search` 툴이 실리는지 배선까지) |
