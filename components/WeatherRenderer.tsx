@@ -43,10 +43,10 @@ const GLYPH: Record<Condition, string> = {
 
 
 const T: Record<Lang, Record<string, string>> = {
-  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', today: '오늘', feels: '체감', hi: '최고', lo: '최저', now: '현재', expected: '오늘 예상', kmaName: '기상청', observed: '관측', popHint: '강수확률 %', daysTitle: '{n}일 예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '곧 비 예보 · 우산 챙기세요', snowExp: '곧 눈 예보 · 대비하세요', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
-  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', today: 'Today', feels: 'Feels', hi: 'H', lo: 'L', now: 'Now', expected: 'Expected', kmaName: 'KMA', observed: 'Obs.', popHint: 'Rain chance %', daysTitle: '{n}-day forecast', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain expected · bring an umbrella', snowExp: 'Snow expected · be prepared', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
-  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', today: 'Hoy', feels: 'Sens.', hi: 'Máx', lo: 'Mín', now: 'Ahora', expected: 'Previsto', kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. lluvia %', daysTitle: 'Pronóstico {n} días', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
-  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', today: "Auj.", feels: 'Ress.', hi: 'Max', lo: 'Min', now: 'Actuel', expected: 'Prévu', kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. pluie %', daysTitle: 'Prévisions {n} j', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
+  ko: { humidity: '습도', wind: '풍속', clouds: '구름', chance: '강수확률', today: '오늘', feels: '체감', hi: '최고', lo: '최저', now: '최근 1시간', expected: '오늘 예상', kmaName: '기상청', observed: '관측', popHint: '강수확률 %', daysTitle: '{n}일 예보', rainNow: '지금 비가 내리고 있어요', snowNow: '지금 눈이 내리고 있어요', rainExp: '오늘 비 예보 · 우산 챙기세요', snowExp: '오늘 눈 예보 · 대비하세요', notFound: '도시를 찾지 못했어요', fetchFail: '날씨 정보를 불러오지 못했어요' },
+  en: { humidity: 'Humidity', wind: 'Wind', clouds: 'Clouds', chance: 'Chance', today: 'Today', feels: 'Feels', hi: 'H', lo: 'L', now: 'Last 1h', expected: 'Expected today', kmaName: 'KMA', observed: 'Obs.', popHint: 'Rain chance %', daysTitle: '{n}-day forecast', rainNow: "It's raining now", snowNow: "It's snowing now", rainExp: 'Rain today · bring an umbrella', snowExp: 'Snow today · be prepared', notFound: "Couldn't find that city", fetchFail: "Couldn't load the weather" },
+  es: { humidity: 'Humedad', wind: 'Viento', clouds: 'Nubes', chance: 'Prob.', today: 'Hoy', feels: 'Sens.', hi: 'Máx', lo: 'Mín', now: 'Última 1 h', expected: 'Previsto hoy', kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. lluvia %', daysTitle: 'Pronóstico {n} días', rainNow: 'Está lloviendo ahora', snowNow: 'Está nevando ahora', rainExp: 'Se espera lluvia · lleva paraguas', snowExp: 'Se espera nieve · prepárate', notFound: 'No se encontró la ciudad', fetchFail: 'No se pudo cargar el clima' },
+  fr: { humidity: 'Humidité', wind: 'Vent', clouds: 'Nuages', chance: 'Prob.', today: "Auj.", feels: 'Ress.', hi: 'Max', lo: 'Min', now: 'Dernière 1 h', expected: "Prévu auj.", kmaName: 'KMA', observed: 'Obs.', popHint: 'Prob. pluie %', daysTitle: 'Prévisions {n} j', rainNow: 'Il pleut maintenant', snowNow: 'Il neige maintenant', rainExp: 'Pluie prévue · prends un parapluie', snowExp: 'Neige prévue · sois prêt', notFound: 'Ville introuvable', fetchFail: 'Impossible de charger la météo' },
 };
 
 const LOCALE: Record<Lang, string> = { ko: 'ko-KR', en: 'en-US', es: 'es-ES', fr: 'fr-FR' };
@@ -173,26 +173,33 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
 
           {/* 강수 안내(비·눈이 있을 때만) */}
           {precipState !== 'none' && (
-            <div className="mt-2 sm:mt-3 flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[#a5b4fc]/[.08]">
-              <span className="text-[15px]" aria-hidden>{snowy ? '🌨️' : '🌧️'}</span>
-              <span className={`flex-1 min-w-0 text-[13px] font-semibold truncate ${strong}`}>
-                {c.precip.mm}mm · {precipState === 'now' ? tt.now : tt.expected}
-                <span className={`ml-1.5 font-medium ${muted}`}>{precipSub}</span>
-              </span>
-              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[#0284c7] dark:text-[#7dd3fc]">{c.precip.pop}%</span>
+            // mm 의 기간이 상태마다 다르다: now=최근 1시간 관측, expected=오늘 하루 예보 합계 — 레이블로 구분한다.
+            // 핵심 수치(강수량·강수확률)는 1행에 고정, 안내 문구는 2행에서 줄바꿈 허용(잘리면 우산 안내가 사라졌다).
+            <div className="mt-2 sm:mt-3 px-3 py-2 sm:py-2.5 rounded-xl border border-[#e2e8f0] dark:border-[#a5b4fc]/15 bg-[#a5b4fc]/[.08]">
+              <div className="flex items-center gap-2">
+                <span className="text-[15px]" aria-hidden>{snowy ? '🌨️' : '🌧️'}</span>
+                <span className={`flex-1 min-w-0 text-[13px] font-semibold tabular-nums ${strong}`}>
+                  {precipState === 'now' ? tt.now : tt.expected} {c.precip.mm}mm
+                </span>
+                <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-[#0284c7] dark:text-[#7dd3fc]">{tt.chance} {c.precip.pop}%</span>
+              </div>
+              <div className={`mt-0.5 pl-[25px] text-[12.5px] font-medium leading-snug ${muted}`}>{precipSub}</div>
             </div>
           )}
 
           {/* 지표: 인라인 3열 */}
+          {/* 좁은 화면에선 레이블 위·값 아래로 쌓는다 — 한 줄 nowrap 이면 가운데 열 값이 오른쪽 아이콘과 붙었다 */}
           <div className={`grid grid-cols-3 gap-2 mt-2.5 py-2 sm:mt-3 sm:py-3 border-y border-[#e2e8f0] dark:border-white/[0.07] text-[13px] ${strong}`}>
             {[
               { icon: 'fa-droplet', l: tt.humidity, v: `${c.humidity}%` },
               { icon: 'fa-wind', l: tt.wind, v: `${c.windSpeed}m/s` },
               { icon: 'fa-cloud', l: tt.clouds, v: `${c.clouds}%` },
             ].map((s, i) => (
-              <div key={i} className={`flex items-center gap-1.5 min-w-0 ${i === 1 ? 'justify-center' : i === 2 ? 'justify-end' : ''}`}>
-                <i className={`fa-solid ${s.icon} text-[12px] text-[#0284c7] dark:text-[#7dd3fc]`} aria-hidden />
-                <span className={`${muted} whitespace-nowrap`}>{s.l}</span>
+              <div key={i} className={`flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5 min-w-0 ${i > 0 ? 'pl-2 border-l border-[#e2e8f0] dark:border-white/[0.07]' : ''}`}>
+                <span className={`flex items-center gap-1 min-w-0 ${muted}`}>
+                  <i className={`fa-solid ${s.icon} text-[11px] text-[#0284c7] dark:text-[#7dd3fc]`} aria-hidden />
+                  <span className="truncate">{s.l}</span>
+                </span>
                 <span className="font-bold tabular-nums whitespace-nowrap">{s.v}</span>
               </div>
             ))}
@@ -218,7 +225,7 @@ export const WeatherRenderer: React.FC<Props> = ({ data, language = 'ko' }) => {
                       <div className={`text-[12px] font-semibold ${today ? strong : muted}`}>{today ? tt.today : weekdayLabel(d.date, LOCALE[lang])}</div>
                       <div className="text-[20px] sm:text-[22px] leading-none sm:my-0.5" aria-hidden>{GLYPH[d.condition]}</div>
                       {/* 최고·최저 한 줄 — 칸마다 한 줄이 빠져 모바일 높이가 가장 많이 준다 */}
-                      <div className="whitespace-nowrap"><span className={`text-[14px] font-bold ${strong}`}>{d.maxTemp}°</span> <span className={`text-[12px] ${muted}`}>{d.minTemp}°</span></div>
+                      <div className="whitespace-nowrap"><span className={`text-[14px] font-bold ${strong}`}>{d.maxTemp}°</span><span className={`ml-1 text-[12px] ${muted}`}>{d.minTemp}°</span></div>
                       <div className="text-[11.5px] font-semibold text-[#0284c7] dark:text-[#7dd3fc]">{d.pop}%</div>
                     </div>
                   );

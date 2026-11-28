@@ -347,10 +347,16 @@ async function buildOpenWeatherData(resolved: Resolved, apiKey: string): Promise
   const tz = current.timezone ?? forecast.city?.timezone ?? 0;
   const daily = summarizeOwmDaily(forecast.list || [], tz);
   const curRain = (current.rain?.['1h'] || 0) + (current.snow?.['1h'] || 0);
-  const expected = (daily[0]?.rainMm || 0) + (daily[0]?.snowMm || 0);
-  const pop = daily[0]?.pop ?? 0;
+  // 예보 목록은 지금 이후 3시간 칸만 와서 밤 21시(현지)가 지나면 daily[0] 이 내일이다.
+  // 카드의 '오늘' 값(강수량·강수확률·최고·최저)은 daily[0] 이 오늘 날짜일 때만 쓴다.
+  const today = daily[0]?.date === localDate(current.dt, tz) ? daily[0] : undefined;
+  const expected = (today?.rainMm || 0) + (today?.snowMm || 0);
+  const pop = today?.pop ?? 0;
   const wind = Number((current.wind?.speed || 0).toFixed(1));
   const temp = Math.round(current.main.temp);
+  // current.main.temp_min/max 는 하루 최고·최저가 아니라 이 시각 관측소 간 편차라 현재 기온과 거의 같다.
+  const minTemp = Math.min(today?.minTemp ?? temp, temp);
+  const maxTemp = Math.max(today?.maxTemp ?? temp, temp);
   return {
     source: 'OpenWeather',
     updatedAt: new Date().toISOString(),
@@ -362,8 +368,8 @@ async function buildOpenWeatherData(resolved: Resolved, apiKey: string): Promise
     current: {
       temp,
       feelsLike: Math.round(current.main.feels_like),
-      minTemp: Math.round(current.main.temp_min),
-      maxTemp: Math.round(current.main.temp_max),
+      minTemp,
+      maxTemp,
       humidity: current.main.humidity,
       pressure: current.main.pressure ?? null,
       windSpeed: wind,
@@ -544,16 +550,18 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
   const today = dateFromYmd(formatKst(new Date(Date.now() + 9 * 3600 * 1000)).ymd);
   const daily = mergeDaily(summarizeKmaDaily(villageRows), await midDaily, today);
 
-  const temp = Math.round(numericValue(cur.T1H) ?? daily[0]?.maxTemp ?? 0);
+  // 23시 발표 단기예보는 내일 0시부터라 그 무렵엔 daily[0] 이 내일이다 — '오늘' 값은 날짜가 맞을 때만 쓴다.
+  const todayDaily = daily[0]?.date === today ? daily[0] : undefined;
+  const temp = Math.round(numericValue(cur.T1H) ?? todayDaily?.maxTemp ?? 0);
   // 카드 머리 범위와 예보 첫 칸(오늘)이 같은 숫자를 보이도록 현재 기온도 오늘 범위에 넣는다.
-  if (daily[0]) { daily[0].minTemp = Math.min(daily[0].minTemp, temp); daily[0].maxTemp = Math.max(daily[0].maxTemp, temp); }
+  if (todayDaily) { todayDaily.minTemp = Math.min(todayDaily.minTemp, temp); todayDaily.maxTemp = Math.max(todayDaily.maxTemp, temp); }
   const humidity = Math.round(numericValue(cur.REH) ?? daily[0]?.pop ?? 0);
   const wind = Number((numericValue(cur.WSD) ?? 0).toFixed(1));
   const curRain = numericValue(cur.RN1) ?? 0;
   const pty = Number(cur.PTY || firstForecast.PTY || 0);
   const sky = Number(firstForecast.SKY || 1);
-  const expected = (daily[0]?.rainMm || 0) + (daily[0]?.snowMm || 0);
-  const pop = daily[0]?.pop ?? 0;
+  const expected = (todayDaily?.rainMm || 0) + (todayDaily?.snowMm || 0);
+  const pop = todayDaily?.pop ?? 0;
   const observedDate = String(nowRows[0]?.baseDate || hourly.baseDate);
   const observedTime = String(nowRows[0]?.baseTime || hourly.baseTime);
 
@@ -565,8 +573,8 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
     current: {
       temp,
       feelsLike: temp,               // KMA 실황엔 체감온도 없음 → 기온과 동일
-      minTemp: daily[0]?.minTemp ?? temp,
-      maxTemp: daily[0]?.maxTemp ?? temp,
+      minTemp: todayDaily?.minTemp ?? temp,
+      maxTemp: todayDaily?.maxTemp ?? temp,
       humidity,
       pressure: null,
       windSpeed: wind,
