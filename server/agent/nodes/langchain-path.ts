@@ -15,10 +15,11 @@ import { paperTool } from "../paper-tool";
 import { arxivTool } from "../arxiv-tool";
 import { cardHasResults, pinCardToProse } from "../card-tool-output";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
-import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage, shouldTryPillWebFallback, buildPillWebQuery } from "./pill-messages";
+import { pillNoMatchMessage, pillLookupErrorMessage, extractPillMatchType, pillCandidateTableMessage, pillWebCandidateMessage, shouldTryPillWebFallback, buildPillWebQuery } from "./pill-messages";
 import { isTimeoutError, isAuthError, markRateLimitKey } from "./retry";
 import type { RetryReason } from "../turn-log";
 import { shouldAddWebSearchToPaperFollowup } from "../search-signals";
+import { pillWebSearch } from "../pill-web-search";
 
 // LangChain 호출 1회 상한 — 행(fetch 끊김 시 ~5분) 방지. 25s 넘게 무응답이면 끊고 키 로테이션으로 넘긴다.
 const LC_CALL_TIMEOUT_MS = 25_000;
@@ -190,6 +191,7 @@ export const runLangChainPath = async (args: {
                     imprint_back: state.pillData.imprint_back ?? "",
                     color: state.pillData.color ?? "",
                     shape: state.pillData.shape ?? "",
+                    form: state.pillData.form ?? "",
                 });
                 const pillLookupText = (() => {
                     if (typeof pillLookupResult === 'string') return pillLookupResult;
@@ -201,7 +203,11 @@ export const runLangChainPath = async (args: {
                 })();
                 directPillLookupDone = true;
 
-                if (pillLookupText.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다')) {
+                // 두 DB 모두 0건: 각인을 읽었으면 웹까지 간다(전엔 여기서 끝나 웹 게이트에 닿지 못했다 — PLAN_PILL_IDENTIFY_261128 G8).
+                // 각인이 없으면 웹에 던질 키가 없으니 지금처럼 바로 끝낸다 — 불필요한 검색 지연을 만들지 않는다.
+                let pillWebEngaged = false;
+                const pillNoMatch = pillLookupText.includes('약학정보원 DB에서 일치하는 약품을 찾지 못했습니다');
+                if (pillNoMatch && !shouldTryPillWebFallback('none', state.pillData)) {
                     console.log('[LangGraph] Direct identify_pill no-match result');
                     return { messages: [new AIMessage(pillNoMatchMessage(state.pillData))] };
                 }
@@ -209,7 +215,7 @@ export const runLangChainPath = async (args: {
                     console.log('[LangGraph] Direct identify_pill lookup-error result');
                     return { messages: [new AIMessage(pillLookupErrorMessage)] };
                 }
-                const pillMatchType = extractPillMatchType(pillLookupText);
+                const pillMatchType = pillNoMatch ? 'none' : extractPillMatchType(pillLookupText);
                 if (pillMatchType && pillMatchType !== 'exact') {
                     // ── 웹 폴백 ──────────────────────────────────────────────────
                     // 각인을 읽었는데 식약처 DB 에 없을 때만. 식약처는 각인 텍스트를 8.7% 만
@@ -232,7 +238,17 @@ export const runLangChainPath = async (args: {
                     if (willSearch) {
                         const q = buildPillWebQuery(state.pillData);
                         try {
-                            const r = await searchWebTool.invoke({ query: q });
+                            // 1차: 사용자 모델의 검색(grounding / web_search) — DDG 는 Node 요청이 봇 확인으로 막혔다(11-28).
+                            // 모델 검색을 못 쓰는 경우(무료 키 등)에만 2차로 DDG.
+                            const modelResult = await pillWebSearch(q, state.model || resolvedModel);
+                            // 모델 검색이 후보를 냈으면 **서버가 표로 바로 답한다** — 생성 모델에 다시 넘기면 규칙 충돌로
+                            // 웹 후보를 버렸다(11-28 위더스세픽스캡슐 사례). 생성 호출이 하나 빠져 더 빠르다.
+                            if (modelResult && modelResult.candidates.length > 0) {
+                                console.log('[LangGraph] Pill web candidates → 서버 표:', modelResult.candidates.length);
+                                return { messages: [new AIMessage(pillWebCandidateMessage(state.pillData, modelResult.candidates, pillNoMatch ? '' : pillLookupText, pillMatchType))] };
+                            }
+                            // 모델 검색이 돌았는데 각인 일치 후보가 없으면 DDG 를 또 돌리지 않는다(지연·같은 결과)
+                            const r = modelResult ? '' : await searchWebTool.invoke({ query: q });
                             const t = typeof r === 'string' ? r : String((r as any)?.content ?? '');
                             console.log('[LangGraph] Pill web fallback search:', JSON.stringify({
                                 q, len: t.length, hasUrl: /https?:\/\//.test(t), head: t.slice(0, 120),
@@ -246,6 +262,10 @@ export const runLangChainPath = async (args: {
                         }
                     }
 
+                    if (!pillWebText && pillNoMatch) {
+                        console.log('[LangGraph] Direct identify_pill no-match result (web empty)');
+                        return { messages: [new AIMessage(pillNoMatchMessage(state.pillData))] };
+                    }
                     if (!pillWebText) {
                         console.log('[LangGraph] Direct identify_pill non-exact result:', pillMatchType);
                         return { messages: [new AIMessage(pillCandidateTableMessage(state.pillData, pillMatchType, pillLookupText))] };
@@ -254,15 +274,18 @@ export const runLangChainPath = async (args: {
                     // 웹 결과가 있으면 즉시 반환하지 않고 모델이 종합하게 한다.
                     // ①(문구 정직성)이 여기서 무너지지 않도록 **말해야 할 사실을 규칙으로 못 박는다.**
                     console.log('[LangGraph] Pill web fallback engaged:', pillMatchType);
+                    pillWebEngaged = true;
                     finalInstruction += `\n\n[MFDS_IMPRINT_NOT_FOUND]\n`
-                        + `사용자 알약의 각인은 "${(state.pillData?.imprint_front ?? '').trim()}" 이고, 식품의약품안전처 DB 에서 이 각인으로 등록된 약품을 찾지 못했다.\n`
+                        + `사용자 알약의 각인은 "${[state.pillData?.imprint_front, state.pillData?.imprint_back].map((v: any) => String(v ?? '').trim()).filter(Boolean).join(' / ')}" 이고, 식품의약품안전처 DB 에서 이 각인으로 등록된 약품을 찾지 못했다.\n`
                         + `식약처 DB 는 전체 품목의 약 8.7% 에만 각인 텍스트를 제공한다(정보 부재이지 무각인이 아니다).\n\n`
-                        + `[MFDS_COLOR_SHAPE_CANDIDATES]\n${pillLookupText}\n\n`
+                        + `[MFDS_COLOR_SHAPE_CANDIDATES]\n${pillNoMatch ? '(색상·모양 기준 후보도 없음)' : pillLookupText}\n\n`
                         + `[PROVIDED_WEB_DATA]\n${pillWebText}\n\n`
                         + `[DRUG_ID_WEB_FALLBACK_RULES]\n`
                         + `- 첫 문장에서 반드시 밝힐 것: 식약처 DB 에서 해당 각인을 찾지 못했고, 아래는 웹 검색 결과라는 사실.\n`
                         + `- 약품명을 제시할 때는 반드시 [PROVIDED_WEB_DATA] 의 출처 링크를 함께 달 것. 링크를 댈 수 없는 약품명은 쓰지 말 것.\n`
-                        + `- [PROVIDED_WEB_DATA] 에 근거가 없으면 "웹에서도 확정하지 못했다"고 말할 것. 학습 지식으로 채우지 말 것.\n`
+                        + `- [PROVIDED_WEB_DATA] 에 각인이 일치하는 제품이 있으면 "웹에서 각인이 일치하는 후보" 로 출처 링크와 함께 먼저 보여 줄 것 — 확정이 아니라 후보다. 비전이 읽은 모양·로고 글자가 웹 결과와 조금 달라도(타원형↔장방형, 로고 오독) 각인 글자가 같으면 버리지 말 것.\n`
+                        + `- [PROVIDED_WEB_DATA] 에 각인 일치 근거가 없을 때만 "웹에서도 확정하지 못했다"고 말할 것. 학습 지식으로 채우지 말 것.\n`
+                        + `- 제품명과 제조사는 "제품명 — 제조사" 로 쓴다(괄호로 감싸지 않는다).\n`
                         + `- 시각적 유사성이나 추측으로 약품명을 만들어내지 말 것.\n`
                         + `- [MFDS_COLOR_SHAPE_CANDIDATES] 는 각인을 쓰지 않은 색상·모양 기준 참고 후보다. 각인 기준 결과인 것처럼 쓰지 말 것.\n`
                         + `- json:drug 카드는 만들지 말 것.\n`
@@ -270,7 +293,12 @@ export const runLangChainPath = async (args: {
                     directPillLookupDone = true;
                 }
 
-                finalInstruction += `\n\n[IDENTIFY_PILL_DATABASE_RESULT]\n${pillLookupText}\n\n[DRUG_ID_RESPONSE_RULES]\n- Do NOT include or reproduce the raw vision extraction JSON.\n- Use the database result above as the only source for the pill candidate list.\n- Generate a json:drug card ONLY when match_type is exact.`;
+                // 웹 폴백이 붙었으면 "DB 결과만 유일한 출처" 줄을 빼야 한다 — 이 줄이 웹 규칙 **뒤에** 붙어 웹 후보를 덮어썼다
+                // (11-28: 웹 검색이 세픽심 캡슐 후보를 찾았는데 답은 "웹에서도 확정 못 함" + 색상·모양 후보만)
+                const candidateSourceRule = pillWebEngaged
+                    ? '- Candidates come from [PROVIDED_WEB_DATA] (imprint match, with links) first, then the database result as color/shape reference only.'
+                    : '- Use the database result above as the only source for the pill candidate list.';
+                finalInstruction += `\n\n[IDENTIFY_PILL_DATABASE_RESULT]\n${pillLookupText}\n\n[DRUG_ID_RESPONSE_RULES]\n- Do NOT include or reproduce the raw vision extraction JSON.\n${candidateSourceRule}\n- Generate a json:drug card ONLY when match_type is exact.`;
             }
 
             let allTools: any[] = [];

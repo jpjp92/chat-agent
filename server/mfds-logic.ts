@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabase } from './supabase';
+import { matchesEachFace } from './pill-face-match';
 
 const MFDS_DETAIL_URL = (itemSeq: string) =>
     `https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${itemSeq}`;
@@ -109,12 +110,19 @@ export async function searchMfdsPills(criteria: {
     imprint_back?: string;
     color?: string;
     shape?: string;
+    form?: string;
 }): Promise<MfdsResult> {
-    const { imprint_front, imprint_back, color, shape } = criteria;
+    const { imprint_front, imprint_back, color, shape, form } = criteria;
 
-    const searchCodes = buildSearchCodes(imprint_front);
-    if (imprint_back) searchCodes.push(...buildSearchCodes(imprint_back));
-    const uniqueCodes = [...new Set(searchCodes)];
+    // 면 전체 + 공백 토큰별 코드 — 비전이 한 면에 "UU CFX" 를 붙여 내면 통째 코드("UUCFX")만으론 못 찾는다(11-28)
+    const faceCodes = (face?: string) => {
+        if (!face) return [];
+        const tokens = face.split(/[\s/|,·]+/).filter(t => /[a-zA-Z0-9]/.test(t));
+        return [...new Set([...buildSearchCodes(face), ...(tokens.length > 1 ? tokens.flatMap(buildSearchCodes) : [])])];
+    };
+    const frontCodes = faceCodes(imprint_front);
+    const backCodes = faceCodes(imprint_back);
+    const uniqueCodes = [...new Set([...frontCodes, ...backCodes])];
 
     const colorList  = normalizeColor(color || '');
     const shapeList  = normalizeShape(shape || '');
@@ -131,11 +139,14 @@ export async function searchMfdsPills(criteria: {
         .in('drug_shape', shapeList)
         .limit(20));
 
-    if (exact.length === 1) {
-        return { match_type: 'exact', results: exact.map(toMfdsDrug) };
+    // exact 는 읽은 면의 각인이 **각각** 행에 있을 때만(면별 대조). 한쪽만 맞으면 후보 표로.
+    const faceMatched = exact.filter(r => matchesEachFace(r.mark_codes, frontCodes, backCodes));
+    if (faceMatched.length === 1) {
+        return { match_type: 'exact', results: faceMatched.map(toMfdsDrug) };
     }
-    if (exact.length > 1) {
-        const sorted = sortByRelevance(exact, uniqueCodes);
+    if (exact.length > 0) {
+        const rest = exact.filter(r => !faceMatched.includes(r));
+        const sorted = [...sortByRelevance(faceMatched, uniqueCodes), ...sortByRelevance(rest, uniqueCodes)];
         return { match_type: 'imprint_only', results: sorted.map(toMfdsDrug) };
     }
 
@@ -156,6 +167,9 @@ export async function searchMfdsPills(criteria: {
         let q = supabase.from('mfds_pills').select(select);
         if (color)  q = q.in('color_class1', colorList);
         if (shape)  q = q.in('drug_shape', shapeList);
+        // 제형으로 거른다 — 없으면 캡슐 사진에 정제 후보가 나왔다(11-28, 주황 캡슐 → 노랑 정제 5개). 추가 쿼리 없음.
+        if (form?.includes('캡슐')) q = q.ilike('form_code_name', `%${form.includes('연질') ? '연질캡슐' : '경질캡슐'}%`);
+        else if (form === '정제') q = q.not('form_code_name', 'ilike', '%캡슐%');
         const similar = rows('3단계(색상+모양)', await q.limit(5));
 
         if (similar.length > 0) {

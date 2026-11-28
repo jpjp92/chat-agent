@@ -358,6 +358,11 @@ const ChatMessage: React.FC<ChatMessageFullProps> = ({ message, language = 'ko',
     : {};
 
   const MarkdownComponents = {
+    // 본문 이미지는 약 후보 표의 로고·알약 사진뿐이다 — 원본 크기(최대 200KB 사진)로 표가 늘어나지 않게 작게 고정
+    img: ({ alt, src }: { alt?: string; src?: string }) => (
+      <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer"
+        className={`inline-block align-middle my-0 rounded ${alt === '마크' ? 'h-5 w-auto' : 'h-12 w-auto max-w-[72px] object-contain'}`} />
+    ),
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-4 mt-2 text-slate-900 dark:text-white" {...props} />,
     h2: ({ ...props }) => <h2 className="text-lg font-bold mb-3 mt-4 text-slate-800 dark:text-slate-100" {...props} />,
     h3: ({ ...props }) => <h3 className="text-base font-bold mb-2 mt-4 text-slate-800 dark:text-slate-200" {...props} />,

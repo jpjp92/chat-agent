@@ -23,6 +23,8 @@ CRITICAL INSTRUCTIONS for imprint reading:
 - IMPORTANT — tablet score lines vs. imprint characters: a score line (홈) is a physical groove running across the tablet for splitting. Do NOT read score lines as hyphens or extra characters. Only include characters that are actually debossed/embossed as part of the imprint.
 - If you see a stylized logo with two letters (e.g., lowercase letter + uppercase letter), report exactly those two letters with no separator unless a hyphen is visibly embossed as part of the imprint itself.
 - If you see a stylized logo, describe each letter you can identify in order (left-to-right, top-to-bottom)
+- Capsules: put the text on the cap half in imprint_front and the body half in imprint_back
+- A manufacturer emblem (a pictorial symbol, or a symbol inside a box/frame) that is not plainly a sequence of letters: write the word 마크 in its place, e.g. "마크 CFX". Do NOT turn it into guessed letters like "UU" or "WU" — Korean pill databases register such logos as 마크.
 - Hyphens, slashes, and numbers after letters (e.g., "J 80", "M 5") should be included in the imprint field only when they are part of the debossed imprint, not tablet grooves
 
 Return ONLY a JSON object in this exact format, no other text:
@@ -30,7 +32,8 @@ Return ONLY a JSON object in this exact format, no other text:
   "imprint_front": "exact characters visible on front face, or null if none",
   "imprint_back": "exact characters visible on back face, or null if none",
   "color": "one of: 하양, 노랑, 주황, 분홍, 빨강, 갈색, 연두, 초록, 청록, 파랑, 남색, 보라, 회색, 검정",
-  "shape": "one of: 원형, 타원형, 장방형, 삼각형, 사각형, 마름모형, 오각형, 육각형, 팔각형, 기타",
+  "shape": "one of: 원형, 타원형, 장방형, 삼각형, 사각형, 마름모형, 오각형, 육각형, 팔각형, 기타 (a capsule is 장방형)",
+  "form": "one of: 정제, 경질캡슐, 연질캡슐, 기타 — a two-piece hard shell is 경질캡슐; a single seamless soft gel is 연질캡슐",
   "confidence": "high|medium|low"
 }`;
 

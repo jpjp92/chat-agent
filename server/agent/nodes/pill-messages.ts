@@ -69,6 +69,8 @@ const parsePillCandidates = (toolText: string) => {
             color: read('Color'),
             shape: read('Shape'),
             detailUrl: read('Detail URL'),
+            image: /^https?:\/\//.test(read('Image')) ? read('Image') : '',
+            mark: /^https?:\/\//.test(read('Mark')) ? read('Mark') : '',
         };
     }).filter(candidate => candidate.name);
 };
@@ -86,8 +88,11 @@ export const pillCandidateTableMessage = (pillData: any, matchType: string, tool
     const imprint = readImprint(pillData);
 
     // 각인을 **읽었는데 DB 에 없는 경우**와 **아예 못 읽은 경우**는 사용자에게 다른 사실이다.
+    // 후보 출처를 링크로 판단한다 — 약학정보원 결과를 "식약처 DB 에서 검색" 으로 적고 있었다(11-28)
+    const fromPharm = candidates.length > 0 && candidates.every(c => c.detailUrl.includes('pharm.or.kr'));
+    const sourceName = fromPharm ? '약학정보원' : '식품의약품안전처 DB';
     const lead = matchType === 'imprint_only'
-        ? `이미지에서 추출한 특징(${formatPillAttributes(pillData)})을 바탕으로 식품의약품안전처 DB에서 검색한 후보 약품입니다.`
+        ? `이미지에서 추출한 특징(${formatPillAttributes(pillData)})을 바탕으로 ${sourceName}에서 검색한 후보 약품입니다.`
         : imprint
             ? [
                 `각인 **${imprint}** 과 일치하는 약품을 식품의약품안전처 DB에서 찾지 못했습니다.`,
@@ -111,18 +116,26 @@ export const pillCandidateTableMessage = (pillData: any, matchType: string, tool
     // 빈 값을 `-` 로 쓰면 "이 약은 각인이 없다"로 읽히는데, 우리는 그걸 모른다 — 각인 텍스트·이미지가
     // 둘 다 없는 행이 많아 무각인인지 미등록인지 구분할 수 없다. "각인 없음"과 "정보 없음"은
     // 다른 주장이라 단정하지 않는다 → DEV_260818
+    // 같은 문자 각인(CFX)을 여러 제조사가 쓰면 로고가 결정적이다 — 로고 이미지와 알약 사진을 표에 붙여 사용자가 비교하게 한다(G13).
+    // 추가 요청 없음: 약학정보원 목록 행·MFDS 행에 이미 있는 주소다.
+    const imprintCell = (c: typeof candidates[number]) => {
+        if (!c.imprint) return '정보 없음';
+        return c.mark ? `![마크](${c.mark}) ${c.imprint.replace(/^마크\s*/, '')}` : c.imprint;
+    };
+    const showPhotos = candidates.some(c => c.image);
     const rows = candidates.map(candidate => [
+        ...(showPhotos ? [candidate.image ? `![사진](${candidate.image})` : '-'] : []),
         candidate.name,
         candidate.company || '-',
-        candidate.imprint || '정보 없음',
+        imprintCell(candidate),
         candidate.color || '-',
         candidate.shape || '-',
         candidate.detailUrl ? `[약품정보](${candidate.detailUrl})` : '-',
     ]);
 
     const table = [
-        '| 제품명 | 제조사 | DB 등록 각인 | 색상 | 모양 | 링크 |',
-        '|---|---|---|---|---|---|',
+        `|${showPhotos ? ' 사진 |' : ''} 제품명 | 제조사 | DB 등록 각인 | 색상 | 모양 | 링크 |`,
+        `|${showPhotos ? '---|' : ''}---|---|---|---|---|---|`,
         ...rows.map(row => `| ${row.join(' | ')} |`),
     ].join('\n');
 
@@ -133,6 +146,45 @@ export const pillCandidateTableMessage = (pillData: any, matchType: string, tool
         '',
         table,
     ].join('\n');
+};
+
+/**
+ * 웹 폴백 후보를 **서버가 표로** 만든다 — 생성 모델을 거치지 않는다(규칙 충돌로 웹 후보가 사라졌다, 11-28).
+ * 웹 후보는 각인 일치 근거가 있는 출처 링크를 가진 것만 들어온다(pill-web-search.ts). 확정이 아니라 후보다.
+ * DB 색상·모양 후보는 아래에 참고로만 붙인다.
+ */
+export const pillWebCandidateMessage = (
+    pillData: any,
+    web: { name: string; company: string; imprint: string; form: string; color: string; url: string }[],
+    dbToolText: string,
+    matchType: string,
+): string => {
+    const imprint = readImprint(pillData);
+    const cell = (v: string) => (v || '-').replace(/\|/g, '/');
+    const webTable = [
+        '| 제품명 | 제조사 | 각인 | 제형 | 색상 | 출처 |',
+        '|---|---|---|---|---|---|',
+        ...web.map(c => `| ${cell(c.name)} | ${cell(c.company)} | ${cell(c.imprint)} | ${cell(c.form)} | ${cell(c.color)} | [보기](${c.url}) |`),
+    ].join('\n');
+    const db = dbToolText ? parsePillCandidates(dbToolText) : [];
+    const dbPart = db.length && matchType !== 'imprint_only'
+        ? [
+            '',
+            `**참고 — 식약처 DB 색상·모양 기준 후보** (각인을 쓰지 않은 결과라 다를 수 있습니다)`,
+            '',
+            '| 제품명 | 제조사 | 색상 | 모양 | 링크 |',
+            '|---|---|---|---|---|',
+            ...db.map(c => `| ${cell(c.name)} | ${cell(c.company)} | ${cell(c.color)} | ${cell(c.shape)} | ${c.detailUrl ? `[약품정보](${c.detailUrl})` : '-'} |`),
+        ].join('\n')
+        : '';
+    return [
+        `각인 **${imprint}** 으로 식품의약품안전처 DB에서는 찾지 못해, 웹(낱알식별 사이트)에서 각인이 일치하는 후보를 찾았습니다.`,
+        '',
+        webTable,
+        '',
+        '사진만으로 약을 확정할 수 없습니다. 로고·각인을 출처 페이지의 사진과 비교해 보시고, 복용 전 반드시 약사 또는 의사에게 확인하세요.',
+        dbPart,
+    ].join('\n').trim();
 };
 
 /**
@@ -161,7 +213,15 @@ export const shouldTryPillWebFallback = (matchType: string, pillData: any): bool
  * `알약 각인` 을 함께 넣어야 약품 색인 페이지가 올라온다(그냥 "OG37" 은 부품번호·차량코드가 나온다).
  */
 export const buildPillWebQuery = (pillData: any): string => {
-    const imprint = readImprint(pillData);
-    const extra = [pillData?.color, pillData?.shape].map(v => String(v ?? '').trim()).filter(Boolean).join(' ');
-    return `"${imprint}" 알약 각인 식별${extra ? ' ' + extra : ''}`;
+    // 면마다 따로 묶는다 — 앞·뒤를 "WU / CFX" 한 구절로 묶으면 그런 문자열은 어디에도 없어 결과가 0건이었다(11-28 실사진).
+    // 면이 둘이면 긴 쪽(대개 글자 각인)만 쓴다 — 짧은 쪽은 로고 오독(예: 로고 → "WU")일 때가 많아 검색을 비게 만든다.
+    // 토큰 단위 — 한 면에 "UU CFX" 로 붙어 와도 "CFX" 만 묶는다
+    const key = String(pillData?.imprint_front ?? '').concat(' ', String(pillData?.imprint_back ?? ''))
+        .split(/[\s/|,·]+/).map(t => t.trim())
+        .filter(t => /[a-zA-Z0-9]/.test(t) && !/^(null|undefined|없음|none|마크)$/i.test(t))
+        .sort((a, b) => b.replace(/[^a-zA-Z0-9]/g, '').length - a.replace(/[^a-zA-Z0-9]/g, '').length)[0] ?? '';
+    // 캡슐이면 "캡슐" 로 찾고 모양은 뺀다 — 비전의 모양 판독이 같은 캡슐에서 장방형·타원형·기타로 흔들렸다(11-28)
+    const capsule = String(pillData?.form ?? '').includes('캡슐');
+    const extra = [pillData?.color, capsule ? '' : pillData?.shape].map(v => String(v ?? '').trim()).filter(Boolean).join(' ');
+    return `"${key}" ${capsule ? '캡슐' : '알약'} 각인 식별${extra ? ' ' + extra : ''}`;
 };

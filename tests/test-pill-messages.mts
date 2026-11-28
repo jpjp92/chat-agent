@@ -159,6 +159,14 @@ if (q.includes('알약') && q.includes('각인')) { pass++; console.log('✅ 검
 else { fail++; console.log(`❌ 검색어  '알약 각인' 이 없으면 부품번호가 나온다: ${q}`); }
 if (q.includes('하양') && q.includes('타원형')) { pass++; console.log('✅ 검색어  색상·모양을 보조어로 붙인다'); }
 else { fail++; console.log(`❌ 검색어  색상·모양 누락: ${q}`); }
+const qTwo = buildPillWebQuery({ imprint_front: 'WU', imprint_back: 'CFX', color: '주황', shape: '장방형' });
+if (qTwo.includes('"CFX"') && !qTwo.includes('/')) { pass++; console.log('✅ 검색어  양면이면 긴 각인 하나만 묶는다'); }
+else { fail++; console.log(`❌ 검색어  양면을 한 구절로 묶으면 0건이다: ${qTwo}`); }
+
+const qOneFace = buildPillWebQuery({ imprint_front: 'UU CFX', color: '주황', form: '경질캡슐' });
+if (qOneFace.includes('"CFX"') && !qOneFace.includes('UU')) { pass++; console.log('✅ 검색어  한 면에 붙은 "UU CFX" 도 토큰으로 나눠 CFX 만'); }
+else { fail++; console.log(`❌ 검색어  한 면 통째로 묶으면 0건이다: ${qOneFace}`); }
+
 const qNoExtra = buildPillWebQuery({ imprint_front: 'OG37' });
 if (qNoExtra.trim() === qNoExtra && !qNoExtra.includes('  ')) { pass++; console.log('✅ 검색어  색상·모양이 없어도 공백이 남지 않는다'); }
 else { fail++; console.log(`❌ 검색어  빈 보조어로 공백이 남았다: ${JSON.stringify(qNoExtra)}`); }

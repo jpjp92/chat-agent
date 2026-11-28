@@ -2,57 +2,74 @@ import 'server-only';
 
 const SEARCH_URL = 'https://www.pharm.or.kr/search/drugidfy/list.asp';
 
-export async function searchPill(criteria: { imprint_front: string, imprint_back?: string, color?: string, shape?: string }) {
-    const { imprint_front, imprint_back, color, shape } = criteria;
+/**
+ * 검색 키 — 두 면의 각인을 **토큰으로 쪼개** 영문·숫자가 가장 긴 것.
+ * 비전은 한 면에 "UU CFX" 처럼 로고 오독 + 문자 각인을 붙여 내기도 한다 → 통째로 쓰면 "UUCFX" 로 0건이었다(11-28).
+ * 로고를 글자로 오독한 토큰(예: 위더스 로고 → "UU")은 대개 짧다.
+ */
+function imprintTokens(...faces: (string | null | undefined)[]): string[] {
+    return faces
+        .flatMap(f => String(f ?? '').split(/[\s/|,·]+/))
+        .map(t => t.trim())
+        .filter(t => /[a-zA-Z0-9]/.test(t) && !/^(null|undefined|없음|none|마크)$/i.test(t))
+        .sort((a, b) => b.replace(/[^a-zA-Z0-9]/g, '').length - a.replace(/[^a-zA-Z0-9]/g, '').length);
+}
+function searchKey(front: string, back?: string): string {
+    return imprintTokens(front, back)[0] ?? '';
+}
+
+const PHARM_MAX_PAGES = 5;
+// "포함" 검색은 사이트가 느린 질의가 있다(TYLENOL 12~13s, CFX ~1s — 11-28 실측). 4s 에서 끊고,
+// 빠른 "시작" 검색(~0.7s)을 같이 돌려 둘 중 온 것을 합친다 — 느려도 예전("시작"만)보다 나빠지지 않는다.
+const CONTAINS_TIMEOUT_MS = 4_000;
+
+/** 한 질의의 전 페이지 — "포함" 1페이지에서 마지막 페이지를 읽고 나머지를 **병렬**로. "시작" 1페이지도 동시에. */
+async function fetchAllPages(q: string): Promise<any[]> {
+    const containsAll = (async () => {
+        const first = await fetchPage(q, 1, '0', CONTAINS_TIMEOUT_MS);
+        const pages = Math.min(first.lastPage, PHARM_MAX_PAGES);
+        const rest = await Promise.allSettled(Array.from({ length: Math.max(0, pages - 1) }, (_, i) => fetchPage(q, i + 2, '0', CONTAINS_TIMEOUT_MS)));
+        return [...first.rows, ...rest.flatMap(r => (r.status === 'fulfilled' ? r.value.rows : []))];
+    })();
+    const [contains, startsWith] = await Promise.allSettled([containsAll, fetchPage(q, 1, '2')]);
+    return [
+        ...(contains.status === 'fulfilled' ? contains.value : []),
+        ...(startsWith.status === 'fulfilled' ? startsWith.value.rows : []),
+    ];
+}
+
+export async function searchPill(criteria: { imprint_front: string, imprint_back?: string, color?: string, shape?: string, form?: string }) {
+    const { imprint_front, imprint_back, color, shape, form } = criteria;
 
     try {
-        const allResultsMap = new Map();
-
-        // 1차 검색: 대문자 정규화 + 대소문자 보존 버전 모두 검색
-        // pharm.or.kr이 대소문자 구분 검색인 경우 "dP"와 "DP"가 다른 결과를 반환함
-        // 예: 마그네스정(동화약품) → 각인 "dP", 검색어 "DP"로는 누락될 수 있음
-        const normalized = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase(); // "DP"
-        const preservedCase = (imprint_front || '').replace(/[^a-zA-Z0-9]/g, '');             // "dP"
-        const primaryQueries = new Set<string>([normalized, preservedCase].filter(Boolean));
-
-        for (const q of primaryQueries) {
-            const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
-            settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
-        }
-
-        // 2차 검색: 2자 정규화 각인 → 중간 문자 삽입 변형 검색 (예: "DP" → "DHP", "DAP"...)
-        // Vision이 "dHP" 같은 3자 로고를 "d-P"(normalize→"DP")로 오독한 경우 복원
-        if (normalized.length === 2) {
-            const variants = ['H', 'P', 'A', 'M'].map(ch => normalized[0] + ch + normalized[1]);
-            for (const v of variants) {
-                const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(v, page)));
-                settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
-            }
-        }
-
-        // 3차 검색: 3자 정규화 각인 → 중간 문자 제거 역방향 검색 (예: "DHP" → "DP", "dHP" → "dP")
-        // Vision이 "dP" 같은 2자 로고에 없는 문자를 삽입해 "dHP"로 오독한 경우 복원
+        const key = searchKey(imprint_front, imprint_back);
+        const normalized = key.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const preservedCase = key.replace(/[^a-zA-Z0-9]/g, '');
+        const queries = new Set<string>([normalized, preservedCase].filter(Boolean));
+        // 2자 각인 → 가운데 글자 삽입 변형(로고 "dHP" 를 "d-P" 로 읽은 경우), 3자 → 가운데 글자 제거
+        if (normalized.length === 2) ['H', 'P', 'A', 'M'].forEach(ch => queries.add(normalized[0] + ch + normalized[1]));
         if (normalized.length === 3) {
-            const shortened = normalized[0] + normalized[2];           // 중간 문자 제거: "DHP" → "DP"
-            const preservedShortened = preservedCase[0] + (preservedCase[2] ?? ''); // "dHP" → "dP"
-            for (const q of new Set([shortened, preservedShortened].filter(Boolean))) {
-                const settled = await Promise.allSettled([1, 2, 3, 4, 5].map(page => fetchPage(q, page)));
-                settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
-            }
+            queries.add(normalized[0] + normalized[2]);
+            if (preservedCase.length === 3) queries.add(preservedCase[0] + preservedCase[2]);
         }
 
-        const results = Array.from(allResultsMap.values());
+        // 질의 변형도 병렬 — 지연 원칙(PLAN_PILL_IDENTIFY_261128 §1)
+        const settled = await Promise.allSettled([...queries].map(fetchAllPages));
+        const allResultsMap = new Map();
+        settled.forEach(r => { if (r.status === 'fulfilled') r.value.forEach(item => { if (item.idx) allResultsMap.set(item.idx, item); }); });
 
-        return filterResults(results, { imprint_front, imprint_back, color, shape });
+        // 나머지 토큰(다른 면·로고 오독)은 뒷면 조건으로만 — 정렬 가산점용, exact 판정에선 그대로 엄격
+        const others = imprintTokens(imprint_front, imprint_back).slice(1).join(' ');
+        return filterResults(Array.from(allResultsMap.values()), { imprint_front: key, imprint_back: others, color, shape, form });
     } catch (error) {
         console.error('[Pill Logic] Search failed:', error);
         throw error;
     }
 }
 
-async function fetchPage(imprint: string, page: number): Promise<any[]> {
+async function fetchPage(imprint: string, page: number, flag: '0' | '2' = '0', timeoutMs = 6000): Promise<{ rows: any[]; lastPage: number }> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     // 각인은 그대로 쓴다 — 원하는 질의 형태(대문자 정규화 또는 대소문자 보존)는
     // 호출부가 정해서 넘긴다. pharm.or.kr 은 대소문자를 구분할 수 있다.
@@ -60,7 +77,8 @@ async function fetchPage(imprint: string, page: number): Promise<any[]> {
 
     const body = new URLSearchParams({
         s_anal: normalizedQuery,
-        s_anal_flag: normalizedQuery ? '2' : '0',
+        // 0=포함, 2=시작. 전엔 2 만 써서 "HLB CFX"·"마크 CFX" 처럼 앞에 다른 표시가 붙은 품목이 전부 빠졌다(11-28, CFX 5건 → 포함 26건)
+        s_anal_flag: flag,
         _page: page.toString(),
         s_drug_name: '',
         s_upso_name: '',
@@ -85,17 +103,22 @@ async function fetchPage(imprint: string, page: number): Promise<any[]> {
         });
 
         clearTimeout(timeoutId);
-        if (!res.ok) return [];
+        if (!res.ok) { console.warn('[Pill Logic] 약학정보원 HTTP', res.status); return { rows: [], lastPage: 0 }; }
 
         const html = await res.text();
-        if (html.includes('검색결과가 없') || !html.includes('change_bgcolor')) {
-            return [];
+        if (!html.includes('change_bgcolor')) {
+            // 결과 없음 페이지엔 안내 문구가 없다(행만 빠진 같은 화면). 검색 폼(s_anal)이 있으면 정상 0건,
+            // 폼마저 없으면 구조 변경 가능성 — 0건과 구분해 남긴다
+            if (!html.includes('name="s_anal"')) console.warn('[Pill Logic] 약학정보원 파싱 실패(검색 화면 아님)', html.length);
+            return { rows: [], lastPage: 0 };
         }
 
-        return parseDrugRows(html);
-    } catch (e) {
+        const pageNums = [...html.matchAll(/go_page\('search_form',\s*(\d+)\)/g)].map(m => Number(m[1]));
+        return { rows: parseDrugRows(html), lastPage: Math.max(page, ...pageNums) };
+    } catch (e: any) {
         clearTimeout(timeoutId);
-        return [];
+        console.warn('[Pill Logic] 약학정보원 요청 실패', e?.name === 'AbortError' ? 'timeout' : e?.message);
+        return { rows: [], lastPage: 0 };
     }
 }
 
@@ -114,6 +137,7 @@ function parseDrugRows(html: string) {
             product_name: extractProductName(row),
             company: extractCompany(row),
             thumbnail: extractThumbnail(row),
+            mark_image: extractMarkImage(imprintCell(row, '앞')) ?? extractMarkImage(imprintCell(row, '뒤')),
         };
 
         entry.detail_url = entry.idx
@@ -132,13 +156,26 @@ function extractIdx(row: string) {
     return m ? m[1] : null;
 }
 
-function extractImprint(row: string, side: string) {
+function imprintCell(row: string, side: string): string {
     const pattern = new RegExp(
         `<!--표시\\(${side}\\)[\\s\\S]*?-->[\\s\\S]*?<td>([\\s\\S]*?)<\\/td>`, 'i'
     );
-    const m = row.match(pattern);
-    if (!m) return '';
-    return stripHtml(m[1]).replace(/\s+/g, ' ').trim();
+    return row.match(pattern)?.[1] ?? '';
+}
+
+function extractImprint(row: string, side: string) {
+    const cell = imprintCell(row, side);
+    if (!cell) return '';
+    const text = stripHtml(cell).replace(/\s+/g, ' ').trim();
+    // 제조사 로고는 <img …/mark/…> 로 들어 있어 stripHtml 이 지웠다 → "마크" 로 남긴다(식약처 표기와 같다, 예: "마크 CFX")
+    return extractMarkImage(cell) ? `마크 ${text}`.trim() : text;
+}
+
+/** 각인 칸의 제조사 로고 이미지 주소 — 같은 문자 각인(CFX) 후보를 로고로 구분하게 표에 보인다(G13). */
+function extractMarkImage(cellOrRow: string): string | null {
+    const m = cellOrRow.match(/<img src='([^']*\/mark\/[^']+)'/i) ?? cellOrRow.match(/<img src="([^"]*\/mark\/[^"]+)"/i);
+    if (!m) return null;
+    return m[1].replace('/sb_photo/MFDS/../mark/', '/sb_photo/mark/');
 }
 
 function extractFieldByComment(row: string, startComment: string, endComment: string) {
@@ -181,8 +218,8 @@ function stripHtml(html: string) {
         .replace(/&gt;/g, '>');
 }
 
-function filterResults(results: any[], criteria: { imprint_front: string, imprint_back?: string, color?: string, shape?: string }) {
-    const { imprint_front, imprint_back, color, shape } = criteria;
+function filterResults(results: any[], criteria: { imprint_front: string, imprint_back?: string, color?: string, shape?: string, form?: string }) {
+    const { imprint_front, imprint_back, color, shape, form } = criteria;
     const normalize = (s: string) => {
         if (!s) return '';
         const lower = s.toLowerCase();
@@ -226,7 +263,9 @@ function filterResults(results: any[], criteria: { imprint_front: string, imprin
         const shapeMatch = contains(r.shape, shape || '');
         return frontMatch && backMatch && colorMatch && shapeMatch;
     });
-    if (exactMatches.length > 0) return { match_type: 'exact', filteredResults: exactMatches.slice(0, 3) };
+    // exact 는 1건일 때만 — "포함" 검색 뒤엔 같은 각인·색·모양 품목이 여럿일 수 있다(CFX 주황 캡슐: 위더스·동구·바이넥스…). 여럿이면 후보 표로.
+    if (exactMatches.length === 1) return { match_type: 'exact', filteredResults: exactMatches };
+    if (exactMatches.length > 1) return { match_type: 'imprint_only', filteredResults: exactMatches.slice(0, 5) };
 
     // 1단계-b: 각인 완전 일치 — 색상/모양 불일치 허용
     // pharm.or.kr에 각인 데이터가 없는 약품(예: 마그네스정)은 imprint 검색으로 찾을 수 없음.
@@ -238,20 +277,25 @@ function filterResults(results: any[], criteria: { imprint_front: string, imprin
     });
     if (imprintExactOnly.length > 0) return { match_type: 'imprint_only', filteredResults: imprintExactOnly.slice(0, 5) };
 
-    // 2단계: 각인 포함 일치 (최소 3글자 이상 — 2자 정규화 각인(예: "DP")은 너무 짧아 오탐 발생)
+    // 2단계: 각인 포함 일치 (최소 3글자 — 2자(예: "DP")는 너무 짧아 오탐). 앞·뒷면 어느 쪽에 있어도 본다.
+    // "포함" 검색이라 같은 문자 각인 품목이 수십 개 온다(CFX 26건) → 상위 5개 안에 맞는 것이 들도록 점수로 정렬:
+    //   제형(캡슐/정제) 일치 > 면 각인이 키와 정확히 같음 > 색상 일치 > 다른 면 일치.
+    //   제형을 맨 앞에 — 정확 일치를 앞세우면 "PL / CFX" 하양 정제가 "HLB CFX" 주황 캡슐보다 위로 왔다.
     if (normTarget.length >= 3) {
-        const imprintMatches = results.filter(r => {
-            const target = normalize(r.front_imprint);
-            const frontIncludes = (normTarget.length >= 3 && target.includes(normTarget)) || (target.length >= 3 && normTarget.includes(target));
-            return target === normTarget || frontIncludes;
-        });
-        // 뒷면 각인까지 일치하는 것을 우선 정렬
+        const faceHas = (r: any) => [r.front_imprint, r.back_imprint].map(normalize).some(t => t === normTarget || (t.length >= 3 && (t.includes(normTarget) || normTarget.includes(t))));
+        const imprintMatches = results.filter(faceHas);
         if (imprintMatches.length > 0) {
-            imprintMatches.sort((a, b) => {
-                const aBackMatch = normBackTarget && normalize(a.back_imprint) === normBackTarget ? 0 : 1;
-                const bBackMatch = normBackTarget && normalize(b.back_imprint) === normBackTarget ? 0 : 1;
-                return aBackMatch - bBackMatch;
-            });
+            const wantCapsule = form ? form.includes('캡슐') : null;
+            const score = (r: any) => {
+                const faces = [r.front_imprint, r.back_imprint].map(normalize);
+                let sc = 0;
+                if (wantCapsule !== null && /캡슐/.test(r.shape || '') === wantCapsule) sc += 8;
+                if (faces.includes(normTarget)) sc += 4;
+                if (color && contains(r.color, color)) sc += 2;
+                if (normBackTarget && faces.includes(normBackTarget)) sc += 1;
+                return sc;
+            };
+            imprintMatches.sort((a, b) => score(b) - score(a));
             return { match_type: 'imprint_only', filteredResults: imprintMatches.slice(0, 5) };
         }
     }

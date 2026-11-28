@@ -28,6 +28,11 @@ export const searchWebTool = tool(
                 clearTimeout(timeoutId);
             }
             const html = await res.text();
+            // 봇 확인 페이지(202 anomaly)는 "결과 0건"과 다르다 — 섞이면 차단을 검색 실패로 오인한다(11-28 Node fetch 전부 202)
+            if (res.status === 202 || /anomaly/i.test(html.slice(0, 4000))) {
+                console.warn('[Agent Tool] searchWebTool: DDG 봇 확인으로 차단됨', res.status);
+                return `웹 검색이 차단되었습니다. 질의: ${query}`;
+            }
             // 파싱은 `server/agent/ddg-parse.ts` 로 분리했다 — 여기 정규식이 박혀 있던 탓에
             //    DDG 가 HTML 을 바꿔도(속성 순서 변경 + uddg 리디렉션 폐지) 아무도 몰랐고,
             //    **전 검색에서 출처 URL 이 0건**이 됐다. 순수 함수라 하니스로 고정된다.
@@ -55,18 +60,53 @@ export const searchWebTool = tool(
  * pharm.or.kr DB 로 약을 식별하는 도구.
  * 모델이 이미지에서 외형 속성을 뽑았을 때 쓴다.
  */
+// 제조사의 법인 표기를 뗀다 — 모델이 "제품명(제조사)" 로 쓰면 "((주)한독)" 처럼 괄호가 겹쳤다(11-28)
+const plainCompany = (name: string | null | undefined): string =>
+    String(name ?? '').replace(/\(주\)|㈜|주식회사|\(유\)|유한회사/g, '').replace(/\s+/g, ' ').trim();
+
+const formatPharm = (result: { match_type: string; filteredResults: any[] }): string => {
+    let out = `[PROVIDED_PILL_DATA]\nmatch_type: ${result.match_type}\n`;
+    result.filteredResults.forEach((r, i) => {
+        out += `Candidate ${i + 1}:\n`;
+        out += `- Name: ${r.product_name}\n`;
+        out += `- Company: ${plainCompany(r.company)}\n`;
+        // 빈 면은 빼고 잇는다 — "CFX /" 처럼 슬래시만 남으면 없는 뒷면 각인이 있는 것처럼 보였다
+        out += `- Imprint: ${[r.front_imprint, r.back_imprint].map((v: string) => (v ?? '').trim()).filter(Boolean).join(' / ')}\n`;
+        out += `- Color: ${r.color}\n`;
+        out += `- Shape: ${r.shape}\n`;
+        out += `- Image: ${r.thumbnail ?? ''}\n`;
+        out += `- Mark: ${r.mark_image ?? ''}\n`;
+        out += `- Detail URL: ${r.detail_url}\n\n`;
+    });
+    return out;
+};
+
 export const identifyPillTool = tool(
-    async ({ imprint_front, imprint_back, color, shape }) => {
+    async ({ imprint_front, imprint_back, color, shape, form }) => {
         // 1순위: MFDS 식약처 DB (Supabase mfds_pills 테이블)
         try {
-            const mfds = await searchMfdsPills({ imprint_front, imprint_back, color, shape });
+            const mfds = await searchMfdsPills({ imprint_front, imprint_back, color, shape, form });
+
+            // 각인을 읽었는데 MFDS 가 각인으로 못 찾고 색상·모양(similar)만 냈으면 약학정보원 각인 검색을 먼저 본다.
+            // 전엔 MFDS 0건일 때만 불러, 색상·모양 단계가 거의 항상 뭔가를 내는 탓에 약학정보원이 사실상 안 돌았다(G10).
+            const readImprint = [imprint_front, imprint_back].some(v => /[a-z0-9]/i.test(v ?? ''));
+            if (mfds.match_type === 'similar' && readImprint) {
+                try {
+                    const pharm = await searchPill({ imprint_front, imprint_back, color, shape, form });
+                    if (pharm.match_type === 'exact' || pharm.match_type === 'imprint_only') {
+                        return formatPharm(pharm);
+                    }
+                } catch (e: any) {
+                    console.warn('[identifyPillTool] 약학정보원 각인 검색 실패 → MFDS 색상·모양 후보:', e?.message);
+                }
+            }
 
             if (mfds.match_type !== 'none' && mfds.results.length > 0) {
                 let out = `[PROVIDED_PILL_DATA]\nmatch_type: ${mfds.match_type}\n`;
                 mfds.results.forEach((r, i) => {
                     out += `Candidate ${i + 1}:\n`;
                     out += `- Name: ${r.item_name}\n`;
-                    out += `- Company: ${r.entp_name}\n`;
+                    out += `- Company: ${plainCompany(r.entp_name)}\n`;
                     out += `- Imprint: ${r.mark_codes.join(', ')}\n`;
                     out += `- Color: ${r.color_class1 ?? '-'}\n`;
                     out += `- Shape: ${r.drug_shape ?? '-'}\n`;
@@ -82,24 +122,12 @@ export const identifyPillTool = tool(
 
         // 2순위: pharm.or.kr 스크래핑 폴백
         try {
-            const result = await searchPill({ imprint_front, imprint_back, color, shape });
+            const result = await searchPill({ imprint_front, imprint_back, color, shape, form });
 
             if (result.match_type === 'none' || result.filteredResults.length === 0) {
                 return "약학정보원 DB에서 일치하는 약품을 찾지 못했습니다. 시각적 유사성을 기반으로 답변하되, 반드시 의사나 약사에게 정확한 식별을 의뢰하라고 경고하세요.";
             }
-
-            let out = `[PROVIDED_PILL_DATA]\nmatch_type: ${result.match_type}\n`;
-            result.filteredResults.forEach((r, i) => {
-                out += `Candidate ${i + 1}:\n`;
-                out += `- Name: ${r.product_name}\n`;
-                out += `- Company: ${r.company}\n`;
-                out += `- Imprint: ${r.front_imprint} / ${r.back_imprint}\n`;
-                out += `- Color: ${r.color}\n`;
-                out += `- Shape: ${r.shape}\n`;
-                out += `- Image: ${r.thumbnail}\n`;
-                out += `- Detail URL: ${r.detail_url}\n\n`;
-            });
-            return out;
+            return formatPharm(result);
         } catch (e: any) {
             console.error('[identifyPillTool] 모든 DB 조회 실패:', e?.message);
             return "약학정보원 DB 조회 중 오류가 발생했습니다. (검색 실패)";
@@ -113,6 +141,7 @@ export const identifyPillTool = tool(
             imprint_back: z.string().optional().describe("The exact text imprinted on the back of the pill. Empty string if none."),
             color: z.string().optional().describe("The main color of the pill (e.g. 하양, 노랑, 주황, 분홍, 초록, 파랑, 갈색)."),
             shape: z.string().optional().describe("The shape of the pill (e.g. 원형, 타원형, 장방형, 육각형, 기타)."),
+            form: z.string().optional().describe("Dosage form: 정제, 경질캡슐, 연질캡슐, 기타. Empty if unknown."),
         }),
     }
 );
