@@ -555,7 +555,8 @@ async function buildKmaData(resolved: Resolved): Promise<WeatherData> {
   const temp = Math.round(numericValue(cur.T1H) ?? todayDaily?.maxTemp ?? 0);
   // 카드 머리 범위와 예보 첫 칸(오늘)이 같은 숫자를 보이도록 현재 기온도 오늘 범위에 넣는다.
   if (todayDaily) { todayDaily.minTemp = Math.min(todayDaily.minTemp, temp); todayDaily.maxTemp = Math.max(todayDaily.maxTemp, temp); }
-  const humidity = Math.round(numericValue(cur.REH) ?? daily[0]?.pop ?? 0);
+  // 실황 REH 가 비면 단기예보 첫 칸의 REH(습도)로 — 전엔 강수확률(pop)을 습도 자리에 넣었다.
+  const humidity = Math.round(numericValue(cur.REH) ?? numericValue(firstForecast.REH) ?? 0);
   const wind = Number((numericValue(cur.WSD) ?? 0).toFixed(1));
   const curRain = numericValue(cur.RN1) ?? 0;
   const pty = Number(cur.PTY || firstForecast.PTY || 0);

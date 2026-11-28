@@ -273,13 +273,13 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
 
     return (
         <>
-        <div className="w-full my-6 animate-in fade-in slide-in-from-bottom-3">
-            <div className="rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
+        <div className="w-full my-3 sm:my-6 animate-in fade-in slide-in-from-bottom-3">
+            <div className="rounded-[22px] sm:rounded-[2rem] border border-slate-200/50 dark:border-white/10 bg-white dark:bg-white/[0.06] dark:backdrop-blur-xl shadow-2xl shadow-slate-200/30 dark:shadow-none relative overflow-hidden flex flex-col group">
 
                 {/* 히어로: 제목 + 이미지 */}
                 <div className="relative bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 dark:from-transparent dark:to-transparent border-b border-slate-100 dark:border-white/5">
-                    <div className="p-8 pb-6">
-                        <div className="flex flex-col gap-6">
+                    <div className="p-4 pb-3 sm:p-8 sm:pb-6">
+                        <div className="flex flex-col gap-3 sm:gap-6">
                             {/* 제목·배지 */}
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-1">
@@ -289,7 +289,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                         </span>
                                     ))}
                                 </div>
-                                <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
+                                <h2 className="text-[18px] sm:text-2xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">
                                     {data.name}
                                     {data.engName && (
                                         <div className="text-xs font-medium text-slate-400 dark:text-slate-400 mt-1">{data.engName}</div>
@@ -308,7 +308,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <div className="relative group w-full">
                                     {/* 표본 슬라이드 느낌: 통일된 어두운 배경 */}
                                     <div
-                                        className={`w-full min-h-[14rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500 ${proxiedImageUrl && !imageError ? 'cursor-zoom-in' : ''}`}
+                                        className={`w-full min-h-[9rem] sm:min-h-[16rem] bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-200/50 dark:border-white/5 flex items-center justify-center overflow-hidden transition-all duration-500 ${proxiedImageUrl && !imageError ? 'cursor-zoom-in' : ''}`}
                                         onClick={() => { if (proxiedImageUrl && !imageError) setLightboxOpen(true); }}
                                     >
                                         <AnimatePresence mode="wait">
@@ -351,7 +351,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                                     initial={{ opacity: 1, scale: 1 }}
                                                     animate={{ opacity: 1, scale: 1 }}
                                                     transition={{ duration: 0.3, ease: "easeOut" }}
-                                                    className="relative w-full h-full flex items-center justify-center p-6"
+                                                    className="relative w-full h-full flex items-center justify-center p-2 sm:p-6"
                                                 >
                                                     <img
                                                         src={proxiedImageUrl}
@@ -383,9 +383,9 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8">
+                <div className="p-4 space-y-4 sm:p-8 sm:space-y-8">
                     {/* 식별 정보 */}
-                    <div className="space-y-4">
+                    <div className="space-y-2.5 sm:space-y-4">
                         <div className="flex items-center gap-3">
                             <span className="text-[11px] font-black text-slate-400 dark:text-indigo-400 uppercase tracking-widest">{t.features}</span>
                             <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
@@ -396,7 +396,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-shapes text-[10px] text-indigo-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '모양' : 'Shape'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.shape || data.pill_visual?.shape || '-'}</span>
+                                    <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.shape || data.pill_visual?.shape || '-'}</span>
                                 </div>
                             </div>
                             {/* 색 배지 */}
@@ -404,7 +404,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                 <i className="fa-solid fa-palette text-[10px] text-purple-500"></i>
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{language === 'ko' ? '색상' : 'Color'}</span>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.color || data.pill_visual?.color || '-'}</span>
+                                    <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200">{serverPillVisual?.color || data.pill_visual?.color || '-'}</span>
                                 </div>
                             </div>
                             {/* Imprint Badges — 표기 방식은 imprintSides */}
@@ -413,7 +413,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                                     <i className={`fa-solid fa-font text-[10px] ${t.color} mt-1 flex-shrink-0`}></i>
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[9px] font-bold text-slate-400 leading-none mb-1">{t.label}</span>
-                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
+                                        <span className="text-[11px] sm:text-xs font-black text-slate-700 dark:text-slate-200 whitespace-normal break-all leading-tight">
                                             {t.value}
                                         </span>
                                     </div>
@@ -423,36 +423,36 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                     </div>
 
                     {/* 정보 (성분·용법) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                         {/* 성분 */}
-                        <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
+                        <div className="flex flex-col p-4 sm:p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
+                            <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-4">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
                                     <i className="fa-solid fa-microscope text-indigo-500 text-xs"></i>
                                 </div>
-                                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.ingredient}</span>
+                                <span className="text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.ingredient}</span>
                             </div>
-                            <p className="text-[12px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[12px] font-semibold sm:font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {data.ingredient || '-'}
                             </p>
                         </div>
 
                         {/* 용법 */}
-                        <div className="flex flex-col p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
+                        <div className="flex flex-col p-4 sm:p-6 bg-slate-50/80 dark:bg-white/[0.03] rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden group">
+                            <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-4">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-500/30">
                                     <i className="fa-solid fa-clock-rotate-left text-indigo-500 text-xs"></i>
                                 </div>
-                                <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.dosage}</span>
+                                <span className="text-[10px] sm:text-[11px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{t.dosage}</span>
                             </div>
-                            <p className="text-[12px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                            <p className="text-[12px] font-semibold sm:font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
                                 {data.dosage || (language === 'ko' ? '복용 전 의사·약사와 상의하세요.' : 'Please consult a doctor or pharmacist.')}
                             </p>
                         </div>
                     </div>
 
                     {/* 효능 */}
-                    <div className="space-y-4">
+                    <div className="space-y-2.5 sm:space-y-4">
                         <div className="flex items-center gap-3">
                             <span className="text-[11px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">{t.efficacy}</span>
                             <div className="h-px flex-1 bg-slate-100 dark:bg-white/5"></div>
@@ -461,12 +461,12 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                             {data.efficacy?.map((eff, i) => (
                                 <div
                                     key={i}
-                                    className="p-4 bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl flex flex-col items-center justify-center text-center gap-3 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
+                                    className="px-3 py-2.5 sm:p-4 bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-xl sm:rounded-2xl flex flex-row sm:flex-col items-center justify-start sm:justify-center text-left sm:text-center gap-2 sm:gap-3 min-w-0 hover:bg-slate-50 dark:hover:bg-white/5 transition-all shadow-sm"
                                 >
-                                    <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-black/30 flex items-center justify-center border border-slate-100 dark:border-white/5">
-                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-base`}></i>
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg sm:rounded-2xl bg-slate-50 dark:bg-black/30 flex items-center justify-center border border-slate-100 dark:border-white/5">
+                                        <i className={`fa-solid ${getEfficacyIcon(eff.label, eff.icon)} text-indigo-500 text-sm sm:text-base`}></i>
                                     </div>
-                                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 leading-tight">
+                                    <span className="min-w-0 text-[11px] font-bold sm:font-black text-slate-600 dark:text-slate-300 leading-tight">
                                         {eff.label}
                                     </span>
                                 </div>
@@ -476,7 +476,7 @@ export const DrugRenderer: React.FC<DrugRendererProps> = ({ data, language = 'ko
                 </div>
 
                 {/* 하단 */}
-                <div className="px-6 sm:px-8 py-4 sm:py-5 bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div className="px-4 sm:px-8 py-3 sm:py-5 bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-col flex-shrink-0">
                         <span className="text-[9px] font-black tracking-[0.2em] uppercase whitespace-nowrap bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MED INDEX</span>
                     </div>
